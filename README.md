@@ -36,7 +36,7 @@ npm ci
 npm run build -w @poetree/shared
 
 # MySQL lives on the VPS. Open a tunnel first:
-ssh -L 3306:localhost:3306 root@72.62.227.2
+ssh -L 3306:localhost:3306 root@<vps-host>
 
 cp apps/api/.env.example apps/api/.env      # fill in DATABASE_URL and JWT secrets
 cp apps/web/.env.example apps/web/.env.local
@@ -70,10 +70,13 @@ exists so cross-tenant isolation can be checked by hand.
 ## Deployment
 
 GitHub Actions builds on `main` and deploys over SSH to the Hostinger VPS, where
-PM2 runs the API and the portal behind Nginx at
-`school.poetreepublications.com`. See [docs/vps-setup.md](docs/vps-setup.md) for
-provisioning, the required secrets, and the rules that keep this deployment from
-disturbing the other projects on that box.
+PM2 runs the API and the portal.
+
+The portal is currently reached directly on port 3200 — **testing only, since
+there is no TLS yet**. It moves behind Nginx at `school.poetreepublications.com`
+once DNS is pointed. See [docs/vps-setup.md](docs/vps-setup.md) for both stages,
+the required secrets, and the rules that keep this deployment from disturbing the
+other projects sharing that box.
 
 ## Roadmap
 

@@ -2,11 +2,9 @@
 #
 # Prepare the SHARED Hostinger VPS for the Poetree preschool platform.
 #
-# This box is not ours alone. At the time of writing it runs:
-#   plumber-crm            72.62.227.2            ports 3000 + 5000
-#   Poetree Publications   poetreepublications.com / api.*   port 4000
-#   poetree-portal         store.poetreepublications.com     ports 3100 + 4100
-# plus MySQL (poetree_db, poetree_portal, nexus_publication) and MongoDB.
+# This box is not ours alone. At the time of writing it runs three other
+# projects on ports 3000, 5000, 4000, 3100 and 4100, plus MySQL and MongoDB
+# serving their schemas. See docs/vps-setup.md for the full map.
 #
 # Every step below is additive and scoped. This script deliberately does NOT:
 #   - install or upgrade system Node        (other apps run on /usr/bin/node v20)

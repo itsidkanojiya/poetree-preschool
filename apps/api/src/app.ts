@@ -11,8 +11,10 @@ import { apiRouter } from './routes/index.js';
 export function createApp(): Express {
   const app = express();
 
-  // Behind Nginx on the VPS, so the client IP comes from X-Forwarded-For.
-  app.set('trust proxy', 1);
+  // Only trust X-Forwarded-For when a proxy really is in front. Set
+  // TRUST_PROXY=1 once Nginx terminates TLS; while the app is reached directly
+  // on its port, leaving this at 0 keeps the rate limiter honest.
+  app.set('trust proxy', env.TRUST_PROXY);
   app.disable('x-powered-by');
 
   app.use(helmet());

@@ -13,7 +13,19 @@ const envSchema = z
     ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 
-    CORS_ORIGINS: z.string().default('http://localhost:3000'),
+    CORS_ORIGINS: z.string().default('http://localhost:3200'),
+
+    /**
+     * How many reverse proxies sit in front of this process.
+     *
+     * 0 = none, so `req.ip` is the real socket address. 1 = behind Nginx, where
+     * the client address comes from X-Forwarded-For.
+     *
+     * Getting this wrong is a security bug, not a config detail: trusting the
+     * header with no proxy in front lets anyone spoof X-Forwarded-For and walk
+     * straight past the login rate limiter. Defaults to 0 — the safe answer.
+     */
+    TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
     SCHOOL_STATUS_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   })

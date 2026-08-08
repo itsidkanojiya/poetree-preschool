@@ -35,8 +35,8 @@ Both are covered by the test suite, which is the release gate for this phase.
 npm ci
 npm run build -w @poetree/shared
 
-# MySQL lives on the VPS, bound to localhost there. Open a tunnel first:
-ssh -L 3306:localhost:3306 root@<vps-host>
+# MySQL lives on the VPS. Open a tunnel first:
+ssh -L 3306:localhost:3306 root@72.62.227.2
 
 cp apps/api/.env.example apps/api/.env      # fill in DATABASE_URL and JWT secrets
 cp apps/web/.env.example apps/web/.env.local
@@ -44,8 +44,13 @@ cp apps/web/.env.example apps/web/.env.local
 npm run db:migrate -w @poetree/api
 npm run db:seed -w @poetree/api
 
-npm run dev            # API on :4000, portal on :3000
+npm run dev            # API on :4200, portal on :3200
 ```
+
+Ports are 4200/3200 rather than the usual 4000/3000 because the VPS is **shared
+with three other live projects** that already hold 3000, 4000, 5000, 3100 and
+4100. [docs/vps-setup.md](docs/vps-setup.md) lists the isolation rules — read it
+before running anything on that server.
 
 The seed prints the bootstrap logins, including two demo schools — the second one
 exists so cross-tenant isolation can be checked by hand.
@@ -65,8 +70,10 @@ exists so cross-tenant isolation can be checked by hand.
 ## Deployment
 
 GitHub Actions builds on `main` and deploys over SSH to the Hostinger VPS, where
-PM2 runs the API and the portal behind Nginx. See
-[docs/vps-setup.md](docs/vps-setup.md) for provisioning and the required secrets.
+PM2 runs the API and the portal behind Nginx at
+`school.poetreepublications.com`. See [docs/vps-setup.md](docs/vps-setup.md) for
+provisioning, the required secrets, and the rules that keep this deployment from
+disturbing the other projects on that box.
 
 ## Roadmap
 

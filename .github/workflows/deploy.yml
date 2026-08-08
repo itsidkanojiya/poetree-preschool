@@ -51,6 +51,8 @@ jobs:
           VPS_PORT: ${{ secrets.VPS_PORT }}
         run: |
           set -euo pipefail
+          # --delete is scoped to our own app root. The other projects on this
+          # shared box live in sibling directories and are never in scope.
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p ${VPS_PORT:-22}" \
             --exclude '.git' \
@@ -59,7 +61,7 @@ jobs:
             --exclude '.env.local' \
             --exclude 'apps/api/.env' \
             --exclude 'apps/web/.env.local' \
-            ./ "$VPS_USER@$VPS_HOST:/var/www/poetree/app/"
+            ./ "$VPS_USER@$VPS_HOST:/var/www/poetree-preschool/"
 
       - name: Migrate, reload and health-check
         env:
@@ -69,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "${VPS_PORT:-22}" "$VPS_USER@$VPS_HOST" \
-            'bash /var/www/poetree/app/infra/deploy.sh'
+            'bash /var/www/poetree-preschool/infra/deploy.sh'
 
       - name: Public health check
         if: ${{ vars.PUBLIC_HEALTH_URL != '' }}

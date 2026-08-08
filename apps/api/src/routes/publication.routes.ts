@@ -1,0 +1,221 @@
+import { Router } from 'express';
+import {
+  assignSubscriptionSchema,
+  createPlanSchema,
+  createSchoolAdminSchema,
+  createSchoolSchema,
+  idParamSchema,
+  listPlansQuerySchema,
+  listSchoolsQuerySchema,
+  reactivateSchoolSchema,
+  suspendSchoolSchema,
+  updatePlanSchema,
+  updateSchoolSchema,
+} from '@poetree/shared';
+import type {
+  AssignSubscriptionInput,
+  CreatePlanInput,
+  CreateSchoolAdminInput,
+  CreateSchoolInput,
+  ListPlansQuery,
+  ListSchoolsQuery,
+  ReactivateSchoolInput,
+  SuspendSchoolInput,
+  UpdatePlanInput,
+  UpdateSchoolInput,
+} from '@poetree/shared';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { requireRole } from '../middleware/requireRole.js';
+import { body, params, query, validate } from '../middleware/validate.js';
+import { prismaUnscoped } from '../db/prisma.js';
+import * as schoolService from '../services/school.service.js';
+import * as planService from '../services/plan.service.js';
+
+/**
+ * Super Admin surface. Everything below reaches across schools, which is why it
+ * is gated once here and uses `prismaUnscoped` throughout the service layer.
+ */
+export const publicationRouter = Router();
+
+publicationRouter.use(requireRole('PUBLICATION_ADMIN'));
+
+/* -------------------------------------------------------------------------- */
+/* Overview                                                                   */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/overview',
+  asyncHandler(async (_req, res) => {
+    const [total, active, trial, suspended, expired, students, teachers] = await Promise.all([
+      prismaUnscoped.school.count(),
+      prismaUnscoped.school.count({ where: { status: 'ACTIVE' } }),
+      prismaUnscoped.school.count({ where: { status: 'TRIAL' } }),
+      prismaUnscoped.school.count({ where: { status: 'SUSPENDED' } }),
+      prismaUnscoped.school.count({ where: { status: 'EXPIRED' } }),
+      prismaUnscoped.student.count(),
+      prismaUnscoped.teacherProfile.count(),
+    ]);
+
+    const expiringSoon = await prismaUnscoped.schoolSubscription.count({
+      where: {
+        isCurrent: true,
+        status: 'ACTIVE',
+        expiresAt: { gt: new Date(), lt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+      },
+    });
+
+    res.json({
+      schools: { total, active, trial, suspended, expired, expiringSoon },
+      students,
+      teachers,
+    });
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Schools                                                                    */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/schools',
+  validate({ query: listSchoolsQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await schoolService.listSchools(query<ListSchoolsQuery>(req)));
+  }),
+);
+
+publicationRouter.post(
+  '/schools',
+  validate({ body: createSchoolSchema }),
+  asyncHandler(async (req, res) => {
+    const school = await schoolService.createSchool(
+      body<CreateSchoolInput>(req),
+      req.auth!.userId,
+    );
+    res.status(201).json(school);
+  }),
+);
+
+publicationRouter.get(
+  '/schools/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await schoolService.getSchool(params<{ id: string }>(req).id));
+  }),
+);
+
+publicationRouter.patch(
+  '/schools/:id',
+  validate({ params: idParamSchema, body: updateSchoolSchema }),
+  asyncHandler(async (req, res) => {
+    const updated = await schoolService.updateSchool(
+      params<{ id: string }>(req).id,
+      body<UpdateSchoolInput>(req),
+      req.auth!.userId,
+    );
+    res.json(updated);
+  }),
+);
+
+publicationRouter.post(
+  '/schools/:id/admins',
+  validate({ params: idParamSchema, body: createSchoolAdminSchema }),
+  asyncHandler(async (req, res) => {
+    const admin = await schoolService.createSchoolAdmin(
+      params<{ id: string }>(req).id,
+      body<CreateSchoolAdminInput>(req),
+      req.auth!.userId,
+    );
+    res.status(201).json(admin);
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Plan control                                                               */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.patch(
+  '/schools/:id/subscription',
+  validate({ params: idParamSchema, body: assignSubscriptionSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await schoolService.assignSubscription(
+      params<{ id: string }>(req).id,
+      body<AssignSubscriptionInput>(req),
+      req.auth!.userId,
+    );
+    res.json(result);
+  }),
+);
+
+/** Read before you pull the switch — powers the confirmation dialog. */
+publicationRouter.get(
+  '/schools/:id/suspension-impact',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await schoolService.getSuspensionImpact(params<{ id: string }>(req).id));
+  }),
+);
+
+publicationRouter.post(
+  '/schools/:id/suspend',
+  validate({ params: idParamSchema, body: suspendSchoolSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await schoolService.suspendSchool(
+      params<{ id: string }>(req).id,
+      body<SuspendSchoolInput>(req),
+      req.auth!.userId,
+      req.ip ?? null,
+    );
+    res.json(result);
+  }),
+);
+
+publicationRouter.post(
+  '/schools/:id/reactivate',
+  validate({ params: idParamSchema, body: reactivateSchoolSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await schoolService.reactivateSchool(
+      params<{ id: string }>(req).id,
+      body<ReactivateSchoolInput>(req),
+      req.auth!.userId,
+      req.ip ?? null,
+    );
+    res.json(result);
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Subscription plans                                                         */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/plans',
+  validate({ query: listPlansQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await planService.listPlans(query<ListPlansQuery>(req)));
+  }),
+);
+
+publicationRouter.post(
+  '/plans',
+  validate({ body: createPlanSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await planService.createPlan(body<CreatePlanInput>(req)));
+  }),
+);
+
+publicationRouter.get(
+  '/plans/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await planService.getPlan(params<{ id: string }>(req).id));
+  }),
+);
+
+publicationRouter.patch(
+  '/plans/:id',
+  validate({ params: idParamSchema, body: updatePlanSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await planService.updatePlan(params<{ id: string }>(req).id, body<UpdatePlanInput>(req)));
+  }),
+);

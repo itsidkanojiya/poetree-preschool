@@ -1,0 +1,436 @@
+// Poetree Preschool Platform — Phase 1 schema.
+//
+// Multi-tenancy model: shared schema, one MySQL database, every tenant-owned
+// table carries `schoolId`. Isolation is NOT enforced here — it is enforced
+// centrally by the Prisma client extension in `src/db/prisma.ts`, which injects
+// the school filter on every query against a model listed in TENANT_MODELS.
+//
+// The enums below mirror `packages/shared/src/enums.ts`. Change both together.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PUBLICATION_ADMIN
+  SCHOOL_ADMIN
+  TEACHER
+  PARENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SchoolStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  WITHDRAWN
+}
+
+enum GuardianRelation {
+  FATHER
+  MOTHER
+  GUARDIAN
+  OTHER
+}
+
+enum ClassLevelCode {
+  PLAY_GROUP
+  NURSERY
+  JUNIOR_KG
+  SENIOR_KG
+}
+
+// ---------------------------------------------------------------------------
+// Global / publication level — no schoolId, never tenant-filtered
+// ---------------------------------------------------------------------------
+
+model Publication {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(160)
+  logoUrl   String?  @db.VarChar(500)
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schools School[]
+
+  @@map("publications")
+}
+
+model School {
+  id            String  @id @default(cuid())
+  publicationId String
+  name          String  @db.VarChar(160)
+  /// Immutable. Doubles as the Android application-id segment in Phase 2
+  /// (com.poetree.<code>), so it is restricted to [a-z][a-z0-9]{2,29}.
+  code          String  @unique @db.VarChar(30)
+  slug          String  @unique @db.VarChar(60)
+  email         String? @db.VarChar(160)
+  phone         String? @db.VarChar(20)
+  addressLine1  String? @db.VarChar(200)
+  addressLine2  String? @db.VarChar(200)
+  city          String? @db.VarChar(100)
+  state         String? @db.VarChar(100)
+  postalCode    String? @db.VarChar(20)
+  principalName String? @db.VarChar(120)
+  logoUrl       String? @db.VarChar(500)
+  primaryColor  String? @db.VarChar(7)
+
+  /// The single switch that gates every user of this school. Only TRIAL and
+  /// ACTIVE permit login; SUSPENDED and EXPIRED lock everyone out.
+  status SchoolStatus @default(TRIAL)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  publication      Publication          @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  users            User[]
+  teacherProfiles  TeacherProfile[]
+  parentProfiles   ParentProfile[]
+  students         Student[]
+  studentGuardians StudentGuardian[]
+  academicYears    AcademicYear[]
+  classrooms       Classroom[]
+  subscriptions    SchoolSubscription[]
+  auditLogs        AuditLog[]
+
+  @@index([publicationId])
+  @@index([status])
+  @@map("schools")
+}
+
+model SubscriptionPlan {
+  id                  String  @id @default(cuid())
+  code                String  @unique @db.VarChar(30)
+  name                String  @db.VarChar(80)
+  description         String? @db.Text
+  /// null means unlimited
+  maxStudents         Int?
+  maxTeachers         Int?
+  /// Smallest currency unit (paise) — never a float.
+  priceInPaise        Int     @default(0)
+  billingPeriodMonths Int     @default(12)
+  features            Json    @default("[]")
+  isActive            Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions SchoolSubscription[]
+
+  @@map("subscription_plans")
+}
+
+/// One row per plan assignment. History is kept; `isCurrent` marks the live one.
+/// Not tenant-filtered — only the Super Admin writes it, and the plan-status
+/// middleware reads it system-side before any tenant context exists.
+model SchoolSubscription {
+  id       String @id @default(cuid())
+  schoolId String
+  planId   String
+
+  status    SubscriptionStatus @default(ACTIVE)
+  startsAt  DateTime           @default(now())
+  expiresAt DateTime
+
+  suspendedAt     DateTime?
+  suspendedReason String?   @db.Text
+  suspendedById   String?
+  reactivatedAt   DateTime?
+  reactivatedById String?
+
+  isCurrent Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school        School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  suspendedBy   User?            @relation("SubscriptionSuspender", fields: [suspendedById], references: [id], onDelete: SetNull)
+  reactivatedBy User?            @relation("SubscriptionReactivator", fields: [reactivatedById], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, isCurrent])
+  @@index([planId])
+  @@index([expiresAt])
+  @@map("school_subscriptions")
+}
+
+/// The four preschool levels Poetree publishes for. Global so curriculum and
+/// learning content can attach to a level in a later phase.
+model ClassLevel {
+  id           String         @id @default(cuid())
+  code         ClassLevelCode @unique
+  name         String         @db.VarChar(60)
+  sortOrder    Int
+  minAgeMonths Int?
+  maxAgeMonths Int?
+
+  classrooms Classroom[]
+
+  @@map("class_levels")
+}
+
+// ---------------------------------------------------------------------------
+// Tenant-owned — every model below carries schoolId and is auto-filtered
+// ---------------------------------------------------------------------------
+
+model User {
+  id String @id @default(cuid())
+
+  /// NULL only for PUBLICATION_ADMIN, who sits above every school.
+  schoolId String?
+
+  /// schoolId with NULL collapsed to the literal 'PUBLICATION'. Exists purely so
+  /// the uniqueness constraints below hold for Super Admins too — MySQL treats
+  /// NULLs as distinct, so a (schoolId, email) unique index would not stop two
+  /// Super Admins sharing an email. Always written by the user service.
+  scopeKey String @db.VarChar(32)
+
+  name         String     @db.VarChar(120)
+  email        String?    @db.VarChar(160)
+  phone        String?    @db.VarChar(20)
+  passwordHash String     @db.VarChar(72)
+  role         Role
+  status       UserStatus @default(ACTIVE)
+
+  lastLoginAt        DateTime?
+  mustChangePassword Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school                    School?              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherProfile            TeacherProfile?
+  parentProfile             ParentProfile?
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]           @relation("AuditActor")
+  classroomsAsTeacher       Classroom[]          @relation("ClassTeacher")
+  suspendedSubscriptions    SchoolSubscription[] @relation("SubscriptionSuspender")
+  reactivatedSubscriptions  SchoolSubscription[] @relation("SubscriptionReactivator")
+
+  @@unique([scopeKey, email], name: "user_scope_email")
+  @@unique([scopeKey, phone], name: "user_scope_phone")
+  @@index([schoolId, role])
+  @@index([schoolId, status])
+  @@map("users")
+}
+
+model TeacherProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  schoolId String
+
+  employeeCode  String?   @db.VarChar(40)
+  qualification String?   @db.VarChar(160)
+  joinedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, employeeCode])
+  @@index([schoolId])
+  @@map("teacher_profiles")
+}
+
+model ParentProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  schoolId String
+
+  relation   GuardianRelation @default(GUARDIAN)
+  occupation String?          @db.VarChar(120)
+  address    String?          @db.VarChar(300)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school   School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  children StudentGuardian[]
+
+  @@index([schoolId])
+  @@map("parent_profiles")
+}
+
+/// Students never hold credentials. They are reached through a guardian's
+/// account — the parent taps an avatar in the Phase 2 app.
+model Student {
+  id       String @id @default(cuid())
+  schoolId String
+
+  admissionNo String    @db.VarChar(40)
+  firstName   String    @db.VarChar(60)
+  lastName    String?   @db.VarChar(60)
+  dateOfBirth DateTime
+  gender      Gender
+  rollNo      String?   @db.VarChar(20)
+  avatarUrl   String?   @db.VarChar(500)
+  bloodGroup  String?   @db.VarChar(8)
+  classroomId String?
+  status      StudentStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classroom Classroom?        @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  guardians StudentGuardian[]
+
+  @@unique([schoolId, admissionNo])
+  @@index([schoolId, classroomId])
+  @@index([schoolId, status])
+  @@map("students")
+}
+
+/// Many-to-many: a student may have two guardians, a parent several children.
+model StudentGuardian {
+  id              String @id @default(cuid())
+  schoolId        String
+  studentId       String
+  parentProfileId String
+
+  relation  GuardianRelation @default(GUARDIAN)
+  isPrimary Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  school        School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parentProfile ParentProfile @relation(fields: [parentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, parentProfileId])
+  @@index([schoolId])
+  @@index([parentProfileId])
+  @@map("student_guardians")
+}
+
+/// Present in Phase 1 because attendance, fees and progress all hang off it
+/// later, and retrofitting an academic year into existing data is painful.
+model AcademicYear {
+  id       String @id @default(cuid())
+  schoolId String
+
+  name      String   @db.VarChar(40)
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classrooms Classroom[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId, isCurrent])
+  @@map("academic_years")
+}
+
+model Classroom {
+  id             String  @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  classLevelId   String
+  section        String  @db.VarChar(40)
+  capacity       Int?
+  classTeacherId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel   ClassLevel   @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  classTeacher User?        @relation("ClassTeacher", fields: [classTeacherId], references: [id], onDelete: SetNull)
+  students     Student[]
+
+  @@unique([schoolId, academicYearId, classLevelId, section])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([classTeacherId])
+  @@map("classrooms")
+}
+
+// ---------------------------------------------------------------------------
+// Session & audit — keyed by user, not tenant-filtered
+// ---------------------------------------------------------------------------
+
+/// Refresh tokens are stored as a SHA-256 hash, rotated on every use, and
+/// revoked in bulk when a school is suspended.
+model RefreshToken {
+  id     String @id @default(cuid())
+  userId String
+
+  tokenHash    String    @unique @db.VarChar(64)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  revokedBy    String?   @db.VarChar(40)
+  replacedById String?
+  userAgent    String?   @db.VarChar(300)
+  ipAddress    String?   @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Written with the unscoped client so an audit entry can never be suppressed
+/// by a tenant filter, and so publication-level events (which have no school)
+/// can be recorded.
+model AuditLog {
+  id          String  @id @default(cuid())
+  schoolId    String?
+  actorUserId String?
+
+  action    String  @db.VarChar(60)
+  entity    String  @db.VarChar(60)
+  entityId  String? @db.VarChar(40)
+  metadata  Json?
+  ipAddress String? @db.VarChar(64)
+
+  createdAt DateTime @default(now())
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  actor  User?   @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, createdAt])
+  @@index([actorUserId])
+  @@index([action])
+  @@map("audit_logs")
+}

@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+# Shell scripts and server config run on Linux — CRLF would break the shebang.
+*.sh text eol=lf
+*.conf text eol=lf
+infra/** text eol=lf
+
+*.ttf binary
+*.png binary
+*.jpg binary
+*.ico binary

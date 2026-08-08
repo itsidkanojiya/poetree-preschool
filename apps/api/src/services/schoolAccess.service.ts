@@ -1,0 +1,139 @@
+import { ACTIVE_SCHOOL_STATUSES, type SchoolStatus } from '@poetree/shared';
+import { env } from '../config/env.js';
+import { prismaUnscoped } from '../db/prisma.js';
+import { ApiError } from '../lib/apiError.js';
+import { logger } from '../lib/logger.js';
+
+/**
+ * Plan gate for a whole school.
+ *
+ * When the Super Admin switches a school's plan off, every user of that school
+ * must stop working — school admin, teachers and parents alike. This module is
+ * the single place that decides whether a school's users are allowed through,
+ * and it is consulted at login, on every authenticated request, and on refresh.
+ */
+export interface SchoolAccess {
+  schoolId: string;
+  name: string;
+  status: SchoolStatus;
+  /** Populated when the school is blocked, for a useful client-side message. */
+  blockedReason: string | null;
+  planExpiresAt: Date | null;
+}
+
+interface CacheEntry {
+  value: SchoolAccess;
+  cachedAt: number;
+}
+
+/**
+ * A short-lived in-memory cache so the gate does not cost a query per request.
+ * Suspension busts the entry immediately via `invalidateSchoolAccess`, so the
+ * TTL only matters for changes made outside this process (another PM2 worker,
+ * or a direct DB edit) — those take effect within the TTL.
+ */
+const cache = new Map<string, CacheEntry>();
+const TTL_MS = env.SCHOOL_STATUS_CACHE_TTL_SECONDS * 1000;
+
+export function invalidateSchoolAccess(schoolId: string): void {
+  cache.delete(schoolId);
+}
+
+export function clearSchoolAccessCache(): void {
+  cache.clear();
+}
+
+async function loadSchoolAccess(schoolId: string): Promise<SchoolAccess | null> {
+  const school = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      subscriptions: {
+        where: { isCurrent: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { id: true, expiresAt: true, suspendedReason: true, status: true },
+      },
+    },
+  });
+
+  if (!school) return null;
+
+  const subscription = school.subscriptions[0] ?? null;
+  let status: SchoolStatus = school.status;
+
+  // Lazy expiry: a plan that ran out blocks the school on the next request,
+  // which keeps a scheduled job out of Phase 1 entirely.
+  if (
+    subscription &&
+    ACTIVE_SCHOOL_STATUSES.includes(status) &&
+    subscription.expiresAt.getTime() <= Date.now()
+  ) {
+    status = 'EXPIRED';
+    await prismaUnscoped.$transaction([
+      prismaUnscoped.school.update({ where: { id: schoolId }, data: { status: 'EXPIRED' } }),
+      prismaUnscoped.schoolSubscription.update({
+        where: { id: subscription.id },
+        data: { status: 'EXPIRED' },
+      }),
+    ]);
+    logger.info('School plan expired', { schoolId, expiresAt: subscription.expiresAt });
+  }
+
+  return {
+    schoolId: school.id,
+    name: school.name,
+    status,
+    blockedReason: status === 'SUSPENDED' ? (subscription?.suspendedReason ?? null) : null,
+    planExpiresAt: subscription?.expiresAt ?? null,
+  };
+}
+
+export async function getSchoolAccess(schoolId: string): Promise<SchoolAccess | null> {
+  const cached = cache.get(schoolId);
+  if (cached && Date.now() - cached.cachedAt < TTL_MS) {
+    return cached.value;
+  }
+
+  const value = await loadSchoolAccess(schoolId);
+  if (value) cache.set(schoolId, { value, cachedAt: Date.now() });
+  return value;
+}
+
+export function isSchoolUsable(status: SchoolStatus): boolean {
+  return ACTIVE_SCHOOL_STATUSES.includes(status);
+}
+
+const BLOCK_MESSAGES: Record<Exclude<SchoolStatus, 'TRIAL' | 'ACTIVE'>, string> = {
+  SUSPENDED: 'Your school’s access has been suspended. Please contact Poetree Publication.',
+  EXPIRED: 'Your school’s subscription has expired. Please contact Poetree Publication to renew.',
+};
+
+/**
+ * Throws unless the school's plan currently permits its users through.
+ * Used by both the login path and the per-request middleware so the two can
+ * never disagree about what "blocked" means.
+ */
+export async function assertSchoolUsable(schoolId: string): Promise<SchoolAccess> {
+  const access = await getSchoolAccess(schoolId);
+
+  if (!access) {
+    // The school row is gone but a token for it still exists.
+    throw ApiError.unauthenticated('Your school account no longer exists');
+  }
+
+  if (!isSchoolUsable(access.status)) {
+    throw ApiError.schoolSuspended(
+      BLOCK_MESSAGES[access.status as 'SUSPENDED' | 'EXPIRED'],
+      {
+        schoolStatus: access.status,
+        schoolName: access.name,
+        reason: access.blockedReason,
+      },
+    );
+  }
+
+  return access;
+}

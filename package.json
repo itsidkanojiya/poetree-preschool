@@ -1,0 +1,34 @@
+{
+  "name": "poetree-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Poetree Publication — multi-tenant preschool learning & school management platform",
+  "workspaces": [
+    "packages/*",
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run build -w @poetree/shared && npm run build -w @poetree/api && npm run build -w @poetree/web",
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @poetree/api\" \"npm run dev -w @poetree/web\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test -w @poetree/api",
+    "db:generate": "npm run db:generate -w @poetree/api",
+    "db:migrate": "npm run db:migrate -w @poetree/api",
+    "db:seed": "npm run db:seed -w @poetree/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.2"
+  }
+}

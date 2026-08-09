@@ -7,10 +7,10 @@ import { env } from '../config/env.js';
  * Models that carry `schoolId` and are automatically filtered by the extension
  * below.
  *
- * âš  Adding a tenant-owned model to the schema means adding it here IN THE SAME
+ *     Adding a tenant-owned model to the schema means adding it here IN THE SAME
  * COMMIT. Anything absent from this set is queried completely unfiltered, which
  * is a cross-tenant data leak, not a missing feature. `Subject` appears here
- * even though publication defaults have a NULL schoolId â€” those defaults are
+ * even though publication defaults have a NULL schoolId     those defaults are
  * read through `prismaUnscoped`, never through the scoped client.
  *
  * `tests/unit/tenancy.test.ts` asserts this set against the schema so a new
@@ -43,7 +43,7 @@ export const TENANT_MODELS = new Set<string>([
 
 /**
  * Models carrying `deletedAt`. Reads against these are filtered to living rows
- * automatically, by the same extension that enforces tenancy â€” one mechanism,
+ * automatically, by the same extension that enforces tenancy     one mechanism,
  * two guarantees, nothing extra for a developer to remember per query.
  *
  * To reach deleted rows deliberately, mention `deletedAt` in the where clause
@@ -124,7 +124,7 @@ function schoolIdForQuery(model: string, operation: string): string {
  * Narrows a where clause to living rows.
  *
  * If the caller mentioned `deletedAt` themselves they are asking for deleted
- * rows deliberately â€” an admin restore screen, a purge job â€” so the injection
+ * rows deliberately     an admin restore screen, a purge job     so the injection
  * steps aside rather than fighting them.
  */
 function withoutDeleted(where: unknown): Record<string, unknown> {
@@ -153,7 +153,7 @@ function stampCreateData(data: unknown, schoolId: string): unknown {
  *  - a missing context throws instead of falling back to unscoped.
  *
  * Caveat: this rewrites the *top level* of a query only. Nested writes must set
- * `schoolId` themselves â€” see `createStudent` for the pattern. The failure mode
+ * `schoolId` themselves     see `createStudent` for the pattern. The failure mode
  * of forgetting is a NOT NULL violation from MySQL, never a cross-tenant leak.
  */
 export const prisma = basePrisma.$extends({
@@ -161,7 +161,7 @@ export const prisma = basePrisma.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
-        // Soft delete is independent of tenancy â€” FileObject is soft-deletable
+        // Soft delete is independent of tenancy     FileObject is soft-deletable
         // but publication-owned, and both filters must still apply to User.
         const softDeleted =
           SOFT_DELETE_MODELS.has(model) && SOFT_DELETE_READ_OPERATIONS.has(operation);
@@ -204,7 +204,7 @@ export const prisma = basePrisma.$extends({
           } as typeof args);
         }
 
-        // Unrecognised operation on a tenant model â€” refuse rather than guess.
+        // Unrecognised operation on a tenant model     refuse rather than guess.
         throw ApiError.tenantContextMissing(
           `Operation "${operation}" on tenant model ${model} is not handled by the isolation extension.`,
         );

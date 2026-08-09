@@ -10,8 +10,36 @@ export function notFoundHandler(req: Request, _res: Response, next: NextFunction
   next(ApiError.notFound(`No route for ${req.method} ${req.path}`));
 }
 
+/** body-parser marks its own failures; `type` is the reliable discriminator. */
+function isBodyParseError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { type?: string }).type === 'entity.parse.failed'
+  );
+}
+
+function isPayloadTooLarge(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { type?: string }).type === 'entity.too.large'
+  );
+}
+
 function translate(error: unknown): ApiError {
   if (isApiError(error)) return error;
+
+  // A client sending broken JSON is a bad request, not a server fault. Left
+  // untranslated it returns 500 and fills the error log with noise that looks
+  // like an outage.
+  if (isBodyParseError(error)) {
+    return ApiError.badRequest('The request body is not valid JSON');
+  }
+
+  if (isPayloadTooLarge(error)) {
+    return ApiError.badRequest('The request body is too large');
+  }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {

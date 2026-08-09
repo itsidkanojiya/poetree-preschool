@@ -22,8 +22,18 @@ export async function isDatabaseReachable(): Promise<boolean> {
 
 /** Order matters: children before parents, or MySQL rejects the deletes. */
 export async function resetDatabase(): Promise<void> {
+  await prismaUnscoped.notification.deleteMany();
+  await prismaUnscoped.deviceToken.deleteMany();
+  await prismaUnscoped.studentDocument.deleteMany();
+  await prismaUnscoped.fileObject.deleteMany();
   await prismaUnscoped.studentGuardian.deleteMany();
+  await prismaUnscoped.studentEnrolment.deleteMany();
   await prismaUnscoped.student.deleteMany();
+  await prismaUnscoped.classroomTeacher.deleteMany();
+  await prismaUnscoped.subject.deleteMany();
+  await prismaUnscoped.room.deleteMany();
+  await prismaUnscoped.schoolHoliday.deleteMany();
+  await prismaUnscoped.documentSequence.deleteMany();
   await prismaUnscoped.classroom.deleteMany();
   await prismaUnscoped.academicYear.deleteMany();
   await prismaUnscoped.teacherProfile.deleteMany();
@@ -203,6 +213,16 @@ export async function seedSchool(
       lastName: name,
       dateOfBirth: new Date('2022-01-01'),
       gender: 'MALE',
+      status: 'ACTIVE',
+    },
+  });
+
+  // Class membership is an enrolment in a specific academic year.
+  await prismaUnscoped.studentEnrolment.create({
+    data: {
+      schoolId: school.id,
+      studentId: student.id,
+      academicYearId: academicYear.id,
       classroomId: classroom.id,
       status: 'ACTIVE',
     },

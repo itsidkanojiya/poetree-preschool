@@ -180,17 +180,22 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
     expect(response.body.error.code).toBe(ERROR_CODES.FORBIDDEN);
   });
 
-  it('refuses teacher and parent sign-in to the admin portal', async () => {
+  it('lets a teacher sign in to the portal but still refuses parents', async () => {
+    // Teachers joined PORTAL_ROLES at the ERP phase — they need attendance and
+    // homework on a desktop as well as in the app.
     const teacherLogin = await api
       .post(`${BASE}/auth/login`)
       .send({ identifier: schoolA.teacherEmail, password: TEST_PASSWORD });
 
+    expect(teacherLogin.status).toBe(200);
+    expect(teacherLogin.body.user.role).toBe('TEACHER');
+    expect(teacherLogin.body.user.school.code).toBe(schoolA.code);
+
+    // Parents remain app-only.
     const parentLogin = await api
       .post(`${BASE}/auth/login`)
       .send({ identifier: schoolA.parentPhone, password: TEST_PASSWORD });
 
-    expect(teacherLogin.status).toBe(403);
-    expect(teacherLogin.body.error.code).toBe(ERROR_CODES.PORTAL_ACCESS_DENIED);
     expect(parentLogin.status).toBe(403);
     expect(parentLogin.body.error.code).toBe(ERROR_CODES.PORTAL_ACCESS_DENIED);
   });

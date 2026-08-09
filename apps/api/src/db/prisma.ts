@@ -145,6 +145,16 @@ export const prisma = basePrisma.$extends({
 
 export type TenantPrismaClient = typeof prisma;
 
+/**
+ * The client handed to an interactive `prisma.$transaction` callback. Not the
+ * same type as `Prisma.TransactionClient` once the client is extended, so
+ * helpers that take a transaction must use this.
+ */
+export type TenantTransactionClient = Omit<
+  TenantPrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'
+>;
+
 /** Prisma's "record not found" code, raised by update/delete when the extended
  *  where clause excludes a row belonging to another school. */
 export const PRISMA_NOT_FOUND = 'P2025';

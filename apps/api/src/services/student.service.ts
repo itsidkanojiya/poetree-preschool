@@ -14,18 +14,26 @@ import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { getPlanLimits } from './plan.service.js';
 
+/**
+ * A student's class and roll number live on their enrolment for the current
+ * academic year, never on the student record itself. That is what lets a child
+ * be promoted without overwriting last year's history — see docs/architecture.md.
+ */
 const studentInclude = {
-  classroom: {
+  enrolments: {
+    where: { status: 'ACTIVE' as const },
+    orderBy: { enrolledOn: 'desc' as const },
+    take: 1,
     include: {
-      classLevel: { select: { code: true, name: true } },
-      academicYear: { select: { name: true } },
+      academicYear: { select: { id: true, name: true, isCurrent: true } },
+      classroom: {
+        include: { classLevel: { select: { code: true, name: true } } },
+      },
     },
   },
   guardians: {
     include: {
-      parentProfile: {
-        select: { id: true, user: { select: { name: true, phone: true } } },
-      },
+      parentProfile: { select: { id: true, user: { select: { name: true, phone: true } } } },
     },
   },
 } satisfies Prisma.StudentInclude;
@@ -33,6 +41,8 @@ const studentInclude = {
 type StudentRow = Prisma.StudentGetPayload<{ include: typeof studentInclude }>;
 
 function toSummary(student: StudentRow): StudentSummary {
+  const enrolment = student.enrolments[0] ?? null;
+
   return {
     id: student.id,
     admissionNo: student.admissionNo,
@@ -41,14 +51,14 @@ function toSummary(student: StudentRow): StudentSummary {
     fullName: [student.firstName, student.lastName].filter(Boolean).join(' '),
     dateOfBirth: student.dateOfBirth.toISOString(),
     gender: student.gender,
-    rollNo: student.rollNo,
+    rollNo: enrolment?.rollNo ?? null,
     avatarUrl: student.avatarUrl,
     bloodGroup: student.bloodGroup,
     status: student.status,
-    classroom: student.classroom
+    classroom: enrolment
       ? {
-          id: student.classroom.id,
-          label: `${CLASS_LEVEL_LABELS[student.classroom.classLevel.code]} — ${student.classroom.section}`,
+          id: enrolment.classroom.id,
+          label: `${CLASS_LEVEL_LABELS[enrolment.classroom.classLevel.code]} — ${enrolment.classroom.section}`,
         }
       : null,
     guardians: student.guardians.map((link) => ({
@@ -62,10 +72,22 @@ function toSummary(student: StudentRow): StudentSummary {
   };
 }
 
+/** The year new admissions are enrolled into. */
+async function currentAcademicYearId(): Promise<string | null> {
+  const year = await prisma.academicYear.findFirst({
+    where: { isCurrent: true },
+    select: { id: true },
+  });
+  return year?.id ?? null;
+}
+
 export async function listStudents(query: ListStudentsQuery): Promise<Paginated<StudentSummary>> {
   const where: Prisma.StudentWhereInput = {};
   if (query.status) where.status = query.status;
-  if (query.classroomId) where.classroomId = query.classroomId;
+  // Filtering by classroom now goes through the enrolment, not the student.
+  if (query.classroomId) {
+    where.enrolments = { some: { classroomId: query.classroomId, status: 'ACTIVE' } };
+  }
   if (query.search) {
     where.OR = [
       { firstName: { contains: query.search } },
@@ -98,11 +120,6 @@ export async function getStudent(studentId: string): Promise<StudentSummary> {
   return toSummary(student);
 }
 
-/**
- * Guardians and classrooms are resolved through the tenant-scoped client, so an
- * id belonging to another school simply does not resolve and the request fails
- * validation rather than linking across tenants.
- */
 async function assertGuardiansBelongToSchool(parentProfileIds: string[]): Promise<void> {
   const found = await prisma.parentProfile.findMany({
     where: { id: { in: parentProfileIds } },
@@ -158,25 +175,32 @@ export async function createStudent(
     });
   }
 
+  // A classroom means an enrolment, and an enrolment needs a year to belong to.
+  const academicYearId = input.classroomId ? await currentAcademicYearId() : null;
+  if (input.classroomId && !academicYearId) {
+    throw ApiError.badRequest(
+      'Set a current academic year before assigning a child to a classroom.',
+    );
+  }
+
   const studentId = await prisma.$transaction(async (tx) => {
     const student = await tx.student.create({
       data: {
         schoolId,
         admissionNo: input.admissionNo,
+        admissionDate: new Date(),
         firstName: input.firstName,
         lastName: input.lastName ?? null,
         dateOfBirth: input.dateOfBirth,
         gender: input.gender,
-        rollNo: input.rollNo ?? null,
         avatarUrl: input.avatarUrl ?? null,
         bloodGroup: input.bloodGroup ?? null,
-        classroomId: input.classroomId ?? null,
         status: 'ACTIVE',
       },
     });
 
     // Nested writes are not rewritten by the isolation extension, so schoolId is
-    // set here explicitly.
+    // set explicitly here.
     await tx.studentGuardian.createMany({
       data: input.guardians.map((g) => ({
         schoolId,
@@ -186,6 +210,19 @@ export async function createStudent(
         isPrimary: g.isPrimary,
       })),
     });
+
+    if (input.classroomId && academicYearId) {
+      await tx.studentEnrolment.create({
+        data: {
+          schoolId,
+          studentId: student.id,
+          academicYearId,
+          classroomId: input.classroomId,
+          rollNo: input.rollNo ?? null,
+          status: 'ACTIVE',
+        },
+      });
+    }
 
     return student.id;
   });
@@ -211,7 +248,7 @@ export async function updateStudent(
 
   const existing = await prisma.student.findFirst({
     where: { id: studentId },
-    select: { id: true },
+    include: { enrolments: { where: { status: 'ACTIVE' }, take: 1 } },
   });
   if (!existing) throw ApiError.notFound('Student not found');
 
@@ -220,7 +257,8 @@ export async function updateStudent(
   }
   if (input.classroomId) await assertClassroomBelongsToSchool(input.classroomId);
 
-  const { guardians, ...fields } = input;
+  const { guardians, classroomId, rollNo, ...fields } = input;
+  const enrolment = existing.enrolments[0] ?? null;
 
   await prisma.$transaction(async (tx) => {
     await tx.student.update({
@@ -230,13 +268,46 @@ export async function updateStudent(
         lastName: fields.lastName,
         dateOfBirth: fields.dateOfBirth,
         gender: fields.gender,
-        rollNo: fields.rollNo,
         avatarUrl: fields.avatarUrl,
         bloodGroup: fields.bloodGroup,
-        classroomId: fields.classroomId,
         status: fields.status,
       },
     });
+
+    // Moving a child between sections mid-year updates the existing enrolment;
+    // it does not open a second one. Only promotion does that.
+    if (classroomId !== undefined || rollNo !== undefined) {
+      if (enrolment) {
+        await tx.studentEnrolment.update({
+          where: { id: enrolment.id },
+          data: {
+            classroomId: classroomId ?? undefined,
+            rollNo: rollNo ?? undefined,
+          },
+        });
+      } else if (classroomId) {
+        const academicYearId = await tx.academicYear
+          .findFirst({ where: { schoolId, isCurrent: true }, select: { id: true } })
+          .then((year) => year?.id ?? null);
+
+        if (!academicYearId) {
+          throw ApiError.badRequest(
+            'Set a current academic year before assigning a child to a classroom.',
+          );
+        }
+
+        await tx.studentEnrolment.create({
+          data: {
+            schoolId,
+            studentId,
+            academicYearId,
+            classroomId,
+            rollNo: rollNo ?? null,
+            status: 'ACTIVE',
+          },
+        });
+      }
+    }
 
     if (guardians) {
       await tx.studentGuardian.deleteMany({ where: { studentId, schoolId } });

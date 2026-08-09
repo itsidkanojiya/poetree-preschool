@@ -244,9 +244,21 @@ async function main(): Promise<void> {
         classLevelId: nursery.id,
         section: 'A',
         capacity: 25,
-        classTeacherId: teacherIds[0] ?? null,
       },
     });
+
+    // The teaching team is its own table, so a class can later gain an assistant
+    // or a subject teacher without a schema change.
+    if (teacherIds[0]) {
+      await prisma.classroomTeacher.create({
+        data: {
+          schoolId: school.id,
+          classroomId: classroom.id,
+          userId: teacherIds[0],
+          role: 'CLASS_TEACHER',
+        },
+      });
+    }
 
     for (const family of demo.families) {
       const parentUser = await prisma.user.create({
@@ -274,6 +286,18 @@ async function main(): Promise<void> {
           lastName: family.child.lastName,
           dateOfBirth: yearsAgo(4),
           gender: family.child.gender,
+          admissionDate: new Date(),
+          status: 'ACTIVE',
+        },
+      });
+
+      // Class and roll number belong to the enrolment, not the child, so next
+      // year's promotion will not overwrite this record.
+      await prisma.studentEnrolment.create({
+        data: {
+          schoolId: school.id,
+          studentId: student.id,
+          academicYearId: academicYear.id,
           classroomId: classroom.id,
           status: 'ACTIVE',
         },

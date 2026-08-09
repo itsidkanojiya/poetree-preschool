@@ -70,6 +70,69 @@ enum ClassLevelCode {
   SENIOR_KG
 }
 
+/// A student's state within ONE academic year. Because enrolment is per-year,
+/// promoting a child never overwrites what they did last year.
+enum EnrolmentStatus {
+  ACTIVE
+  PROMOTED
+  TRANSFERRED
+  WITHDRAWN
+  GRADUATED
+}
+
+enum ClassroomTeacherRole {
+  CLASS_TEACHER
+  ASSISTANT
+  SUBJECT_TEACHER
+}
+
+enum HolidayType {
+  HOLIDAY
+  VACATION
+  EVENT
+  WEEKLY_OFF
+}
+
+enum SequenceKind {
+  ADMISSION
+  RECEIPT
+  INVOICE
+}
+
+enum FileVisibility {
+  PRIVATE
+  SCHOOL
+  PUBLIC
+}
+
+enum StudentDocumentType {
+  PHOTO
+  BIRTH_CERTIFICATE
+  ADDRESS_PROOF
+  MEDICAL
+  TRANSFER_CERTIFICATE
+  OTHER
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+enum NotificationType {
+  ATTENDANCE_ABSENT
+  HOMEWORK_ASSIGNED
+  HOMEWORK_REVIEWED
+  FEE_DUE
+  FEE_RECEIPT
+  NOTICE_PUBLISHED
+  NOTICE_EMERGENCY
+  CLASSROOM_POST
+  PROGRESS_UPDATED
+  ACCOUNT_SECURITY
+}
+
 // ---------------------------------------------------------------------------
 // Global / publication level — no schoolId, never tenant-filtered
 // ---------------------------------------------------------------------------
@@ -113,16 +176,26 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  publication      Publication          @relation(fields: [publicationId], references: [id], onDelete: Restrict)
-  users            User[]
-  teacherProfiles  TeacherProfile[]
-  parentProfiles   ParentProfile[]
-  students         Student[]
-  studentGuardians StudentGuardian[]
-  academicYears    AcademicYear[]
-  classrooms       Classroom[]
-  subscriptions    SchoolSubscription[]
-  auditLogs        AuditLog[]
+  publication       Publication          @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  users             User[]
+  teacherProfiles   TeacherProfile[]
+  parentProfiles    ParentProfile[]
+  students          Student[]
+  studentGuardians  StudentGuardian[]
+  studentEnrolments StudentEnrolment[]
+  studentDocuments  StudentDocument[]
+  academicYears     AcademicYear[]
+  classrooms        Classroom[]
+  classroomTeachers ClassroomTeacher[]
+  subjects          Subject[]
+  rooms             Room[]
+  holidays          SchoolHoliday[]
+  sequences         DocumentSequence[]
+  files             FileObject[]
+  notifications     Notification[]
+  deviceTokens      DeviceToken[]
+  subscriptions     SchoolSubscription[]
+  auditLogs         AuditLog[]
 
   @@index([publicationId])
   @@index([status])
@@ -195,6 +268,7 @@ model ClassLevel {
   maxAgeMonths Int?
 
   classrooms Classroom[]
+  subjects   Subject[]
 
   @@map("class_levels")
 }
@@ -225,17 +299,24 @@ model User {
   lastLoginAt        DateTime?
   mustChangePassword Boolean   @default(false)
 
+  /// Soft delete. Staff who leave are deactivated, never removed — their name
+  /// must still render on last year's attendance and homework.
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school                    School?              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacherProfile            TeacherProfile?
-  parentProfile             ParentProfile?
-  refreshTokens             RefreshToken[]
-  auditLogs                 AuditLog[]           @relation("AuditActor")
-  classroomsAsTeacher       Classroom[]          @relation("ClassTeacher")
-  suspendedSubscriptions    SchoolSubscription[] @relation("SubscriptionSuspender")
-  reactivatedSubscriptions  SchoolSubscription[] @relation("SubscriptionReactivator")
+  school                   School?              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherProfile           TeacherProfile?
+  parentProfile            ParentProfile?
+  refreshTokens            RefreshToken[]
+  auditLogs                AuditLog[]           @relation("AuditActor")
+  classroomAssignments     ClassroomTeacher[]
+  uploadedFiles            FileObject[]         @relation("FileUploader")
+  notifications            Notification[]
+  deviceTokens             DeviceToken[]
+  suspendedSubscriptions   SchoolSubscription[] @relation("SubscriptionSuspender")
+  reactivatedSubscriptions SchoolSubscription[] @relation("SubscriptionReactivator")
 
   @@unique([scopeKey, email], name: "user_scope_email")
   @@unique([scopeKey, phone], name: "user_scope_phone")
@@ -290,28 +371,96 @@ model Student {
   id       String @id @default(cuid())
   schoolId String
 
-  admissionNo String    @db.VarChar(40)
-  firstName   String    @db.VarChar(60)
-  lastName    String?   @db.VarChar(60)
-  dateOfBirth DateTime
-  gender      Gender
-  rollNo      String?   @db.VarChar(20)
-  avatarUrl   String?   @db.VarChar(500)
-  bloodGroup  String?   @db.VarChar(8)
-  classroomId String?
-  status      StudentStatus @default(ACTIVE)
+  /// Immutable, unique per school, issued from DocumentSequence. Also the key a
+  /// returning child is matched on, so their history reconnects.
+  admissionNo   String        @db.VarChar(40)
+  admissionDate DateTime?
+  firstName     String        @db.VarChar(60)
+  lastName      String?       @db.VarChar(60)
+  dateOfBirth   DateTime
+  gender        Gender
+  avatarUrl     String?       @db.VarChar(500)
+  bloodGroup    String?       @db.VarChar(8)
+  status        StudentStatus @default(ACTIVE)
+
+  addressLine1 String? @db.VarChar(200)
+  addressLine2 String? @db.VarChar(200)
+  city         String? @db.VarChar(100)
+  postalCode   String? @db.VarChar(20)
+
+  emergencyContactName  String? @db.VarChar(120)
+  emergencyContactPhone String? @db.VarChar(20)
+  /// Preschool duty of care: staff must be able to see this in seconds.
+  allergies             String? @db.Text
+  medicalNotes          String? @db.Text
+
+  /// Soft delete only. Attendance, fees and history must remain reportable.
+  deletedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  classroom Classroom?        @relation(fields: [classroomId], references: [id], onDelete: SetNull)
-  guardians StudentGuardian[]
+  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  guardians  StudentGuardian[]
+  enrolments StudentEnrolment[]
+  documents  StudentDocument[]
 
   @@unique([schoolId, admissionNo])
-  @@index([schoolId, classroomId])
   @@index([schoolId, status])
+  @@index([schoolId, deletedAt])
   @@map("students")
+}
+
+/// One row per child PER ACADEMIC YEAR — the heart of the academic-year model.
+///
+/// Class and roll number live here rather than on Student, so promoting a child
+/// closes one enrolment and opens another instead of overwriting history. A
+/// student who repeats a level simply gets a second enrolment at the same level.
+model StudentEnrolment {
+  id             String @id @default(cuid())
+  schoolId       String
+  studentId      String
+  academicYearId String
+  classroomId    String
+
+  rollNo     String?         @db.VarChar(20)
+  status     EnrolmentStatus @default(ACTIVE)
+  enrolledOn DateTime        @default(now())
+  exitedOn   DateTime?
+  exitReason String?         @db.VarChar(200)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classroom    Classroom    @relation(fields: [classroomId], references: [id], onDelete: Restrict)
+
+  /// A child can only be enrolled once in a given year.
+  @@unique([studentId, academicYearId])
+  @@index([schoolId, classroomId, status])
+  @@index([schoolId, academicYearId, status])
+  @@map("student_enrolments")
+}
+
+model StudentDocument {
+  id        String @id @default(cuid())
+  schoolId  String
+  studentId String
+  fileId    String
+
+  type  StudentDocumentType @default(OTHER)
+  label String?             @db.VarChar(120)
+
+  createdAt DateTime @default(now())
+
+  school  School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  file    FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, studentId])
+  @@map("student_documents")
 }
 
 /// Many-to-many: a student may have two guardians, a parent several children.
@@ -322,7 +471,12 @@ model StudentGuardian {
   parentProfileId String
 
   relation  GuardianRelation @default(GUARDIAN)
+  /// The default target for notifications about this child.
   isPrimary Boolean          @default(false)
+  /// Safeguarding: who may be called in an emergency, and who may collect the
+  /// child at the gate. Not the same person in every family.
+  isEmergencyContact Boolean @default(false)
+  canPickUp          Boolean @default(true)
 
   createdAt DateTime @default(now())
 
@@ -350,37 +504,132 @@ model AcademicYear {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classrooms Classroom[]
+  enrolments StudentEnrolment[]
+  holidays   SchoolHoliday[]
+  sequences  DocumentSequence[]
 
   @@unique([schoolId, name])
   @@index([schoolId, isCurrent])
   @@map("academic_years")
 }
 
+/// A class-level + section group of children within one academic year — "Nursery A".
+///
+/// Distinct from `Room` (a physical space, used by the timetable) and from the
+/// class stream (`ClassroomPost`). The brief used one word for all three; this
+/// schema keeps them separate.
 model Classroom {
-  id             String  @id @default(cuid())
+  id             String @id @default(cuid())
   schoolId       String
   academicYearId String
   classLevelId   String
-  section        String  @db.VarChar(40)
+  section        String @db.VarChar(40)
   capacity       Int?
-  classTeacherId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  classLevel   ClassLevel   @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
-  classTeacher User?        @relation("ClassTeacher", fields: [classTeacherId], references: [id], onDelete: SetNull)
-  students     Student[]
+  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel   ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  /// Multiple staff per classroom: a class teacher, an assistant, and subject
+  /// teachers all coexist without a schema change.
+  teachers     ClassroomTeacher[]
+  enrolments   StudentEnrolment[]
 
   @@unique([schoolId, academicYearId, classLevelId, section])
   @@index([schoolId])
   @@index([academicYearId])
-  @@index([classTeacherId])
   @@map("classrooms")
+}
+
+model ClassroomTeacher {
+  id          String @id @default(cuid())
+  schoolId    String
+  classroomId String
+  userId      String
+  subjectId   String?
+
+  role      ClassroomTeacherRole @default(CLASS_TEACHER)
+  startedOn DateTime             @default(now())
+  endedOn   DateTime?
+
+  createdAt DateTime @default(now())
+
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  @@unique([classroomId, userId, subjectId])
+  @@index([schoolId, userId])
+  @@index([schoolId, classroomId])
+  @@map("classroom_teachers")
+}
+
+/// Preschool "subjects" are activity areas — Language & Literacy, Numeracy,
+/// Rhymes & Music. A NULL schoolId marks a publication-provided default that
+/// every school inherits.
+model Subject {
+  id           String  @id @default(cuid())
+  schoolId     String?
+  classLevelId String?
+
+  code      String  @db.VarChar(40)
+  name      String  @db.VarChar(120)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school     School?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classLevel ClassLevel? @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  classrooms ClassroomTeacher[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId, isActive])
+  @@map("subjects")
+}
+
+/// A physical space. Used by the timetable to detect double-booking; unrelated
+/// to `Classroom`, which is a group of children.
+model Room {
+  id       String @id @default(cuid())
+  schoolId String
+
+  name     String @db.VarChar(80)
+  capacity Int?
+
+  createdAt DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, name])
+  @@map("rooms")
+}
+
+/// Non-teaching days. Without this, attendance prompts fire on holidays and
+/// every attendance percentage is computed against the wrong denominator.
+model SchoolHoliday {
+  id             String @id @default(cuid())
+  schoolId       String
+  academicYearId String
+
+  startDate DateTime
+  endDate   DateTime
+  title     String      @db.VarChar(120)
+  type      HolidayType @default(HOLIDAY)
+
+  createdAt DateTime @default(now())
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, startDate, endDate])
+  @@map("school_holidays")
 }
 
 // ---------------------------------------------------------------------------
@@ -418,10 +667,16 @@ model AuditLog {
   schoolId    String?
   actorUserId String?
 
-  action    String  @db.VarChar(60)
-  entity    String  @db.VarChar(60)
-  entityId  String? @db.VarChar(40)
-  metadata  Json?
+  action   String  @db.VarChar(60)
+  entity   String  @db.VarChar(60)
+  entityId String? @db.VarChar(40)
+  /// "Who changed what, from what, to what." Without before/after an audit log
+  /// records that something happened but not what it did.
+  before   Json?
+  after    Json?
+  metadata Json?
+
+  requestId String? @db.VarChar(64)
   ipAddress String? @db.VarChar(64)
 
   createdAt DateTime @default(now())
@@ -433,4 +688,110 @@ model AuditLog {
   @@index([actorUserId])
   @@index([action])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Cross-cutting infrastructure
+// ---------------------------------------------------------------------------
+
+/// Gapless per-school counters for admission numbers, receipts and invoices.
+///
+/// Allocation happens inside the same transaction as the document it numbers,
+/// with a row lock. Never MAX(number)+1 — that races, and two clerks taking fees
+/// at once would issue the same receipt number.
+model DocumentSequence {
+  id             String  @id @default(cuid())
+  schoolId       String
+  academicYearId String?
+
+  kind       SequenceKind
+  prefix     String       @default("") @db.VarChar(16)
+  nextNumber Int          @default(1)
+
+  updatedAt DateTime @updatedAt
+
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, kind, academicYearId])
+  @@map("document_sequences")
+}
+
+/// Metadata only — bytes live on disk (or object storage later), never in MySQL.
+///
+/// Private by default: the API authorises the request and then hands off to
+/// Nginx via X-Accel-Redirect, so guessing a URL yields nothing.
+model FileObject {
+  id       String  @id @default(cuid())
+  /// NULL for publication-owned content shared across every school.
+  schoolId String?
+
+  /// Path within the storage root. Generated UUID — a user-supplied filename
+  /// never reaches the filesystem.
+  storageKey   String         @unique @db.VarChar(300)
+  originalName String         @db.VarChar(255)
+  mimeType     String         @db.VarChar(120)
+  sizeBytes    Int
+  checksum     String?        @db.VarChar(64)
+  visibility   FileVisibility @default(PRIVATE)
+  uploadedById String?
+
+  /// Soft delete; a job purges the bytes after a grace period so a misclick is
+  /// recoverable.
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  school     School?           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  uploadedBy User?             @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  documents  StudentDocument[]
+
+  @@index([schoolId, deletedAt])
+  @@map("file_objects")
+}
+
+/// The durable in-app inbox. Writing this row and sending the push are separate
+/// steps, so a failed push never loses the message.
+model Notification {
+  id       String @id @default(cuid())
+  schoolId String
+  userId   String
+
+  type       NotificationType
+  title      String           @db.VarChar(160)
+  body       String           @db.Text
+  /// Deep-link payload for the app.
+  data       Json?
+  entityType String?          @db.VarChar(60)
+  entityId   String?          @db.VarChar(40)
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, userId, readAt])
+  @@index([schoolId, createdAt])
+  @@map("notifications")
+}
+
+model DeviceToken {
+  id       String @id @default(cuid())
+  schoolId String
+  userId   String
+
+  token      String         @unique @db.VarChar(255)
+  platform   DevicePlatform
+  appVersion String?        @db.VarChar(40)
+  lastSeenAt DateTime       @default(now())
+  /// Revoked on sign-out, and pruned when FCM reports the token stale.
+  revokedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, userId, revokedAt])
+  @@map("device_tokens")
 }

@@ -6,7 +6,7 @@ import type {
   CreateClassroomInput,
   UpdateClassroomInput,
 } from '@poetree/shared';
-import { prisma, prismaUnscoped } from '../db/prisma.js';
+import { prisma, prismaUnscoped, type TenantTransactionClient } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 
@@ -95,16 +95,30 @@ export async function createAcademicYear(
 /* Classrooms                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A classroom's teaching team lives in `ClassroomTeacher`, so a class teacher,
+ * an assistant and a subject teacher can coexist. The summary surfaces the class
+ * teacher because that is the one the roster screens name.
+ *
+ * Student count comes from enrolments — children belong to a classroom for one
+ * academic year at a time.
+ */
 const classroomInclude = {
   classLevel: { select: { code: true, name: true } },
   academicYear: { select: { id: true, name: true, isCurrent: true } },
-  classTeacher: { select: { id: true, name: true } },
-  _count: { select: { students: true } },
+  teachers: {
+    where: { role: 'CLASS_TEACHER' as const, endedOn: null },
+    take: 1,
+    include: { user: { select: { id: true, name: true } } },
+  },
+  _count: { select: { enrolments: true } },
 } satisfies Prisma.ClassroomInclude;
 
 type ClassroomRow = Prisma.ClassroomGetPayload<{ include: typeof classroomInclude }>;
 
 function toClassroomSummary(row: ClassroomRow): ClassroomSummary {
+  const classTeacher = row.teachers[0]?.user ?? null;
+
   return {
     id: row.id,
     section: row.section,
@@ -115,9 +129,48 @@ function toClassroomSummary(row: ClassroomRow): ClassroomSummary {
       name: row.academicYear.name,
       isCurrent: row.academicYear.isCurrent,
     },
-    classTeacher: row.classTeacher ? { id: row.classTeacher.id, name: row.classTeacher.name } : null,
-    studentCount: row._count.students,
+    classTeacher: classTeacher ? { id: classTeacher.id, name: classTeacher.name } : null,
+    studentCount: row._count.enrolments,
   };
+}
+
+/**
+ * Replaces whichever user currently holds the CLASS_TEACHER slot. Past
+ * assignments are closed rather than deleted, so historical records keep naming
+ * the teacher who actually taught the class.
+ */
+async function setClassTeacher(
+  tx: TenantTransactionClient,
+  schoolId: string,
+  classroomId: string,
+  userId: string | null,
+): Promise<void> {
+  await tx.classroomTeacher.updateMany({
+    where: { schoolId, classroomId, role: 'CLASS_TEACHER', endedOn: null },
+    data: { endedOn: new Date() },
+  });
+
+  if (!userId) return;
+
+  // Not an upsert: the compound unique includes a nullable `subjectId`, and SQL
+  // never matches NULL to NULL, so a unique lookup cannot target the class
+  // teacher row. Find it explicitly instead.
+  const existing = await tx.classroomTeacher.findFirst({
+    where: { schoolId, classroomId, userId, subjectId: null },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await tx.classroomTeacher.update({
+      where: { id: existing.id },
+      data: { role: 'CLASS_TEACHER', endedOn: null },
+    });
+    return;
+  }
+
+  await tx.classroomTeacher.create({
+    data: { schoolId, classroomId, userId, role: 'CLASS_TEACHER' },
+  });
 }
 
 export async function listClassrooms(academicYearId?: string): Promise<ClassroomSummary[]> {
@@ -178,19 +231,22 @@ export async function createClassroom(input: CreateClassroomInput): Promise<Clas
     throw ApiError.conflict(`Section "${input.section}" already exists for that class and year`);
   }
 
-  const created = await prisma.classroom.create({
-    data: {
-      schoolId,
-      academicYearId: input.academicYearId,
-      classLevelId,
-      section: input.section,
-      capacity: input.capacity ?? null,
-      classTeacherId: input.classTeacherId ?? null,
-    },
-    include: classroomInclude,
+  const createdId = await prisma.$transaction(async (tx) => {
+    const classroom = await tx.classroom.create({
+      data: {
+        schoolId,
+        academicYearId: input.academicYearId,
+        classLevelId,
+        section: input.section,
+        capacity: input.capacity ?? null,
+      },
+    });
+
+    await setClassTeacher(tx, schoolId, classroom.id, input.classTeacherId ?? null);
+    return classroom.id;
   });
 
-  return toClassroomSummary(created);
+  return getClassroom(createdId);
 }
 
 export async function updateClassroom(
@@ -209,16 +265,22 @@ export async function updateClassroom(
     ? await resolveClassLevelId(input.classLevelCode)
     : undefined;
 
-  const updated = await prisma.classroom.update({
-    where: { id: classroomId },
-    data: {
-      section: input.section,
-      capacity: input.capacity,
-      classTeacherId: input.classTeacherId,
-      classLevelId,
-    },
-    include: classroomInclude,
+  const schoolId = requireSchoolId();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.classroom.update({
+      where: { id: classroomId, schoolId },
+      data: {
+        section: input.section,
+        capacity: input.capacity,
+        classLevelId,
+      },
+    });
+
+    if (input.classTeacherId !== undefined) {
+      await setClassTeacher(tx, schoolId, classroomId, input.classTeacherId ?? null);
+    }
   });
 
-  return toClassroomSummary(updated);
+  return getClassroom(classroomId);
 }

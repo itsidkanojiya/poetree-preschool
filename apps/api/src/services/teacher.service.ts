@@ -22,7 +22,7 @@ import { getPlanLimits } from './plan.service.js';
 
 const teacherInclude = {
   teacherProfile: true,
-  _count: { select: { classroomsAsTeacher: true } },
+  _count: { select: { classroomAssignments: true } },
 } satisfies Prisma.UserInclude;
 
 type TeacherRow = Prisma.UserGetPayload<{ include: typeof teacherInclude }>;
@@ -38,7 +38,7 @@ function toSummary(user: TeacherRow): TeacherSummary {
     employeeCode: user.teacherProfile?.employeeCode ?? null,
     qualification: user.teacherProfile?.qualification ?? null,
     joinedAt: user.teacherProfile?.joinedAt?.toISOString() ?? null,
-    classroomCount: user._count.classroomsAsTeacher,
+    classroomCount: user._count.classroomAssignments,
     createdAt: user.createdAt.toISOString(),
   };
 }

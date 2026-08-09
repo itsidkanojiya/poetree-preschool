@@ -39,8 +39,11 @@ echo "==> Generating Prisma client"
 npx prisma generate --schema "$SCHEMA"
 
 echo "==> Applying database migrations"
+# Run from apps/api so Prisma picks up apps/api/.env — from the monorepo root it
+# looks for a root .env, finds none, and dies with "Environment variable not found:
+# DATABASE_URL" even though the API itself is configured correctly.
 # `migrate deploy` only applies committed migrations and never resets data.
-npx prisma migrate deploy --schema "$SCHEMA"
+( cd "$APP_ROOT/apps/api" && npx prisma migrate deploy --schema prisma/schema.prisma )
 
 echo "==> Reloading PM2 (only the apps named in our ecosystem file)"
 if pm2 describe poetree-preschool-api >/dev/null 2>&1; then

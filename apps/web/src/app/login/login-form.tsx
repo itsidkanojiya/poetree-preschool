@@ -2,17 +2,18 @@
 
 import { useActionState } from 'react';
 import { Field, FormError, Input, SubmitButton } from '@/components/ui/form';
+import { Notice } from '@/components/ui/layout';
 import { loginAction, type LoginState } from './actions';
 
 export function LoginForm({ notice }: { notice?: string }) {
   const [state, formAction] = useActionState<LoginState, FormData>(loginAction, {});
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       {notice && !state.error && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {notice}
-        </p>
+        <Notice tone="warning">
+          <span>{notice}</span>
+        </Notice>
       )}
 
       <FormError message={state.error} />
@@ -21,8 +22,9 @@ export function LoginForm({ notice }: { notice?: string }) {
         <Input
           name="identifier"
           type="text"
+          inputMode="email"
           autoComplete="username"
-          placeholder="admin@poetree.com"
+          placeholder="you@school.com"
           required
           autoFocus
         />

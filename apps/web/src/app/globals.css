@@ -4,15 +4,44 @@
 
 :root {
   --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Page plane sits a touch warm so white cards lift off it. */
+  --plane: #f6f7fa;
+  --surface: #ffffff;
+  --hairline: rgb(13 28 74 / 0.08);
 }
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    background-color: var(--plane);
+    @apply text-slate-800 antialiased;
   }
 
-  /* Keyboard focus must stay obvious — admins live in these tables all day. */
+  /* Admins live in these tables all day — keyboard focus must never be subtle. */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-navy-500 ring-offset-2 ring-offset-white;
+  }
+
+  /* Columns of numbers align; standalone display figures do not (tabular-nums
+     makes a large value like 121 look loose). */
+  th[data-numeric],
+  td[data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .hairline {
+    border-color: var(--hairline);
+  }
+}
+
+/* Respect the reader's motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

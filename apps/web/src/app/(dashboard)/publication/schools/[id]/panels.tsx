@@ -2,7 +2,19 @@
 
 import { useActionState, useState } from 'react';
 import type { PlanSummary, SchoolSummary } from '@poetree/shared';
-import { Field, FormError, Input, Select, SubmitButton, Textarea } from '@/components/ui/form';
+import {
+  Button,
+  Field,
+  FieldSet,
+  FormError,
+  FormSuccess,
+  Input,
+  Select,
+  SubmitButton,
+  Textarea,
+} from '@/components/ui/form';
+import { Notice } from '@/components/ui/layout';
+import { IconAlert, IconBan } from '@/components/icons';
 import {
   assignSubscriptionAction,
   createSchoolAdminAction,
@@ -12,13 +24,10 @@ import {
   type ActionState,
 } from '../actions';
 
-function Success({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-      {message}
-    </p>
-  );
+function oneYearOut(): string {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 export function SchoolDetailsForm({ school }: { school: SchoolSummary }) {
@@ -28,26 +37,26 @@ export function SchoolDetailsForm({ school }: { school: SchoolSummary }) {
   );
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <FormError message={state.error} />
-      <Success message={state.success} />
+      <FormSuccess message={state.success} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <FieldSet>
         <Field label="School name">
           <Input name="name" defaultValue={school.name} />
         </Field>
         <Field label="City">
           <Input name="city" defaultValue={school.city ?? ''} />
         </Field>
-        <Field label="Brand colour">
+        <Field label="Brand colour" hint="Used on the school's app in Phase 2.">
           <Input
             name="primaryColor"
             type="color"
-            defaultValue={school.primaryColor ?? '#2563EB'}
-            className="h-10 p-1"
+            defaultValue={school.primaryColor ?? '#16307C'}
+            className="h-11 px-1.5 py-1"
           />
         </Field>
-      </div>
+      </FieldSet>
 
       <SubmitButton variant="secondary" pendingLabel="Saving…">
         Save details
@@ -68,13 +77,10 @@ export function AssignPlanPanel({
     {},
   );
 
-  const defaultExpiry = new Date();
-  defaultExpiry.setFullYear(defaultExpiry.getFullYear() + 1);
-
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <FormError message={state.error} />
-      <Success message={state.success} />
+      <FormSuccess message={state.success} />
 
       <Field label="Plan" required>
         <Select name="planId" required defaultValue="">
@@ -90,12 +96,7 @@ export function AssignPlanPanel({
       </Field>
 
       <Field label="Expires on" required hint="Access is cut automatically after this date.">
-        <Input
-          name="expiresAt"
-          type="date"
-          required
-          defaultValue={defaultExpiry.toISOString().slice(0, 10)}
-        />
+        <Input name="expiresAt" type="date" required defaultValue={oneYearOut()} />
       </Field>
 
       <SubmitButton pendingLabel="Assigning…">Assign plan</SubmitButton>
@@ -104,9 +105,9 @@ export function AssignPlanPanel({
 }
 
 /**
- * Two-step on purpose. Suspending is not a per-school-admin inconvenience — it
- * signs out and locks out every single user of the school, so the count is put
- * in front of the Super Admin before they can confirm.
+ * Two-step on purpose. Suspending is not a per-admin inconvenience — it signs
+ * out and locks out every user of the school, so the count goes in front of the
+ * Super Admin before they can confirm.
  */
 export function SuspendPanel({
   school,
@@ -122,46 +123,39 @@ export function SuspendPanel({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <FormError message={state.error} />
-      <Success message={state.success} />
+      <FormSuccess message={state.success} />
 
-      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
-        <p className="text-sm font-medium text-rose-900">
-          This blocks all {impact.users} user(s) at {school.name}.
-        </p>
-        <p className="mt-1 text-sm text-rose-800">
-          The school admin, every teacher and every parent will be signed out immediately
-          {impact.activeSessions > 0 && ` (${impact.activeSessions} live session(s) ended)`} and
-          will not be able to sign in again until the school is reactivated.
-        </p>
-      </div>
+      <Notice tone="danger" title={`This blocks all ${impact.users} users at ${school.name}.`}>
+        The school admin, every teacher and every parent is signed out immediately
+        {impact.activeSessions > 0 && ` (${impact.activeSessions} live session${impact.activeSessions === 1 ? '' : 's'} ended)`}{' '}
+        and cannot sign in again until the school is reactivated.
+      </Notice>
 
       {!confirming ? (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-        >
+        <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
+          <IconBan size={17} />
           Suspend this school…
-        </button>
+        </Button>
       ) : (
-        <form action={formAction} className="space-y-3">
+        <form action={formAction} className="space-y-4">
           <Field label="Reason" required hint="Recorded in the audit log against your account.">
-            <Textarea name="reason" required minLength={3} placeholder="Non-payment of subscription" />
+            <Textarea
+              name="reason"
+              required
+              minLength={3}
+              placeholder="Non-payment of subscription"
+            />
           </Field>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <SubmitButton variant="danger" pendingLabel="Suspending…">
-              Yes, suspend and block {impact.users} user(s)
+              Yes, block {impact.users} user{impact.users === 1 ? '' : 's'}
             </SubmitButton>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
+            <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -176,32 +170,28 @@ export function ReactivatePanel({ school }: { school: SchoolSummary }) {
   );
 
   const expired = school.status === 'EXPIRED';
-  const defaultExpiry = new Date();
-  defaultExpiry.setFullYear(defaultExpiry.getFullYear() + 1);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <FormError message={state.error} />
-      <Success message={state.success} />
+      <FormSuccess message={state.success} />
+
+      {expired && (
+        <Notice tone="warning" title="This plan has already lapsed.">
+          A new expiry date is required — without one it would block again on the next request.
+        </Notice>
+      )}
 
       <p className="text-sm text-slate-600">
         Reactivating restores access for everyone at {school.name}.
       </p>
 
-      <Field
-        label={expired ? 'New expiry date' : 'Extend expiry (optional)'}
-        required={expired}
-        hint={
-          expired
-            ? 'This plan has already lapsed, so a new date is required — otherwise it would block again on the next request.'
-            : undefined
-        }
-      >
+      <Field label={expired ? 'New expiry date' : 'Extend expiry (optional)'} required={expired}>
         <Input
           name="expiresAt"
           type="date"
           required={expired}
-          defaultValue={expired ? defaultExpiry.toISOString().slice(0, 10) : ''}
+          defaultValue={expired ? oneYearOut() : ''}
         />
       </Field>
 
@@ -221,11 +211,11 @@ export function CreateAdminPanel({ schoolId }: { schoolId: string }) {
   );
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <FormError message={state.error} />
-      <Success message={state.success} />
+      <FormSuccess message={state.success} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <FieldSet>
         <Field label="Full name" required>
           <Input name="name" required />
         </Field>
@@ -238,11 +228,16 @@ export function CreateAdminPanel({ schoolId }: { schoolId: string }) {
         <Field
           label="Temporary password"
           required
-          hint="At least 8 characters with a letter and a number."
+          hint="At least 8 characters, with a letter and a number."
         >
           <Input name="password" type="text" required minLength={8} autoComplete="off" />
         </Field>
-      </div>
+      </FieldSet>
+
+      <p className="flex items-start gap-2 text-xs text-slate-500">
+        <IconAlert size={14} className="mt-0.5 shrink-0" />
+        Share this password securely, and have them change it after first sign-in.
+      </p>
 
       <SubmitButton pendingLabel="Creating…">Create administrator</SubmitButton>
     </form>

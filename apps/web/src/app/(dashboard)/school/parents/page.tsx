@@ -1,8 +1,10 @@
 import type { Paginated, ParentSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, EmptyState, PageHeader } from '@/components/ui/layout';
-import { Pagination, TCell, THead, TRow, Table } from '@/components/ui/table';
+import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
+import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { ParentForm } from '../forms';
+
+const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 export default async function ParentsPage({
   searchParams,
@@ -24,28 +26,48 @@ export default async function ParentsPage({
 
       <Card className="mb-6">
         {parents.items.length === 0 ? (
-          <EmptyState title="No parents yet" description="Add a parent before adding students." />
+          <EmptyState
+            title="No parents yet"
+            description="Add a parent before adding students — every child is linked to a guardian."
+          />
         ) : (
           <>
             <Table>
-              <THead columns={['Name', 'Phone', 'Email', 'Relation', 'Children', 'Status']} />
+              <THead columns={['Parent', 'Phone', 'Relation', 'Children', 'State']} />
               <tbody>
                 {parents.items.map((parent) => (
                   <TRow key={parent.userId}>
-                    <TCell className="font-medium text-slate-900">{parent.name}</TCell>
-                    <TCell>{parent.phone ?? '—'}</TCell>
-                    <TCell>{parent.email ?? '—'}</TCell>
-                    <TCell>{parent.relation}</TCell>
                     <TCell>
-                      {parent.children.length === 0
-                        ? '—'
-                        : parent.children.map((child) => child.name).join(', ')}
+                      <div className="flex items-center gap-3">
+                        <Avatar name={parent.name} />
+                        <TPrimary sub={parent.email ?? undefined}>{parent.name}</TPrimary>
+                      </div>
                     </TCell>
-                    <TCell>{parent.status}</TCell>
+                    <TCell>{parent.phone ?? '—'}</TCell>
+                    <TCell>{titleCase(parent.relation)}</TCell>
+                    <TCell>
+                      {parent.children.length === 0 ? (
+                        <span className="text-slate-400">None linked</span>
+                      ) : (
+                        <span className="flex flex-wrap gap-1">
+                          {parent.children.map((child) => (
+                            <Pill key={child.id} tone={child.isPrimary ? 'gold' : 'neutral'}>
+                              {child.name}
+                            </Pill>
+                          ))}
+                        </span>
+                      )}
+                    </TCell>
+                    <TCell>
+                      <Pill tone={parent.status === 'ACTIVE' ? 'brand' : 'neutral'}>
+                        {parent.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      </Pill>
+                    </TCell>
                   </TRow>
                 ))}
               </tbody>
             </Table>
+
             <Pagination
               page={parents.page}
               totalPages={parents.totalPages}
@@ -56,9 +78,11 @@ export default async function ParentsPage({
         )}
       </Card>
 
-      <Card title="Add a parent">
-        <ParentForm />
-      </Card>
+      <div className="max-w-3xl">
+        <Card title="Add a parent">
+          <ParentForm />
+        </Card>
+      </div>
     </>
   );
 }

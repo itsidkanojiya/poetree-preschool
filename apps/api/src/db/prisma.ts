@@ -18,6 +18,28 @@ export const TENANT_MODELS = new Set<string>([
   'Classroom',
 ]);
 
+/**
+ * Models carrying `deletedAt`. Reads against these are filtered to living rows
+ * automatically, by the same extension that enforces tenancy — one mechanism,
+ * two guarantees, nothing extra for a developer to remember per query.
+ *
+ * To reach deleted rows deliberately, mention `deletedAt` in the where clause
+ * yourself and the injection steps aside.
+ */
+export const SOFT_DELETE_MODELS = new Set<string>(['Student', 'User', 'FileObject']);
+
+/** Reads that should see only living rows. */
+const SOFT_DELETE_READ_OPERATIONS = new Set<string>([
+  'findUnique',
+  'findUniqueOrThrow',
+  'findFirst',
+  'findFirstOrThrow',
+  'findMany',
+  'count',
+  'aggregate',
+  'groupBy',
+]);
+
 /** Operations whose `where` clause must be narrowed to the caller's school. */
 const WHERE_OPERATIONS = new Set<string>([
   'findUnique',
@@ -75,6 +97,19 @@ function schoolIdForQuery(model: string, operation: string): string {
   return context.schoolId;
 }
 
+/**
+ * Narrows a where clause to living rows.
+ *
+ * If the caller mentioned `deletedAt` themselves they are asking for deleted
+ * rows deliberately — an admin restore screen, a purge job — so the injection
+ * steps aside rather than fighting them.
+ */
+function withoutDeleted(where: unknown): Record<string, unknown> {
+  const clause = (where ?? {}) as Record<string, unknown>;
+  if ('deletedAt' in clause) return clause;
+  return { ...clause, deletedAt: null };
+}
+
 function stampCreateData(data: unknown, schoolId: string): unknown {
   if (Array.isArray(data)) {
     return data.map((row) => ({ ...(row as Record<string, unknown>), schoolId }));
@@ -103,8 +138,19 @@ export const prisma = basePrisma.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
+        // Soft delete is independent of tenancy — FileObject is soft-deletable
+        // but publication-owned, and both filters must still apply to User.
+        const softDeleted =
+          SOFT_DELETE_MODELS.has(model) && SOFT_DELETE_READ_OPERATIONS.has(operation);
+
         if (!TENANT_MODELS.has(model)) {
-          return query(args);
+          if (!softDeleted) return query(args);
+
+          const readArgs = (args ?? {}) as Record<string, unknown>;
+          return query({
+            ...readArgs,
+            where: withoutDeleted(readArgs.where),
+          } as typeof args);
         }
 
         const schoolId = schoolIdForQuery(model, operation);
@@ -128,9 +174,10 @@ export const prisma = basePrisma.$extends({
         }
 
         if (WHERE_OPERATIONS.has(operation)) {
+          const scoped = { ...((nextArgs.where as object) ?? {}), schoolId };
           return query({
             ...nextArgs,
-            where: { ...((nextArgs.where as object) ?? {}), schoolId },
+            where: softDeleted ? withoutDeleted(scoped) : scoped,
           } as typeof args);
         }
 

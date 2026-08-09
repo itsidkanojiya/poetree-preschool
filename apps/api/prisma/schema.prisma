@@ -86,6 +86,17 @@ enum ClassroomTeacherRole {
   SUBJECT_TEACHER
 }
 
+/// Deliberately short. Preschools do not need period-wise attendance or a reason
+/// taxonomy, and every extra option costs a teacher time on the one screen they
+/// use every single morning.
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+  HALF_DAY
+}
+
 enum HolidayType {
   HOLIDAY
   VACATION
@@ -190,8 +201,10 @@ model School {
   subjects          Subject[]
   rooms             Room[]
   holidays          SchoolHoliday[]
-  sequences         DocumentSequence[]
-  files             FileObject[]
+  sequences          DocumentSequence[]
+  attendanceSessions AttendanceSession[]
+  attendanceRecords  AttendanceRecord[]
+  files              FileObject[]
   notifications     Notification[]
   deviceTokens      DeviceToken[]
   subscriptions     SchoolSubscription[]
@@ -312,6 +325,8 @@ model User {
   refreshTokens            RefreshToken[]
   auditLogs                AuditLog[]           @relation("AuditActor")
   classroomAssignments     ClassroomTeacher[]
+  markedAttendance         AttendanceSession[]  @relation("AttendanceMarker")
+  correctedAttendance      AttendanceRecord[]   @relation("AttendanceUpdater")
   uploadedFiles            FileObject[]         @relation("FileUploader")
   notifications            Notification[]
   deviceTokens             DeviceToken[]
@@ -400,10 +415,11 @@ model Student {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  guardians  StudentGuardian[]
-  enrolments StudentEnrolment[]
-  documents  StudentDocument[]
+  school            School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  guardians         StudentGuardian[]
+  enrolments        StudentEnrolment[]
+  documents         StudentDocument[]
+  attendanceRecords AttendanceRecord[]
 
   @@unique([schoolId, admissionNo])
   @@index([schoolId, status])
@@ -507,8 +523,9 @@ model AcademicYear {
   school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classrooms Classroom[]
   enrolments StudentEnrolment[]
-  holidays   SchoolHoliday[]
-  sequences  DocumentSequence[]
+  holidays           SchoolHoliday[]
+  sequences          DocumentSequence[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([schoolId, name])
   @@index([schoolId, isCurrent])
@@ -536,8 +553,9 @@ model Classroom {
   classLevel   ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
   /// Multiple staff per classroom: a class teacher, an assistant, and subject
   /// teachers all coexist without a schema change.
-  teachers     ClassroomTeacher[]
-  enrolments   StudentEnrolment[]
+  teachers           ClassroomTeacher[]
+  enrolments         StudentEnrolment[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([schoolId, academicYearId, classLevelId, section])
   @@index([schoolId])
@@ -688,6 +706,66 @@ model AuditLog {
   @@index([actorUserId])
   @@index([action])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Attendance
+// ---------------------------------------------------------------------------
+
+/// One row per classroom per day. The unique constraint on (classroomId, date)
+/// is what makes duplicate attendance structurally impossible rather than a
+/// validation somebody might forget to write.
+model AttendanceSession {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  classroomId    String
+  /// A calendar day, not an instant — DATE avoids timezone drift moving a
+  /// register between days.
+  date           DateTime @db.Date
+
+  markedById String?
+  markedAt   DateTime  @default(now())
+  /// Set once the register is finalised; corrections then need a School Admin.
+  lockedAt   DateTime?
+  note       String?   @db.VarChar(300)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classroom    Classroom          @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  markedBy     User?              @relation("AttendanceMarker", fields: [markedById], references: [id], onDelete: SetNull)
+  records      AttendanceRecord[]
+
+  @@unique([classroomId, date])
+  @@index([schoolId, date])
+  @@index([schoolId, academicYearId])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id        String @id @default(cuid())
+  schoolId  String
+  sessionId String
+  studentId String
+
+  status      AttendanceStatus @default(PRESENT)
+  remark      String?          @db.VarChar(200)
+  updatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student   Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  updatedBy User?             @relation("AttendanceUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, studentId])
+  @@index([schoolId, studentId])
+  @@map("attendance_records")
 }
 
 // ---------------------------------------------------------------------------

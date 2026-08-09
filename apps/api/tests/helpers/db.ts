@@ -106,6 +106,7 @@ export interface TestSchool {
   adminEmail: string;
   adminId: string;
   teacherEmail: string;
+  teacherId: string;
   parentPhone: string;
   parentProfileId: string;
   studentId: string;
@@ -168,6 +169,7 @@ export async function seedSchool(
   await prismaUnscoped.teacherProfile.create({
     data: { userId: teacher.id, schoolId: school.id },
   });
+  const teacherUserId = teacher.id;
 
   const parentPhone = `+9198${code.length}0000${code.charCodeAt(0)}`;
   const parentUser = await prismaUnscoped.user.create({
@@ -202,6 +204,17 @@ export async function seedSchool(
       academicYearId: academicYear.id,
       classLevelId: nursery.id,
       section: 'A',
+    },
+  });
+
+  // The teacher must hold a live assignment, or row-level scope will (correctly)
+  // refuse them access to the classroom.
+  await prismaUnscoped.classroomTeacher.create({
+    data: {
+      schoolId: school.id,
+      classroomId: classroom.id,
+      userId: teacherUserId,
+      role: 'CLASS_TEACHER',
     },
   });
 
@@ -243,6 +256,7 @@ export async function seedSchool(
     adminEmail,
     adminId: admin.id,
     teacherEmail,
+    teacherId: teacherUserId,
     parentPhone,
     parentProfileId: parentProfile.id,
     studentId: student.id,

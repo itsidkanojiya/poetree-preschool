@@ -5,6 +5,8 @@ import { enforceSchoolAccess } from '../middleware/enforceSchoolAccess.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { authRouter } from './auth.routes.js';
+import { attendanceRouter } from './attendance.routes.js';
+import { meRouter } from './me.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
 
@@ -33,6 +35,12 @@ const secured = Router();
 secured.use(authenticate, enforceSchoolAccess, tenantContext);
 
 secured.use('/publication', publicationRouter);
+
+// Permission-gated and shared across roles — mounted before the School Admin
+// tree, which is gated by role and would otherwise reject teachers.
+secured.use('/me', meRouter);
+secured.use('/attendance', attendanceRouter);
+
 secured.use('/', schoolAdminRouter);
 
 apiRouter.use(secured);

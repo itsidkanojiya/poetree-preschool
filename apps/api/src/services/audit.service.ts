@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import type { AuditAction } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
+import { getRequestContext } from '../context/requestContext.js';
 import { logger } from '../lib/logger.js';
 
 export interface AuditEntry {
@@ -9,6 +10,13 @@ export interface AuditEntry {
   entityId?: string | null;
   schoolId?: string | null;
   actorUserId?: string | null;
+  /**
+   * The state either side of the change. Without these an audit log records that
+   * something happened but not what it did — which is not much use when someone
+   * asks why a child is marked absent.
+   */
+  before?: Prisma.InputJsonValue;
+  after?: Prisma.InputJsonValue;
   metadata?: Prisma.InputJsonValue;
   ipAddress?: string | null;
 }
@@ -33,8 +41,11 @@ export async function writeAuditLog(
       entityId: entry.entityId ?? null,
       schoolId: entry.schoolId ?? null,
       actorUserId: entry.actorUserId ?? null,
+      before: entry.before,
+      after: entry.after,
       metadata: entry.metadata,
       ipAddress: entry.ipAddress ?? null,
+      requestId: getRequestContext()?.requestId ?? null,
     },
   });
 }

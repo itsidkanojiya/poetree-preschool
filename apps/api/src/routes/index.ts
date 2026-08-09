@@ -9,6 +9,7 @@ import { attendanceRouter } from './attendance.routes.js';
 import { meRouter } from './me.routes.js';
 import { enrolmentRouter } from './enrolment.routes.js';
 import { classroomPostRouter, homeworkRouter, noticeRouter } from './teaching.routes.js';
+import { feeRouter } from './fee.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
 
@@ -46,6 +47,7 @@ secured.use('/enrolments', enrolmentRouter);
 secured.use('/homework', homeworkRouter);
 secured.use('/classroom-posts', classroomPostRouter);
 secured.use('/notices', noticeRouter);
+secured.use('/fees', feeRouter);
 
 secured.use('/', schoolAdminRouter);
 

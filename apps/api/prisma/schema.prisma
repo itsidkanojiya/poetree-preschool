@@ -97,6 +97,45 @@ enum AttendanceStatus {
   HALF_DAY
 }
 
+/// Each fee structure carries its own cadence, so a school can bill tuition
+/// quarterly and an annual activity fee once without a second mechanism.
+enum FeeFrequency {
+  ONE_TIME
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  ANNUAL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIAL
+  PAID
+  CANCELLED
+}
+
+enum ConcessionKind {
+  PERCENT
+  FIXED
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  BANK_TRANSFER
+  UPI
+  CARD
+  ONLINE
+}
+
+enum PaymentStatus {
+  RECORDED
+  CLEARED
+  BOUNCED
+  REFUNDED
+}
+
 enum PublishStatus {
   DRAFT
   PUBLISHED
@@ -238,6 +277,14 @@ model School {
   sequences          DocumentSequence[]
   attendanceSessions AttendanceSession[]
   attendanceRecords  AttendanceRecord[]
+  feeHeads           FeeHead[]
+  feeStructures      FeeStructure[]
+  feeStructureItems  FeeStructureItem[]
+  feeConcessions     FeeConcession[]
+  feeInvoices        FeeInvoice[]
+  feeInvoiceLines    FeeInvoiceLine[]
+  payments           Payment[]
+  paymentAllocations PaymentAllocation[]
   homework           Homework[]
   homeworkAttachments HomeworkAttachment[]
   homeworkSubmissions HomeworkSubmission[]
@@ -325,6 +372,7 @@ model ClassLevel {
 
   classrooms Classroom[]
   subjects   Subject[]
+  feeStructures FeeStructure[]
 
   @@map("class_levels")
 }
@@ -374,6 +422,8 @@ model User {
   reviewedSubmissions      HomeworkSubmission[] @relation("HomeworkReviewer")
   authoredPosts            ClassroomPost[]      @relation("ClassroomPostAuthor")
   authoredNotices          Notice[]             @relation("NoticeAuthor")
+  approvedConcessions      FeeConcession[]      @relation("ConcessionApprover")
+  recordedPayments         Payment[]            @relation("PaymentRecorder")
   noticeReads              NoticeRead[]
   uploadedFiles            FileObject[]         @relation("FileUploader")
   notifications            Notification[]
@@ -469,6 +519,9 @@ model Student {
   documents           StudentDocument[]
   attendanceRecords   AttendanceRecord[]
   homeworkSubmissions HomeworkSubmission[]
+  feeConcessions      FeeConcession[]
+  feeInvoices         FeeInvoice[]
+  payments            Payment[]
 
   @@unique([schoolId, admissionNo])
   @@index([schoolId, status])
@@ -576,6 +629,9 @@ model AcademicYear {
   sequences          DocumentSequence[]
   attendanceSessions AttendanceSession[]
   homework           Homework[]
+  feeStructures      FeeStructure[]
+  feeConcessions     FeeConcession[]
+  feeInvoices        FeeInvoice[]
 
   @@unique([schoolId, name])
   @@index([schoolId, isCurrent])
@@ -1026,6 +1082,219 @@ model NoticeRead {
   @@unique([noticeId, userId])
   @@index([schoolId, userId])
   @@map("notice_reads")
+}
+
+// ---------------------------------------------------------------------------
+// Fees
+//
+// Money is ALWAYS integer paise. Never a float, never a decimal string.
+//
+// Invoices rather than a running balance: a receipt must be reproducible years
+// later exactly as issued, and a mutable balance cannot be audited. Indian
+// schools are asked for old receipts constantly.
+// ---------------------------------------------------------------------------
+
+model FeeHead {
+  id       String @id @default(cuid())
+  schoolId String
+
+  code     String  @db.VarChar(30)
+  name     String  @db.VarChar(80)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school      School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  items       FeeStructureItem[]
+  concessions FeeConcession[]
+  lines       FeeInvoiceLine[]
+
+  @@unique([schoolId, code])
+  @@map("fee_heads")
+}
+
+model FeeStructure {
+  id             String @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  classLevelId   String
+
+  name     String  @db.VarChar(80)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel   ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  items        FeeStructureItem[]
+
+  /// One live structure per class level per year keeps "what does Nursery cost"
+  /// a question with a single answer.
+  @@unique([schoolId, academicYearId, classLevelId])
+  @@map("fee_structures")
+}
+
+model FeeStructureItem {
+  id             String @id @default(cuid())
+  schoolId       String
+  feeStructureId String
+  feeHeadId      String
+
+  amountInPaise Int
+  frequency     FeeFrequency @default(ANNUAL)
+  /// Day of month the instalment falls due; ignored for ONE_TIME.
+  dueDayOfMonth Int          @default(10)
+
+  createdAt DateTime @default(now())
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  feeHead      FeeHead      @relation(fields: [feeHeadId], references: [id], onDelete: Restrict)
+
+  @@unique([feeStructureId, feeHeadId])
+  @@index([schoolId])
+  @@map("fee_structure_items")
+}
+
+/// The only sanctioned way one child pays less than another. Carries a reason
+/// and an approver, so every rupee of difference is explainable in a dispute.
+model FeeConcession {
+  id             String  @id @default(cuid())
+  schoolId       String
+  studentId      String
+  academicYearId String
+  feeHeadId      String?
+
+  kind         ConcessionKind @default(PERCENT)
+  /// Percent (0-100) or a fixed amount in paise, per `kind`.
+  value        Int
+  reason       String         @db.VarChar(200)
+  approvedById String
+
+  createdAt DateTime @default(now())
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  feeHead      FeeHead?     @relation(fields: [feeHeadId], references: [id], onDelete: SetNull)
+  approvedBy   User         @relation("ConcessionApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, studentId, academicYearId])
+  @@map("fee_concessions")
+}
+
+model FeeInvoice {
+  id             String @id @default(cuid())
+  schoolId       String
+  studentId      String
+  academicYearId String
+
+  invoiceNo String @db.VarChar(40)
+  /// "2026-07", "Q1", "Annual" - the billing window this invoice covers.
+  periodLabel String @db.VarChar(40)
+
+  issuedOn DateTime @default(now())
+  dueDate  DateTime @db.Date
+
+  grossInPaise    Int           @default(0)
+  discountInPaise Int           @default(0)
+  netInPaise      Int           @default(0)
+  paidInPaise     Int           @default(0)
+  status          InvoiceStatus @default(ISSUED)
+
+  cancelledAt     DateTime?
+  cancelledReason String?   @db.VarChar(200)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  lines        FeeInvoiceLine[]
+  allocations  PaymentAllocation[]
+
+  /// Generation is idempotent on this key: re-running a month never
+  /// double-charges a child.
+  @@unique([studentId, academicYearId, periodLabel])
+  @@unique([schoolId, invoiceNo])
+  @@index([schoolId, status, dueDate])
+  @@map("fee_invoices")
+}
+
+model FeeInvoiceLine {
+  id        String @id @default(cuid())
+  schoolId  String
+  invoiceId String
+  feeHeadId String
+
+  description     String @db.VarChar(120)
+  amountInPaise   Int
+  discountInPaise Int    @default(0)
+
+  school  School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoice FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeHead FeeHead    @relation(fields: [feeHeadId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, invoiceId])
+  @@map("fee_invoice_lines")
+}
+
+/// A payment is never edited or deleted. A refund is a second, negative
+/// payment, so the trail of what actually happened stays intact.
+model Payment {
+  id        String @id @default(cuid())
+  schoolId  String
+  studentId String
+
+  receiptNo     String        @db.VarChar(40)
+  amountInPaise Int
+  method        PaymentMethod @default(CASH)
+  reference     String?       @db.VarChar(80)
+  paidOn        DateTime      @db.Date
+  note          String?       @db.VarChar(200)
+  status        PaymentStatus @default(RECORDED)
+  recordedById  String
+
+  /// Populated only when a gateway is involved. Present from day one so adding
+  /// Razorpay later needs no migration of live money data.
+  provider          String? @db.VarChar(40)
+  providerOrderId   String? @db.VarChar(80)
+  providerPaymentId String? @db.VarChar(80)
+  providerSignature String? @db.VarChar(200)
+
+  createdAt DateTime @default(now())
+
+  school      School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student     Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedBy  User                @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  allocations PaymentAllocation[]
+
+  @@unique([schoolId, receiptNo])
+  @@index([schoolId, studentId, paidOn])
+  @@map("payments")
+}
+
+/// Splits one payment across invoices, which is what makes partial payment and
+/// "pay two months at once" the same mechanism.
+model PaymentAllocation {
+  id        String @id @default(cuid())
+  schoolId  String
+  paymentId String
+  invoiceId String
+
+  amountInPaise Int
+
+  school  School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  payment Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, invoiceId])
+  @@index([schoolId, invoiceId])
+  @@map("payment_allocations")
 }
 
 // ---------------------------------------------------------------------------

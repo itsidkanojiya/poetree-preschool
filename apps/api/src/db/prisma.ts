@@ -41,6 +41,15 @@ export const TENANT_MODELS = new Set<string>([
   'HomeworkSubmission',
   'ClassroomPost',
   'ClassroomPostAttachment',
+  // Fees
+  'FeeHead',
+  'FeeStructure',
+  'FeeStructureItem',
+  'FeeConcession',
+  'FeeInvoice',
+  'FeeInvoiceLine',
+  'Payment',
+  'PaymentAllocation',
   // Notices
   'Notice',
   'NoticeTarget',

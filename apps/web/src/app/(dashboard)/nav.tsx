@@ -49,6 +49,10 @@ const SCHOOL_NAV: NavGroup[] = [
     ],
   },
   {
+    heading: 'Money',
+    items: [{ href: '/school/fees', label: 'Fees', icon: <IconPlan size={18} /> }],
+  },
+  {
     heading: 'Academics',
     items: [
       { href: '/school/classrooms', label: 'Classrooms', icon: <IconClassroom size={18} /> },

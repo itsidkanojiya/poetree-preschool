@@ -35,6 +35,17 @@ export const TENANT_MODELS = new Set<string>([
   // Attendance
   'AttendanceSession',
   'AttendanceRecord',
+  // Homework and the class stream
+  'Homework',
+  'HomeworkAttachment',
+  'HomeworkSubmission',
+  'ClassroomPost',
+  'ClassroomPostAttachment',
+  // Notices
+  'Notice',
+  'NoticeTarget',
+  'NoticeAttachment',
+  'NoticeRead',
   // Cross-cutting
   'DocumentSequence',
   'Notification',
@@ -49,7 +60,14 @@ export const TENANT_MODELS = new Set<string>([
  * To reach deleted rows deliberately, mention `deletedAt` in the where clause
  * yourself and the injection steps aside.
  */
-export const SOFT_DELETE_MODELS = new Set<string>(['Student', 'User', 'FileObject']);
+export const SOFT_DELETE_MODELS = new Set<string>([
+  'Student',
+  'User',
+  'FileObject',
+  'Homework',
+  'ClassroomPost',
+  'Notice',
+]);
 
 /** Reads that should see only living rows. */
 const SOFT_DELETE_READ_OPERATIONS = new Set<string>([

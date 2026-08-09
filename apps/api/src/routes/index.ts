@@ -8,6 +8,7 @@ import { authRouter } from './auth.routes.js';
 import { attendanceRouter } from './attendance.routes.js';
 import { meRouter } from './me.routes.js';
 import { enrolmentRouter } from './enrolment.routes.js';
+import { classroomPostRouter, homeworkRouter, noticeRouter } from './teaching.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
 
@@ -42,6 +43,9 @@ secured.use('/publication', publicationRouter);
 secured.use('/me', meRouter);
 secured.use('/attendance', attendanceRouter);
 secured.use('/enrolments', enrolmentRouter);
+secured.use('/homework', homeworkRouter);
+secured.use('/classroom-posts', classroomPostRouter);
+secured.use('/notices', noticeRouter);
 
 secured.use('/', schoolAdminRouter);
 

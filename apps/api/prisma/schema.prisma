@@ -97,6 +97,40 @@ enum AttendanceStatus {
   HALF_DAY
 }
 
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  COMPLETED
+  NOT_COMPLETED
+  LATE
+}
+
+enum NoticeType {
+  GENERAL
+  EVENT
+  HOLIDAY
+  ACADEMIC
+  EMERGENCY
+}
+
+enum NoticeAudience {
+  ALL
+  TEACHERS
+  PARENTS
+  CLASSROOMS
+}
+
+enum ClassroomPostType {
+  ANNOUNCEMENT
+  MATERIAL
+}
+
 enum HolidayType {
   HOLIDAY
   VACATION
@@ -204,6 +238,15 @@ model School {
   sequences          DocumentSequence[]
   attendanceSessions AttendanceSession[]
   attendanceRecords  AttendanceRecord[]
+  homework           Homework[]
+  homeworkAttachments HomeworkAttachment[]
+  homeworkSubmissions HomeworkSubmission[]
+  classroomPosts      ClassroomPost[]
+  classroomPostAttachments ClassroomPostAttachment[]
+  notices             Notice[]
+  noticeTargets       NoticeTarget[]
+  noticeAttachments   NoticeAttachment[]
+  noticeReads         NoticeRead[]
   files              FileObject[]
   notifications     Notification[]
   deviceTokens      DeviceToken[]
@@ -327,6 +370,11 @@ model User {
   classroomAssignments     ClassroomTeacher[]
   markedAttendance         AttendanceSession[]  @relation("AttendanceMarker")
   correctedAttendance      AttendanceRecord[]   @relation("AttendanceUpdater")
+  authoredHomework         Homework[]           @relation("HomeworkAuthor")
+  reviewedSubmissions      HomeworkSubmission[] @relation("HomeworkReviewer")
+  authoredPosts            ClassroomPost[]      @relation("ClassroomPostAuthor")
+  authoredNotices          Notice[]             @relation("NoticeAuthor")
+  noticeReads              NoticeRead[]
   uploadedFiles            FileObject[]         @relation("FileUploader")
   notifications            Notification[]
   deviceTokens             DeviceToken[]
@@ -418,8 +466,9 @@ model Student {
   school            School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   guardians         StudentGuardian[]
   enrolments        StudentEnrolment[]
-  documents         StudentDocument[]
-  attendanceRecords AttendanceRecord[]
+  documents           StudentDocument[]
+  attendanceRecords   AttendanceRecord[]
+  homeworkSubmissions HomeworkSubmission[]
 
   @@unique([schoolId, admissionNo])
   @@index([schoolId, status])
@@ -526,6 +575,7 @@ model AcademicYear {
   holidays           SchoolHoliday[]
   sequences          DocumentSequence[]
   attendanceSessions AttendanceSession[]
+  homework           Homework[]
 
   @@unique([schoolId, name])
   @@index([schoolId, isCurrent])
@@ -556,6 +606,9 @@ model Classroom {
   teachers           ClassroomTeacher[]
   enrolments         StudentEnrolment[]
   attendanceSessions AttendanceSession[]
+  homework           Homework[]
+  posts              ClassroomPost[]
+  noticeTargets      NoticeTarget[]
 
   @@unique([schoolId, academicYearId, classLevelId, section])
   @@index([schoolId])
@@ -606,6 +659,7 @@ model Subject {
   school     School?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classLevel ClassLevel? @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
   classrooms ClassroomTeacher[]
+  homework   Homework[]
 
   @@unique([schoolId, code])
   @@index([schoolId, isActive])
@@ -769,6 +823,212 @@ model AttendanceRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Homework and the class stream
+// ---------------------------------------------------------------------------
+
+model Homework {
+  id             String  @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  classroomId    String
+  subjectId      String?
+
+  title       String        @db.VarChar(160)
+  description String?       @db.Text
+  assignedById String
+  assignedOn  DateTime      @default(now())
+  dueDate     DateTime      @db.Date
+  status      PublishStatus @default(DRAFT)
+  /// When false the child simply does it at home; nothing is uploaded back.
+  allowsSubmission Boolean  @default(false)
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  school       School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classroom    Classroom            @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  subject      Subject?             @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  assignedBy   User                 @relation("HomeworkAuthor", fields: [assignedById], references: [id], onDelete: Restrict)
+  attachments  HomeworkAttachment[]
+  submissions  HomeworkSubmission[]
+
+  @@index([schoolId, classroomId, status])
+  @@index([schoolId, dueDate])
+  @@map("homework")
+}
+
+model HomeworkAttachment {
+  id         String @id @default(cuid())
+  schoolId   String
+  homeworkId String
+  fileId     String
+
+  createdAt DateTime @default(now())
+
+  school   School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  homework Homework   @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  file     FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, homeworkId])
+  @@map("homework_attachments")
+}
+
+/// Materialised for every enrolled child at publish time, so "who has not done
+/// it" is an indexed lookup rather than a set difference computed per request.
+model HomeworkSubmission {
+  id         String @id @default(cuid())
+  schoolId   String
+  homeworkId String
+  studentId  String
+
+  status       SubmissionStatus @default(PENDING)
+  submittedOn  DateTime?
+  note         String?          @db.VarChar(500)
+  teacherRemark String?         @db.VarChar(500)
+  reviewedById String?
+  reviewedOn   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  homework   Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User?    @relation("HomeworkReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([homeworkId, studentId])
+  @@index([schoolId, studentId, status])
+  @@map("homework_submissions")
+}
+
+/// The class stream: announcements and materials, newest first. Deliberately
+/// thin - no comments, no reactions, no threads. This is not social media, and
+/// moderating parent comments is a burden a small school cannot carry.
+model ClassroomPost {
+  id          String @id @default(cuid())
+  schoolId    String
+  classroomId String
+
+  type        ClassroomPostType @default(ANNOUNCEMENT)
+  title       String            @db.VarChar(160)
+  body        String?           @db.Text
+  createdById String
+  status      PublishStatus     @default(PUBLISHED)
+  publishedAt DateTime          @default(now())
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  school      School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classroom   Classroom                 @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  createdBy   User                      @relation("ClassroomPostAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  attachments ClassroomPostAttachment[]
+
+  @@index([schoolId, classroomId, publishedAt])
+  @@map("classroom_posts")
+}
+
+model ClassroomPostAttachment {
+  id       String @id @default(cuid())
+  schoolId String
+  postId   String
+  fileId   String
+
+  createdAt DateTime @default(now())
+
+  school School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  post   ClassroomPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  file   FileObject    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, postId])
+  @@map("classroom_post_attachments")
+}
+
+// ---------------------------------------------------------------------------
+// Notices
+// ---------------------------------------------------------------------------
+
+model Notice {
+  id       String @id @default(cuid())
+  schoolId String
+
+  title       String         @db.VarChar(160)
+  body        String         @db.Text
+  type        NoticeType     @default(GENERAL)
+  audience    NoticeAudience @default(ALL)
+  status      PublishStatus  @default(DRAFT)
+  pinned      Boolean        @default(false)
+  publishAt   DateTime       @default(now())
+  expiresAt   DateTime?
+  createdById String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy   User               @relation("NoticeAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  targets     NoticeTarget[]
+  attachments NoticeAttachment[]
+  reads       NoticeRead[]
+
+  @@index([schoolId, status, publishAt])
+  @@map("notices")
+}
+
+model NoticeTarget {
+  id          String @id @default(cuid())
+  schoolId    String
+  noticeId    String
+  classroomId String
+
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  notice    Notice    @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, classroomId])
+  @@index([schoolId, classroomId])
+  @@map("notice_targets")
+}
+
+model NoticeAttachment {
+  id       String @id @default(cuid())
+  schoolId String
+  noticeId String
+  fileId   String
+
+  createdAt DateTime @default(now())
+
+  school School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  notice Notice     @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  file   FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, noticeId])
+  @@map("notice_attachments")
+}
+
+/// Per-user read receipts. For an emergency notice the useful question is not
+/// "was it sent" but "who has not seen it".
+model NoticeRead {
+  id       String   @id @default(cuid())
+  schoolId String
+  noticeId String
+  userId   String
+  readAt   DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, userId])
+  @@index([schoolId, userId])
+  @@map("notice_reads")
+}
+
+// ---------------------------------------------------------------------------
 // Cross-cutting infrastructure
 // ---------------------------------------------------------------------------
 
@@ -819,9 +1079,12 @@ model FileObject {
   deletedAt DateTime?
   createdAt DateTime  @default(now())
 
-  school     School?           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  uploadedBy User?             @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
-  documents  StudentDocument[]
+  school                   School?                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  documents                StudentDocument[]
+  homeworkAttachments      HomeworkAttachment[]
+  classroomPostAttachments ClassroomPostAttachment[]
+  noticeAttachments        NoticeAttachment[]
 
   @@index([schoolId, deletedAt])
   @@map("file_objects")

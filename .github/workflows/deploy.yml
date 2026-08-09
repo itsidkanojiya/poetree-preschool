@@ -39,10 +39,38 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           set -euo pipefail
+
+          if [ -z "${VPS_HOST:-}" ]; then
+            echo "::error::VPS_HOST secret is empty. Set it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          if [ -z "${VPS_SSH_KEY:-}" ]; then
+            echo "::error::VPS_SSH_KEY secret is empty."
+            exit 1
+          fi
+
           mkdir -p ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # ssh-keyscan reaches over the network, so a single blip on the runner
+          # would otherwise fail the whole deploy under `set -e`. Retry before
+          # giving up, and check we actually captured a host key rather than
+          # trusting the exit code.
+          for attempt in 1 2 3; do
+            ssh-keyscan -T 10 -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            if [ -s ~/.ssh/known_hosts ]; then
+              echo "Host key captured on attempt ${attempt}"
+              break
+            fi
+            echo "ssh-keyscan attempt ${attempt} returned nothing; retrying"
+            sleep 5
+          done
+
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::Could not reach ${VPS_HOST}:${VPS_PORT:-22} to read its host key."
+            exit 1
+          fi
 
       - name: Ship the build
         env:

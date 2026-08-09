@@ -6,6 +6,7 @@ export const metadata: Metadata = { title: 'Sign in · Poetree Admin' };
 
 const NOTICES: Record<string, string> = {
   expired: 'Your session has expired. Please sign in again.',
+  'password-changed': 'Password changed. Sign in with your new password.',
 };
 
 const HIGHLIGHTS = [

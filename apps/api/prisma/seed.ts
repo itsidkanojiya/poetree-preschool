@@ -13,8 +13,28 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 const SUPER_ADMIN_EMAIL = process.env.SEED_SUPER_ADMIN_EMAIL ?? 'admin@poetree.com';
-const SUPER_ADMIN_PASSWORD = process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'Poetree@2026';
-const DEMO_PASSWORD = 'School@2026';
+
+/**
+ * No fallback, deliberately.
+ *
+ * This file previously carried a literal default password. The repository is
+ * public, so that password was published to the world while the portal was
+ * reachable on a public IP — anyone could sign in as Super Admin. A seed must
+ * never contain a credential that works.
+ */
+const suppliedPassword = process.env.SEED_SUPER_ADMIN_PASSWORD;
+if (!suppliedPassword || suppliedPassword.length < 12) {
+  throw new Error(
+    'SEED_SUPER_ADMIN_PASSWORD must be set to at least 12 characters before seeding.\n' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(18).toString(\'base64url\'))"',
+  );
+}
+const SUPER_ADMIN_PASSWORD: string = suppliedPassword;
+
+/** Demo schools are development fixtures and are never seeded in production. */
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'School@2026';
+const SEED_DEMO_SCHOOLS =
+  process.env.NODE_ENV !== 'production' || process.env.SEED_DEMO_SCHOOLS === 'true';
 const PUBLICATION_SCOPE = 'PUBLICATION';
 
 const hash = (plain: string) => bcrypt.hash(plain, 10);
@@ -161,7 +181,11 @@ async function main(): Promise<void> {
   /* Demo schools                                                           */
   /* ---------------------------------------------------------------------- */
 
-  for (const demo of DEMO_SCHOOLS) {
+  if (!SEED_DEMO_SCHOOLS) {
+    console.warn('  · skipping demo schools (production seed)');
+  }
+
+  for (const demo of SEED_DEMO_SCHOOLS ? DEMO_SCHOOLS : []) {
     const existing = await prisma.school.findUnique({ where: { code: demo.code } });
     if (existing) {
       console.warn(`  · ${demo.name} already seeded — skipping`);
@@ -318,11 +342,13 @@ async function main(): Promise<void> {
   }
 
   console.warn('\nSeed complete.');
-  console.warn('  Super Admin :', SUPER_ADMIN_EMAIL, '/', SUPER_ADMIN_PASSWORD);
-  for (const demo of DEMO_SCHOOLS) {
-    console.warn(`  ${demo.name} admin :`, demo.adminEmail, '/', DEMO_PASSWORD);
+  console.warn('  Super Admin :', SUPER_ADMIN_EMAIL, '(password as supplied via env)');
+  if (SEED_DEMO_SCHOOLS) {
+    for (const demo of DEMO_SCHOOLS) {
+      console.warn(`  ${demo.name} admin :`, demo.adminEmail);
+    }
   }
-  console.warn('\nChange these before the VPS ever faces the internet.');
+  console.warn('\nSign in and change the password immediately.');
   void superAdmin;
 }
 

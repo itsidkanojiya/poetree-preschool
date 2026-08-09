@@ -56,13 +56,16 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <SidebarNav role={user.role} />
 
           <div className="mt-auto hidden border-t border-navy-950/[0.06] p-4 lg:block">
-            <div className="mb-3 flex items-center gap-2.5">
+            <Link
+              href="/account"
+              className="mb-3 flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-navy-50"
+            >
               <Avatar name={user.name} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-navy-950">{user.name}</p>
                 <p className="truncate text-xs text-slate-500">{user.email ?? user.phone}</p>
               </div>
-            </div>
+            </Link>
             <form action={logoutAction}>
               <SubmitButton variant="secondary" className="w-full" pendingLabel="Signing out…">
                 <IconLogout size={16} />

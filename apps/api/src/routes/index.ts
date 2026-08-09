@@ -7,6 +7,7 @@ import { prismaUnscoped } from '../db/prisma.js';
 import { authRouter } from './auth.routes.js';
 import { attendanceRouter } from './attendance.routes.js';
 import { meRouter } from './me.routes.js';
+import { enrolmentRouter } from './enrolment.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
 
@@ -40,6 +41,7 @@ secured.use('/publication', publicationRouter);
 // tree, which is gated by role and would otherwise reject teachers.
 secured.use('/me', meRouter);
 secured.use('/attendance', attendanceRouter);
+secured.use('/enrolments', enrolmentRouter);
 
 secured.use('/', schoolAdminRouter);
 

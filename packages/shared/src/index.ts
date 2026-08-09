@@ -7,3 +7,4 @@ export * from './schemas/school.js';
 export * from './schemas/plan.js';
 export * from './schemas/roster.js';
 export * from './schemas/attendance.js';
+export * from './schemas/enrolment.js';

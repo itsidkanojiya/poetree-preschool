@@ -48,6 +48,8 @@ export function homePathFor(role: Role | undefined): string {
       return '/publication';
     case 'SCHOOL_ADMIN':
       return '/school';
+    case 'TEACHER':
+      return '/teacher';
     default:
       return '/login';
   }

@@ -41,7 +41,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <div className="mx-4 mb-4 hidden rounded-xl bg-navy-50 px-3.5 py-3 lg:block">
             <p className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-widest text-navy-600">
               <IconShield size={12} strokeWidth={2.25} />
-              {isSuperAdmin ? 'Super Admin' : 'School Admin'}
+              {isSuperAdmin ? 'Super Admin' : user.role === 'TEACHER' ? 'Teacher' : 'School Admin'}
             </p>
             <p className="mt-1 truncate text-sm font-medium text-navy-950">
               {user.school?.name ?? 'Poetree Publication'}

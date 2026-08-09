@@ -87,7 +87,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // Role routing: each dashboard tree belongs to exactly one role.
   const wrongTree =
     (pathname.startsWith('/publication') && claims.role !== 'PUBLICATION_ADMIN') ||
-    (pathname.startsWith('/school') && claims.role !== 'SCHOOL_ADMIN');
+    (pathname.startsWith('/school') && claims.role !== 'SCHOOL_ADMIN') ||
+    (pathname.startsWith('/teacher') && claims.role !== 'TEACHER');
 
   if (pathname === '/' || wrongTree) {
     const response = NextResponse.redirect(new URL(home, request.url));

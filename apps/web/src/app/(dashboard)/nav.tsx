@@ -56,9 +56,23 @@ const SCHOOL_NAV: NavGroup[] = [
   },
 ];
 
+const TEACHER_NAV: NavGroup[] = [
+  {
+    items: [
+      { href: '/teacher', label: 'Today', icon: <IconHome size={18} />, exact: true },
+      { href: '/teacher/attendance', label: 'Attendance', icon: <IconClassroom size={18} /> },
+    ],
+  },
+];
+
 export function SidebarNav({ role }: { role: string }) {
   const pathname = usePathname();
-  const groups = role === 'PUBLICATION_ADMIN' ? PUBLICATION_NAV : SCHOOL_NAV;
+  const groups =
+    role === 'PUBLICATION_ADMIN'
+      ? PUBLICATION_NAV
+      : role === 'TEACHER'
+        ? TEACHER_NAV
+        : SCHOOL_NAV;
 
   return (
     <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:gap-5 lg:overflow-visible lg:px-4 lg:pb-0">

@@ -200,6 +200,39 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
     expect(parentLogin.body.error.code).toBe(ERROR_CODES.PORTAL_ACCESS_DENIED);
   });
 
+  /**
+   * Regression: StudentEnrolment reached production without being listed in
+   * TENANT_MODELS, so GET /enrolments returned every school's children to any
+   * school admin. The unit test now catches the cause; this catches the symptom.
+   */
+  it('lists only its own enrolments', async () => {
+    const response = await api.get(`${BASE}/enrolments`).set(auth(adminA));
+
+    expect(response.status).toBe(200);
+    expect(response.body.total).toBe(1);
+
+    const admissionNumbers = response.body.items.map((e: { admissionNo: string }) => e.admissionNo);
+    expect(admissionNumbers).toEqual(['ALPHA-001']);
+    expect(admissionNumbers).not.toContain('BETA-001');
+  });
+
+  it('refuses to promote another school’s classroom', async () => {
+    const response = await api
+      .post(`${BASE}/enrolments/promote`)
+      .set(auth(adminA))
+      .send({ fromClassroomId: schoolB.classroomId, toClassroomId: schoolA.classroomId });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('reports another school’s student history as missing', async () => {
+    const response = await api
+      .get(`${BASE}/enrolments/students/${schoolB.studentId}/history`)
+      .set(auth(adminA));
+
+    expect(response.status).toBe(404);
+  });
+
   it('lets the Super Admin see every school', async () => {
     const response = await api.get(`${BASE}/publication/schools`).set(auth(superAdmin));
 

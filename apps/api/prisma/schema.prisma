@@ -285,6 +285,8 @@ model School {
   feeInvoiceLines    FeeInvoiceLine[]
   payments           Payment[]
   paymentAllocations PaymentAllocation[]
+  timetablePeriods   TimetablePeriod[]
+  timetableEntries   TimetableEntry[]
   homework           Homework[]
   homeworkAttachments HomeworkAttachment[]
   homeworkSubmissions HomeworkSubmission[]
@@ -424,6 +426,7 @@ model User {
   authoredNotices          Notice[]             @relation("NoticeAuthor")
   approvedConcessions      FeeConcession[]      @relation("ConcessionApprover")
   recordedPayments         Payment[]            @relation("PaymentRecorder")
+  timetableSlots           TimetableEntry[]     @relation("TimetableTeacher")
   noticeReads              NoticeRead[]
   uploadedFiles            FileObject[]         @relation("FileUploader")
   notifications            Notification[]
@@ -632,6 +635,8 @@ model AcademicYear {
   feeStructures      FeeStructure[]
   feeConcessions     FeeConcession[]
   feeInvoices        FeeInvoice[]
+  timetablePeriods   TimetablePeriod[]
+  timetableEntries   TimetableEntry[]
 
   @@unique([schoolId, name])
   @@index([schoolId, isCurrent])
@@ -664,6 +669,7 @@ model Classroom {
   attendanceSessions AttendanceSession[]
   homework           Homework[]
   posts              ClassroomPost[]
+  timetableEntries   TimetableEntry[]
   noticeTargets      NoticeTarget[]
 
   @@unique([schoolId, academicYearId, classLevelId, section])
@@ -716,6 +722,7 @@ model Subject {
   classLevel ClassLevel? @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
   classrooms ClassroomTeacher[]
   homework   Homework[]
+  timetableEntries TimetableEntry[]
 
   @@unique([schoolId, code])
   @@index([schoolId, isActive])
@@ -734,6 +741,7 @@ model Room {
   createdAt DateTime @default(now())
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableEntries TimetableEntry[]
 
   @@unique([schoolId, name])
   @@map("rooms")
@@ -1295,6 +1303,69 @@ model PaymentAllocation {
   @@unique([paymentId, invoiceId])
   @@index([schoolId, invoiceId])
   @@map("payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Timetable
+// ---------------------------------------------------------------------------
+
+model TimetablePeriod {
+  id             String @id @default(cuid())
+  schoolId       String
+  academicYearId String
+
+  name      String  @db.VarChar(40)
+  startTime String  @db.VarChar(5)
+  endTime   String  @db.VarChar(5)
+  sortOrder Int     @default(0)
+  /// Breaks appear on the grid but never carry a subject or a teacher.
+  isBreak   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  school       School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  entries      TimetableEntry[]
+
+  @@unique([academicYearId, name])
+  @@index([schoolId, academicYearId])
+  @@map("timetable_periods")
+}
+
+/// One cell of the weekly grid.
+///
+/// The unique key stops a classroom being double-booked. The two conflicts a
+/// database cannot express - the same teacher or the same room in two places at
+/// once - are enforced in the service and covered by tests.
+model TimetableEntry {
+  id             String @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  classroomId    String
+  periodId       String
+
+  /// 1 = Monday through 7 = Sunday.
+  dayOfWeek Int
+  subjectId String?
+  teacherId String?
+  roomId    String?
+  note      String? @db.VarChar(120)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classroom    Classroom       @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  period       TimetablePeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  subject      Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  teacher      User?           @relation("TimetableTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  room         Room?           @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@unique([classroomId, dayOfWeek, periodId])
+  @@index([schoolId, teacherId, dayOfWeek])
+  @@index([schoolId, roomId, dayOfWeek])
+  @@map("timetable_entries")
 }
 
 // ---------------------------------------------------------------------------

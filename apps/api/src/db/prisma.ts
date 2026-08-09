@@ -50,6 +50,9 @@ export const TENANT_MODELS = new Set<string>([
   'FeeInvoiceLine',
   'Payment',
   'PaymentAllocation',
+  // Timetable
+  'TimetablePeriod',
+  'TimetableEntry',
   // Notices
   'Notice',
   'NoticeTarget',

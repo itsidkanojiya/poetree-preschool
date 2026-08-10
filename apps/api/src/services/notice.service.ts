@@ -6,12 +6,63 @@ import type {
   Paginated,
 } from '@poetree/shared';
 import { CLASS_LEVEL_LABELS } from '@poetree/shared';
-import { prisma } from '../db/prisma.js';
+import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { guardianStudentIds, teacherClassroomIds } from './scope.service.js';
+import { notifySafe } from './notification.service.js';
+
+/**
+ * Who a published notice should reach.
+ *
+ * Resolved from the audience rather than broadcast to the school, so a notice
+ * addressed to one class does not buzz every parent's phone.
+ */
+async function noticeRecipients(
+  schoolId: string,
+  input: Pick<CreateNoticeInput, 'audience' | 'classroomIds'>,
+): Promise<string[]> {
+  if (input.audience === 'CLASSROOMS' && input.classroomIds?.length) {
+    const [guardians, teachers] = await Promise.all([
+      prismaUnscoped.studentGuardian.findMany({
+        where: {
+          schoolId,
+          student: {
+            enrolments: { some: { classroomId: { in: input.classroomIds }, status: 'ACTIVE' } },
+          },
+        },
+        select: { parentProfile: { select: { userId: true } } },
+      }),
+      prismaUnscoped.classroomTeacher.findMany({
+        where: { schoolId, classroomId: { in: input.classroomIds } },
+        select: { userId: true },
+      }),
+    ]);
+
+    return [
+      ...new Set([
+        ...guardians.map((g) => g.parentProfile.userId),
+        ...teachers.map((t) => t.userId),
+      ]),
+    ];
+  }
+
+  const roles =
+    input.audience === 'TEACHERS'
+      ? (['TEACHER'] as const)
+      : input.audience === 'PARENTS'
+        ? (['PARENT'] as const)
+        : (['TEACHER', 'PARENT'] as const);
+
+  const users = await prismaUnscoped.user.findMany({
+    where: { schoolId, role: { in: [...roles] }, status: 'ACTIVE' },
+    select: { id: true },
+  });
+
+  return users.map((u) => u.id);
+}
 
 const noticeInclude = {
   createdBy: { select: { name: true } },
@@ -205,6 +256,23 @@ export async function createNotice(
     actorUserId,
     metadata: { type: input.type, audience: input.audience, published: input.publish },
   });
+
+  // After the transaction has committed, never inside it — telling parents about
+  // a notice that then rolled back would be worse than telling them late.
+  if (input.publish) {
+    const recipients = await noticeRecipients(schoolId, input);
+    notifySafe({
+      schoolId,
+      userIds: recipients,
+      type: input.type === 'EMERGENCY' ? 'NOTICE_EMERGENCY' : 'NOTICE_PUBLISHED',
+      title: input.title,
+      // Push previews are read on a lock screen, so keep it short and never put
+      // anything sensitive in the body.
+      body: input.body.length > 120 ? `${input.body.slice(0, 117)}…` : input.body,
+      entityType: 'Notice',
+      entityId: noticeId,
+    });
+  }
 
   const row = await prisma.notice.findFirstOrThrow({
     where: { id: noticeId },

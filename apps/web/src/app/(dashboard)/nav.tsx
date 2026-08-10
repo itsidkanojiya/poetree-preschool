@@ -9,6 +9,7 @@ import {
   IconParents,
   IconPlan,
   IconSchool,
+  IconInbox,
   IconStudent,
   IconTeacher,
 } from '@/components/icons';
@@ -56,6 +57,7 @@ const SCHOOL_NAV: NavGroup[] = [
     heading: 'Academics',
     items: [
       { href: '/school/classrooms', label: 'Classrooms', icon: <IconClassroom size={18} /> },
+      { href: '/school/notices', label: 'Notices', icon: <IconInbox size={18} /> },
     ],
   },
 ];

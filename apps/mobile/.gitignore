@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Per-school Firebase config, placed by tool/configure_school.dart at build
+# time. It identifies one school's Firebase app and must never be committed —
+# a checked-in file would silently apply to every school's build.
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Per-school build inputs. sunrise.example.json is the template and is tracked.
+schools/*.json
+!schools/*.example.json

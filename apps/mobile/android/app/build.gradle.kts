@@ -4,6 +4,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Push is per school: tool/configure_school.dart drops that school's
+// google-services.json here. The Google plugin fails the build outright when the
+// file is missing, which would break every developer build and every school
+// whose Firebase project is not set up yet — so it is applied only when the file
+// is actually there. Without it the app still runs and falls back to the in-app
+// inbox, which is the durable record anyway.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.poetree.poetree_school"
     compileSdk = flutter.compileSdkVersion

@@ -205,5 +205,9 @@ class ApiClient {
     return response.data as T;
   }
 
+  Future<void> delete(String path, {Object? body}) async {
+    await _dio.delete<dynamic>(path, data: body);
+  }
+
   TokenStore get tokens => _tokens;
 }

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'core/api/api_service.dart';
 import 'core/config/school_config.dart';
 import 'core/offline/outbox.dart';
+import 'core/push/push_service.dart';
 import 'core/routes/app_pages.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/auth_controller.dart';
@@ -20,6 +21,10 @@ Future<void> main() async {
   // whether or not the teacher opens the register screen again.
   final outbox = Get.put<Outbox>(Outbox(), permanent: true);
   await outbox.init();
+
+  // Registered here but not started: push attaches to a signed-in user, so
+  // AuthController starts it after a successful sign-in and on session restore.
+  Get.put<PushService>(PushService(), permanent: true);
 
   // Resolve the session before the first frame, so a signed-in parent never
   // sees the login screen flash past on a cold start.

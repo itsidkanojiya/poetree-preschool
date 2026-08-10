@@ -96,6 +96,10 @@ void main(List<String> args) {
 
   _rewriteGradle(applicationId);
   _rewriteAppLabel(name);
+  final push = _placeGoogleServices(
+    config['googleServicesJson'],
+    applicationId,
+  );
 
   final defines = <String, String>{
     'SCHOOL_ID': schoolId,
@@ -126,6 +130,12 @@ void main(List<String> args) {
     ..writeln()
     ..writeln(
       'Put the school logo at assets/branding/logo.png before building.',
+    )
+    ..writeln(
+      push
+          ? 'Push: google-services.json is in place.'
+          : 'Push: no google-services.json — this build will use the in-app '
+                'inbox only. Add "googleServicesJson" to the config to enable it.',
     );
 
   if (args.contains('--build')) {
@@ -164,6 +174,40 @@ void _rewriteGradle(String applicationId) {
   gradle.writeAsStringSync(
     source.replaceFirst(pattern, 'applicationId = "$applicationId"'),
   );
+}
+
+/// Copies this school's Firebase config into the Android build.
+///
+/// Each school is its own Firebase app, so the file is per school and cannot
+/// live in the repository. Absent, the app still runs and falls back to the
+/// in-app inbox — a school without push configured yet is a normal state, not
+/// a broken build.
+///
+/// Returns whether push will be available in this build.
+bool _placeGoogleServices(Object? source, String applicationId) {
+  if (source == null || '$source'.trim().isEmpty) return false;
+
+  final file = File('$source'.trim());
+  if (!file.existsSync()) {
+    stderr.writeln(
+      'googleServicesJson points at a file that does not exist: ${file.path}',
+    );
+    exit(66);
+  }
+
+  // A google-services.json from the wrong Firebase app builds fine and then
+  // silently never delivers a notification, which is close to impossible to
+  // diagnose afterwards. Check the package name matches before copying.
+  if (!file.readAsStringSync().contains('"$applicationId"')) {
+    stderr.writeln(
+      'googleServicesJson does not mention $applicationId. That file belongs to '
+      'a different app, and push would fail silently.',
+    );
+    exit(65);
+  }
+
+  file.copySync('android/app/google-services.json');
+  return true;
 }
 
 /// Rewrites android:label so the icon on a parent's home screen says their

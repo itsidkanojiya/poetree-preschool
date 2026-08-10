@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_service.dart';
+import '../../core/push/push_service.dart';
 
 /// The signed-in person.
 class AppUser {
@@ -51,6 +54,9 @@ class AuthController extends GetxController {
     try {
       final data = await api.get<Map<String, dynamic>>('/auth/me');
       user.value = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+      // FCM rotates tokens silently, so a returning user re-registers on every
+      // cold start rather than only on the day they signed in.
+      unawaited(Get.find<PushService>().start());
       return _homeFor(user.value!);
     } on DioException {
       // The interceptor already tried to refresh; if we are still here the
@@ -90,6 +96,11 @@ class AuthController extends GetxController {
       );
       user.value = signedIn;
 
+      // After the token is stored, because registering a device attaches it to
+      // whoever is signed in — and best-effort, because push failing must never
+      // stop someone getting into the app.
+      unawaited(Get.find<PushService>().start());
+
       await Get.offAllNamed<void>(_homeFor(signedIn));
     } on DioException catch (e) {
       errorMessage.value = _messageFor(e);
@@ -99,6 +110,10 @@ class AuthController extends GetxController {
   }
 
   Future<void> signOut() async {
+    // Before the session goes: revoking the device needs a live token, and a
+    // handed-on phone must stop receiving another family's notifications.
+    await Get.find<PushService>().stop();
+
     try {
       final refresh = await api.tokens.refreshToken;
       await api.post<dynamic>('/auth/logout', body: {'refreshToken': refresh});

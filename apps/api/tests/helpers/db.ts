@@ -54,14 +54,18 @@ export async function resetDatabase(): Promise<void> {
       AND TABLE_NAME <> '_prisma_migrations'
   `;
 
-  await prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
-  try {
-    for (const { name } of tables) {
-      await prismaUnscoped.$executeRawUnsafe(`TRUNCATE TABLE \`${name}\``);
-    }
-  } finally {
-    await prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
-  }
+  // FOREIGN_KEY_CHECKS is per-connection, and Prisma pools connections — issuing
+  // these as separate awaits let the disable and the deletes land on different
+  // connections, so the constraint was still live when the delete ran. Batching
+  // them into one $transaction pins them to a single connection.
+  //
+  // DELETE rather than TRUNCATE: TRUNCATE forces an implicit commit in MySQL,
+  // which would end the transaction and take the disabled checks with it.
+  await prismaUnscoped.$transaction([
+    prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0'),
+    ...tables.map(({ name }) => prismaUnscoped.$executeRawUnsafe(`DELETE FROM \`${name}\``)),
+    prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1'),
+  ]);
 
   clearSchoolAccessCache();
 }

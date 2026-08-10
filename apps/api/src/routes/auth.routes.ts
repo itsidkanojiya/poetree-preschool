@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
-import { PORTAL_ROLES, changePasswordSchema, loginSchema, refreshSchema } from '@poetree/shared';
+import { changePasswordSchema, loginSchema, refreshSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { body, validate } from '../middleware/validate.js';
@@ -44,7 +44,15 @@ authRouter.post(
   loginLimiter,
   validate({ body: loginSchema }),
   asyncHandler(async (req, res) => {
-    const result = await authService.login(body<LoginInput>(req), requestMeta(req), PORTAL_ROLES);
+    // Deliberately role-agnostic. The same endpoint serves the web portal and
+    // the mobile app, and gating it to portal roles here locked parents — the
+    // app's main audience — out of their own children's information.
+    //
+    // Each client enforces its own allowed roles: the portal's sign-in action
+    // refuses to store a session for a non-portal role, and the app refuses
+    // anyone who is not a parent or teacher. A token alone grants nothing,
+    // because every route is permission-gated regardless of how it was obtained.
+    const result = await authService.login(body<LoginInput>(req), requestMeta(req));
     res.json(result);
   }),
 );

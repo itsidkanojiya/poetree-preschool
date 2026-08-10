@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { idParamSchema, idSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { body, params, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
@@ -232,7 +233,9 @@ feeRouter.get(
 
 feeRouter.get(
   '/outstanding',
-  requirePermission('fee:read'),
+  // Deliberately not fee:read. Parents hold that so they can see their own
+  // dues; a school-wide arrears list naming every family is an office report.
+  requireRole('SCHOOL_ADMIN', 'PUBLICATION_ADMIN'),
   asyncHandler(async (_req, res) => {
     res.json(await fees.outstandingReport());
   }),

@@ -1,9 +1,10 @@
 import type { Prisma } from '@prisma/client';
 import { prisma, type TenantTransactionClient } from '../db/prisma.js';
-import { requireSchoolId } from '../context/requestContext.js';
+import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
+import { guardianStudentIds } from './scope.service.js';
 
 /**
  * Fees.
@@ -493,11 +494,32 @@ export interface LedgerEntry {
 }
 
 /** A child's fee card: what was billed, what was paid, what is still owed. */
+/**
+ * A parent may read their own child's ledger and nobody else's.
+ *
+ * `fee:read` alone is not enough: parents hold it so they can see what they owe,
+ * but the permission says nothing about *whose* fees. Without this, any parent
+ * could read any child's arrears by guessing an id.
+ */
+async function assertMayReadLedger(studentId: string): Promise<void> {
+  const context = getRequestContext();
+  if (!context) throw ApiError.unauthenticated();
+  if (context.role !== 'PARENT') return;
+
+  const mine = await guardianStudentIds();
+  if (!mine.includes(studentId)) {
+    // Missing, not forbidden — a 403 would confirm the child exists.
+    throw ApiError.notFound('Student not found');
+  }
+}
+
 export async function studentLedger(studentId: string): Promise<{
   invoices: LedgerEntry[];
   payments: Array<{ receiptNo: string; amountInPaise: number; paidOn: string; method: string }>;
   totals: { billed: number; paid: number; outstanding: number };
 }> {
+  await assertMayReadLedger(studentId);
+
   const student = await prisma.student.findFirst({
     where: { id: studentId },
     select: { id: true },

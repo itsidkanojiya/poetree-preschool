@@ -180,9 +180,12 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
     expect(response.body.error.code).toBe(ERROR_CODES.FORBIDDEN);
   });
 
-  it('lets a teacher sign in to the portal but still refuses parents', async () => {
-    // Teachers joined PORTAL_ROLES at the ERP phase — they need attendance and
-    // homework on a desktop as well as in the app.
+  it('issues tokens to teachers and parents alike', async () => {
+    // Login is role-agnostic on purpose. It is shared by the web portal and the
+    // mobile app, so gating it to "portal roles" did not make parents app-only —
+    // it locked them out of the app as well, which is the audience it exists for.
+    // Each client decides who it admits; the portal's sign-in refuses to store a
+    // session for a non-portal role.
     const teacherLogin = await api
       .post(`${BASE}/auth/login`)
       .send({ identifier: schoolA.teacherEmail, password: TEST_PASSWORD });
@@ -191,13 +194,45 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
     expect(teacherLogin.body.user.role).toBe('TEACHER');
     expect(teacherLogin.body.user.school.code).toBe(schoolA.code);
 
-    // Parents remain app-only.
     const parentLogin = await api
       .post(`${BASE}/auth/login`)
       .send({ identifier: schoolA.parentPhone, password: TEST_PASSWORD });
 
-    expect(parentLogin.status).toBe(403);
-    expect(parentLogin.body.error.code).toBe(ERROR_CODES.PORTAL_ACCESS_DENIED);
+    expect(parentLogin.status).toBe(200);
+    expect(parentLogin.body.user.role).toBe('PARENT');
+  });
+
+  it('gives a parent a token that opens nothing administrative', async () => {
+    // This is what makes a role-agnostic login safe: the token exists, and every
+    // route still refuses it on its own merits.
+    const parent = await login(schoolA.parentPhone);
+
+    const responses = await Promise.all([
+      api.get(`${BASE}/students`).set(auth(parent)),
+      // The school-wide arrears list names every family and what they owe.
+      // `fee:read` lets a parent see their own dues; it must not open this.
+      api.get(`${BASE}/fees/outstanding`).set(auth(parent)),
+      api.get(`${BASE}/publication/schools`).set(auth(parent)),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe(ERROR_CODES.FORBIDDEN);
+    }
+  });
+
+  it('stops a parent reading another family’s fee ledger', async () => {
+    // A permission says what a caller may do, never whose data they may do it
+    // to. Without the guardian check, any parent could read any child's arrears
+    // by guessing an id.
+    const parent = await login(schoolA.parentPhone);
+
+    const response = await api
+      .get(`${BASE}/fees/students/${schoolB.studentId}/ledger`)
+      .set(auth(parent));
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe(ERROR_CODES.NOT_FOUND);
   });
 
   /**

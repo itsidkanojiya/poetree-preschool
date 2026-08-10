@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_service.dart';
-import '../../core/config/school_config.dart';
 
 /// The signed-in person.
 class AppUser {
@@ -73,10 +72,12 @@ class AuthController extends GetxController {
 
       final signedIn = AppUser.fromJson(data['user'] as Map<String, dynamic>);
 
-      // This binary belongs to one school. The API enforces it too, but failing
-      // here gives a clearer message than a generic rejection.
-      if (SchoolConfig.isConfigured && !signedIn.isParent && !signedIn.isTeacher) {
-        errorMessage.value = 'This app is for parents and teachers.';
+      // This app is for families and staff, not administration — and the check
+      // must not depend on SchoolConfig being filled in, or an unconfigured
+      // development build would silently admit school admins.
+      if (!signedIn.isParent && !signedIn.isTeacher) {
+        errorMessage.value =
+            'This app is for parents and teachers. Administrators use the web portal.';
         return;
       }
 

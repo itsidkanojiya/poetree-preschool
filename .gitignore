@@ -28,3 +28,9 @@ Thumbs.db
 deploy-artifact/
 *.pem
 *.key
+
+# Firebase service-account keys. These grant full admin on the Firebase project,
+# and this repository is public - a stray git add -A must never sweep one in.
+**/firebase-service-account.json
+**/*firebase-adminsdk*.json
+**/serviceAccountKey.json

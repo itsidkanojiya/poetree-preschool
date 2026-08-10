@@ -13,10 +13,33 @@ interface OutstandingRow {
   overdueCount: number;
 }
 
+/**
+ * The payment form needs every child, but the API caps pageSize at 100.
+ *
+ * Asking for more is a 400, and silently taking the first hundred would hide
+ * children from the picker at any school past that size — which the office would
+ * only discover when they could not take somebody's fees. So page through.
+ */
+async function allStudents(): Promise<StudentSummary[]> {
+  const first = await apiFetch<Paginated<StudentSummary>>('/students', {
+    query: { pageSize: 100, page: 1 },
+  });
+
+  const items = [...first.items];
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const next = await apiFetch<Paginated<StudentSummary>>('/students', {
+      query: { pageSize: 100, page },
+    });
+    items.push(...next.items);
+  }
+
+  return items;
+}
+
 export default async function FeesPage() {
   const [outstanding, students, years] = await Promise.all([
     apiFetch<OutstandingRow[]>('/fees/outstanding'),
-    apiFetch<Paginated<StudentSummary>>('/students', { query: { pageSize: 200 } }),
+    allStudents(),
     apiFetch<AcademicYearSummary[]>('/academic-years'),
   ]);
 
@@ -43,7 +66,7 @@ export default async function FeesPage() {
           tone={withOverdue > 0 ? 'critical' : 'good'}
           hint="Overdue is derived from the due date, never stored"
         />
-        <StatTile label="Children enrolled" value={students.total} />
+        <StatTile label="Children enrolled" value={students.length} />
       </div>
 
       <div className="mt-6">
@@ -100,7 +123,7 @@ export default async function FeesPage() {
           title="Record a payment"
           description="Issues a numbered receipt and settles the oldest invoice first."
         >
-          <RecordPaymentForm students={students.items} />
+          <RecordPaymentForm students={students} />
         </Card>
 
         <Card title="Generate invoices" description="Raises the bill for one period.">

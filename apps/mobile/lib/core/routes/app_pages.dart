@@ -12,6 +12,8 @@ import '../../features/stream/stream_controller.dart';
 import '../../features/stream/stream_view.dart';
 import '../../features/timetable/timetable_controller.dart';
 import '../../features/timetable/timetable_view.dart';
+import '../../features/teacher/homework_controller.dart';
+import '../../features/teacher/homework_view.dart';
 import '../../features/teacher/register_controller.dart';
 import '../../features/teacher/register_view.dart';
 import '../../features/teacher/teacher_home_view.dart';
@@ -74,7 +76,18 @@ class AppRoutes {
   static const inbox = '/messages';
   static const timetable = '/timetable';
   static const stream = '/stream';
+  static const teacherHomework = '/teacher/homework';
   static const blocked = '/blocked';
+}
+
+class TeacherHomeworkBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<TeacherHomeworkController>(
+      TeacherHomeworkController(classroomId: args['classroomId'] as String?),
+    );
+  }
 }
 
 class StreamBinding extends Bindings {
@@ -142,6 +155,11 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.stream,
     page: () => const StreamView(),
     binding: StreamBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.teacherHomework,
+    page: () => const TeacherHomeworkView(),
+    binding: TeacherHomeworkBinding(),
   ),
   GetPage<void>(name: AppRoutes.blocked, page: () => const BlockedView()),
 ];

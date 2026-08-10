@@ -47,6 +47,13 @@ export type UpdateHomeworkInput = z.infer<typeof updateHomeworkSchema>;
 export const listHomeworkQuerySchema = paginationQuerySchema.extend({
   classroomId: idSchema.optional(),
   status: z.enum(PUBLISH_STATUSES).optional(),
+  /**
+   * Whose submission to report alongside each row.
+   *
+   * A parent needs "have we done this", and the aggregate progress figures
+   * cannot answer it. Ignored unless the caller may read that child.
+   */
+  studentId: idSchema.optional(),
 });
 export type ListHomeworkQuery = z.infer<typeof listHomeworkQuerySchema>;
 
@@ -55,6 +62,20 @@ export const reviewSubmissionSchema = z.object({
   teacherRemark: z.string().trim().max(500).optional(),
 });
 export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionSchema>;
+
+/**
+ * A parent marking their child's homework done.
+ *
+ * No status field: a parent says "we did this", and whether that counts as
+ * COMPLETED is the teacher's call, not theirs. Letting a parent choose the
+ * status would make the completion figures meaningless.
+ */
+export const submitHomeworkSchema = z.object({
+  studentId: idSchema,
+  note: z.string().trim().max(500).optional(),
+  fileIds: z.array(idSchema).max(5).optional(),
+});
+export type SubmitHomeworkInput = z.infer<typeof submitHomeworkSchema>;
 
 export interface HomeworkSummary {
   id: string;
@@ -70,6 +91,16 @@ export interface HomeworkSummary {
   attachmentCount: number;
   /** Only meaningful once published. */
   progress: { total: number; completed: number; pending: number };
+  /**
+   * This child's own submission, when the list was asked for on their behalf.
+   * Absent for a teacher or admin viewing the class as a whole.
+   */
+  mySubmission?: {
+    id: string;
+    status: SubmissionStatus;
+    submittedOn: string | null;
+    teacherRemark: string | null;
+  };
 }
 
 export interface SubmissionSummary {

@@ -109,22 +109,32 @@ class TeacherHomeView extends GetView<RegisterController> {
                           trailing: PopupMenuButton<String>(
                             onSelected: (choice) async {
                               await controller.selectClassroom(classroom.id);
-                              if (choice == 'register') {
-                                await Get.toNamed<void>(AppRoutes.register);
-                              } else {
-                                await Get.toNamed<void>(
-                                  AppRoutes.stream,
-                                  arguments: {
-                                    'classroomId': classroom.id,
-                                    'canPost': true,
-                                  },
-                                );
+                              switch (choice) {
+                                case 'register':
+                                  await Get.toNamed<void>(AppRoutes.register);
+                                case 'homework':
+                                  await Get.toNamed<void>(
+                                    AppRoutes.teacherHomework,
+                                    arguments: {'classroomId': classroom.id},
+                                  );
+                                default:
+                                  await Get.toNamed<void>(
+                                    AppRoutes.stream,
+                                    arguments: {
+                                      'classroomId': classroom.id,
+                                      'canPost': true,
+                                    },
+                                  );
                               }
                             },
                             itemBuilder: (context) => const [
                               PopupMenuItem(
                                 value: 'register',
                                 child: Text('Take the register'),
+                              ),
+                              PopupMenuItem(
+                                value: 'homework',
+                                child: Text('Homework'),
                               ),
                               PopupMenuItem(
                                 value: 'stream',

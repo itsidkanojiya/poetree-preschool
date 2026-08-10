@@ -305,6 +305,7 @@ model School {
   homework           Homework[]
   homeworkAttachments HomeworkAttachment[]
   homeworkSubmissions HomeworkSubmission[]
+  homeworkSubmissionFiles HomeworkSubmissionFile[]
   classroomPosts      ClassroomPost[]
   classroomPostAttachments ClassroomPostAttachment[]
   notices             Notice[]
@@ -986,9 +987,30 @@ model HomeworkSubmission {
   student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   reviewedBy User?    @relation("HomeworkReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
+  files HomeworkSubmissionFile[]
+
   @@unique([homeworkId, studentId])
   @@index([schoolId, studentId, status])
   @@map("homework_submissions")
+}
+
+/// What a parent sent in — usually a photograph of the work, which is how a
+/// preschool submission actually looks.
+model HomeworkSubmissionFile {
+  id           String @id @default(cuid())
+  schoolId     String
+  submissionId String
+  fileId       String
+
+  createdAt DateTime @default(now())
+
+  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  submission HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  file       FileObject         @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, fileId])
+  @@index([schoolId, submissionId])
+  @@map("homework_submission_files")
 }
 
 /// The class stream: announcements and materials, newest first. Deliberately
@@ -1561,6 +1583,7 @@ model FileObject {
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   documents                StudentDocument[]
   homeworkAttachments      HomeworkAttachment[]
+  submissionFiles          HomeworkSubmissionFile[]
   classroomPostAttachments ClassroomPostAttachment[]
   noticeAttachments        NoticeAttachment[]
 

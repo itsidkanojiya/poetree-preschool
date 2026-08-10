@@ -517,22 +517,91 @@ class _HomeworkTab extends StatelessWidget {
       itemCount: child.homework.length,
       itemBuilder: (context, index) {
         final item = child.homework[index];
+        final colors = Theme.of(context).colorScheme;
+
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
-          child: ListTile(
-            title: Text(item.title),
-            subtitle: Column(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (item.description != null && item.description!.isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (item.isDone)
+                      Icon(
+                        item.myStatus == 'COMPLETED'
+                            ? Icons.verified_outlined
+                            : Icons.check_circle_outline,
+                        size: 20,
+                        color: const Color(0xFF16A34A),
+                      ),
+                  ],
+                ),
+                if (item.description != null &&
+                    item.description!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
                   Text(item.description!),
-                const SizedBox(height: 4),
+                ],
+                const SizedBox(height: 6),
                 Text(
                   'Due ${_day(item.dueDate)}${item.subject == null ? '' : ' · ${item.subject}'}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.outline),
                 ),
+
+                // The teacher's words come back to the parent — otherwise a
+                // review is something that happens where nobody can see it.
+                if (item.teacherRemark != null &&
+                    item.teacherRemark!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colors.secondaryContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      item.teacherRemark!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+
+                if (item.canSubmit)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _markDone(context, child, item),
+                      icon: const Icon(Icons.check, size: 18),
+                      label: const Text('Mark as done'),
+                    ),
+                  )
+                else if (item.isDone)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      switch (item.myStatus) {
+                        'COMPLETED' => 'The teacher has marked this done.',
+                        'LATE' => 'Sent in after the due date.',
+                        _ => 'Sent in — waiting for the teacher.',
+                      },
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: colors.outline),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -540,6 +609,60 @@ class _HomeworkTab extends StatelessWidget {
       },
     );
   }
+}
+
+/// Asks for an optional note, then sends it.
+///
+/// A note rather than a status: whether the work counts as done is the
+/// teacher's judgement, and the parent is only reporting that it happened.
+Future<void> _markDone(
+  BuildContext context,
+  ChildController child,
+  HomeworkItem item,
+) async {
+  final noteField = TextEditingController();
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(item.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Tell the teacher this is done?'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: noteField,
+            maxLines: 2,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Anything to add? (optional)',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Not yet'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Mark as done'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) return;
+
+  final failure = await child.submitHomework(item, note: noteField.text);
+
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(failure ?? 'Sent to the teacher.')));
 }
 
 class _FeesTab extends StatelessWidget {

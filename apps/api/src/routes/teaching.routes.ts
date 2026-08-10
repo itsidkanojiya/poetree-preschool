@@ -7,6 +7,7 @@ import {
   listHomeworkQuerySchema,
   listNoticesQuerySchema,
   reviewSubmissionSchema,
+  submitHomeworkSchema,
   updateHomeworkSchema,
 } from '@poetree/shared';
 import type {
@@ -16,6 +17,7 @@ import type {
   ListHomeworkQuery,
   ListNoticesQuery,
   ReviewSubmissionInput,
+  SubmitHomeworkInput,
   UpdateHomeworkInput,
 } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -79,6 +81,23 @@ homeworkRouter.post(
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
     res.json(await homework.publishHomework(id(req), req.auth!.userId));
+  }),
+);
+
+/**
+ * A parent marking their own child's homework done.
+ *
+ * homework:read, not homework:review — reviewing is the teacher's judgement on
+ * whether it counts, and a parent claiming COMPLETED for their own child would
+ * turn every completion figure into a self-report. The service sets SUBMITTED.
+ */
+homeworkRouter.post(
+  '/:id/submit',
+  requirePermission('homework:read'),
+  validate({ params: idParamSchema, body: submitHomeworkSchema }),
+  asyncHandler(async (req, res) => {
+    await homework.submitHomework(id(req), body<SubmitHomeworkInput>(req), req.auth!.userId);
+    res.status(204).send();
   }),
 );
 

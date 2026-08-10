@@ -60,7 +60,13 @@ class ChildController extends GetxController {
         if (selected.classroomId != null)
           api.get<Map<String, dynamic>>(
             '/homework',
-            query: {'classroomId': selected.classroomId, 'pageSize': 20},
+            query: {
+              'classroomId': selected.classroomId,
+              // Named so each row carries this child's own submission —
+              // "have we done this" is not answerable from the class totals.
+              'studentId': selected.id,
+              'pageSize': 20,
+            },
           )
         else
           Future<Map<String, dynamic>>.value(<String, dynamic>{'items': []}),
@@ -107,13 +113,45 @@ class ChildController extends GetxController {
   }
 }
 
-/// Records that this parent has seen a notice.
-///
-/// The API keeps read receipts so a school can answer "who has not seen this"
-/// — which is the actual question for an emergency notice, and unanswerable
-/// unless the app says something. Fire-and-forget: a failed receipt must never
-/// stop a parent reading the notice in front of them.
+extension HomeworkSubmissions on ChildController {
+  /// Marks a piece of homework done for the selected child.
+  ///
+  /// Returns null on success, or a sentence to show the parent. The status is
+  /// the server's to decide — a parent says "we did this", and whether that
+  /// counts is the teacher's judgement.
+  Future<String?> submitHomework(HomeworkItem item, {String? note}) async {
+    final selected = child;
+    if (selected == null) return 'No child selected.';
+
+    try {
+      await api.post<dynamic>(
+        '/homework/${item.id}/submit',
+        body: {
+          'studentId': selected.id,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        },
+      );
+
+      item.myStatus = 'SUBMITTED';
+      homework.refresh();
+      return null;
+    } on DioException catch (e) {
+      final payload = e.response?.data;
+      return payload is Map && payload['error'] is Map
+          ? (payload['error'] as Map)['message']?.toString() ??
+                'Could not mark it done.'
+          : 'Could not reach the school. Try again when you have signal.';
+    }
+  }
+}
+
 extension NoticeReceipts on ChildController {
+  /// Records that this parent has seen a notice.
+  ///
+  /// The API keeps read receipts so a school can answer "who has not seen
+  /// this" — the actual question for an emergency notice, and unanswerable
+  /// unless the app says something. Fire and forget: a failed receipt must
+  /// never stop a parent reading the notice in front of them.
   Future<void> markNoticeRead(NoticeItem notice) async {
     if (notice.readByMe) return;
 
@@ -175,23 +213,45 @@ class HomeworkItem {
     required this.id,
     required this.title,
     required this.dueDate,
+    required this.allowsSubmission,
     this.description,
     this.subject,
+    this.myStatus,
+    this.teacherRemark,
   });
 
-  factory HomeworkItem.fromJson(Map<String, dynamic> json) => HomeworkItem(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    description: json['description'] as String?,
-    dueDate: json['dueDate'] as String,
-    subject: (json['subject'] as Map<String, dynamic>?)?['name'] as String?,
-  );
+  factory HomeworkItem.fromJson(Map<String, dynamic> json) {
+    final mine = json['mySubmission'] as Map<String, dynamic>?;
+    return HomeworkItem(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String?,
+      dueDate: json['dueDate'] as String,
+      allowsSubmission: json['allowsSubmission'] as bool? ?? false,
+      subject: (json['subject'] as Map<String, dynamic>?)?['name'] as String?,
+      myStatus: mine?['status'] as String?,
+      teacherRemark: mine?['teacherRemark'] as String?,
+    );
+  }
 
   final String id;
   final String title;
   final String? description;
   final String dueDate;
+  final bool allowsSubmission;
   final String? subject;
+
+  /// This child's own submission status, not the class's.
+  String? myStatus;
+  String? teacherRemark;
+
+  bool get isDone =>
+      myStatus == 'SUBMITTED' || myStatus == 'COMPLETED' || myStatus == 'LATE';
+
+  /// Once a teacher has judged it, a parent resubmitting would undo that.
+  bool get isJudged => myStatus == 'COMPLETED' || myStatus == 'NOT_COMPLETED';
+
+  bool get canSubmit => allowsSubmission && !isDone && !isJudged;
 }
 
 class NoticeItem {

@@ -7,6 +7,7 @@ import type {
   ListHomeworkQuery,
   Paginated,
   ReviewSubmissionInput,
+  SubmitHomeworkInput,
   SubmissionSummary,
   UpdateHomeworkInput,
 } from '@poetree/shared';
@@ -18,6 +19,7 @@ import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import {
   assertCanReadClassroomContent,
+  assertCanReadStudent,
   assertTeacherOwnsClassroom,
   guardianStudentIds,
   teacherClassroomIds,
@@ -150,14 +152,45 @@ export async function listHomework(query: ListHomeworkQuery): Promise<Paginated<
     progressByHomework.set(group.homeworkId, entry);
   }
 
+  // "Have we done this" is a different question from "how many of the class
+  // have", and the aggregate above cannot answer it. Only asked when the caller
+  // named a child, and only after checking they may read that child.
+  const mine = new Map<string, MySubmission>();
+  if (query.studentId && rows.length > 0) {
+    await assertCanReadStudent(query.studentId);
+
+    const submissions = await prisma.homeworkSubmission.findMany({
+      where: { studentId: query.studentId, homeworkId: { in: rows.map((r) => r.id) } },
+      select: {
+        id: true,
+        homeworkId: true,
+        status: true,
+        submittedOn: true,
+        teacherRemark: true,
+      },
+    });
+
+    for (const submission of submissions) {
+      mine.set(submission.homeworkId, {
+        id: submission.id,
+        status: submission.status,
+        submittedOn: submission.submittedOn?.toISOString() ?? null,
+        teacherRemark: submission.teacherRemark,
+      });
+    }
+  }
+
   return paginate(
-    rows.map((row) =>
-      toSummary(row, progressByHomework.get(row.id) ?? { total: 0, completed: 0, pending: 0 }),
-    ),
+    rows.map((row) => ({
+      ...toSummary(row, progressByHomework.get(row.id) ?? { total: 0, completed: 0, pending: 0 }),
+      ...(mine.has(row.id) ? { mySubmission: mine.get(row.id) } : {}),
+    })),
     total,
     query,
   );
 }
+
+type MySubmission = NonNullable<HomeworkSummary['mySubmission']>;
 
 export async function getHomework(homeworkId: string): Promise<HomeworkSummary> {
   const where: Prisma.HomeworkWhereInput = { id: homeworkId, ...(await visibilityFilter()) };
@@ -405,6 +438,87 @@ export async function reviewSubmission(
       reviewedById: actorUserId,
       reviewedOn: new Date(),
     },
+  });
+}
+
+/**
+ * A parent marking their child's homework done.
+ *
+ * The submission row already exists — they are materialised for every enrolled
+ * child when homework is published, so "who has not done it" is an indexed
+ * query rather than a set difference. This fills one in.
+ *
+ * Deliberately sets SUBMITTED and not COMPLETED. A parent saying "we did this"
+ * and a teacher agreeing are different claims, and collapsing them would make
+ * every completion figure a self-report.
+ */
+export async function submitHomework(
+  homeworkId: string,
+  input: SubmitHomeworkInput,
+  actorUserId: string,
+): Promise<void> {
+  const schoolId = requireSchoolId();
+
+  // Guardian link, so a parent cannot submit on another child's behalf.
+  await assertCanReadStudent(input.studentId);
+
+  const homework = await prisma.homework.findFirst({
+    where: { id: homeworkId, status: 'PUBLISHED' },
+    select: { id: true, allowsSubmission: true, dueDate: true },
+  });
+  if (!homework) throw ApiError.notFound('Homework not found');
+
+  if (!homework.allowsSubmission) {
+    throw ApiError.badRequest('This homework does not take submissions');
+  }
+
+  const submission = await prisma.homeworkSubmission.findFirst({
+    where: { homeworkId, studentId: input.studentId },
+    select: { id: true, status: true },
+  });
+  // Absent means the child enrolled after this was published, and per the brief
+  // they do not retroactively owe it.
+  if (!submission) throw ApiError.notFound('Homework not found');
+
+  if (submission.status === 'COMPLETED' || submission.status === 'NOT_COMPLETED') {
+    throw ApiError.badRequest('The teacher has already marked this');
+  }
+
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.homeworkSubmission.update({
+      where: { id: submission.id },
+      data: {
+        // LATE is recorded rather than hidden — a teacher deciding whether it
+        // counts needs to know, and the parent can see they were late too.
+        status: now > homework.dueDate ? 'LATE' : 'SUBMITTED',
+        submittedOn: now,
+        note: input.note?.trim() || null,
+      },
+    });
+
+    for (const fileId of input.fileIds ?? []) {
+      // Scoped, so a file id from another school does not attach.
+      const file = await tx.fileObject.findFirst({
+        where: { id: fileId },
+        select: { id: true },
+      });
+      if (!file) throw ApiError.badRequest('That file does not exist');
+
+      await tx.homeworkSubmissionFile.create({
+        data: { schoolId, submissionId: submission.id, fileId },
+      });
+    }
+  });
+
+  await writeAuditLog({
+    action: 'HOMEWORK_SUBMITTED',
+    entity: 'HomeworkSubmission',
+    entityId: submission.id,
+    schoolId,
+    actorUserId,
+    after: { homeworkId, studentId: input.studentId, submittedOn: now.toISOString() },
   });
 }
 

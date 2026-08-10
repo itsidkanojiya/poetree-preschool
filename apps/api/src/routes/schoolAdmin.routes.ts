@@ -1,11 +1,14 @@
 import { Router, type Request } from 'express';
+import { z } from 'zod';
 import {
+  attachDocumentSchema,
   createAcademicYearSchema,
   createClassroomSchema,
   createParentSchema,
   createStudentSchema,
   createTeacherSchema,
   idParamSchema,
+  idSchema,
   listStudentsQuerySchema,
   listUsersQuerySchema,
   updateClassroomSchema,
@@ -14,6 +17,7 @@ import {
   updateTeacherSchema,
 } from '@poetree/shared';
 import type {
+  AttachDocumentInput,
   CreateAcademicYearInput,
   CreateClassroomInput,
   CreateParentInput,
@@ -34,6 +38,7 @@ import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
 import * as studentService from '../services/student.service.js';
 import * as classroomService from '../services/classroom.service.js';
+import * as documentService from '../services/studentDocument.service.js';
 
 /**
  * School Admin surface. Every handler below runs inside the tenant context, so
@@ -183,6 +188,43 @@ schoolAdminRouter.patch(
     res.json(
       await studentService.updateStudent(idOf(req), body<UpdateStudentInput>(req), req.auth!.userId),
     );
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Student documents                                                          */
+/* -------------------------------------------------------------------------- */
+
+const documentIdParamSchema = z.object({ id: idSchema, documentId: idSchema });
+
+schoolAdminRouter.get(
+  '/students/:id/documents',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json({ documents: await documentService.listDocuments(idOf(req)) });
+  }),
+);
+
+schoolAdminRouter.post(
+  '/students/:id/documents',
+  validate({ params: idParamSchema, body: attachDocumentSchema }),
+  asyncHandler(async (req, res) => {
+    const document = await documentService.attachDocument(
+      idOf(req),
+      body<AttachDocumentInput>(req),
+      req.auth!.userId,
+    );
+    res.status(201).json(document);
+  }),
+);
+
+schoolAdminRouter.delete(
+  '/students/:id/documents/:documentId',
+  validate({ params: documentIdParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { id, documentId } = params<{ id: string; documentId: string }>(req);
+    await documentService.removeDocument(id, documentId, req.auth!.userId);
+    res.status(204).send();
   }),
 );
 

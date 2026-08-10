@@ -158,3 +158,27 @@ export const IconShield = (p: IconProps) => (
     <path d="M12 3 4.5 6v5.5c0 4.4 3.1 8.4 7.5 9.5 4.4-1.1 7.5-5.1 7.5-9.5V6L12 3Z" />
   </Svg>
 );
+
+export const IconChart = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20V4" />
+    <path d="M4 20h16" />
+    <path d="M8 16v-4" />
+    <path d="M12.5 16V8" />
+    <path d="M17 16v-6" />
+  </Svg>
+);
+
+export const IconSpark = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.4l-1.9-5.6L4.5 10.9 10.1 9 12 3.5Z" />
+  </Svg>
+);
+
+export const IconDownload = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 4v10" />
+    <path d="m8 10.5 4 4 4-4" />
+    <path d="M5 19h14" />
+  </Svg>
+);

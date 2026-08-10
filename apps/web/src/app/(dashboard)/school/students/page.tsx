@@ -106,12 +106,15 @@ export default async function StudentsPage({
                 {students.items.map((student) => (
                   <TRow key={student.id}>
                     <TCell>
-                      <div className="flex items-center gap-3">
+                      <Link
+                        href={`/school/students/${student.id}`}
+                        className="flex items-center gap-3 hover:text-navy-700"
+                      >
                         <Avatar name={student.fullName} />
                         <TPrimary sub={student.rollNo ? `Roll ${student.rollNo}` : undefined}>
                           {student.fullName}
                         </TPrimary>
-                      </div>
+                      </Link>
                     </TCell>
                     <TCell>
                       <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">

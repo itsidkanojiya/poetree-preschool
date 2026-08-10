@@ -172,6 +172,10 @@ export const AUDIT_ACTIONS = [
   'TIMETABLE_UPDATED',
   'FILE_UPLOADED',
   'FILE_DELETED',
+  // A child's birth certificate or medical letter arriving on — or leaving —
+  // their record is exactly the kind of thing someone asks about a year later.
+  'STUDENT_DOCUMENT_ATTACHED',
+  'STUDENT_DOCUMENT_REMOVED',
   'DATA_EXPORTED',
   'PASSWORD_CHANGED',
   'LOGIN_SUCCEEDED',

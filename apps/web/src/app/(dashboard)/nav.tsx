@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import {
+  IconChart,
   IconClassroom,
   IconHome,
   IconParents,
   IconPlan,
   IconSchool,
   IconInbox,
+  IconSpark,
   IconStudent,
   IconTeacher,
 } from '@/components/icons';
@@ -59,7 +61,12 @@ const SCHOOL_NAV: NavGroup[] = [
       { href: '/school/classrooms', label: 'Classrooms', icon: <IconClassroom size={18} /> },
       { href: '/school/timetable', label: 'Timetable', icon: <IconClassroom size={18} /> },
       { href: '/school/notices', label: 'Notices', icon: <IconInbox size={18} /> },
+      { href: '/school/progress', label: 'Progress', icon: <IconSpark size={18} /> },
     ],
+  },
+  {
+    heading: 'Office',
+    items: [{ href: '/school/reports', label: 'Reports', icon: <IconChart size={18} /> }],
   },
 ];
 

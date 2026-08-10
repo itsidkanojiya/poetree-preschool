@@ -3,6 +3,7 @@ import {
   CLASS_LEVEL_CODES,
   GENDERS,
   GUARDIAN_RELATIONS,
+  STUDENT_DOCUMENT_TYPES,
   STUDENT_STATUSES,
   USER_STATUSES,
 } from '../enums.js';
@@ -137,6 +138,34 @@ export const updateStudentSchema = z.object({
   guardians: z.array(guardianLinkSchema).min(1).max(4).optional(),
 });
 export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
+
+/**
+ * Attaching an already-uploaded file to a child.
+ *
+ * The upload happens first, through POST /files, so content sniffing and the
+ * per-type size caps apply here without being restated. All this carries is
+ * what the file *is*.
+ */
+export const attachDocumentSchema = z.object({
+  fileId: idSchema,
+  type: z.enum(STUDENT_DOCUMENT_TYPES),
+  label: z.string().trim().max(120).optional(),
+});
+export type AttachDocumentInput = z.infer<typeof attachDocumentSchema>;
+
+export interface StudentDocumentSummary {
+  id: string;
+  type: (typeof STUDENT_DOCUMENT_TYPES)[number];
+  label: string | null;
+  createdAt: string;
+  file: {
+    id: string;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+    url: string;
+  };
+}
 
 export const listStudentsQuerySchema = paginationQuerySchema.extend({
   classroomId: idSchema.optional(),

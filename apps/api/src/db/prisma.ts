@@ -53,6 +53,10 @@ export const TENANT_MODELS = new Set<string>([
   // Timetable
   'TimetablePeriod',
   'TimetableEntry',
+  // Learning progress. Skill and LearningActivity are publication-owned and
+  // carry no schoolId, so they are absent here by design and read unscoped.
+  'ActivityAttempt',
+  'StudentSkillProgress',
   // Notices
   'Notice',
   'NoticeTarget',

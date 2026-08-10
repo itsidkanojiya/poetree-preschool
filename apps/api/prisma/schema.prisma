@@ -136,6 +136,19 @@ enum PaymentStatus {
   REFUNDED
 }
 
+/// The interactive activity types Poetree publishes. Content is authored once
+/// at publication level and reused by every school.
+enum ActivityType {
+  TRACING
+  MATCHING
+  COUNTING
+  FLASHCARD
+  SORTING
+  COLOURING
+  RHYME
+  STORY
+}
+
 enum PublishStatus {
   DRAFT
   PUBLISHED
@@ -285,6 +298,8 @@ model School {
   feeInvoiceLines    FeeInvoiceLine[]
   payments           Payment[]
   paymentAllocations PaymentAllocation[]
+  activityAttempts   ActivityAttempt[]
+  skillProgress      StudentSkillProgress[]
   timetablePeriods   TimetablePeriod[]
   timetableEntries   TimetableEntry[]
   homework           Homework[]
@@ -375,6 +390,8 @@ model ClassLevel {
   classrooms Classroom[]
   subjects   Subject[]
   feeStructures FeeStructure[]
+  skills        Skill[]
+  activities    LearningActivity[]
 
   @@map("class_levels")
 }
@@ -522,6 +539,8 @@ model Student {
   documents           StudentDocument[]
   attendanceRecords   AttendanceRecord[]
   homeworkSubmissions HomeworkSubmission[]
+  activityAttempts    ActivityAttempt[]
+  skillProgress       StudentSkillProgress[]
   feeConcessions      FeeConcession[]
   feeInvoices         FeeInvoice[]
   payments            Payment[]
@@ -632,6 +651,7 @@ model AcademicYear {
   sequences          DocumentSequence[]
   attendanceSessions AttendanceSession[]
   homework           Homework[]
+  skillProgress      StudentSkillProgress[]
   feeStructures      FeeStructure[]
   feeConcessions     FeeConcession[]
   feeInvoices        FeeInvoice[]
@@ -905,6 +925,9 @@ model Homework {
   status      PublishStatus @default(DRAFT)
   /// When false the child simply does it at home; nothing is uploaded back.
   allowsSubmission Boolean  @default(false)
+  /// The ERP-to-LMS bridge: homework that IS an activity. Completion flows
+  /// back from ActivityAttempt, so a parent never marks it done by hand.
+  learningActivityId String?
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -914,7 +937,8 @@ model Homework {
   academicYear AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   classroom    Classroom            @relation(fields: [classroomId], references: [id], onDelete: Cascade)
   subject      Subject?             @relation(fields: [subjectId], references: [id], onDelete: SetNull)
-  assignedBy   User                 @relation("HomeworkAuthor", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedBy       User              @relation("HomeworkAuthor", fields: [assignedById], references: [id], onDelete: Restrict)
+  learningActivity LearningActivity? @relation(fields: [learningActivityId], references: [id], onDelete: SetNull)
   attachments  HomeworkAttachment[]
   submissions  HomeworkSubmission[]
 
@@ -1366,6 +1390,120 @@ model TimetableEntry {
   @@index([schoolId, teacherId, dayOfWeek])
   @@index([schoolId, roomId, dayOfWeek])
   @@map("timetable_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Learning content and progress
+//
+// Skills and activities are publication-owned (no schoolId) — Poetree authors
+// them once and every school reads the same set. Attempts and progress are
+// tenant data, because they are about a particular child.
+// ---------------------------------------------------------------------------
+
+/// A thing a child is learning, e.g. "Letter recognition A-Z".
+///
+/// Progress is measured against these rather than against activities, so
+/// replacing an activity does not lose a child's history.
+model Skill {
+  id           String  @id @default(cuid())
+  code         String  @unique @db.VarChar(40)
+  name         String  @db.VarChar(120)
+  classLevelId String?
+  sortOrder    Int     @default(0)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classLevel ClassLevel?            @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  activities LearningActivity[]
+  progress   StudentSkillProgress[]
+
+  @@index([classLevelId, sortOrder])
+  @@map("skills")
+}
+
+model LearningActivity {
+  id           String       @id @default(cuid())
+  code         String       @unique @db.VarChar(40)
+  title        String       @db.VarChar(160)
+  type         ActivityType
+  skillId      String
+  classLevelId String?
+  /// The activity definition the app renders — letters to trace, pairs to
+  /// match. Shape varies by type, which is why it is JSON rather than columns.
+  contentJson  Json?
+  isActive     Boolean      @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skill      Skill             @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  classLevel ClassLevel?       @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  attempts   ActivityAttempt[]
+  homework   Homework[]
+
+  @@index([skillId])
+  @@index([classLevelId, isActive])
+  @@map("learning_activities")
+}
+
+/// One go at an activity. The source of truth for everything below it.
+model ActivityAttempt {
+  id         String @id @default(cuid())
+  schoolId   String
+  studentId  String
+  activityId String
+
+  correctCount     Int
+  totalCount       Int
+  timeSpentSeconds Int       @default(0)
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  /// Per-question detail, so a teacher can see which letters were missed.
+  resultJson       Json?
+
+  createdAt DateTime @default(now())
+
+  school   School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student  Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  activity LearningActivity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, studentId, createdAt])
+  @@index([schoolId, activityId])
+  @@map("activity_attempts")
+}
+
+/// A rollup of attempts, kept so a progress screen is one indexed read rather
+/// than a scan of every attempt a child has ever made. Rebuildable from
+/// ActivityAttempt, which remains authoritative.
+model StudentSkillProgress {
+  id             String @id @default(cuid())
+  schoolId       String
+  studentId      String
+  skillId        String
+  academicYearId String
+
+  /// Correct answers as a percentage of questions answered, over the child's
+  /// most recent attempts at this skill. Stored alongside the counts it came
+  /// from so the figure can always be explained to a parent.
+  masteryPercent Int      @default(0)
+  correctCount   Int      @default(0)
+  totalCount     Int      @default(0)
+  attemptsCount  Int      @default(0)
+  lastAssessedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, skillId, academicYearId])
+  @@index([schoolId, studentId])
+  @@map("student_skill_progress")
 }
 
 // ---------------------------------------------------------------------------

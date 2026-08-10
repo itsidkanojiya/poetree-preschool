@@ -64,6 +64,11 @@ export const PERMISSIONS = [
   // Progress
   'progress:read',
   'progress:annotate',
+  // Recording an attempt is not the same as reading progress: the figures must
+  // come from activities actually completed, not from anyone who can see them.
+  // Held by the app's two audiences - a parent whose child is playing, and a
+  // teacher on a classroom device.
+  'progress:record',
 
   // Cross-cutting
   'report:view',
@@ -143,6 +148,11 @@ const TEACHER: Permission[] = [
   'notice:manage',
   'progress:read',
   'progress:annotate',
+  // Recording an attempt is not the same as reading progress: the figures must
+  // come from activities actually completed, not from anyone who can see them.
+  // Held by the app's two audiences - a parent whose child is playing, and a
+  // teacher on a classroom device.
+  'progress:record',
   'report:view',
 ];
 
@@ -155,6 +165,11 @@ const PARENT: Permission[] = [
   'timetable:read',
   'notice:read',
   'progress:read',
+  // A child has no login, so their attempts are recorded through the parent's
+  // session while they play. The service still checks the parent is that
+  // child's guardian — the permission alone would let them post scores for any
+  // child in the school.
+  'progress:record',
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {

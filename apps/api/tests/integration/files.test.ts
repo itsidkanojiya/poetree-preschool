@@ -14,10 +14,20 @@ import { prismaUnscoped, disconnectPrisma } from '../../src/db/prisma.js';
 const dbUp = await isDatabaseReachable();
 
 /** A real 1x1 PNG. */
-const PNG = Buffer.from(
+const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64',
 );
+
+/**
+ * A PNG header followed by a megabyte of padding.
+ *
+ * The tiny buffer above completes in one chunk over a local socket, which hid a
+ * real bug: multer finishing across an async boundary loses the
+ * AsyncLocalStorage tenant context. A body large enough to arrive in several
+ * chunks reproduces what a real upload through Nginx does.
+ */
+const PNG = Buffer.concat([TINY_PNG, Buffer.alloc(1024 * 1024, 0x20)]);
 
 describe.skipIf(!dbUp)('file uploads', () => {
   let baseline: Baseline;

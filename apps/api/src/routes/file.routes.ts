@@ -3,6 +3,7 @@ import multer from 'multer';
 import { idParamSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { params, validate } from '../middleware/validate.js';
+import { tenantContext } from '../middleware/tenantContext.js';
 import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -34,6 +35,18 @@ const upload = multer({
 fileRouter.post(
   '/',
   upload.single('file'),
+  // Re-bind the tenant context after multer.
+  //
+  // Multer finishes in a stream `close` callback whose async resource was
+  // created when the request arrived — before tenantContext ran — so the
+  // AsyncLocalStorage store is the empty one from that moment, and every
+  // scoped Prisma call downstream would throw. `req.auth` is a plain property
+  // and survives, so re-running the same middleware restores the context.
+  //
+  // This only bites once the upload crosses an async boundary, which a small
+  // body over a local socket does not. It passed in tests and failed the moment
+  // a real file went through Nginx.
+  tenantContext,
   asyncHandler(async (req, res) => {
     const schoolId = requireSchoolId();
     const file = req.file;

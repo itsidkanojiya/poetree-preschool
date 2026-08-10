@@ -57,6 +57,7 @@ const SCHOOL_NAV: NavGroup[] = [
     heading: 'Academics',
     items: [
       { href: '/school/classrooms', label: 'Classrooms', icon: <IconClassroom size={18} /> },
+      { href: '/school/timetable', label: 'Timetable', icon: <IconClassroom size={18} /> },
       { href: '/school/notices', label: 'Notices', icon: <IconInbox size={18} /> },
     ],
   },
@@ -68,6 +69,7 @@ const TEACHER_NAV: NavGroup[] = [
       { href: '/teacher', label: 'Today', icon: <IconHome size={18} />, exact: true },
       { href: '/teacher/attendance', label: 'Attendance', icon: <IconClassroom size={18} /> },
       { href: '/teacher/homework', label: 'Homework', icon: <IconPlan size={18} /> },
+      { href: '/teacher/stream', label: 'Class stream', icon: <IconInbox size={18} /> },
     ],
   },
 ];

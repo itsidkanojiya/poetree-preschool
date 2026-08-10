@@ -29,7 +29,7 @@ import type {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
-import { prisma } from '../db/prisma.js';
+import { prisma, prismaUnscoped } from '../db/prisma.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
 import * as studentService from '../services/student.service.js';
@@ -194,6 +194,31 @@ schoolAdminRouter.get(
   '/class-levels',
   asyncHandler(async (_req, res) => {
     res.json(await classroomService.listClassLevels());
+  }),
+);
+
+/**
+ * Activity areas for the timetable and homework.
+ *
+ * Two sources deliberately: the school's own subjects through the scoped
+ * client, plus publication defaults which carry a NULL schoolId and so are
+ * invisible to it. Every school inherits the defaults without owning a copy.
+ */
+schoolAdminRouter.get(
+  '/subjects',
+  asyncHandler(async (_req, res) => {
+    const [own, defaults] = await Promise.all([
+      prisma.subject.findMany({
+        where: { isActive: true },
+        select: { id: true, code: true, name: true, sortOrder: true },
+      }),
+      prismaUnscoped.subject.findMany({
+        where: { schoolId: null, isActive: true },
+        select: { id: true, code: true, name: true, sortOrder: true },
+      }),
+    ]);
+
+    res.json([...own, ...defaults].sort((a, b) => a.sortOrder - b.sortOrder));
   }),
 );
 

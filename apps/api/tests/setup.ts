@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 /**
  * Runs before any test module is imported, so `src/config/env.ts` sees a valid
  * configuration at import time.
@@ -15,3 +18,14 @@ process.env.SCHOOL_STATUS_CACHE_TTL_SECONDS ??= '0';
 if (process.env.TEST_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 }
+
+/**
+ * Uploads go to a throwaway directory.
+ *
+ * The default is /var/lib/poetree-preschool/files, which exists on the server
+ * and nowhere else — relying on it made the file tests pass on a machine where
+ * the variable happened to be set and fail everywhere else, CI included. Tests
+ * must not depend on the environment they are run in.
+ */
+process.env.FILE_STORAGE_ROOT ??= join(tmpdir(), 'poetree-test-files');
+process.env.USE_X_ACCEL_REDIRECT = 'false';

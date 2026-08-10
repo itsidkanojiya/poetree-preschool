@@ -48,6 +48,17 @@ class ChildrenController extends GetxController {
   final isLoading = true.obs;
   final error = RxnString();
 
+  /// Which tab the parent is on. Held here rather than in the widget so a push
+  /// notification can open the screen it is about — a fee reminder that lands
+  /// on the home tab has wasted the tap.
+  final tab = 0.obs;
+
+  static const homeTab = 0;
+  static const attendanceTab = 1;
+  static const homeworkTab = 2;
+  static const feesTab = 3;
+  static const noticesTab = 4;
+
   Child? get selected {
     if (children.isEmpty) return null;
     return children.firstWhereOrNull((c) => c.id == selectedId.value) ??

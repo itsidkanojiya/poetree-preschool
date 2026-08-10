@@ -6,6 +6,10 @@ import 'package:get/get.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_service.dart';
 import '../../core/push/push_service.dart';
+import '../../core/session/session_scope.dart';
+import '../parent/child_controller.dart';
+import '../parent/children_controller.dart';
+import '../teacher/register_controller.dart';
 
 /// The signed-in person.
 class AppUser {
@@ -124,6 +128,14 @@ class AuthController extends GetxController {
 
     await api.tokens.clear();
     user.value = null;
+
+    // Everything holding the signed-in person's data goes with them. GetX keeps
+    // the first registration of a type, so the next sign-in would otherwise
+    // reuse these — handing a second family the first family's children.
+    SessionScope.clear<ChildController>();
+    SessionScope.clear<ChildrenController>();
+    SessionScope.clear<RegisterController>();
+
     await Get.offAllNamed<void>('/login');
   }
 

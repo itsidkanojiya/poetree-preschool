@@ -41,15 +41,8 @@ const _statusColors = <String, Color>{
 /// A child is chosen by tapping a face, never by typing or logging in as them —
 /// students hold no credentials anywhere in this platform. A parent with one
 /// child never sees a picker at all.
-class ParentHomeView extends StatefulWidget {
+class ParentHomeView extends StatelessWidget {
   const ParentHomeView({super.key});
-
-  @override
-  State<ParentHomeView> createState() => _ParentHomeViewState();
-}
-
-class _ParentHomeViewState extends State<ParentHomeView> {
-  int _tab = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -96,11 +89,16 @@ class _ParentHomeViewState extends State<ParentHomeView> {
                 error: child.error.value,
                 isEmpty: false,
                 onRetry: child.load,
-                builder: (context) => switch (_tab) {
-                  0 => _Overview(child: child, children: children),
-                  1 => _AttendanceTab(child: child),
-                  2 => _HomeworkTab(child: child),
-                  3 => _FeesTab(child: child),
+                builder: (context) => switch (children.tab.value) {
+                  ChildrenController.homeTab => _Overview(
+                    child: child,
+                    children: children,
+                  ),
+                  ChildrenController.attendanceTab => _AttendanceTab(
+                    child: child,
+                  ),
+                  ChildrenController.homeworkTab => _HomeworkTab(child: child),
+                  ChildrenController.feesTab => _FeesTab(child: child),
                   _ => _NoticesTab(child: child),
                 },
               ),
@@ -108,36 +106,38 @@ class _ParentHomeViewState extends State<ParentHomeView> {
           ],
         );
       }),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (index) => setState(() => _tab = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.event_available_outlined),
-            selectedIcon: Icon(Icons.event_available),
-            label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: 'Homework',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Fees',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.campaign_outlined),
-            selectedIcon: Icon(Icons.campaign),
-            label: 'Notices',
-          ),
-        ],
+      bottomNavigationBar: Obx(
+        () => NavigationBar(
+          selectedIndex: children.tab.value,
+          onDestinationSelected: (index) => children.tab.value = index,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.event_available_outlined),
+              selectedIcon: Icon(Icons.event_available),
+              label: 'Attendance',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined),
+              selectedIcon: Icon(Icons.menu_book),
+              label: 'Homework',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Fees',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.campaign_outlined),
+              selectedIcon: Icon(Icons.campaign),
+              label: 'Notices',
+            ),
+          ],
+        ),
       ),
     );
   }

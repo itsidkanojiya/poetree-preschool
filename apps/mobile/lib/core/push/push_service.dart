@@ -6,6 +6,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
+import '../../features/auth/auth_controller.dart';
+import '../../features/parent/children_controller.dart';
 import '../api/api_service.dart';
 import '../routes/app_pages.dart';
 
@@ -102,16 +104,37 @@ class PushService extends GetxService {
   void _openFrom(RemoteMessage message) {
     final entity = message.data['entityType']?.toString();
 
-    final route = switch (entity) {
-      'AttendanceSession' || 'AttendanceRecord' => AppRoutes.parent,
-      'Homework' => AppRoutes.parent,
-      'Notice' => AppRoutes.parent,
-      'Payment' || 'FeeInvoice' => AppRoutes.parent,
-      _ => null,
+    // A teacher's phone has no parent screens to open, so the same notification
+    // type has to land somewhere different for them.
+    final isTeacher = Get.find<AuthController>().user.value?.isTeacher ?? false;
+
+    if (isTeacher) {
+      final route = switch (entity) {
+        'AttendanceSession' || 'AttendanceRecord' => AppRoutes.register,
+        _ => AppRoutes.teacher,
+      };
+      if (Get.currentRoute != route) unawaited(Get.toNamed<void>(route));
+      return;
+    }
+
+    // Parents live on one route with tabs, so the destination is a tab index
+    // rather than a route. Opening the home tab for a fee reminder wastes the
+    // tap that the notification just earned.
+    final tab = switch (entity) {
+      'AttendanceSession' ||
+      'AttendanceRecord' => ChildrenController.attendanceTab,
+      'Homework' || 'HomeworkSubmission' => ChildrenController.homeworkTab,
+      'Payment' || 'FeeInvoice' => ChildrenController.feesTab,
+      'Notice' => ChildrenController.noticesTab,
+      _ => ChildrenController.homeTab,
     };
 
-    if (route != null && Get.currentRoute != route) {
-      unawaited(Get.toNamed<void>(route));
+    if (Get.isRegistered<ChildrenController>()) {
+      Get.find<ChildrenController>().tab.value = tab;
+    }
+
+    if (Get.currentRoute != AppRoutes.parent) {
+      unawaited(Get.toNamed<void>(AppRoutes.parent));
     }
   }
 }

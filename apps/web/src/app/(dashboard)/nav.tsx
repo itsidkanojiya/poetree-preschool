@@ -65,6 +65,7 @@ const TEACHER_NAV: NavGroup[] = [
     items: [
       { href: '/teacher', label: 'Today', icon: <IconHome size={18} />, exact: true },
       { href: '/teacher/attendance', label: 'Attendance', icon: <IconClassroom size={18} /> },
+      { href: '/teacher/homework', label: 'Homework', icon: <IconPlan size={18} /> },
     ],
   },
 ];

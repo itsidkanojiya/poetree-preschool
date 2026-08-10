@@ -9,6 +9,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../api/api_service.dart';
 
+/// Delivers one register to the server, throwing DioException if it cannot.
+typedef SendRegister = Future<void> Function(PendingRegister register);
+
 /// Registers marked with no signal, waiting to reach the server.
 ///
 /// A preschool's wifi does not reach every classroom, and a teacher taking the
@@ -24,8 +27,16 @@ import '../api/api_service.dart';
 /// few registers of thirty rows, it is drained within minutes, and a schema plus
 /// a code-generation step in CI would be machinery with nothing to do.
 class Outbox {
-  Outbox({Connectivity? connectivity, this.directory})
-    : _connectivity = connectivity ?? Connectivity();
+  Outbox({Connectivity? connectivity, this.directory, SendRegister? send})
+    : _connectivity = connectivity ?? Connectivity(),
+      _send = send ?? _putAttendance;
+
+  /// How a register reaches the server. Injected in tests; in the app it is the
+  /// same idempotent PUT the whole design rests on.
+  final SendRegister _send;
+
+  static Future<void> _putAttendance(PendingRegister register) =>
+      api.put<dynamic>('/attendance', body: register.body);
 
   final Connectivity _connectivity;
 
@@ -128,7 +139,7 @@ class Outbox {
 
     for (final register in List<PendingRegister>.from(_pending)) {
       try {
-        await api.put<dynamic>('/attendance', body: register.body);
+        await _send(register);
         sent.add(register.key);
       } on DioException catch (error) {
         final status = error.response?.statusCode;

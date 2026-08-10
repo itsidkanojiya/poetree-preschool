@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import 'core/api/api_service.dart';
 import 'core/config/school_config.dart';
+import 'core/offline/outbox.dart';
 import 'core/routes/app_pages.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/auth_controller.dart';
@@ -13,6 +14,12 @@ Future<void> main() async {
   // The API service outlives every route, so the session survives navigation.
   await Get.putAsync<ApiService>(() => ApiService().init());
   Get.put<AuthController>(AuthController(), permanent: true);
+
+  // Registers marked without signal go here and drain by themselves. Started
+  // before the first frame so a queue left from yesterday reaches the school
+  // whether or not the teacher opens the register screen again.
+  final outbox = Get.put<Outbox>(Outbox(), permanent: true);
+  await outbox.init();
 
   // Resolve the session before the first frame, so a signed-in parent never
   // sees the login screen flash past on a cold start.

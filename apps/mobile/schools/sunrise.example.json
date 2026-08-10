@@ -1,0 +1,11 @@
+{
+  "_comment": "Copy this per school. schoolId is the cuid from the schools table - the API refuses a login whose school does not match, so a wrong id here fails loudly at sign-in rather than quietly serving the wrong school.",
+  "schoolId": "replace-with-the-cuid-from-the-schools-table",
+  "code": "sunrise",
+  "name": "Sunrise Preschool",
+  "primaryColor": "16307C",
+  "applicationId": "com.poetree.sunrise",
+  "apiBaseUrl": "https://school.poetreepublications.com/api/v1",
+  "versionName": "1.0.0",
+  "versionCode": 1
+}

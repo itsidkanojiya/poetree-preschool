@@ -20,32 +20,49 @@ export async function isDatabaseReachable(): Promise<boolean> {
   }
 }
 
-/** Order matters: children before parents, or MySQL rejects the deletes. */
+/**
+ * Empties every table, discovered from the database rather than listed by hand.
+ *
+ * The previous version deleted a hand-written list in dependency order, which
+ * silently rotted: it was missing attendance, homework, notices, fees and
+ * timetable, and only appeared to work because those tables happened to be
+ * empty. The first test to insert a payment broke it, on a foreign key that was
+ * doing exactly its job.
+ *
+ * Truncating with foreign-key checks off removes both problems at once — no
+ * ordering to maintain, and a new module needs no change here at all.
+ */
 export async function resetDatabase(): Promise<void> {
-  await prismaUnscoped.notification.deleteMany();
-  await prismaUnscoped.deviceToken.deleteMany();
-  await prismaUnscoped.studentDocument.deleteMany();
-  await prismaUnscoped.fileObject.deleteMany();
-  await prismaUnscoped.studentGuardian.deleteMany();
-  await prismaUnscoped.studentEnrolment.deleteMany();
-  await prismaUnscoped.student.deleteMany();
-  await prismaUnscoped.classroomTeacher.deleteMany();
-  await prismaUnscoped.subject.deleteMany();
-  await prismaUnscoped.room.deleteMany();
-  await prismaUnscoped.schoolHoliday.deleteMany();
-  await prismaUnscoped.documentSequence.deleteMany();
-  await prismaUnscoped.classroom.deleteMany();
-  await prismaUnscoped.academicYear.deleteMany();
-  await prismaUnscoped.teacherProfile.deleteMany();
-  await prismaUnscoped.parentProfile.deleteMany();
-  await prismaUnscoped.refreshToken.deleteMany();
-  await prismaUnscoped.auditLog.deleteMany();
-  await prismaUnscoped.schoolSubscription.deleteMany();
-  await prismaUnscoped.user.deleteMany();
-  await prismaUnscoped.school.deleteMany();
-  await prismaUnscoped.subscriptionPlan.deleteMany();
-  await prismaUnscoped.classLevel.deleteMany();
-  await prismaUnscoped.publication.deleteMany();
+  const rows = await prismaUnscoped.$queryRaw<Array<{ db: string | null }>>`SELECT DATABASE() AS db`;
+  const db = rows[0]?.db;
+
+  // This wipes everything in the connected database. Refuse to run unless the
+  // name says it is disposable — a mistyped TEST_DATABASE_URL should not be
+  // able to empty a school's live data.
+  if (!/test|shadow|_dev$/i.test(db ?? '')) {
+    throw new Error(
+      `resetDatabase() refused to truncate "${db}": the name does not look like a scratch database. ` +
+        'Point TEST_DATABASE_URL at a throwaway schema.',
+    );
+  }
+
+  const tables = await prismaUnscoped.$queryRaw<Array<{ name: string }>>`
+    SELECT TABLE_NAME AS name
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_TYPE = 'BASE TABLE'
+      AND TABLE_NAME <> '_prisma_migrations'
+  `;
+
+  await prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
+  try {
+    for (const { name } of tables) {
+      await prismaUnscoped.$executeRawUnsafe(`TRUNCATE TABLE \`${name}\``);
+    }
+  } finally {
+    await prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+  }
+
   clearSchoolAccessCache();
 }
 

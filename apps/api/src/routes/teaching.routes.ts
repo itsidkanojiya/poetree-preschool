@@ -107,6 +107,8 @@ homeworkRouter.patch(
 
 export const classroomPostRouter = Router();
 
+// homework:read rather than classroom_post:manage — parents read the stream,
+// only teachers write to it.
 classroomPostRouter.get(
   '/',
   requirePermission('homework:read'),

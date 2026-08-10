@@ -8,6 +8,8 @@ import '../../features/parent/child_controller.dart';
 import '../../features/parent/children_controller.dart';
 import '../../features/parent/parent_home_view.dart';
 import '../../features/shared/blocked_view.dart';
+import '../../features/stream/stream_controller.dart';
+import '../../features/stream/stream_view.dart';
 import '../../features/timetable/timetable_controller.dart';
 import '../../features/timetable/timetable_view.dart';
 import '../../features/teacher/register_controller.dart';
@@ -71,7 +73,23 @@ class AppRoutes {
   static const register = '/teacher/register';
   static const inbox = '/messages';
   static const timetable = '/timetable';
+  static const stream = '/stream';
   static const blocked = '/blocked';
+}
+
+class StreamBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<ClassStreamController>(
+      ClassStreamController(
+        classroomId: args['classroomId'] as String?,
+        // Parents read; only teachers write. Enforced server-side too — this
+        // just keeps a button off a screen that would only be refused.
+        canPost: args['canPost'] as bool? ?? false,
+      ),
+    );
+  }
 }
 
 /// Built per visit rather than kept: a parent switching child needs a different
@@ -119,6 +137,11 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.timetable,
     page: () => const TimetableView(),
     binding: TimetableBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.stream,
+    page: () => const StreamView(),
+    binding: StreamBinding(),
   ),
   GetPage<void>(name: AppRoutes.blocked, page: () => const BlockedView()),
 ];

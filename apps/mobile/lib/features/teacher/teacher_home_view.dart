@@ -106,7 +106,32 @@ class TeacherHomeView extends GetView<RegisterController> {
                           subtitle: Text(
                             '${classroom.studentCount} ${classroom.studentCount == 1 ? 'child' : 'children'}',
                           ),
-                          trailing: const Icon(Icons.chevron_right),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (choice) async {
+                              await controller.selectClassroom(classroom.id);
+                              if (choice == 'register') {
+                                await Get.toNamed<void>(AppRoutes.register);
+                              } else {
+                                await Get.toNamed<void>(
+                                  AppRoutes.stream,
+                                  arguments: {
+                                    'classroomId': classroom.id,
+                                    'canPost': true,
+                                  },
+                                );
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'register',
+                                child: Text('Take the register'),
+                              ),
+                              PopupMenuItem(
+                                value: 'stream',
+                                child: Text('Class stream'),
+                              ),
+                            ],
+                          ),
                           onTap: () async {
                             await controller.selectClassroom(classroom.id);
                             await Get.toNamed<void>(AppRoutes.register);

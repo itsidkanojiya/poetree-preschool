@@ -295,7 +295,19 @@ class _Overview extends StatelessWidget {
           ),
         ),
 
-        if (selected?.classroomId != null)
+        if (selected?.classroomId != null) ...[
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.dynamic_feed_outlined),
+              title: const Text('Class stream'),
+              subtitle: const Text('Announcements and materials'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed<void>(
+                AppRoutes.stream,
+                arguments: {'classroomId': selected!.classroomId},
+              ),
+            ),
+          ),
           Card(
             child: ListTile(
               leading: const Icon(Icons.schedule_outlined),
@@ -308,6 +320,7 @@ class _Overview extends StatelessWidget {
               ),
             ),
           ),
+        ],
 
         const SizedBox(height: 20),
         Text('Learning', style: Theme.of(context).textTheme.titleMedium),

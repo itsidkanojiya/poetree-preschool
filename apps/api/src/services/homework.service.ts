@@ -16,7 +16,12 @@ import { getRequestContext, requireSchoolId } from '../context/requestContext.js
 import { ApiError } from '../lib/apiError.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
-import { assertTeacherOwnsClassroom, guardianStudentIds, teacherClassroomIds } from './scope.service.js';
+import {
+  assertCanReadClassroomContent,
+  assertTeacherOwnsClassroom,
+  guardianStudentIds,
+  teacherClassroomIds,
+} from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
 
 /**
@@ -408,7 +413,10 @@ export async function reviewSubmission(
 /* -------------------------------------------------------------------------- */
 
 export async function listClassroomPosts(classroomId: string): Promise<ClassroomPostSummary[]> {
-  await assertTeacherOwnsClassroom(classroomId);
+  // Reading, not acting: the stream is written to this class's families, so a
+  // parent with a child in it belongs here. Posting below still uses the
+  // stricter guard.
+  await assertCanReadClassroomContent(classroomId);
 
   const posts = await prisma.classroomPost.findMany({
     where: { classroomId, status: 'PUBLISHED' },

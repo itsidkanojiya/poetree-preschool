@@ -62,6 +62,36 @@ export async function assertTeacherOwnsClassroom(classroomId: string): Promise<v
 }
 
 /**
+ * Throws unless the caller may read a classroom's *shared* content — the class
+ * stream, and anything else addressed to the class as a whole.
+ *
+ * Distinct from `assertTeacherOwnsClassroom`, which answers "may this caller
+ * act on this classroom" and refuses parents outright. A class stream post is
+ * written to the families of that class, so a parent with a child enrolled in
+ * it is a legitimate reader; a parent of a child in a different class is not.
+ *
+ * Reading is not writing: posting still goes through the stricter guard.
+ */
+export async function assertCanReadClassroomContent(classroomId: string): Promise<void> {
+  const context = getRequestContext();
+  if (!context) throw ApiError.unauthenticated();
+
+  if (context.role === 'PARENT') {
+    const studentIds = await guardianStudentIds();
+    if (studentIds.length === 0) throw ApiError.notFound('Classroom not found');
+
+    const enrolment = await prisma.studentEnrolment.findFirst({
+      where: { classroomId, studentId: { in: studentIds }, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!enrolment) throw ApiError.notFound('Classroom not found');
+    return;
+  }
+
+  await assertTeacherOwnsClassroom(classroomId);
+}
+
+/**
  * Throws unless the caller may see this child.
  *
  * Parents must be a linked guardian. Teachers must teach a classroom the child

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/routes/app_pages.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
+import '../notifications/inbox_view.dart';
 import 'child_controller.dart';
 import 'children_controller.dart';
 
@@ -54,6 +56,7 @@ class ParentHomeView extends StatelessWidget {
       appBar: AppBar(
         title: Obx(() => Text(auth.user.value?.schoolName ?? 'School')),
         actions: [
+          InboxButton(onOpen: () => Get.toNamed<void>(AppRoutes.inbox)),
           IconButton(
             onPressed: auth.signOut,
             icon: const Icon(Icons.logout),
@@ -291,6 +294,20 @@ class _Overview extends StatelessWidget {
             ),
           ),
         ),
+
+        if (selected?.classroomId != null)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.schedule_outlined),
+              title: const Text('Timetable'),
+              subtitle: Text('${selected!.classroomLabel}’s week'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed<void>(
+                AppRoutes.timetable,
+                arguments: {'classroomId': selected.classroomId},
+              ),
+            ),
+          ),
 
         const SizedBox(height: 20),
         Text('Learning', style: Theme.of(context).textTheme.titleMedium),
@@ -645,12 +662,28 @@ class _NoticesTab extends StatelessWidget {
               ? Theme.of(context).colorScheme.errorContainer
               : null,
           child: ListTile(
+            // Opening it is what tells the school it has been seen — the
+            // answer to "who has not read this" for an emergency notice.
+            onTap: () => child.markNoticeRead(notice),
             leading: notice.pinned
                 ? const Icon(Icons.push_pin_outlined)
                 : notice.isEmergency
                 ? const Icon(Icons.warning_amber)
                 : const Icon(Icons.campaign_outlined),
-            title: Text(notice.title),
+            title: Row(
+              children: [
+                Expanded(child: Text(notice.title)),
+                if (!notice.readByMe)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

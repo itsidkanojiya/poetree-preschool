@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/routes/app_pages.dart';
 import '../auth/auth_controller.dart';
+import '../notifications/inbox_view.dart';
 import 'register_controller.dart';
 
 /// The teacher's home.
@@ -21,6 +22,7 @@ class TeacherHomeView extends GetView<RegisterController> {
       appBar: AppBar(
         title: Obx(() => Text(auth.user.value?.schoolName ?? 'School')),
         actions: [
+          InboxButton(onOpen: () => Get.toNamed<void>(AppRoutes.inbox)),
           IconButton(
             onPressed: auth.signOut,
             icon: const Icon(Icons.logout),
@@ -65,7 +67,21 @@ class TeacherHomeView extends GetView<RegisterController> {
               icon: const Icon(Icons.how_to_reg_outlined),
               label: const Text('Take the register'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.schedule_outlined),
+                title: const Text('My week'),
+                subtitle: const Text('Every class you take, day by day'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Get.toNamed<void>(
+                  AppRoutes.timetable,
+                  arguments: {'forTeacher': true},
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
 
             Obx(() {
               if (controller.classrooms.isEmpty) {

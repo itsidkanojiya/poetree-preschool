@@ -7,6 +7,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_service.dart';
 import '../../core/push/push_service.dart';
 import '../../core/session/session_scope.dart';
+import '../notifications/inbox_controller.dart';
 import '../parent/child_controller.dart';
 import '../parent/children_controller.dart';
 import '../teacher/register_controller.dart';
@@ -135,6 +136,7 @@ class AuthController extends GetxController {
     SessionScope.clear<ChildController>();
     SessionScope.clear<ChildrenController>();
     SessionScope.clear<RegisterController>();
+    SessionScope.clear<InboxController>();
 
     await Get.offAllNamed<void>('/login');
   }

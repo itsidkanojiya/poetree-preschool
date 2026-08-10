@@ -2,10 +2,14 @@ import 'package:get/get.dart';
 
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/login_view.dart';
+import '../../features/notifications/inbox_controller.dart';
+import '../../features/notifications/inbox_view.dart';
 import '../../features/parent/child_controller.dart';
 import '../../features/parent/children_controller.dart';
 import '../../features/parent/parent_home_view.dart';
 import '../../features/shared/blocked_view.dart';
+import '../../features/timetable/timetable_controller.dart';
+import '../../features/timetable/timetable_view.dart';
 import '../../features/teacher/register_controller.dart';
 import '../../features/teacher/register_view.dart';
 import '../../features/teacher/teacher_home_view.dart';
@@ -34,6 +38,7 @@ class ParentBinding extends Bindings {
       permanent: true,
     );
     Get.put<ChildController>(ChildController(children), permanent: true);
+    InboxBinding().dependencies();
   }
 }
 
@@ -44,6 +49,18 @@ class TeacherBinding extends Bindings {
       () => RegisterController(Get.find<Outbox>()),
       fenix: true,
     );
+    InboxBinding().dependencies();
+  }
+}
+
+/// The inbox belongs to whoever is signed in, not to a role, so it is
+/// registered once and reached from both home screens.
+class InboxBinding extends Bindings {
+  @override
+  void dependencies() {
+    if (!Get.isRegistered<InboxController>()) {
+      Get.put<InboxController>(InboxController(), permanent: true);
+    }
   }
 }
 
@@ -52,7 +69,24 @@ class AppRoutes {
   static const parent = '/parent';
   static const teacher = '/teacher';
   static const register = '/teacher/register';
+  static const inbox = '/messages';
+  static const timetable = '/timetable';
   static const blocked = '/blocked';
+}
+
+/// Built per visit rather than kept: a parent switching child needs a different
+/// classroom's week, and a teacher's own week is a different endpoint entirely.
+class TimetableBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<TimetableController>(
+      TimetableController(
+        classroomId: args['classroomId'] as String?,
+        forTeacher: args['forTeacher'] as bool? ?? false,
+      ),
+    );
+  }
 }
 
 final appPages = <GetPage<dynamic>>[
@@ -75,6 +109,16 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.register,
     page: () => const RegisterView(),
     binding: TeacherBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.inbox,
+    page: () => const InboxView(),
+    binding: InboxBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.timetable,
+    page: () => const TimetableView(),
+    binding: TimetableBinding(),
   ),
   GetPage<void>(name: AppRoutes.blocked, page: () => const BlockedView()),
 ];

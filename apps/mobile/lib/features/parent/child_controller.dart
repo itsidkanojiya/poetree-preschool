@@ -107,6 +107,27 @@ class ChildController extends GetxController {
   }
 }
 
+/// Records that this parent has seen a notice.
+///
+/// The API keeps read receipts so a school can answer "who has not seen this"
+/// — which is the actual question for an emergency notice, and unanswerable
+/// unless the app says something. Fire-and-forget: a failed receipt must never
+/// stop a parent reading the notice in front of them.
+extension NoticeReceipts on ChildController {
+  Future<void> markNoticeRead(NoticeItem notice) async {
+    if (notice.readByMe) return;
+
+    notice.readByMe = true;
+    notices.refresh();
+
+    try {
+      await api.post<dynamic>('/notices/${notice.id}/read');
+    } on DioException {
+      // The next load re-reads the server's view.
+    }
+  }
+}
+
 class ChildAttendance {
   ChildAttendance({
     required this.present,
@@ -181,6 +202,7 @@ class NoticeItem {
     required this.type,
     required this.publishAt,
     required this.pinned,
+    required this.readByMe,
   });
 
   factory NoticeItem.fromJson(Map<String, dynamic> json) => NoticeItem(
@@ -190,6 +212,7 @@ class NoticeItem {
     type: json['type'] as String,
     publishAt: json['publishAt'] as String,
     pinned: json['pinned'] as bool? ?? false,
+    readByMe: json['readByMe'] as bool? ?? false,
   );
 
   final String id;
@@ -198,6 +221,10 @@ class NoticeItem {
   final String type;
   final String publishAt;
   final bool pinned;
+
+  /// Mutable: set optimistically when the parent opens it, so the tick appears
+  /// without waiting for the round trip.
+  bool readByMe;
 
   bool get isEmergency => type == 'EMERGENCY';
 }

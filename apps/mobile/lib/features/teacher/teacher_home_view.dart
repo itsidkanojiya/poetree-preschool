@@ -117,6 +117,11 @@ class TeacherHomeView extends GetView<RegisterController> {
                                     AppRoutes.teacherHomework,
                                     arguments: {'classroomId': classroom.id},
                                   );
+                                case 'roster':
+                                  await Get.toNamed<void>(
+                                    AppRoutes.roster,
+                                    arguments: {'classroomId': classroom.id},
+                                  );
                                 default:
                                   await Get.toNamed<void>(
                                     AppRoutes.stream,
@@ -139,6 +144,10 @@ class TeacherHomeView extends GetView<RegisterController> {
                               PopupMenuItem(
                                 value: 'stream',
                                 child: Text('Class stream'),
+                              ),
+                              PopupMenuItem(
+                                value: 'roster',
+                                child: Text('The class'),
                               ),
                             ],
                           ),

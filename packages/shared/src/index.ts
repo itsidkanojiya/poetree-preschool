@@ -9,3 +9,4 @@ export * from './schemas/roster.js';
 export * from './schemas/attendance.js';
 export * from './schemas/enrolment.js';
 export * from './schemas/teaching.js';
+export * from './schemas/activities.js';

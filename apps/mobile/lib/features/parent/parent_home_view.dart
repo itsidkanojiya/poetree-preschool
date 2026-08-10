@@ -322,6 +322,23 @@ class _Overview extends StatelessWidget {
           ),
         ],
 
+        // The way in to the activities themselves. Without this the whole
+        // progress module below is a screen of zeroes forever.
+        if (selected != null)
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: ListTile(
+              leading: const Icon(Icons.play_circle_outline),
+              title: const Text('Play and learn'),
+              subtitle: Text('Activities for ${selected.firstName}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Get.toNamed<void>(
+                AppRoutes.activities,
+                arguments: {'studentId': selected.id},
+              ),
+            ),
+          ),
+
         const SizedBox(height: 20),
         Text('Learning', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),

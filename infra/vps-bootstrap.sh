@@ -103,4 +103,6 @@ echo "  5. Add the CI deploy key to ~/.ssh/authorized_keys"
 echo
 echo "Deliberately NOT done (would affect the other projects — decide separately):"
 echo "  - MySQL still listens on 0.0.0.0:3306 with ufw inactive"
-echo "  - PM2 has no systemd unit, so nothing restarts after a reboot"
+echo "  - PM2 has no systemd unit, so nothing restarts after a reboot."
+echo "    infra/pm2-systemd.sh fixes that; it shows what it would resurrect"
+echo "    before changing anything, because the list includes the other projects."

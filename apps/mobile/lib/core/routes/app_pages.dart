@@ -1,5 +1,9 @@
 import 'package:get/get.dart';
 
+import '../../features/activities/activity_controller.dart';
+import '../../features/activities/activity_list_view.dart';
+import '../../features/activities/activity_models.dart';
+import '../../features/activities/activity_play_view.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/login_view.dart';
 import '../../features/notifications/inbox_controller.dart';
@@ -15,6 +19,8 @@ import '../../features/timetable/timetable_view.dart';
 import '../../features/teacher/homework_controller.dart';
 import '../../features/teacher/homework_view.dart';
 import '../../features/teacher/register_controller.dart';
+import '../../features/teacher/roster_controller.dart';
+import '../../features/teacher/roster_view.dart';
 import '../../features/teacher/register_view.dart';
 import '../../features/teacher/teacher_home_view.dart';
 import '../offline/outbox.dart';
@@ -77,7 +83,45 @@ class AppRoutes {
   static const timetable = '/timetable';
   static const stream = '/stream';
   static const teacherHomework = '/teacher/homework';
+  static const roster = '/teacher/class';
+  static const activities = '/activities';
+  static const activityPlay = '/activities/play';
   static const blocked = '/blocked';
+}
+
+class ActivityListBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<ActivityListController>(
+      ActivityListController(studentId: args['studentId'] as String?),
+    );
+  }
+}
+
+/// Built fresh each time: an activity played twice is two attempts, and reusing
+/// the controller would carry the first score into the second.
+class ActivityPlayBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<ActivityPlayController>(
+      ActivityPlayController(
+        activity: args['activity'] as ActivityDefinition,
+        studentId: args['studentId'] as String,
+      ),
+    );
+  }
+}
+
+class RosterBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<RosterController>(
+      RosterController(classroomId: args['classroomId'] as String?),
+    );
+  }
 }
 
 class TeacherHomeworkBinding extends Bindings {
@@ -160,6 +204,21 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.teacherHomework,
     page: () => const TeacherHomeworkView(),
     binding: TeacherHomeworkBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.roster,
+    page: () => const RosterView(),
+    binding: RosterBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.activities,
+    page: () => const ActivityListView(),
+    binding: ActivityListBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.activityPlay,
+    page: () => const ActivityPlayView(),
+    binding: ActivityPlayBinding(),
   ),
   GetPage<void>(name: AppRoutes.blocked, page: () => const BlockedView()),
 ];

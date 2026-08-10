@@ -87,3 +87,22 @@ attendanceRouter.get(
     res.json(await attendance.studentAttendanceSummary(classroomId, from, to));
   }),
 );
+
+/**
+ * One child's own attendance — what a parent opens the app for.
+ *
+ * Deliberately keyed on the child rather than their class. The endpoints above
+ * answer classroom-shaped questions, and the guard on those now refuses parents
+ * outright: any classroom-shaped answer is a list of other people's children.
+ */
+attendanceRouter.get(
+  '/children/:id',
+  requirePermission('attendance:read'),
+  validate({ params: idParamSchema, query: attendanceRangeQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const { from, to } = query<AttendanceRangeQuery>(req);
+    res.json(
+      await attendance.childAttendance(params<{ id: string }>(req).id, from, to),
+    );
+  }),
+);

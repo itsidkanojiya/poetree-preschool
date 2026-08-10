@@ -204,4 +204,45 @@ describe.skipIf(!dbUp)('attendance', () => {
     expect(students.status).toBe(200);
     expect(students.body[0]).toMatchObject({ absent: 1, markedDays: 1, percentage: 0 });
   });
+
+  it('refuses a parent every classroom-shaped view of attendance', async () => {
+    // Parents hold attendance:read so they can see their own child. The scope
+    // guard used to return early for every role that was not TEACHER, so a
+    // parent could pass their own child's classroom id — one they legitimately
+    // know — and receive the whole class's register, names and admission
+    // numbers included.
+    const parentA = await login(schoolA.parentPhone);
+    const from = today();
+    const to = today();
+
+    for (const path of ['/attendance/sheet', '/attendance/daily', '/attendance/students']) {
+      const response = await api
+        .get(`${BASE}${path}`)
+        .query({ classroomId: schoolA.classroomId, date: today(), from, to })
+        .set(auth(parentA));
+
+      expect(response.status).toBe(404);
+    }
+  });
+
+  it('gives a parent their own child’s attendance, and nobody else’s', async () => {
+    const parentA = await login(schoolA.parentPhone);
+
+    const mine = await api
+      .get(`${BASE}/attendance/children/${schoolA.studentId}`)
+      .query({ from: today(), to: today() })
+      .set(auth(parentA));
+
+    expect(mine.status).toBe(200);
+    expect(mine.body.absent).toBe(1);
+    expect(mine.body.days[0]).toMatchObject({ status: 'ABSENT' });
+
+    // A child at another school does not resolve at all.
+    const theirs = await api
+      .get(`${BASE}/attendance/children/${schoolB.studentId}`)
+      .query({ from: today(), to: today() })
+      .set(auth(parentA));
+
+    expect(theirs.status).toBe(404);
+  });
 });

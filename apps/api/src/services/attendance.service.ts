@@ -11,7 +11,7 @@ import { prisma } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
-import { assertTeacherOwnsClassroom } from './scope.service.js';
+import { assertCanReadStudent, assertTeacherOwnsClassroom } from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
 
 /**
@@ -428,4 +428,72 @@ export async function studentAttendanceSummary(
       percentage: percentage(tally.PRESENT, tally.LATE, tally.HALF_DAY, markedDays),
     };
   });
+}
+
+export interface ChildAttendanceDay {
+  date: string;
+  status: AttendanceStatus;
+  remark: string | null;
+}
+
+export interface ChildAttendance {
+  studentId: string;
+  from: string;
+  to: string;
+  present: number;
+  absent: number;
+  late: number;
+  leave: number;
+  halfDay: number;
+  markedDays: number;
+  percentage: number;
+  days: ChildAttendanceDay[];
+}
+
+/**
+ * One child's attendance, for their own parent.
+ *
+ * Separate from the classroom summaries above rather than a filtered view of
+ * them: those answer a classroom-shaped question, and the answer to a
+ * classroom-shaped question is always a list of other people's children.
+ */
+export async function childAttendance(
+  studentId: string,
+  from: Date,
+  to: Date,
+): Promise<ChildAttendance> {
+  await assertCanReadStudent(studentId);
+
+  const records = await prisma.attendanceRecord.findMany({
+    where: {
+      studentId,
+      session: { date: { gte: toDateOnly(from), lte: toDateOnly(to) } },
+    },
+    include: { session: { select: { date: true } } },
+    orderBy: { session: { date: 'desc' } },
+  });
+
+  const tally = { ...EMPTY_COUNTS };
+  for (const record of records) tally[record.status] += 1;
+
+  const markedDays = ATTENDANCE_STATUSES.reduce((sum, status) => sum + tally[status], 0);
+
+  return {
+    studentId,
+    from: toDateOnly(from).toISOString().slice(0, 10),
+    to: toDateOnly(to).toISOString().slice(0, 10),
+    present: tally.PRESENT,
+    absent: tally.ABSENT,
+    late: tally.LATE,
+    leave: tally.LEAVE,
+    halfDay: tally.HALF_DAY,
+    markedDays,
+    percentage: percentage(tally.PRESENT, tally.LATE, tally.HALF_DAY, markedDays),
+    // Newest first: a parent opens this to check today, not last September.
+    days: records.map((record) => ({
+      date: record.session.date.toISOString().slice(0, 10),
+      status: record.status,
+      remark: record.remark,
+    })),
+  };
 }

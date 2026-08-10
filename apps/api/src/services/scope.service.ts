@@ -31,11 +31,23 @@ export async function teacherClassroomIds(): Promise<string[]> {
  * Throws unless the caller may act on this classroom.
  *
  * School Admins pass — the whole school is theirs. Teachers must hold a live
- * assignment to it.
+ * assignment to it. Parents never pass: a classroom-shaped answer is a list of
+ * other people's children, and there is no version of that a parent should see.
+ *
+ * That last rule is not theoretical. Parents hold `attendance:read` so they can
+ * see their own child, and this guard used to return early for every role that
+ * was not TEACHER — which let any parent pass any classroom id and read the
+ * whole class's register, names and admission numbers included. Parent-facing
+ * data comes from per-child endpoints, never from a classroom one.
  */
 export async function assertTeacherOwnsClassroom(classroomId: string): Promise<void> {
   const context = getRequestContext();
   if (!context) throw ApiError.unauthenticated();
+
+  if (context.role === 'PARENT') {
+    // 404, not 403 — a parent should not learn the classroom exists.
+    throw ApiError.notFound('Classroom not found');
+  }
 
   if (context.role !== 'TEACHER') return;
 

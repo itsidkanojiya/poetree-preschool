@@ -29,16 +29,7 @@ final appPages = <GetPage<dynamic>>[
     page: () => const LoginView(),
     binding: AuthBinding(),
   ),
-  GetPage<void>(
-    name: AppRoutes.parent,
-    page: () => const ParentHomeView(),
-  ),
-  GetPage<void>(
-    name: AppRoutes.teacher,
-    page: () => const TeacherHomeView(),
-  ),
-  GetPage<void>(
-    name: AppRoutes.blocked,
-    page: () => const BlockedView(),
-  ),
+  GetPage<void>(name: AppRoutes.parent, page: () => const ParentHomeView()),
+  GetPage<void>(name: AppRoutes.teacher, page: () => const TeacherHomeView()),
+  GetPage<void>(name: AppRoutes.blocked, page: () => const BlockedView()),
 ];

@@ -13,7 +13,7 @@ class ApiService extends GetxService {
   late final ApiClient client;
 
   Future<ApiService> init() async {
-    client = ApiClient(TokenStore(const FlutterSecureStorage()))
+    client = ApiClient(SecureTokenStore(const FlutterSecureStorage()))
       ..onSessionExpired = _toLogin
       ..onSchoolSuspended = _toBlocked;
     return this;

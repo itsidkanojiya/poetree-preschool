@@ -43,17 +43,16 @@ class LoginView extends GetView<AuthController> {
                     Text(
                       SchoolConfig.schoolName,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Sign in to see your child’s day',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
                     const SizedBox(height: 32),
 
@@ -70,7 +69,9 @@ class LoginView extends GetView<AuthController> {
                         child: Text(
                           message,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onErrorContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
                           ),
                         ),
                       );
@@ -85,7 +86,8 @@ class LoginView extends GetView<AuthController> {
                         labelText: 'Phone or email',
                         hintText: '+91 98200 00000',
                       ),
-                      validator: (value) => (value == null || value.trim().length < 3)
+                      validator: (value) =>
+                          (value == null || value.trim().length < 3)
                           ? 'Enter your phone number or email'
                           : null,
                     ),
@@ -98,8 +100,9 @@ class LoginView extends GetView<AuthController> {
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => submit(),
                       decoration: const InputDecoration(labelText: 'Password'),
-                      validator: (value) =>
-                          (value == null || value.isEmpty) ? 'Enter your password' : null,
+                      validator: (value) => (value == null || value.isEmpty)
+                          ? 'Enter your password'
+                          : null,
                     ),
                     const SizedBox(height: 28),
 
@@ -110,7 +113,9 @@ class LoginView extends GetView<AuthController> {
                             ? const SizedBox(
                                 height: 22,
                                 width: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2.5),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
                               )
                             : const Text('Sign in'),
                       ),
@@ -121,8 +126,8 @@ class LoginView extends GetView<AuthController> {
                       'Ask the school office if you do not have a password yet.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
                   ],
                 ),

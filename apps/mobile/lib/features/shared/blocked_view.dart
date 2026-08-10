@@ -37,8 +37,8 @@ class BlockedView extends StatelessWidget {
                   'app is unavailable for everyone there. Please contact the school.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 OutlinedButton(

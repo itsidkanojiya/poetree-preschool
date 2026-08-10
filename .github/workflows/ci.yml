@@ -68,6 +68,44 @@ jobs:
       - name: Test
         run: npm run test
 
+  mobile:
+    name: Flutter analyse and test
+    runs-on: ubuntu-latest
+
+    # The app was unguarded until now: `flutter analyze` only ever ran on a
+    # developer's machine, so a broken mobile build could reach main behind a
+    # green tick. Kept as a separate job because it needs no MySQL and no Node,
+    # and it should not queue behind the API suite.
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Pinned to the channel the app was written against. `stable` floating
+          # would turn an upstream release into a build failure on an unrelated
+          # pull request.
+          channel: stable
+          flutter-version: 3.44.9
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyse
+        # Warnings fail too. A nullability or unawaited-future warning in a
+        # screen a parent uses daily is not a style opinion.
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Test
+        run: flutter test
+
   build:
     name: Production build
     runs-on: ubuntu-latest

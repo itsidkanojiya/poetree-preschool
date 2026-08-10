@@ -26,24 +26,41 @@ class ApiException implements Exception {
   String toString() => 'ApiException($statusCode, $code): $message';
 }
 
-/// Where the session lives. Keystore on Android, Keychain on iOS — never
-/// SharedPreferences, which is world-readable on a rooted device.
-class TokenStore {
-  TokenStore(this._storage);
+/// Where the session lives.
+///
+/// An interface rather than a concrete class so the rotation logic below can be
+/// tested without a Keystore, which needs a real device. The only shipping
+/// implementation is [SecureTokenStore].
+abstract class TokenStore {
+  Future<String?> get accessToken;
+  Future<String?> get refreshToken;
+  Future<void> save({required String access, required String refresh});
+  Future<void> clear();
+}
+
+/// Keystore on Android, Keychain on iOS — never SharedPreferences, which is
+/// world-readable on a rooted device.
+class SecureTokenStore implements TokenStore {
+  SecureTokenStore(this._storage);
 
   final FlutterSecureStorage _storage;
 
   static const _access = 'poetree_access_token';
   static const _refresh = 'poetree_refresh_token';
 
+  @override
   Future<String?> get accessToken => _storage.read(key: _access);
+
+  @override
   Future<String?> get refreshToken => _storage.read(key: _refresh);
 
+  @override
   Future<void> save({required String access, required String refresh}) async {
     await _storage.write(key: _access, value: access);
     await _storage.write(key: _refresh, value: refresh);
   }
 
+  @override
   Future<void> clear() async {
     await _storage.delete(key: _access);
     await _storage.delete(key: _refresh);
@@ -58,7 +75,12 @@ class TokenStore {
 /// fires four requests does not spend four refresh tokens — the API revokes a
 /// reused one and would end the session.
 class ApiClient {
-  ApiClient(this._tokens, {Dio? dio}) : _dio = dio ?? Dio() {
+  /// [refreshDio] is separate on purpose: the interceptor below must never run
+  /// on its own refresh call, or a failed refresh would try to refresh itself.
+  ApiClient(this._tokens, {Dio? dio, Dio? refreshDio})
+    : _dio = dio ?? Dio(),
+      _refreshDio =
+          refreshDio ?? Dio(BaseOptions(baseUrl: SchoolConfig.apiBaseUrl)) {
     _dio.options
       ..baseUrl = SchoolConfig.apiBaseUrl
       ..connectTimeout = const Duration(seconds: 15)
@@ -86,7 +108,9 @@ class ApiClient {
 
           final isAuthFailure = response?.statusCode == 401;
           final alreadyRetried = error.requestOptions.extra['retried'] == true;
-          final isRefreshCall = error.requestOptions.path.contains('/auth/refresh');
+          final isRefreshCall = error.requestOptions.path.contains(
+            '/auth/refresh',
+          );
 
           if (!isAuthFailure || alreadyRetried || isRefreshCall) {
             return handler.next(error);
@@ -102,7 +126,8 @@ class ApiClient {
           try {
             final options = error.requestOptions;
             options.extra['retried'] = true;
-            options.headers['authorization'] = 'Bearer ${await _tokens.accessToken}';
+            options.headers['authorization'] =
+                'Bearer ${await _tokens.accessToken}';
             final retried = await _dio.fetch<dynamic>(options);
             return handler.resolve(retried);
           } on DioException catch (e) {
@@ -114,6 +139,7 @@ class ApiClient {
   }
 
   final Dio _dio;
+  final Dio _refreshDio;
   final TokenStore _tokens;
 
   /// Called when the school's plan is switched off mid-session.
@@ -146,9 +172,10 @@ class ApiClient {
     if (refresh == null) return false;
 
     try {
-      // A bare Dio: the interceptor above must not run on its own refresh.
-      final response = await Dio(BaseOptions(baseUrl: SchoolConfig.apiBaseUrl))
-          .post<Map<String, dynamic>>('/auth/refresh', data: {'refreshToken': refresh});
+      final response = await _refreshDio.post<Map<String, dynamic>>(
+        '/auth/refresh',
+        data: {'refreshToken': refresh},
+      );
 
       final data = response.data;
       if (data == null) return false;

@@ -60,7 +60,10 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> signIn({required String identifier, required String password}) async {
+  Future<void> signIn({
+    required String identifier,
+    required String password,
+  }) async {
     isBusy.value = true;
     errorMessage.value = null;
 
@@ -109,7 +112,8 @@ class AuthController extends GetxController {
     await Get.offAllNamed<void>('/login');
   }
 
-  static String _homeFor(AppUser user) => user.isTeacher ? '/teacher' : '/parent';
+  static String _homeFor(AppUser user) =>
+      user.isTeacher ? '/teacher' : '/parent';
 
   static String _messageFor(DioException e) {
     final data = e.response?.data;

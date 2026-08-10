@@ -28,6 +28,22 @@ const envSchema = z
     TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
     SCHOOL_STATUS_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+    /**
+     * Where uploaded files live. Outside the repository on purpose, so a deploy
+     * `rsync --delete` can never remove a school's photographs.
+     */
+    FILE_STORAGE_ROOT: z.string().default('/var/lib/poetree-preschool/files'),
+
+    /**
+     * Hand file transfers to Nginx via X-Accel-Redirect. The authorisation
+     * decision stays in the API; only the byte-pushing moves. Off in
+     * development, where there is no Nginx in front.
+     */
+    USE_X_ACCEL_REDIRECT: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
   })
   .superRefine((value, ctx) => {
     if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {

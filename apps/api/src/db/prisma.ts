@@ -59,6 +59,11 @@ export const TENANT_MODELS = new Set<string>([
   'NoticeAttachment',
   'NoticeRead',
   // Cross-cutting
+  // FileObject has a nullable schoolId so publication-owned content can exist,
+  // but it belongs here all the same: without it, every school's uploads were
+  // readable by every other school. Publication files are read through
+  // prismaUnscoped, exactly as Subject defaults are.
+  'FileObject',
   'DocumentSequence',
   'Notification',
   'DeviceToken',

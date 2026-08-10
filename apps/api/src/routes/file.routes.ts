@@ -1,0 +1,240 @@
+import { Router, type Request } from 'express';
+import multer from 'multer';
+import { idParamSchema } from '@poetree/shared';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { params, validate } from '../middleware/validate.js';
+import { prisma, prismaUnscoped } from '../db/prisma.js';
+import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
+import { ApiError } from '../lib/apiError.js';
+import { env } from '../config/env.js';
+import { logger } from '../lib/logger.js';
+import {
+  ALLOWED_TYPES,
+  MAX_UPLOAD_BYTES,
+  sniffMime,
+  storage,
+  typeFor,
+} from '../lib/storage.js';
+import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
+
+export const fileRouter = Router();
+
+/**
+ * Uploads are buffered in memory rather than streamed to a temp file.
+ *
+ * The cap is 50 MB and a preschool uploads a handful of photographs a day, so
+ * the memory cost is bounded and small — and nothing half-written can be left
+ * behind on disk if the request fails validation.
+ */
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+});
+
+fileRouter.post(
+  '/',
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    const schoolId = requireSchoolId();
+    const file = req.file;
+
+    if (!file) throw ApiError.badRequest('No file was uploaded');
+
+    // Identify by content, never by the supplied name or Content-Type — both
+    // come from the client and neither says what the bytes actually are.
+    const mime = sniffMime(file.buffer);
+    if (!mime) {
+      throw ApiError.badRequest('That file type is not supported', {
+        allowed: ALLOWED_TYPES.map((t) => t.mime),
+      });
+    }
+
+    const allowed = typeFor(mime);
+    if (!allowed) {
+      throw ApiError.badRequest(`${mime} files are not allowed`, {
+        allowed: ALLOWED_TYPES.map((t) => t.mime),
+      });
+    }
+
+    // Per-type cap, so a 40 MB "photograph" is refused even though the global
+    // limit would let a video of that size through.
+    if (file.size > allowed.maxBytes) {
+      throw ApiError.badRequest(
+        `${mime} files may be at most ${Math.round(allowed.maxBytes / (1024 * 1024))} MB`,
+      );
+    }
+
+    const stored = await storage.put({
+      schoolId,
+      originalName: file.originalname,
+      bytes: file.buffer,
+    });
+
+    const record = await prisma.fileObject.create({
+      data: {
+        schoolId,
+        storageKey: stored.key,
+        originalName: file.originalname.slice(0, 200),
+        mimeType: mime,
+        sizeBytes: stored.sizeBytes,
+        checksum: stored.checksum,
+        uploadedById: req.auth!.userId,
+        visibility: 'SCHOOL',
+      },
+      select: { id: true, originalName: true, mimeType: true, sizeBytes: true, createdAt: true },
+    });
+
+    res.status(201).json({
+      ...record,
+      createdAt: record.createdAt.toISOString(),
+      url: `/api/v1/files/${record.id}`,
+    });
+  }),
+);
+
+/**
+ * May this caller read this file?
+ *
+ * School scoping is already handled by the tenant client. This adds the
+ * row-level question it cannot answer: a parent may read a file attached to
+ * their own child's homework or a notice addressed to them, and nothing else.
+ */
+async function assertMayRead(fileId: string): Promise<void> {
+  const context = getRequestContext();
+  if (!context) throw ApiError.unauthenticated();
+  if (context.role === 'SCHOOL_ADMIN' || context.role === 'PUBLICATION_ADMIN') return;
+
+  if (context.role === 'TEACHER') {
+    const classrooms = await teacherClassroomIds();
+    const reachable = await prisma.fileObject.findFirst({
+      where: {
+        id: fileId,
+        OR: [
+          { uploadedById: context.userId },
+          { homeworkAttachments: { some: { homework: { classroomId: { in: classrooms } } } } },
+          { classroomPostAttachments: { some: { post: { classroomId: { in: classrooms } } } } },
+          { noticeAttachments: { some: {} } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!reachable) throw ApiError.notFound('File not found');
+    return;
+  }
+
+  // Parent
+  const studentIds = await guardianStudentIds();
+  const reachable = await prisma.fileObject.findFirst({
+    where: {
+      id: fileId,
+      OR: [
+        {
+          homeworkAttachments: {
+            some: {
+              homework: {
+                status: 'PUBLISHED',
+                classroom: {
+                  enrolments: { some: { studentId: { in: studentIds }, status: 'ACTIVE' } },
+                },
+              },
+            },
+          },
+        },
+        {
+          classroomPostAttachments: {
+            some: {
+              post: {
+                classroom: {
+                  enrolments: { some: { studentId: { in: studentIds }, status: 'ACTIVE' } },
+                },
+              },
+            },
+          },
+        },
+        { noticeAttachments: { some: { notice: { status: 'PUBLISHED' } } } },
+        { documents: { some: { studentId: { in: studentIds } } } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  // Missing rather than forbidden: a 403 would confirm the file exists.
+  if (!reachable) throw ApiError.notFound('File not found');
+}
+
+/**
+ * Serves a file, after checking the caller is entitled to it.
+ *
+ * The bytes are handed to Nginx with X-Accel-Redirect rather than streamed
+ * through Node: the authorisation decision stays here, the transfer happens
+ * where it is cheap, and the storage path is never guessable from outside.
+ */
+fileRouter.get(
+  '/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req: Request, res) => {
+    const fileId = params<{ id: string }>(req).id;
+
+    const file = await prisma.fileObject.findFirst({
+      where: { id: fileId },
+      select: { id: true, storageKey: true, mimeType: true, originalName: true, sizeBytes: true },
+    });
+    if (!file) throw ApiError.notFound('File not found');
+
+    await assertMayRead(fileId);
+
+    res.setHeader('Content-Type', file.mimeType);
+    // `inline` for images and PDFs a parent wants to look at; the filename is
+    // quoted because a child's name may contain spaces.
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${file.originalName.replace(/["\\]/g, '')}"`,
+    );
+    res.setHeader('Cache-Control', 'private, max-age=300');
+
+    if (env.USE_X_ACCEL_REDIRECT) {
+      res.setHeader('X-Accel-Redirect', `/_protected_files/${file.storageKey}`);
+      res.end();
+      return;
+    }
+
+    // Development, and any deployment without Nginx in front.
+    res.sendFile(storage.locate(file.storageKey), (error) => {
+      if (error) {
+        logger.error('Failed to serve file', { fileId, error: error.message });
+        if (!res.headersSent) res.status(404).end();
+      }
+    });
+  }),
+);
+
+/**
+ * Soft delete. The bytes stay for now — a misclick during a busy morning should
+ * be recoverable, and a purge job removes them once nothing references them.
+ */
+fileRouter.delete(
+  '/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const fileId = params<{ id: string }>(req).id;
+    const context = getRequestContext();
+
+    const file = await prisma.fileObject.findFirst({
+      where: { id: fileId },
+      select: { id: true, uploadedById: true },
+    });
+    if (!file) throw ApiError.notFound('File not found');
+
+    const isAdmin = context?.role === 'SCHOOL_ADMIN';
+    if (!isAdmin && file.uploadedById !== context?.userId) {
+      throw ApiError.forbidden('You can only remove files you uploaded');
+    }
+
+    await prismaUnscoped.fileObject.update({
+      where: { id: fileId },
+      data: { deletedAt: new Date() },
+    });
+
+    res.status(204).send();
+  }),
+);

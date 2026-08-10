@@ -12,6 +12,7 @@ import { classroomPostRouter, homeworkRouter, noticeRouter } from './teaching.ro
 import { feeRouter } from './fee.routes.js';
 import { timetableRouter } from './timetable.routes.js';
 import { notificationRouter } from './notification.routes.js';
+import { fileRouter } from './file.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
 
@@ -52,6 +53,7 @@ secured.use('/notices', noticeRouter);
 secured.use('/fees', feeRouter);
 secured.use('/timetable', timetableRouter);
 secured.use('/notifications', notificationRouter);
+secured.use('/files', fileRouter);
 
 secured.use('/', schoolAdminRouter);
 

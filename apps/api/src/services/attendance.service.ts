@@ -12,6 +12,56 @@ import { getRequestContext, requireSchoolId } from '../context/requestContext.js
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 import { assertTeacherOwnsClassroom } from './scope.service.js';
+import { guardianUserIdsFor, notifySafe } from './notification.service.js';
+
+/**
+ * Tells a guardian their child is not at school today.
+ *
+ * Only newly absent children are notified. Re-saving a register — which a
+ * teacher does whenever they correct one name — must not send a second alert
+ * about a child whose status did not change, or parents learn to ignore it.
+ *
+ * One notification per child, per guardian, naming the child, because a parent
+ * with two children needs to know which one.
+ */
+async function notifyAbsences(
+  schoolId: string,
+  date: Date,
+  records: MarkAttendanceInput['records'],
+  before: Record<string, string> | null,
+): Promise<void> {
+  const newlyAbsent = records.filter(
+    (record) => record.status === 'ABSENT' && before?.[record.studentId] !== 'ABSENT',
+  );
+  if (newlyAbsent.length === 0) return;
+
+  const students = await prisma.student.findMany({
+    where: { id: { in: newlyAbsent.map((r) => r.studentId) } },
+    select: { id: true, firstName: true, lastName: true },
+  });
+
+  const when = date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+
+  for (const student of students) {
+    const guardians = await guardianUserIdsFor([student.id]);
+    if (guardians.length === 0) continue;
+
+    const name = [student.firstName, student.lastName].filter(Boolean).join(' ');
+    notifySafe({
+      schoolId,
+      userIds: guardians,
+      type: 'ATTENDANCE_ABSENT',
+      title: `${student.firstName} was marked absent`,
+      body: `${name} was not in class on ${when}. Please contact the school if this is unexpected.`,
+      entityType: 'Student',
+      entityId: student.id,
+    });
+  }
+}
 
 /**
  * Attendance is the highest-frequency screen in the product — a teacher opens it
@@ -242,6 +292,8 @@ export async function markAttendance(
     after: Object.fromEntries(input.records.map((r) => [r.studentId, r.status])),
     metadata: { date: date.toISOString().slice(0, 10) },
   });
+
+  await notifyAbsences(schoolId, date, input.records, before);
 
   return getAttendanceSheet(input.classroomId, date);
 }

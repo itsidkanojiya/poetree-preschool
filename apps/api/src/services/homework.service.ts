@@ -17,6 +17,45 @@ import { ApiError } from '../lib/apiError.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { assertTeacherOwnsClassroom, guardianStudentIds, teacherClassroomIds } from './scope.service.js';
+import { guardianUserIdsFor, notifySafe } from './notification.service.js';
+
+/**
+ * Tells the class's guardians that work has been set.
+ *
+ * Sent once, at publication. Editing a due date deliberately does not resend —
+ * a teacher tidying wording should not buzz thirty phones again.
+ */
+async function notifyHomeworkPublished(
+  schoolId: string,
+  homeworkId: string,
+  classroomId: string,
+  title: string,
+  dueDate: Date,
+): Promise<void> {
+  const enrolments = await prisma.studentEnrolment.findMany({
+    where: { classroomId, status: 'ACTIVE' },
+    select: { studentId: true },
+  });
+
+  const guardians = await guardianUserIdsFor(enrolments.map((e) => e.studentId));
+  if (guardians.length === 0) return;
+
+  const due = dueDate.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+
+  notifySafe({
+    schoolId,
+    userIds: guardians,
+    type: 'HOMEWORK_ASSIGNED',
+    title: 'New homework',
+    body: `${title} — due ${due}.`,
+    entityType: 'Homework',
+    entityId: homeworkId,
+  });
+}
 
 const homeworkInclude = {
   classroom: { include: { classLevel: { select: { code: true } } } },
@@ -187,6 +226,16 @@ export async function createHomework(
       actorUserId,
       metadata: { classroomId: input.classroomId, title: input.title },
     });
+  }
+
+  if (input.publish) {
+    await notifyHomeworkPublished(
+      schoolId,
+      homeworkId,
+      input.classroomId,
+      input.title,
+      input.dueDate,
+    );
   }
 
   return getHomework(homeworkId);

@@ -5,6 +5,7 @@ import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { guardianStudentIds } from './scope.service.js';
+import { guardianUserIdsFor, notifySafe } from './notification.service.js';
 
 /**
  * Fees.
@@ -371,6 +372,22 @@ export async function recordPayment(
       allocated,
     },
   });
+
+  // A receipt in the app is the confirmation a parent who paid cash at the gate
+  // otherwise has no record of. Amount only — never a balance, which would put
+  // a family's debt on a lock screen for anyone to read.
+  const guardians = await guardianUserIdsFor([input.studentId]);
+  if (guardians.length > 0) {
+    notifySafe({
+      schoolId,
+      userIds: guardians,
+      type: 'FEE_RECEIPT',
+      title: 'Payment received',
+      body: `₹${(input.amountInPaise / 100).toLocaleString('en-IN')} received. Receipt ${result.receiptNo}.`,
+      entityType: 'Payment',
+      entityId: result.paymentId,
+    });
+  }
 
   return {
     ...result,

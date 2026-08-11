@@ -31,9 +31,73 @@ echo "==> Using $(node -v) from $NODE_BIN (system node is $(/usr/bin/node -v))"
 
 cd "$APP_ROOT"
 
-echo "==> Installing dependencies"
-# --include=dev because the Prisma CLI, needed for migrations, is a dev dependency.
-npm ci --include=dev --no-audit --no-fund
+# --- Dependencies -----------------------------------------------------------
+#
+# `npm ci` deletes node_modules before rebuilding it, and the old process is
+# still serving requests while that happens. Anything the running app loads
+# lazily then fails to resolve: body-parser reaches for iconv-lite's encodings
+# on the first request body it parses, so every LOGIN returned a 500 for the
+# length of the install. It cleared itself on reload, which is exactly why it
+# went unnoticed — nothing was broken by the time anyone looked.
+#
+# So: only reinstall when the lockfile actually changed, and when it has,
+# take the app down deliberately rather than serving errors from a half-deleted
+# node_modules. A short, honest outage beats a window of 500s that look like
+# application bugs to whoever hits them.
+# The stamp lives OUTSIDE the app root on purpose: the deploy rsyncs with
+# --delete, so anything under $APP_ROOT that is not in the repository is wiped
+# on every release. Kept here it would vanish each time and every deploy would
+# reinstall — the exact thing this is meant to avoid.
+STATE_DIR=/var/lib/poetree-preschool
+mkdir -p "$STATE_DIR"
+LOCK_STAMP="$STATE_DIR/deps-lock-hash"
+
+CURRENT_LOCK=$(sha256sum "$APP_ROOT/package-lock.json" | cut -d' ' -f1)
+PREVIOUS_LOCK=$(cat "$LOCK_STAMP" 2>/dev/null || echo "none")
+
+OURS=(poetree-preschool-api poetree-preschool-web)
+
+if [[ "$CURRENT_LOCK" == "$PREVIOUS_LOCK" && -d "$APP_ROOT/node_modules" ]]; then
+  echo "==> Dependencies unchanged — skipping install, no downtime"
+else
+  echo "==> Dependencies changed — stopping the app before reinstalling"
+
+  # By name, one at a time, and only ours. `pm2 stop` on a name PM2 does not
+  # know is an error, and `set -e` would abort the deploy over a process that
+  # was simply not running yet.
+  # By name, one at a time, and only ours. `pm2 stop` on a name PM2 does not
+  # know is an error, and `set -e` would abort the deploy over a process that
+  # was simply not running yet.
+  STOPPED=""
+  for app in "${OURS[@]}"; do
+    if pm2 describe "$app" >/dev/null 2>&1; then
+      pm2 stop "$app" >/dev/null
+      STOPPED="$STOPPED $app"
+    fi
+  done
+
+  if [[ -n "$STOPPED" ]]; then
+    echo "    stopped:$STOPPED"
+  else
+    echo "    nothing was running yet"
+  fi
+
+  # --include=dev because the Prisma CLI, needed for migrations, is a dev dependency.
+  npm ci --include=dev --no-audit --no-fund
+
+  # Written only after a successful install. If npm ci fails, the stamp keeps
+  # its old value and the next deploy reinstalls rather than trusting a
+  # half-built node_modules.
+  printf '%s' "$CURRENT_LOCK" > "$LOCK_STAMP"
+
+  for app in $STOPPED; do
+    pm2 start "$app" >/dev/null
+  done
+
+  if [[ -n "$STOPPED" ]]; then
+    echo "    started again"
+  fi
+fi
 
 echo "==> Generating Prisma client"
 npx prisma generate --schema "$SCHEMA"

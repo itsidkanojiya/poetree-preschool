@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
 import '../notifications/inbox_view.dart';
@@ -198,6 +199,12 @@ class _ChildSwitcher extends StatelessWidget {
   }
 }
 
+/// The parent's landing screen.
+///
+/// Was a stack of identical grey rows in which the child's attendance, a
+/// worksheet and a link to the timetable all looked equally important. Now it
+/// opens on the child, answers the two questions a parent actually has — was
+/// my child there, do we owe anything — and only then offers the rest.
 class _Overview extends StatelessWidget {
   const _Overview({required this.child, required this.children});
 
@@ -206,152 +213,504 @@ class _Overview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     final selected = children.selected;
     final attendance = child.attendance.value;
     final ledger = child.ledger.value;
     final due = ledger?.outstandingInPaise ?? 0;
 
-    final nextHomework = child.homework.isEmpty ? null : child.homework.first;
+    final nextHomework = child.homework.firstWhereOrNull((h) => !h.isDone);
     final pinned = child.notices.firstWhereOrNull(
       (n) => n.pinned || n.isEmergency,
     );
+    final started = child.skills.where((s) => s.attemptsCount > 0).toList();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
       children: [
-        Text(
-          selected == null ? '' : selected.fullName,
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        Text(
-          selected?.classroomLabel ?? 'Not in a class yet',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.outline,
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        if (pinned != null) ...[
-          Card(
-            color: pinned.isEmergency
-                ? Theme.of(context).colorScheme.errorContainer
-                : Theme.of(context).colorScheme.secondaryContainer,
-            child: ListTile(
-              leading: Icon(
-                pinned.isEmergency
-                    ? Icons.warning_amber
-                    : Icons.push_pin_outlined,
-              ),
-              title: Text(pinned.title),
-              subtitle: Text(
-                pinned.body,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-
+        // The child, not the app. Their name is the largest thing on screen.
         Row(
           children: [
+            InitialsAvatar(name: selected?.fullName ?? '', radius: 26),
+            const SizedBox(width: 14),
             Expanded(
-              child: _Tile(
-                label: 'Attendance',
-                value: attendance == null || attendance.markedDays == 0
-                    ? '—'
-                    : '${attendance.percentage}%',
-                // The denominator is days the school actually ran, so a holiday
-                // never quietly drags this down.
-                hint: attendance == null || attendance.markedDays == 0
-                    ? 'No register yet'
-                    : 'over ${attendance.markedDays} days',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _Tile(
-                label: 'Fees due',
-                value: _rupees(due),
-                hint: due > 0
-                    ? 'Please settle with the office'
-                    : 'Nothing outstanding',
-                tone: due > 0 ? Theme.of(context).colorScheme.error : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selected?.fullName ?? '',
+                    style: theme.textTheme.headlineMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    selected?.classroomLabel ?? 'Not in a class yet',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
 
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.menu_book_outlined),
-            title: Text(nextHomework?.title ?? 'No homework set'),
-            subtitle: Text(
-              nextHomework == null
-                  ? 'Nothing due at the moment.'
-                  : 'Due ${_day(nextHomework.dueDate)}',
+        if (pinned != null) ...[
+          _PinnedNotice(
+            notice: pinned,
+            onTap: () => child.markNoticeRead(pinned),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // The two questions a parent opens this app to answer.
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                label: 'Attendance',
+                value: attendance == null || attendance.markedDays == 0
+                    ? '—'
+                    : '${attendance.percentage}%',
+                caption: attendance == null || attendance.markedDays == 0
+                    ? 'No register yet'
+                    : 'over ${attendance.markedDays} days',
+                // The denominator is days the school actually ran, so a
+                // holiday never quietly drags this down.
+                progress: attendance == null || attendance.markedDays == 0
+                    ? null
+                    : attendance.percentage / 100,
+                tone: AppTheme.leaf,
+                toneSoft: AppTheme.leafSoft,
+                icon: Icons.event_available_rounded,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                label: 'Fees due',
+                value: _rupees(due),
+                caption: due > 0
+                    ? 'Please settle with the office'
+                    : 'All clear',
+                tone: due > 0 ? AppTheme.coral : AppTheme.leaf,
+                toneSoft: due > 0 ? AppTheme.coralSoft : AppTheme.leafSoft,
+                icon: Icons.receipt_long_rounded,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        if (nextHomework != null) ...[
+          _NextUp(
+            homework: nextHomework,
+            onOpen: () => children.tab.value = ChildrenController.homeworkTab,
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // The activities. Given the warmest treatment on the screen because it
+        // is the only thing here a child does rather than a parent reads.
+        if (selected != null)
+          _PlayCard(
+            firstName: selected.firstName,
+            onTap: () => Get.toNamed<void>(
+              AppRoutes.activities,
+              arguments: {'studentId': selected.id},
             ),
           ),
-        ),
 
         if (selected?.classroomId != null) ...[
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.dynamic_feed_outlined),
-              title: const Text('Class stream'),
-              subtitle: const Text('Announcements and materials'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Get.toNamed<void>(
-                AppRoutes.stream,
-                arguments: {'classroomId': selected!.classroomId},
-              ),
+          const SizedBox(height: 14),
+          _ActionTile(
+            icon: Icons.dynamic_feed_rounded,
+            tone: AppTheme.sky,
+            toneSoft: AppTheme.skySoft,
+            title: 'Class stream',
+            subtitle: 'Announcements and materials from the class',
+            onTap: () => Get.toNamed<void>(
+              AppRoutes.stream,
+              arguments: {'classroomId': selected!.classroomId},
             ),
           ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.schedule_outlined),
-              title: const Text('Timetable'),
-              subtitle: Text('${selected!.classroomLabel}’s week'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Get.toNamed<void>(
-                AppRoutes.timetable,
-                arguments: {'classroomId': selected.classroomId},
-              ),
+          const SizedBox(height: 10),
+          _ActionTile(
+            icon: Icons.schedule_rounded,
+            tone: AppTheme.apricot,
+            toneSoft: AppTheme.apricotSoft,
+            title: 'Timetable',
+            subtitle: 'The week for ${selected!.classroomLabel}',
+            onTap: () => Get.toNamed<void>(
+              AppRoutes.timetable,
+              arguments: {'classroomId': selected.classroomId},
             ),
           ),
         ],
 
-        // The way in to the activities themselves. Without this the whole
-        // progress module below is a screen of zeroes forever.
-        if (selected != null)
-          Card(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            child: ListTile(
-              leading: const Icon(Icons.play_circle_outline),
-              title: const Text('Play and learn'),
-              subtitle: Text('Activities for ${selected.firstName}'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Get.toNamed<void>(
-                AppRoutes.activities,
-                arguments: {'studentId': selected.id},
+        const SizedBox(height: 28),
+        Row(
+          children: [
+            Text('LEARNING', style: theme.textTheme.labelSmall),
+            const Spacer(),
+            if (started.isNotEmpty)
+              Text(
+                '${started.length} of ${child.skills.length} started',
+                style: theme.textTheme.bodySmall,
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        if (child.skills.isEmpty)
+          Text('Nothing recorded yet.', style: theme.textTheme.bodySmall)
+        else ...[
+          // Skills they have actually tried come first. A screen that opens on
+          // eight rows of "Not attempted yet" reads as a system with nothing
+          // in it, whatever the child has done.
+          ...started.map((s) => _SkillRow(skill: s)),
+          if (started.isNotEmpty && started.length < child.skills.length)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 2),
+              child: Text(
+                'Not started yet',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.outline,
+                ),
               ),
             ),
-          ),
-
-        const SizedBox(height: 20),
-        Text('Learning', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (child.skills.isEmpty)
-          Text(
-            'Nothing recorded yet.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
-          )
-        else
-          ...child.skills.take(6).map((skill) => _SkillRow(skill: skill)),
+          ...child.skills
+              .where((s) => s.attemptsCount == 0)
+              .take(4)
+              .map((s) => _SkillRow(skill: s)),
+        ],
       ],
+    );
+  }
+}
+
+/// An emergency or pinned notice, given the top of the screen because it is
+/// the one thing here that cannot wait until a parent goes looking.
+class _PinnedNotice extends StatelessWidget {
+  const _PinnedNotice({required this.notice, required this.onTap});
+
+  final NoticeItem notice;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final urgent = notice.isEmergency;
+    final on = urgent ? colors.onErrorContainer : colors.onSecondaryContainer;
+
+    return Material(
+      color: urgent ? colors.errorContainer : colors.secondaryContainer,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                urgent ? Icons.priority_high_rounded : Icons.push_pin_rounded,
+                size: 20,
+                color: on,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notice.title,
+                      style: TextStyle(fontWeight: FontWeight.w600, color: on),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      notice.body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, height: 1.4, color: on),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One figure with what it is made of underneath it.
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.caption,
+    required this.tone,
+    required this.toneSoft,
+    required this.icon,
+    this.progress,
+  });
+
+  final String label;
+  final String value;
+  final String caption;
+  final Color tone;
+  final Color toneSoft;
+  final IconData icon;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              // Mixed rather than reused straight: the soft fills are built
+              // for a paper ground and would glow on a dark one.
+              color: isDark ? tone.withValues(alpha: 0.18) : toneSoft,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 19, color: tone),
+          ),
+          const SizedBox(height: 12),
+          Text(label, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+          ),
+          if (progress != null) ...[
+            const SizedBox(height: 9),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress!.clamp(0, 1),
+                minHeight: 5,
+                valueColor: AlwaysStoppedAnimation<Color>(tone),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(caption, style: theme.textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+/// The next thing actually owed, rather than the newest thing set.
+class _NextUp extends StatelessWidget {
+  const _NextUp({required this.homework, required this.onOpen});
+
+  final HomeworkItem homework;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('TO DO', style: theme.textTheme.labelSmall),
+                    const SizedBox(height: 6),
+                    Text(homework.title, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Due ${_day(homework.dueDate)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colors.outline),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The one thing on this screen a child does rather than a parent reads, so
+/// the one thing given colour rather than a hairline.
+class _PlayCard extends StatelessWidget {
+  const _PlayCard({required this.firstName, required this.onTap});
+
+  final String firstName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Material(
+      color: colors.primaryContainer,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: colors.surface.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  size: 28,
+                  color: colors.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Play and learn',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: colors.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Letters, numbers and shapes for $firstName',
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: colors.onPrimaryContainer.withValues(
+                          alpha: 0.85,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.tone,
+    required this.toneSoft,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color tone;
+  final Color toneSoft;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark ? tone.withValues(alpha: 0.18) : toneSoft,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, size: 20, color: tone),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colors.outline),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -363,99 +722,49 @@ class _SkillRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final started = skill.attemptsCount > 0;
     final color = !started
-        ? Theme.of(context).colorScheme.outlineVariant
+        ? theme.colorScheme.outlineVariant
         : skill.masteryPercent >= 80
-        ? const Color(0xFF16A34A)
+        ? AppTheme.leaf
         : skill.masteryPercent >= 50
-        ? const Color(0xFFD97706)
-        : const Color(0xFFDC2626);
+        ? AppTheme.apricot
+        : AppTheme.coral;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(child: Text(skill.skillName)),
+              Expanded(
+                child: Text(skill.skillName, style: theme.textTheme.bodyMedium),
+              ),
               Text(
                 started ? '${skill.masteryPercent}%' : '—',
-                style: TextStyle(color: color, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: started ? color : theme.colorScheme.outline,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: started ? skill.masteryPercent / 100 : 0,
-              minHeight: 5,
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest,
+              minHeight: 6,
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
-          const SizedBox(height: 3),
-          // A bare percentage invites an argument; the working lets a parent and
-          // a teacher discuss the same thing.
-          Text(
-            skill.basis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
-          ),
+          const SizedBox(height: 5),
+          // The percentage never travels without its working.
+          Text(skill.basis, style: theme.textTheme.bodySmall),
         ],
-      ),
-    );
-  }
-}
-
-class _Tile extends StatelessWidget {
-  const _Tile({
-    required this.label,
-    required this.value,
-    required this.hint,
-    this.tone,
-  });
-
-  final String label;
-  final String value;
-  final String hint;
-  final Color? tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(color: tone),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              hint,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -44,6 +44,11 @@ class PoetreeSchoolApp extends StatelessWidget {
       title: SchoolConfig.schoolName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      // Parents check this at bedtime as often as at the school gate, and the
+      // app had no dark mode at all — it simply rendered light on a phone set
+      // to dark.
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       initialRoute: initialRoute,
       getPages: appPages,
     );

@@ -83,6 +83,13 @@ class ParentHomeView extends StatelessWidget {
           );
         }
 
+        // Read here, inside the Obx closure, and NOT inside AsyncView's
+        // builder. That builder runs when AsyncView itself builds, which is
+        // outside this closure — so the tab was read outside the reactive
+        // scope, nothing subscribed to it, and tapping the bottom bar moved
+        // the highlight while the page underneath stayed put.
+        final tab = children.tab.value;
+
         return Column(
           children: [
             if (children.children.length > 1)
@@ -93,7 +100,7 @@ class ParentHomeView extends StatelessWidget {
                 error: child.error.value,
                 isEmpty: false,
                 onRetry: child.load,
-                builder: (context) => switch (children.tab.value) {
+                builder: (context) => switch (tab) {
                   ChildrenController.homeTab => _Overview(
                     child: child,
                     children: children,

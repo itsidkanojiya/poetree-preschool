@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -53,7 +54,16 @@ class Outbox {
 
   /// How many registers are still waiting. The teacher sees this, because a
   /// silent queue is indistinguishable from lost work.
-  int get pendingCount => _pending.length;
+  ///
+  /// A ValueNotifier rather than a plain getter: the queue drains in the
+  /// background, so nothing would tell the screen the number had changed. It
+  /// is also not a GetX type — the outbox stays framework-agnostic, and the
+  /// controller adapts it.
+  final ValueNotifier<int> pending = ValueNotifier<int>(0);
+
+  int get pendingCount => pending.value;
+
+  void _publish() => pending.value = _pending.length;
 
   Future<void> init() async {
     await _load();
@@ -96,6 +106,8 @@ class Outbox {
       // lost, which is bad, but an app that will not open is worse — and the
       // teacher can mark again.
       _pending = <PendingRegister>[];
+    } finally {
+      _publish();
     }
   }
 
@@ -104,6 +116,9 @@ class Outbox {
     await file.writeAsString(
       jsonEncode(_pending.map((e) => e.toJson()).toList()),
     );
+    // Every mutation of the queue goes through here, so this is the one place
+    // the count has to be announced from.
+    _publish();
   }
 
   /// Sends a register, or keeps it until the network comes back.

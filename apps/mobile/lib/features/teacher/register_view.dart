@@ -168,7 +168,7 @@ class _Header extends StatelessWidget {
             ),
           ],
 
-          if (controller.pendingCount > 0) ...[
+          if (controller.pendingCount.value > 0) ...[
             const SizedBox(height: 8),
             _Banner(
               tone: colors.errorContainer,
@@ -177,7 +177,7 @@ class _Header extends StatelessWidget {
               // Never let queued work be invisible — a teacher must be able to
               // tell "saved" from "saved on this phone".
               text:
-                  '${controller.pendingCount} register${controller.pendingCount == 1 ? '' : 's'} waiting for signal.',
+                  '${controller.pendingCount.value} register${controller.pendingCount.value == 1 ? '' : 's'} waiting for signal.',
             ),
           ],
         ],

@@ -82,7 +82,13 @@ class RegisterController extends GetxController {
   /// Set when the last save went to the outbox rather than the server.
   final queuedLocally = false.obs;
 
-  int get pendingCount => _outbox.pendingCount;
+  /// How many registers are still waiting for signal.
+  ///
+  /// Mirrored from the outbox rather than read through a getter: the queue
+  /// drains in the background, and an Obx watching a plain int has nothing to
+  /// rebuild on — GetX throws "improper use of a GetX" rather than showing a
+  /// stale number, which is how this was found.
+  final pendingCount = 0.obs;
 
   String get dateKey => date.value.toIso8601String().substring(0, 10);
 
@@ -92,8 +98,18 @@ class RegisterController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    pendingCount.value = _outbox.pendingCount;
+    _outbox.pending.addListener(_syncPending);
     unawaited(loadClassrooms());
   }
+
+  @override
+  void onClose() {
+    _outbox.pending.removeListener(_syncPending);
+    super.onClose();
+  }
+
+  void _syncPending() => pendingCount.value = _outbox.pendingCount;
 
   Future<void> loadClassrooms() async {
     isLoading.value = true;

@@ -57,6 +57,10 @@ PREVIOUS_LOCK=$(cat "$LOCK_STAMP" 2>/dev/null || echo "none")
 
 OURS=(poetree-preschool-api poetree-preschool-web)
 
+# Declared before the branch: the PM2 step at the end reads it either way, and
+# `set -u` aborts on an unset variable.
+STOPPED=""
+
 if [[ "$CURRENT_LOCK" == "$PREVIOUS_LOCK" && -d "$APP_ROOT/node_modules" ]]; then
   echo "==> Dependencies unchanged — skipping install, no downtime"
 else
@@ -65,10 +69,6 @@ else
   # By name, one at a time, and only ours. `pm2 stop` on a name PM2 does not
   # know is an error, and `set -e` would abort the deploy over a process that
   # was simply not running yet.
-  # By name, one at a time, and only ours. `pm2 stop` on a name PM2 does not
-  # know is an error, and `set -e` would abort the deploy over a process that
-  # was simply not running yet.
-  STOPPED=""
   for app in "${OURS[@]}"; do
     if pm2 describe "$app" >/dev/null 2>&1; then
       pm2 stop "$app" >/dev/null
@@ -90,13 +90,15 @@ else
   # half-built node_modules.
   printf '%s' "$CURRENT_LOCK" > "$LOCK_STAMP"
 
-  for app in $STOPPED; do
-    pm2 start "$app" >/dev/null
-  done
-
-  if [[ -n "$STOPPED" ]]; then
-    echo "    started again"
-  fi
+  # Deliberately NOT restarted here. `npm ci` has just deleted the generated
+  # Prisma client along with the rest of node_modules, and `prisma generate`
+  # does not run until below — starting now means the app boots against a
+  # client that does not exist yet, crashes with "@prisma/client did not
+  # initialize", and crash-loops until the reload at the end rescues it.
+  #
+  # It stays down until generate and migrate have run, and the PM2 step below
+  # brings it back. Longer stopped, but stopped once and on purpose, rather
+  # than up and failing.
 fi
 
 echo "==> Generating Prisma client"
@@ -109,8 +111,17 @@ echo "==> Applying database migrations"
 # `migrate deploy` only applies committed migrations and never resets data.
 ( cd "$APP_ROOT/apps/api" && npx prisma migrate deploy --schema prisma/schema.prisma )
 
-echo "==> Reloading PM2 (only the apps named in our ecosystem file)"
-if pm2 describe poetree-preschool-api >/dev/null 2>&1; then
+echo "==> Bringing the app up (only the apps named in our ecosystem file)"
+if [[ -n "$STOPPED" ]]; then
+  # We stopped these ourselves above and left them down through generate and
+  # migrate. Start them by name — `reload` on a stopped process is not a
+  # documented way to start one, and the whole point of this path is that the
+  # app comes back exactly once.
+  for app in $STOPPED; do
+    pm2 start "$app" >/dev/null
+    echo "    started $app"
+  done
+elif pm2 describe poetree-preschool-api >/dev/null 2>&1; then
   pm2 reload infra/ecosystem.config.cjs --update-env
 else
   pm2 start infra/ecosystem.config.cjs

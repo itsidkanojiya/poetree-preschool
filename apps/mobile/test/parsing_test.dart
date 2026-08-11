@@ -1,0 +1,189 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:poetree_school/features/parent/child_controller.dart';
+import 'package:poetree_school/features/parent/children_controller.dart';
+import 'package:poetree_school/features/teacher/register_controller.dart';
+
+/// Response shapes, fixed against what the API actually sends.
+///
+/// The fee ledger nests its money under `totals`; the app read it from the top
+/// level and every family's fee screen showed zero however much they owed. It
+/// survived because no bill had been raised yet — with an empty database the
+/// wrong answer and the right one are the same number.
+///
+/// So each fixture below is the real response, and each test asserts a figure
+/// that is NOT zero. A parsing bug of that kind cannot pass a test that insists
+/// on a specific non-zero value.
+
+void main() {
+  test('fee ledger reads the money from totals, not the top level', () {
+    final ledger = Ledger.fromJson({
+      'invoices': [
+        {
+          'invoiceNo': 'RCP-2026-0001',
+          'periodLabel': 'Term 1',
+          'dueDate': '2026-07-10',
+          'netInPaise': 1500000,
+          'paidInPaise': 500000,
+          'outstandingInPaise': 1000000,
+          'status': 'PARTIAL',
+          'overdue': true,
+        },
+      ],
+      'payments': [
+        {
+          'receiptNo': 'RCP-2026-0001',
+          'amountInPaise': 500000,
+          'paidOn': '2026-07-02',
+          'method': 'CASH',
+        },
+      ],
+      'totals': {'billed': 1500000, 'paid': 500000, 'outstanding': 1000000},
+    });
+
+    expect(ledger.billedInPaise, 1500000);
+    expect(ledger.paidInPaise, 500000);
+    expect(ledger.outstandingInPaise, 1000000);
+
+    expect(ledger.invoices, hasLength(1));
+    expect(ledger.invoices.single.invoiceNo, 'RCP-2026-0001');
+    expect(ledger.invoices.single.period, 'Term 1');
+    expect(ledger.invoices.single.outstandingInPaise, 1000000);
+  });
+
+  test('a child comes back with their class', () {
+    final child = Child.fromJson({
+      'id': 'stu_1',
+      'fullName': 'Aarav Joshi',
+      'admissionNo': 'SUN-001',
+      'avatarUrl': null,
+      'rollNo': '4',
+      'classroom': {'id': 'cls_1', 'label': 'Nursery — A'},
+      'academicYear': {'id': 'ay_1', 'name': '2026-27'},
+    });
+
+    expect(child.fullName, 'Aarav Joshi');
+    expect(child.firstName, 'Aarav');
+    expect(child.classroomId, 'cls_1');
+    expect(child.classroomLabel, 'Nursery — A');
+  });
+
+  test('attendance carries its days and its totals', () {
+    final attendance = ChildAttendance.fromJson({
+      'studentId': 'stu_1',
+      'from': '2026-06-11',
+      'to': '2026-08-11',
+      'present': 38,
+      'absent': 3,
+      'late': 1,
+      'leave': 0,
+      'halfDay': 0,
+      'markedDays': 42,
+      'percentage': 93,
+      'days': [
+        {'date': '2026-08-11', 'status': 'PRESENT', 'remark': null},
+        {'date': '2026-08-10', 'status': 'ABSENT', 'remark': 'Unwell'},
+      ],
+    });
+
+    expect(attendance.percentage, 93);
+    expect(attendance.markedDays, 42);
+    expect(attendance.days.first.status, 'PRESENT');
+    expect(attendance.days.last.remark, 'Unwell');
+  });
+
+  test('homework carries this child’s own submission, not the class total', () {
+    final item = HomeworkItem.fromJson({
+      'id': 'hw_1',
+      'title': 'Practice letter A',
+      'description': 'One page.',
+      'dueDate': '2026-08-20',
+      'status': 'PUBLISHED',
+      'allowsSubmission': true,
+      'subject': {'id': 'sub_1', 'name': 'Language'},
+      'progress': {'total': 20, 'completed': 12, 'pending': 8},
+      'mySubmission': {
+        'id': 'sub_row',
+        'status': 'COMPLETED',
+        'submittedOn': '2026-08-18',
+        'teacherRemark': 'Lovely work',
+      },
+    });
+
+    // The class being 12/20 done says nothing about whether we did ours.
+    expect(item.myStatus, 'COMPLETED');
+    expect(item.teacherRemark, 'Lovely work');
+    expect(item.isDone, isTrue);
+    expect(item.isJudged, isTrue);
+    expect(item.canSubmit, isFalse);
+  });
+
+  test('homework not yet done can be submitted', () {
+    final item = HomeworkItem.fromJson({
+      'id': 'hw_2',
+      'title': 'Count the ducks',
+      'dueDate': '2026-08-22',
+      'allowsSubmission': true,
+      'progress': {'total': 20, 'completed': 0, 'pending': 20},
+    });
+
+    expect(item.myStatus, isNull);
+    expect(item.isDone, isFalse);
+    expect(item.canSubmit, isTrue);
+  });
+
+  test('a notice knows whether this parent has read it', () {
+    final notice = NoticeItem.fromJson({
+      'id': 'n_1',
+      'title': 'School closed Friday',
+      'body': 'Founders Day.',
+      'type': 'EMERGENCY',
+      'audience': 'PARENTS',
+      'status': 'PUBLISHED',
+      'pinned': true,
+      'publishAt': '2026-08-09T04:00:00.000Z',
+      'expiresAt': null,
+      'createdBy': 'Office',
+      'classroomLabels': <String>[],
+      'attachmentCount': 0,
+      'readByMe': false,
+    });
+
+    expect(notice.isEmergency, isTrue);
+    expect(notice.pinned, isTrue);
+    expect(notice.readByMe, isFalse);
+  });
+
+  test('progress carries the working, not just the figure', () {
+    final skill = SkillProgress.fromJson({
+      'skillId': 'sk_1',
+      'skillCode': 'SHAPES',
+      'skillName': 'Shapes',
+      'masteryPercent': 75,
+      'correctCount': 3,
+      'totalCount': 4,
+      'attemptsCount': 1,
+      'lastAssessedAt': '2026-08-11T12:00:00.000Z',
+      'basis': '3 of 4 questions across 1 attempt',
+    });
+
+    expect(skill.masteryPercent, 75);
+    expect(skill.basis, '3 of 4 questions across 1 attempt');
+  });
+
+  test('the register sheet parses a row', () {
+    final row = RegisterRow.fromJson({
+      'studentId': 'stu_1',
+      'fullName': 'Aarav Joshi',
+      'admissionNo': 'SUN-001',
+      'rollNo': '4',
+      'avatarUrl': null,
+      'status': 'ABSENT',
+      'remark': 'Unwell',
+      'recordId': 'rec_1',
+    });
+
+    expect(row.fullName, 'Aarav Joshi');
+    expect(row.status, 'ABSENT');
+    expect(row.rollNo, '4');
+  });
+}

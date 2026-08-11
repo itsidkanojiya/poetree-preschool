@@ -79,6 +79,22 @@ describe.skipIf(!dbUp)('fees', () => {
     expect(response.body.totalBilledInPaise).toBe(500_000);
   });
 
+  it('refuses a period label that bills nothing, instead of quietly doing nothing', async () => {
+    // This structure is annual, so its only period is "Annual". Asking for
+    // "Term 1" used to return {created: 0, skipped: 0} and HTTP 200 — an admin
+    // saw a successful run that had billed nobody, with no hint that the label
+    // was the problem or what the labels are.
+    const response = await api
+      .post(`${BASE}/fees/invoices/generate`)
+      .set(auth(adminA))
+      .send({ academicYearId: schoolA.academicYearId, periodLabel: 'Term 1', dueDate: DUE });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.message).toContain('Term 1');
+    // And it says what would have worked.
+    expect(response.body.error.details.expected).toContain('Annual');
+  });
+
   it('never charges the same child twice for the same period', async () => {
     // The whole point of the unique key: re-running a billing run is safe.
     const again = await api

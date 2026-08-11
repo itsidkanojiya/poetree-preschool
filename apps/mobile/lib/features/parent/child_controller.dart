@@ -297,15 +297,26 @@ class Ledger {
     required this.invoices,
   });
 
-  factory Ledger.fromJson(Map<String, dynamic> json) => Ledger(
-    billedInPaise: (json['billedInPaise'] as num?)?.toInt() ?? 0,
-    paidInPaise: (json['paidInPaise'] as num?)?.toInt() ?? 0,
-    outstandingInPaise: (json['outstandingInPaise'] as num?)?.toInt() ?? 0,
-    invoices: (json['invoices'] as List<dynamic>? ?? <dynamic>[])
-        .whereType<Map<String, dynamic>>()
-        .map(Invoice.fromJson)
-        .toList(),
-  );
+  /// The API nests the money under `totals`, as plain rupee-paise integers
+  /// without the suffix the per-invoice fields carry:
+  ///
+  ///     { invoices: [...], payments: [...], totals: { billed, paid, outstanding } }
+  ///
+  /// This read them from the top level, so every family's fee screen showed
+  /// zero however much they owed. It went unnoticed because no bill had ever
+  /// been raised — the wrong answer and the right one looked identical.
+  factory Ledger.fromJson(Map<String, dynamic> json) {
+    final totals = json['totals'] as Map<String, dynamic>? ?? const {};
+    return Ledger(
+      billedInPaise: (totals['billed'] as num?)?.toInt() ?? 0,
+      paidInPaise: (totals['paid'] as num?)?.toInt() ?? 0,
+      outstandingInPaise: (totals['outstanding'] as num?)?.toInt() ?? 0,
+      invoices: (json['invoices'] as List<dynamic>? ?? <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(Invoice.fromJson)
+          .toList(),
+    );
+  }
 
   final int billedInPaise;
   final int paidInPaise;

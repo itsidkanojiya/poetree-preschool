@@ -114,6 +114,23 @@ export async function generateInvoices(
     throw ApiError.badRequest('No active fee structure for that academic year');
   }
 
+  // A period label that matches no cadence anywhere used to bill nothing and
+  // report success — `{created: 0, skipped: 0}`. An admin who typed "Term 1"
+  // against a quarterly structure got a silent no-op with no hint that the
+  // labels are Q1 to Q4, and no reason to think the run had failed. Say so.
+  const acceptable = new Set(
+    structures.flatMap((structure) =>
+      structure.items.flatMap((item) => periodsFor(item.frequency as Frequency, year.startDate)),
+    ),
+  );
+
+  if (!acceptable.has(input.periodLabel)) {
+    throw ApiError.badRequest(
+      `"${input.periodLabel}" is not a billing period for these fee structures`,
+      { expected: [...acceptable].sort() },
+    );
+  }
+
   let created = 0;
   let skipped = 0;
   let totalBilled = 0;

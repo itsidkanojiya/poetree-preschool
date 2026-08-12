@@ -1,18 +1,14 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
-import '../../core/models/attached_file.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
 import '../notifications/inbox_view.dart';
 import 'child_controller.dart';
+import 'homework_detail_view.dart';
 import 'children_controller.dart';
 
 final _money = NumberFormat.currency(
@@ -570,8 +566,17 @@ class _NextUp extends StatelessWidget {
                     Text(homework.title, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Text(
-                      'Due ${_day(homework.dueDate)}',
-                      style: theme.textTheme.bodySmall,
+                      // Which subject, and whose class it came from — the same
+                      // line the list and the detail screen carry, so the three
+                      // agree about what this piece of work is.
+                      [
+                        if (homework.subject != null) homework.subject!,
+                        if (homework.setBy.isNotEmpty) homework.setBy,
+                        'due ${_day(homework.dueDate)}',
+                      ].join(' · '),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: homework.isOverdue ? AppTheme.coral : null,
+                      ),
                     ),
                   ],
                 ),
@@ -1184,14 +1189,28 @@ class _AttendanceKey extends StatelessWidget {
   }
 }
 
-class _HomeworkTab extends StatelessWidget {
+/// The parent's list of work, in the shape Google Classroom taught everyone:
+/// filter first, then work grouped by when it is due, each row saying who set
+/// it and for which subject. Tapping a row opens it — nothing is acted on from
+/// the list, which is what made the old cards so tall.
+class _HomeworkTab extends StatefulWidget {
   const _HomeworkTab({required this.child});
 
   final ChildController child;
 
   @override
+  State<_HomeworkTab> createState() => _HomeworkTabState();
+}
+
+enum _Filter { todo, sent, done }
+
+class _HomeworkTabState extends State<_HomeworkTab> {
+  _Filter _filter = _Filter.todo;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final child = widget.child;
 
     if (child.homework.isEmpty) {
       return ListView(
@@ -1202,43 +1221,160 @@ class _HomeworkTab extends StatelessWidget {
       );
     }
 
-    final outstanding = child.homework.where((h) => h.isOutstanding).length;
+    final todo = child.homework.where((h) => h.isOutstanding).toList();
+    final sent = child.homework.where((h) => h.isWaiting).toList();
+    final done = child.homework.where((h) => h.isJudged).toList();
+    // Work with nothing to send back still has to live somewhere, or a parent
+    // reading the list would never see it at all.
+    final toRead = child.homework
+        .where((h) => !h.allowsSubmission && !h.isJudged && !h.isWaiting)
+        .toList();
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: child.homework.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          // The teacher sees "8 of 12 done"; a parent saw an undifferentiated
-          // list, which is how homework gets missed.
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(
-              children: [
-                Text(
-                  outstanding == 0 ? 'Nothing to do' : '$outstanding to do',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: outstanding == 0 ? AppTheme.leaf : null,
+    final showing = switch (_filter) {
+      _Filter.todo => [...todo, ...toRead],
+      _Filter.sent => sent,
+      _Filter.done => done,
+    };
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Row(
+          children: [
+            _FilterChip(
+              label: 'To do',
+              count: todo.length + toRead.length,
+              selected: _filter == _Filter.todo,
+              onTap: () => setState(() => _filter = _Filter.todo),
+            ),
+            const SizedBox(width: 8),
+            _FilterChip(
+              label: 'Sent in',
+              count: sent.length,
+              selected: _filter == _Filter.sent,
+              onTap: () => setState(() => _filter = _Filter.sent),
+            ),
+            const SizedBox(width: 8),
+            _FilterChip(
+              label: 'Done',
+              count: done.length,
+              selected: _filter == _Filter.done,
+              onTap: () => setState(() => _filter = _Filter.done),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        if (showing.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 60),
+            child: Center(
+              child: Text(switch (_filter) {
+                _Filter.todo => 'Nothing to do. All caught up.',
+                _Filter.sent => 'Nothing waiting with the teacher.',
+                _Filter.done => 'Nothing marked yet.',
+              }, style: theme.textTheme.bodyMedium),
+            ),
+          )
+        else
+          ..._grouped(showing).entries.expand(
+            (group) => [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+                child: Text(
+                  group.key,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    letterSpacing: 0.8,
+                    color: group.key == 'OVERDUE'
+                        ? AppTheme.coral
+                        : theme.colorScheme.outline,
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  '${child.homework.length} set in all',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          );
-        }
+              ),
+              ...group.value.map(
+                (item) => _HomeworkRow(child: child, item: item),
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
+      ],
+    );
+  }
 
-        return _HomeworkCard(child: child, item: child.homework[index - 1]);
-      },
+  /// Overdue first, then by how soon it is due.
+  ///
+  /// A flat list sorted by date buries the one thing that is actually late
+  /// among ten that are not, which is how homework gets missed.
+  Map<String, List<HomeworkItem>> _grouped(List<HomeworkItem> items) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final groups = <String, List<HomeworkItem>>{};
+
+    final sorted = [...items]
+      ..sort((a, b) => (a.due ?? today).compareTo(b.due ?? today));
+
+    for (final item in sorted) {
+      final due = item.due;
+      final label = switch (due) {
+        null => 'NO DATE',
+        _ when item.isOverdue => 'OVERDUE',
+        _ when due == today => 'DUE TODAY',
+        _ when due.difference(today).inDays <= 7 => 'THIS WEEK',
+        _ => 'LATER',
+      };
+      groups.putIfAbsent(label, () => []).add(item);
+    }
+
+    // A fixed order, so the list does not reshuffle itself as dates pass.
+    const order = ['OVERDUE', 'DUE TODAY', 'THIS WEEK', 'LATER', 'NO DATE'];
+    return {
+      for (final key in order)
+        if (groups.containsKey(key)) key: groups[key]!,
+    };
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? colors.primary : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          count == 0 ? label : '$label · $count',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? colors.onPrimary : colors.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _HomeworkCard extends StatelessWidget {
-  const _HomeworkCard({required this.child, required this.item});
+/// One line of work: what it is, who set it, when it is due.
+class _HomeworkRow extends StatelessWidget {
+  const _HomeworkRow({required this.child, required this.item});
 
   final ChildController child;
   final HomeworkItem item;
@@ -1247,320 +1383,117 @@ class _HomeworkCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final tone = statusColours(item, colors);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final line = [
+      if (item.subject != null) item.subject!,
+      if (item.setBy.isNotEmpty) item.setBy,
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => HomeworkDetailPage(child: child, id: item.id),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.outlineVariant),
+          ),
+          child: Row(
             children: [
-              Expanded(
-                child: Text(item.title, style: theme.textTheme.titleMedium),
-              ),
-              if (item.isDone)
-                Icon(
-                  item.myStatus == 'COMPLETED'
-                      ? Icons.verified_rounded
-                      : Icons.check_circle_outline_rounded,
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: tone.bg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  item.isJudged
+                      ? Icons.assignment_turned_in_outlined
+                      : Icons.assignment_outlined,
                   size: 20,
-                  color: AppTheme.leaf,
-                ),
-            ],
-          ),
-          if (item.description != null && item.description!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(item.description!, style: theme.textTheme.bodyMedium),
-          ],
-          const SizedBox(height: 6),
-          Text(
-            'Due ${_day(item.dueDate)}${item.subject == null ? '' : ' · ${item.subject}'}',
-            style: theme.textTheme.bodySmall,
-          ),
-
-          // What the teacher sent, if anything.
-          if (item.attachments.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('FROM THE TEACHER', style: theme.textTheme.labelSmall),
-            const SizedBox(height: 8),
-            _FileStrip(files: item.attachments),
-          ],
-
-          // What this family sent back. Shown from the server rather than the
-          // local file, so it is proof the photograph actually arrived.
-          if (item.myFiles.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('WHAT YOU SENT', style: theme.textTheme.labelSmall),
-            const SizedBox(height: 8),
-            _FileStrip(files: item.myFiles),
-          ],
-
-          if (item.teacherRemark != null && item.teacherRemark!.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                color: colors.secondaryContainer,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                item.teacherRemark!,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: colors.onSecondaryContainer,
+                  color: tone.fg,
                 ),
               ),
-            ),
-          ],
-
-          const SizedBox(height: 6),
-
-          if (item.canSubmit)
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                onPressed: () => _sendWork(context, child, item),
-                icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                label: const Text('Send it in'),
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(switch (item.myStatus) {
-                'COMPLETED' => 'The teacher has marked this done.',
-                'NOT_COMPLETED' => 'The teacher has asked about this one.',
-                'LATE' => 'Sent in after the due date.',
-                'SUBMITTED' => 'Sent — waiting for the teacher.',
-                // Not every piece of work is handed back. Saying so beats a
-                // card that simply has no button and reads as broken.
-                _ => 'Nothing to send back for this one.',
-              }, style: theme.textTheme.bodySmall),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A row of attachments — thumbnails for pictures, a chip for anything else.
-class _FileStrip extends StatelessWidget {
-  const _FileStrip({required this.files});
-
-  final List<AttachedFile> files;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return SizedBox(
-      height: 74,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: files.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final file = files[index];
-
-          if (!file.isImage) {
-            return Container(
-              width: 150,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 18,
-                    color: colors.outline,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      file.originalName,
-                      maxLines: 2,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
+                      style: theme.textTheme.titleSmall,
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return GestureDetector(
-            onTap: () =>
-                showPhoto(context, file.path, caption: file.originalName),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: AuthedImage(path: file.path, width: 74, height: 74),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Sending the work in: photographs, an optional note, then off it goes.
-Future<void> _sendWork(
-  BuildContext context,
-  ChildController child,
-  HomeworkItem item,
-) async {
-  final noteField = TextEditingController();
-  final picker = ImagePicker();
-  final photos = <XFile>[];
-
-  final sent = await showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    builder: (sheetContext) => Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
-      ),
-      child: StatefulBuilder(
-        builder: (context, setState) {
-          Future<void> pick(ImageSource source) async {
-            // Resized and recompressed on the way in. A modern phone photo is
-            // often over the server's 8 MB cap, and a picture of a crayon
-            // drawing does not need twelve megapixels.
-            final picked = await picker.pickImage(
-              source: source,
-              imageQuality: 70,
-              maxWidth: 1600,
-            );
-            if (picked != null) setState(() => photos.add(picked));
-          }
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                'Send a photo of the finished work.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 16),
-
-              if (photos.isNotEmpty) ...[
-                SizedBox(
-                  height: 84,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: photos.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) => Stack(
+                    if (line.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        line,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          // Straight off local disk — no round trip to preview
-                          // something that has not been sent yet.
-                          child: Image.file(
-                            File(photos[index].path),
-                            width: 84,
-                            height: 84,
-                            fit: BoxFit.cover,
+                        Text(
+                          'Due ${_day(item.dueDate)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: item.isOverdue
+                                ? AppTheme.coral
+                                : colors.outline,
+                            fontWeight: item.isOverdue ? FontWeight.w600 : null,
                           ),
                         ),
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: GestureDetector(
-                            onTap: () => setState(() => photos.removeAt(index)),
-                            child: const CircleAvatar(
-                              radius: 11,
-                              backgroundColor: Colors.black54,
-                              child: Icon(
-                                Icons.close,
-                                size: 13,
-                                color: Colors.white,
-                              ),
+                        if (item.attachments.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.attach_file_rounded,
+                            size: 13,
+                            color: colors.outline,
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: tone.bg,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            item.statusLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: tone.fg,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: photos.length >= 5
-                          ? null
-                          : () => pick(ImageSource.camera),
-                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                      label: const Text('Camera'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: photos.length >= 5
-                          ? null
-                          : () => pick(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library_outlined, size: 18),
-                      label: const Text('Gallery'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              TextField(
-                controller: noteField,
-                maxLines: 2,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Anything to tell the teacher? (optional)',
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-
-              FilledButton(
-                onPressed: () => Navigator.of(sheetContext).pop(true),
-                child: const Text('Send to the teacher'),
-              ),
-              const SizedBox(height: 4),
+              Icon(Icons.chevron_right_rounded, color: colors.outline),
             ],
-          );
-        },
+          ),
+        ),
       ),
-    ),
-  );
-
-  if (sent != true) return;
-
-  final failure = await child.submitHomework(
-    item,
-    note: noteField.text,
-    photoPaths: photos.map((p) => p.path).toList(),
-  );
-
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(failure ?? 'Sent to the teacher.')));
+    );
+  }
 }
 
 class _FeesTab extends StatelessWidget {

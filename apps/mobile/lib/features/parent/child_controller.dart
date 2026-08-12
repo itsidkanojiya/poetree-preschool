@@ -234,11 +234,14 @@ class HomeworkItem {
     required this.dueDate,
     required this.allowsSubmission,
     required this.attachments,
+    required this.setBy,
+    required this.className,
     required this.myFiles,
     this.description,
     this.subject,
     this.myStatus,
     this.teacherRemark,
+    this.setOn,
   });
 
   factory HomeworkItem.fromJson(Map<String, dynamic> json) {
@@ -257,6 +260,11 @@ class HomeworkItem {
       dueDate: json['dueDate'] as String,
       allowsSubmission: json['allowsSubmission'] as bool? ?? false,
       subject: (json['subject'] as Map<String, dynamic>?)?['name'] as String?,
+      setBy: json['assignedBy'] as String? ?? '',
+      className:
+          (json['classroom'] as Map<String, dynamic>?)?['label'] as String? ??
+          '',
+      setOn: json['assignedOn'] as String?,
       attachments: files(json['attachments']),
       myStatus: mine?['status'] as String?,
       teacherRemark: mine?['teacherRemark'] as String?,
@@ -270,6 +278,12 @@ class HomeworkItem {
   final String dueDate;
   final bool allowsSubmission;
   final String? subject;
+
+  /// Who set it and where. A parent with two children in the school needs to
+  /// know which teacher this came from before they can act on it.
+  final String setBy;
+  final String className;
+  final String? setOn;
 
   /// What the teacher attached — the worksheet, if there is one.
   final List<AttachedFile> attachments;
@@ -296,6 +310,32 @@ class HomeworkItem {
   /// at something they cannot act on.
   bool get isOutstanding =>
       allowsSubmission && (myStatus == null || myStatus == 'PENDING');
+
+  /// Sent, and nobody has looked at it yet.
+  bool get isWaiting => myStatus == 'SUBMITTED' || myStatus == 'LATE';
+
+  DateTime? get due => DateTime.tryParse(dueDate);
+
+  /// Past its date and still not sent. Google Classroom calls this "Missing";
+  /// said to a parent about a four-year-old it only needs to say it is late.
+  bool get isOverdue {
+    final date = due;
+    if (!isOutstanding || date == null) return false;
+    final now = DateTime.now();
+    return date.isBefore(DateTime(now.year, now.month, now.day));
+  }
+
+  /// The one word a parent reads first, in their language rather than the
+  /// database's.
+  String get statusLabel => switch (myStatus) {
+    'COMPLETED' => 'Done',
+    'NOT_COMPLETED' => 'Not done',
+    'SUBMITTED' => 'Sent in',
+    'LATE' => 'Sent in late',
+    _ when !allowsSubmission => 'To read',
+    _ when isOverdue => 'Overdue',
+    _ => 'To do',
+  };
 }
 
 class NoticeItem {

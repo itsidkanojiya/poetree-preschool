@@ -16,9 +16,11 @@ export default async function TeacherHomeworkPage({
 }) {
   const { open } = await searchParams;
 
-  const [classrooms, homework] = await Promise.all([
+  const [classrooms, homework, activities] = await Promise.all([
     apiFetch<MyClassroom[]>('/me/classrooms'),
     apiFetch<Paginated<HomeworkSummary>>('/homework', { query: { pageSize: 25 } }),
+    // The publisher's catalogue, as a teacher sees it: live activities only.
+    apiFetch<Array<{ id: string; title: string; type: string }>>('/progress/activities'),
   ]);
 
   // Only fetch the submission list for the item actually expanded — thirty
@@ -34,7 +36,7 @@ export default async function TeacherHomeworkPage({
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_1fr]">
         <Card title="Set homework">
-          <NewHomeworkForm classrooms={classrooms} />
+          <NewHomeworkForm classrooms={classrooms} activities={activities} />
         </Card>
 
         <Card
@@ -58,6 +60,7 @@ export default async function TeacherHomeworkPage({
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-navy-950">{item.title}</span>
                         {item.status === 'DRAFT' && <Pill tone="neutral">Draft</Pill>}
+                        {item.activity && <Pill tone="gold">Activity</Pill>}
                       </span>
                       <span className="mt-0.5 block text-xs text-slate-500">
                         {item.classroom.label} · due {formatDate(item.dueDate)}

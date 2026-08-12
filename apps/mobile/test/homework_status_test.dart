@@ -24,6 +24,8 @@ String iso(int daysFromToday) {
 }
 
 void main() {
+  group('homework that is an activity', _activityHomeworkTests);
+
   test('a parent is told who set the work and for which subject', () {
     // The screen said only "Draw your family"; a parent with two children in
     // the school could not tell whose class it came from.
@@ -76,5 +78,47 @@ void main() {
     // either.
     expect(item(due: iso(0)).isOverdue, isFalse);
     expect(item(due: iso(0)).statusLabel, 'To do');
+  });
+}
+
+void _activityHomeworkTests() {
+  HomeworkItem activityWork({String? status}) => HomeworkItem.fromJson({
+    'id': 'hw_activity',
+    'title': 'Practise letter A',
+    'dueDate': iso(2),
+    // False on purpose: there is no photograph to send for an activity, and
+    // the old card would have shown no button at all and read as broken.
+    'allowsSubmission': false,
+    'activity': {
+      'id': 'act_1',
+      'title': 'Trace the letter A',
+      'type': 'TRACING',
+    },
+    'assignedBy': 'Anita Desai',
+    'progress': {'total': 12, 'completed': 0, 'pending': 12},
+    if (status != null) 'mySubmission': {'id': 'sub', 'status': status},
+  });
+
+  test('homework that is an activity is played, not photographed', () {
+    final work = activityWork();
+
+    expect(work.isActivity, isTrue);
+    expect(work.canPlay, isTrue);
+    expect(work.canSubmit, isFalse);
+    expect(work.statusLabel, 'To play');
+  });
+
+  test('an activity still counts as outstanding even without submission', () {
+    // isOutstanding used to require allowsSubmission, so an activity set as
+    // homework would never appear in the parent's "to do" count at all.
+    expect(activityWork().isOutstanding, isTrue);
+  });
+
+  test('once played, there is nothing left for the parent to do', () {
+    final played = activityWork(status: 'SUBMITTED');
+
+    expect(played.canPlay, isFalse);
+    expect(played.isOutstanding, isFalse);
+    expect(played.statusLabel, 'Sent in');
   });
 }

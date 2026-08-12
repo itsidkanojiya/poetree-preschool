@@ -236,6 +236,8 @@ class HomeworkItem {
     required this.attachments,
     required this.setBy,
     required this.className,
+    required this.activityId,
+    required this.activityTitle,
     required this.myFiles,
     this.description,
     this.subject,
@@ -261,6 +263,9 @@ class HomeworkItem {
       allowsSubmission: json['allowsSubmission'] as bool? ?? false,
       subject: (json['subject'] as Map<String, dynamic>?)?['name'] as String?,
       setBy: json['assignedBy'] as String? ?? '',
+      activityId: (json['activity'] as Map<String, dynamic>?)?['id'] as String?,
+      activityTitle:
+          (json['activity'] as Map<String, dynamic>?)?['title'] as String?,
       className:
           (json['classroom'] as Map<String, dynamic>?)?['label'] as String? ??
           '',
@@ -283,6 +288,13 @@ class HomeworkItem {
   /// know which teacher this came from before they can act on it.
   final String setBy;
   final String className;
+
+  /// Set when this homework is an activity to play rather than a page to do.
+  /// Playing it is what marks it done — nobody has to say whether it happened.
+  final String? activityId;
+  final String? activityTitle;
+
+  bool get isActivity => activityId != null;
   final String? setOn;
 
   /// What the teacher attached — the worksheet, if there is one.
@@ -301,7 +313,10 @@ class HomeworkItem {
   /// Once a teacher has judged it, a parent resubmitting would undo that.
   bool get isJudged => myStatus == 'COMPLETED' || myStatus == 'NOT_COMPLETED';
 
-  bool get canSubmit => allowsSubmission && !isDone && !isJudged;
+  bool get canSubmit => allowsSubmission && !isDone && !isJudged && !isActivity;
+
+  /// Still to play. The app closes it the moment the child finishes.
+  bool get canPlay => isActivity && !isDone && !isJudged;
 
   /// Still owed: work that takes a submission and has not had one.
   ///
@@ -309,7 +324,8 @@ class HomeworkItem {
   /// the teacher has judged, so counting those as "to do" would point a parent
   /// at something they cannot act on.
   bool get isOutstanding =>
-      allowsSubmission && (myStatus == null || myStatus == 'PENDING');
+      (allowsSubmission || isActivity) &&
+      (myStatus == null || myStatus == 'PENDING');
 
   /// Sent, and nobody has looked at it yet.
   bool get isWaiting => myStatus == 'SUBMITTED' || myStatus == 'LATE';
@@ -332,6 +348,7 @@ class HomeworkItem {
     'NOT_COMPLETED' => 'Not done',
     'SUBMITTED' => 'Sent in',
     'LATE' => 'Sent in late',
+    _ when isActivity => isOverdue ? 'Overdue' : 'To play',
     _ when !allowsSubmission => 'To read',
     _ when isOverdue => 'Overdue',
     _ => 'To do',

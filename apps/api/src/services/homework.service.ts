@@ -88,6 +88,7 @@ const homeworkInclude = {
   subject: { select: { id: true, name: true } },
   assignedBy: { select: { name: true } },
   _count: { select: { attachments: true } },
+  learningActivity: { select: { id: true, title: true, type: true } },
   attachments: { include: { file: { select: attachedFileSelect } } },
 } satisfies Prisma.HomeworkInclude;
 
@@ -113,6 +114,7 @@ function toSummary(
     assignedOn: row.assignedOn.toISOString(),
     attachmentCount: row._count.attachments,
     attachments: row.attachments.map((a) => toAttachedFile(a.file)),
+    activity: row.learningActivity,
     progress,
   };
 }
@@ -262,6 +264,7 @@ export async function createHomework(
         description: input.description ?? null,
         dueDate: input.dueDate,
         allowsSubmission: input.allowsSubmission,
+        learningActivityId: input.learningActivityId ?? null,
         assignedById: actorUserId,
         status: input.publish ? 'PUBLISHED' : 'DRAFT',
       },
@@ -373,6 +376,7 @@ export async function updateHomework(
       dueDate: input.dueDate,
       subjectId: input.subjectId,
       allowsSubmission: input.allowsSubmission,
+      learningActivityId: input.learningActivityId,
     },
   });
 
@@ -688,4 +692,58 @@ export async function createClassroomPost(
   const created = posts.find((post) => post.id === postId);
   if (!created) throw ApiError.internal('Post was created but could not be read back');
   return created;
+}
+
+
+/**
+ * Closes any homework that *was* this activity, for this child.
+ *
+ * The schema has carried `Homework.learningActivityId` since it was written,
+ * with a comment promising that "completion flows back from ActivityAttempt, so
+ * a parent never marks it done by hand". Nothing implemented it, so the field
+ * sat unused and a parent whose child had just played the very activity that
+ * was set still had to tap "mark as done" themselves — a self-report standing
+ * in for a record the system already had.
+ *
+ * Marked SUBMITTED and not COMPLETED on purpose. Everywhere else in this system
+ * COMPLETED means a teacher looked and agreed, and an activity score is exactly
+ * the sort of evidence a teacher should still see before it counts. What this
+ * removes is the parent's guess, not the teacher's judgement.
+ *
+ * Best-effort by design: a child who has finished their activity must never see
+ * an error because the homework bookkeeping failed.
+ */
+export async function closeHomeworkForActivity(input: {
+  schoolId: string;
+  studentId: string;
+  activityId: string;
+  correctCount: number;
+  totalCount: number;
+}): Promise<void> {
+  const submissions = await prisma.homeworkSubmission.findMany({
+    where: {
+      studentId: input.studentId,
+      status: 'PENDING',
+      homework: { learningActivityId: input.activityId, status: 'PUBLISHED' },
+    },
+    select: { id: true, homework: { select: { dueDate: true } } },
+  });
+
+  if (submissions.length === 0) return;
+
+  const today = new Date();
+  const note = `Played in the app — ${input.correctCount} of ${input.totalCount} right.`;
+
+  for (const submission of submissions) {
+    await prisma.homeworkSubmission.update({
+      where: { id: submission.id },
+      data: {
+        // Late for the same reason a photograph sent late is late: the date
+        // passed. The teacher decides what that is worth.
+        status: submission.homework.dueDate < today ? 'LATE' : 'SUBMITTED',
+        submittedOn: today,
+        note,
+      },
+    });
+  }
 }

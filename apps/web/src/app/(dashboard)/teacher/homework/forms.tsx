@@ -20,7 +20,19 @@ interface MyClassroom {
   label: string;
 }
 
-export function NewHomeworkForm({ classrooms }: { classrooms: MyClassroom[] }) {
+interface PlayableActivity {
+  id: string;
+  title: string;
+  type: string;
+}
+
+export function NewHomeworkForm({
+  classrooms,
+  activities,
+}: {
+  classrooms: MyClassroom[];
+  activities: PlayableActivity[];
+}) {
   const [state, formAction] = useActionState<HomeworkState, FormData>(createHomeworkAction, {});
 
   if (classrooms.length === 0) {
@@ -61,6 +73,22 @@ export function NewHomeworkForm({ classrooms }: { classrooms: MyClassroom[] }) {
       <Field label="What should the child do?">
         <Textarea name="description" rows={3} placeholder="Trace the letter A five times in the workbook." />
       </Field>
+
+      {activities.length > 0 && (
+        <Field
+          label="Or set an activity from the app"
+          hint="The child plays it and it marks itself done — nobody has to say whether it happened."
+        >
+          <Select name="learningActivityId" defaultValue="">
+            <option value="">Nothing to play — this is work on paper</option>
+            {activities.map((activity) => (
+              <option key={activity.id} value={activity.id}>
+                {activity.title}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
 
       <Field
         label="Worksheet (optional)"

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/attached_file.dart';
+import '../../core/routes/app_pages.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/async_view.dart';
@@ -251,7 +252,22 @@ class _YourWork extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          if (item.canSubmit)
+          if (item.canPlay)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                // Nothing to send afterwards: finishing it is what records it,
+                // which is the difference between a record and a parent's word
+                // for it.
+                onPressed: () => Get.toNamed<void>(
+                  AppRoutes.activities,
+                  arguments: {'studentId': child.child?.id},
+                ),
+                icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                label: Text('Play ${item.activityTitle ?? 'the activity'}'),
+              ),
+            )
+          else if (item.canSubmit)
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -272,6 +288,8 @@ class _YourWork extends StatelessWidget {
                 'SUBMITTED' => 'Sent. The teacher will look at it and mark it.',
                 // Not every piece of work comes back. Saying so beats a card
                 // with no button, which reads as broken.
+                _ when item.isActivity =>
+                  'Done in the app. It marked itself when your child finished.',
                 _ => 'Nothing to send back for this one — just do it at home.',
               },
               style: theme.textTheme.bodyMedium?.copyWith(

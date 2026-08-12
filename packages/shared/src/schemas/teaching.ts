@@ -34,6 +34,14 @@ export const createHomeworkSchema = z.object({
   dueDate: z.coerce.date(),
   allowsSubmission: z.boolean().default(false),
   fileIds: z.array(idSchema).max(10).optional(),
+  /**
+   * Homework that IS an activity in the app.
+   *
+   * The child plays it and completion flows back from their attempt, so no
+   * parent has to say whether it was done — which is the difference between a
+   * self-report and a record.
+   */
+  learningActivityId: idSchema.nullish(),
   /** Publish immediately, or keep as a draft the class cannot see yet. */
   publish: z.boolean().default(true),
 });
@@ -97,6 +105,8 @@ export interface HomeworkSummary {
    * exactly the connection least able to afford it.
    */
   attachments: AttachedFile[];
+  /** Set when this homework is an activity to play rather than a page to do. */
+  activity: { id: string; title: string; type: string } | null;
   /** Only meaningful once published. */
   progress: { total: number; completed: number; pending: number };
   /**

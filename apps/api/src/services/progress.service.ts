@@ -2,6 +2,8 @@ import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds } from './scope.service.js';
+import { closeHomeworkForActivity } from './homework.service.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * Progress tracking — the bridge between the ERP and the learning activities.
@@ -103,6 +105,25 @@ export async function recordAttempt(input: RecordAttemptInput): Promise<SkillPro
       resultJson: (input.resultJson ?? undefined) as never,
     },
   });
+
+  // The ERP half: homework that *was* this activity closes itself. Best
+  // effort — a child who has finished their work must not see an error because
+  // the bookkeeping behind it failed.
+  try {
+    await closeHomeworkForActivity({
+      schoolId,
+      studentId: input.studentId,
+      activityId: input.activityId,
+      correctCount: input.correctCount,
+      totalCount: input.totalCount,
+    });
+  } catch (error) {
+    logger.error('Could not close homework for a played activity', {
+      studentId: input.studentId,
+      activityId: input.activityId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   return recomputeSkill(schoolId, input.studentId, activity.skillId, year.id);
 }

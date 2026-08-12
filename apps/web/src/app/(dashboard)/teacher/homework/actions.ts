@@ -76,6 +76,8 @@ export async function createHomeworkAction(
         description: String(formData.get('description') ?? '').trim() || undefined,
         dueDate: String(formData.get('dueDate') ?? ''),
         allowsSubmission: formData.get('allowsSubmission') === 'on',
+        // Homework that is an activity closes itself when the child plays it.
+        learningActivityId: String(formData.get('learningActivityId') ?? '').trim() || null,
         publish,
         fileIds: fileIds.length > 0 ? fileIds : undefined,
       },

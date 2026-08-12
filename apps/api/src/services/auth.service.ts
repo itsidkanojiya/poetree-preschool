@@ -184,6 +184,15 @@ export async function login(
  * presenting an already-revoked token is treated as theft and ends every
  * session the user has.
  */
+/**
+ * How long a just-rotated refresh token keeps working.
+ *
+ * Long enough to cover a page load's worth of parallel requests and a flaky
+ * mobile retry; far too short to be worth anything to someone replaying a
+ * stolen token.
+ */
+const ROTATION_GRACE_MS = 60_000;
+
 export async function refresh(rawToken: string, meta: RequestMeta): Promise<LoginResponse> {
   const payload = verifyRefreshToken(rawToken);
 
@@ -197,13 +206,32 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
   }
 
   if (stored.revokedAt) {
-    await prismaUnscoped.refreshToken.updateMany({
-      where: { userId: stored.userId, revokedAt: null },
-      data: { revokedAt: new Date(), revokedBy: 'REUSE_DETECTED' },
-    });
-    throw ApiError.invalidRefreshToken(
-      'This session token was already used. All sessions have been ended for your safety.',
-    );
+    // A token presented moments after it was rotated is a race, not a theft.
+    //
+    // The web middleware refreshes per request, so a page load that fans out
+    // into several requests sends the same cookie several times: the first
+    // rotates it and the rest arrive holding a token that is now revoked. The
+    // punishment for reuse is revoking every session the user has, so one such
+    // race signed people out of the browser AND the phone at once. Production
+    // had twenty-three of these against eleven honest rotations — the check
+    // was firing more often on real use than it ever would on an attacker.
+    //
+    // Inside the window we issue a fresh pair and leave other sessions alone.
+    // A stolen token replayed later still trips the alarm, which is the case
+    // rotation detection exists for.
+    const rotatedRecently =
+      stored.revokedBy === 'ROTATED' &&
+      Date.now() - stored.revokedAt.getTime() <= ROTATION_GRACE_MS;
+
+    if (!rotatedRecently) {
+      await prismaUnscoped.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: new Date(), revokedBy: 'REUSE_DETECTED' },
+      });
+      throw ApiError.invalidRefreshToken(
+        'This session token was already used. All sessions have been ended for your safety.',
+      );
+    }
   }
 
   if (stored.expiresAt.getTime() <= Date.now()) {

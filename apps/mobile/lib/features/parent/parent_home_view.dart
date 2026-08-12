@@ -777,54 +777,404 @@ class _SkillRow extends StatelessWidget {
   }
 }
 
-class _AttendanceTab extends StatelessWidget {
+/// A child's attendance, as a month.
+///
+/// Was a flat list of every marked day, newest first, which meant scrolling
+/// thirty-two rows to answer "how has this month gone" and being unable to see
+/// a pattern at all. A register is kept by the month and read by the month.
+///
+/// Days the school did not run are simply blank rather than marked absent —
+/// weekends, holidays, and days before the child joined all look the same to a
+/// parent, and none of them are the child's doing.
+class _AttendanceTab extends StatefulWidget {
   const _AttendanceTab({required this.child});
 
   final ChildController child;
 
   @override
+  State<_AttendanceTab> createState() => _AttendanceTabState();
+}
+
+class _AttendanceTabState extends State<_AttendanceTab> {
+  late DateTime _month;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _month = DateTime(now.year, now.month);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final attendance = child.attendance.value;
+    final theme = Theme.of(context);
+    final attendance = widget.child.attendance.value;
     final days = attendance?.days ?? const <AttendanceDay>[];
 
-    if (days.isEmpty) {
-      return ListView(
-        children: const [
-          SizedBox(height: 80),
-          Center(child: Text('No register taken yet.')),
-        ],
-      );
-    }
+    // Keyed by calendar day so the grid is a lookup rather than a scan.
+    final byDay = <String, AttendanceDay>{for (final d in days) d.date: d};
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: days.length + 1,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              '${attendance!.percentage}% present over ${attendance.markedDays} days',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+    final earliest = days.isEmpty
+        ? DateTime.now()
+        : DateTime.parse(
+            days
+                .map((d) => d.date)
+                .reduce((a, b) => a.compareTo(b) < 0 ? a : b),
           );
-        }
+    final firstMonth = DateTime(earliest.year, earliest.month);
+    final now = DateTime.now();
+    final thisMonth = DateTime(now.year, now.month);
 
-        final day = days[index - 1];
-        final color = _statusColors[day.status] ?? Colors.grey;
+    final canGoBack = _month.isAfter(firstMonth);
+    final canGoForward = _month.isBefore(thisMonth);
 
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(radius: 6, backgroundColor: color),
-          title: Text(_day(day.date)),
-          subtitle: day.remark == null ? null : Text(day.remark!),
-          trailing: Text(
-            _statusLabels[day.status] ?? day.status,
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: [
+        if (attendance != null && attendance.markedDays > 0)
+          _AttendanceSummary(attendance: attendance),
+
+        const SizedBox(height: 16),
+
+        Row(
+          children: [
+            IconButton(
+              onPressed: canGoBack
+                  ? () => setState(
+                      () => _month = DateTime(_month.year, _month.month - 1),
+                    )
+                  : null,
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            Expanded(
+              child: Text(
+                DateFormat('MMMM yyyy').format(_month),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              onPressed: canGoForward
+                  ? () => setState(
+                      () => _month = DateTime(_month.year, _month.month + 1),
+                    )
+                  : null,
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        _MonthGrid(month: _month, byDay: byDay),
+
+        const SizedBox(height: 20),
+        const _AttendanceKey(),
+
+        const SizedBox(height: 22),
+        Text('DAYS AWAY', style: theme.textTheme.labelSmall),
+        const SizedBox(height: 8),
+
+        // Only the exceptions are listed. Thirty rows saying "Present" is not
+        // information a parent needs spelled out — the grid already says it.
+        ...() {
+          final away = days.where((d) => d.status != 'PRESENT').toList()
+            ..sort((a, b) => b.date.compareTo(a.date));
+
+          if (away.isEmpty) {
+            return [
+              Text(
+                'Not a single day missed.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.leaf,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ];
+          }
+
+          return away.map((day) {
+            final colour =
+                _statusColors[day.status] ?? theme.colorScheme.outline;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: colour,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      DateFormat(
+                        'EEEE d MMMM',
+                      ).format(DateTime.parse(day.date)),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  Text(
+                    _statusLabels[day.status] ?? day.status,
+                    style: TextStyle(
+                      color: colour,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList();
+        }(),
+
+        // A remark is the teacher explaining themselves, and worth surfacing.
+        ...days
+            .where((d) => d.remark != null && d.remark!.isNotEmpty)
+            .map(
+              (d) => Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8, left: 21),
+                child: Text(
+                  '“${d.remark}” — ${DateFormat('d MMM').format(DateTime.parse(d.date))}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+class _AttendanceSummary extends StatelessWidget {
+  const _AttendanceSummary({required this.attendance});
+
+  final ChildAttendance attendance;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final percent = attendance.percentage;
+    final tone = percent >= 90
+        ? AppTheme.leaf
+        : percent >= 75
+        ? AppTheme.apricot
+        : AppTheme.coral;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$percent%',
+                style: theme.textTheme.displaySmall?.copyWith(color: tone),
+              ),
+              const SizedBox(width: 10),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text('present', style: theme.textTheme.bodyMedium),
+              ),
+            ],
           ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: LinearProgressIndicator(
+              value: percent / 100,
+              minHeight: 7,
+              valueColor: AlwaysStoppedAnimation<Color>(tone),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // The denominator is days the school actually ran. Counting calendar
+          // days would make every percentage wrong the moment a holiday fell
+          // inside the range.
+          Text(
+            '${attendance.present} present · ${attendance.absent} away · over ${attendance.markedDays} school days',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthGrid extends StatelessWidget {
+  const _MonthGrid({required this.month, required this.byDay});
+
+  final DateTime month;
+  final Map<String, AttendanceDay> byDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final firstOfMonth = DateTime(month.year, month.month);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    // DateTime.weekday is 1..7 Monday-first, which is the order below.
+    final leadingBlanks = firstOfMonth.weekday - 1;
+    final today = DateTime.now();
+
+    return Column(
+      children: [
+        Row(
+          children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+              .map(
+                (d) => Expanded(
+                  child: Center(
+                    child: Text(
+                      d,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 6),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+            childAspectRatio: 1,
+          ),
+          itemCount: leadingBlanks + daysInMonth,
+          itemBuilder: (context, index) {
+            if (index < leadingBlanks) return const SizedBox.shrink();
+
+            final dayNumber = index - leadingBlanks + 1;
+            final date = DateTime(month.year, month.month, dayNumber);
+            final key = date.toIso8601String().substring(0, 10);
+            final record = byDay[key];
+            final isToday =
+                date.year == today.year &&
+                date.month == today.month &&
+                date.day == today.day;
+
+            return _DayCell(
+              day: dayNumber,
+              status: record?.status,
+              isToday: isToday,
+              hasRemark: record?.remark != null && record!.remark!.isNotEmpty,
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _DayCell extends StatelessWidget {
+  const _DayCell({
+    required this.day,
+    required this.status,
+    required this.isToday,
+    required this.hasRemark,
+  });
+
+  final int day;
+  final String? status;
+  final bool isToday;
+  final bool hasRemark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final colour = status == null ? null : _statusColors[status];
+
+    // No register is not the same as an absence, and must not look like one.
+    final background = colour == null
+        ? Colors.transparent
+        : isDark
+        ? colour.withValues(alpha: 0.22)
+        : colour.withValues(alpha: 0.14);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        border: isToday
+            ? Border.all(color: theme.colorScheme.primary, width: 1.6)
+            : colour == null
+            ? Border.all(color: theme.colorScheme.outlineVariant)
+            : null,
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            '$day',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: colour == null ? FontWeight.w400 : FontWeight.w700,
+              color: colour ?? theme.colorScheme.outline,
+            ),
+          ),
+          if (hasRemark)
+            Positioned(
+              bottom: 5,
+              child: Container(
+                width: 4,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colour ?? theme.colorScheme.outline,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Colour alone cannot carry meaning — roughly one man in twelve cannot
+/// separate the red from the green.
+class _AttendanceKey extends StatelessWidget {
+  const _AttendanceKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Wrap(
+      spacing: 14,
+      runSpacing: 8,
+      children: _statusLabels.entries.map((entry) {
+        final colour = _statusColors[entry.key]!;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 13,
+              height: 13,
+              decoration: BoxDecoration(
+                color: colour.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: colour, width: 1.2),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(entry.value, style: theme.textTheme.bodySmall),
+          ],
         );
-      },
+      }).toList(),
     );
   }
 }

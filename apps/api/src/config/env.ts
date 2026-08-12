@@ -10,8 +10,26 @@ const envSchema = z
 
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
-    ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(900),
-    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+    /**
+     * Access tokens were fifteen minutes, which meant a parent opening the app
+     * twice a day refreshed on essentially every visit. Every refresh is a
+     * chance for the rotation race, and each lost race used to end every
+     * session the user had.
+     *
+     * Four hours instead. The risk this number controls is a stolen unlocked
+     * phone with a live session, and against that the honest defences are
+     * device revocation and the short refresh window on the server — not
+     * making a parent sign in again each time they check whether their child
+     * was at school.
+     */
+    ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(14_400),
+
+    /**
+     * Ninety days, and it slides: every refresh issues a new one, so anyone
+     * opening the app inside three months is never signed out. A phone that
+     * genuinely sits unused for a season is a reasonable place to ask again.
+     */
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(90),
 
     CORS_ORIGINS: z.string().default('http://localhost:3200'),
 

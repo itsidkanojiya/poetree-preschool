@@ -13,19 +13,69 @@ import type { ChangePasswordInput, LoginInput, RefreshInput } from '@poetree/sha
 
 export const authRouter = Router();
 
-/** Brute-force guard. Deliberately tighter than the global limiter. */
-const loginLimiter = rateLimit({
+/**
+ * Brute-force guard, keyed per account rather than per address.
+ *
+ * The default key is the IP, and a preschool is the worst possible case for
+ * that: every family at the gate is on the school's one Wi-Fi, so ten sign-ins
+ * between them locked the whole school out for a quarter of an hour — and the
+ * message it showed ("too many sign-in attempts") accused a parent who had
+ * typed their password once.
+ *
+ * Keyed on who is being signed in *and* from where, so someone guessing at one
+ * account cannot lock out the rest of the school, and the wider per-address
+ * ceiling below still catches an attacker spraying many accounts at once.
+ */
+/**
+ * One phone on mobile data gets a fresh IPv6 address per connection but keeps
+ * its /64, so the prefix is the stable part — the same normalisation
+ * express-rate-limit applies to its own default key. IPv4 is already stable.
+ */
+const addressKey = (ip: string): string => {
+  if (!ip.includes(':')) return ip;
+  const groups = ip.split('%')[0]!.split(':');
+  return groups.slice(0, 4).join(':');
+};
+
+export const loginRateLimitKey = (req: Pick<Request, 'body' | 'ip'>): string => {
+  const value = (req.body as { identifier?: unknown } | undefined)?.identifier;
+  const identifier = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return `${addressKey(req.ip ?? '')}|${identifier}`;
+};
+
+const tooManyAttempts = {
+  error: { code: 'RATE_LIMITED', message: 'Too many sign-in attempts. Try again in 15 minutes.' },
+};
+
+// The isolation suite signs in dozens of times; throttling it would only test
+// the limiter.
+const skipInTests = () => env.isTest;
+
+const perAccountLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  // The isolation suite signs in dozens of times; throttling it would only test
-  // the limiter.
-  skip: () => env.isTest,
-  message: {
-    error: { code: 'RATE_LIMITED', message: 'Too many sign-in attempts. Try again in 15 minutes.' },
-  },
+  skip: skipInTests,
+  keyGenerator: loginRateLimitKey,
+  message: tooManyAttempts,
 });
+
+/**
+ * The spray guard: one address, many accounts. Loose enough that a family of
+ * four and a staff room share it comfortably, tight enough that walking a
+ * password list through the school's parent roll does not.
+ */
+const perAddressLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+  message: tooManyAttempts,
+});
+
+const loginLimiter = [perAddressLimiter, perAccountLimiter];
 
 function requestMeta(req: Request) {
   return {
@@ -41,7 +91,7 @@ function requestMeta(req: Request) {
  */
 authRouter.post(
   '/login',
-  loginLimiter,
+  ...loginLimiter,
   validate({ body: loginSchema }),
   asyncHandler(async (req, res) => {
     // Deliberately role-agnostic. The same endpoint serves the web portal and

@@ -38,6 +38,7 @@ import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
 import * as planService from '../services/plan.service.js';
 import * as catalogue from '../services/catalogue.service.js';
+import * as usage from '../services/usage.service.js';
 import * as classroomService from '../services/classroom.service.js';
 
 /**
@@ -226,6 +227,20 @@ publicationRouter.patch(
   validate({ params: idParamSchema, body: updatePlanSchema }),
   asyncHandler(async (req, res) => {
     res.json(await planService.updatePlan(params<{ id: string }>(req).id, body<UpdatePlanInput>(req)));
+  }),
+);
+
+/**
+ * Whether any of this is being opened.
+ *
+ * The overview says how much has been sold; this says how much is used, which
+ * is a different question and the one that predicts a renewal.
+ */
+publicationRouter.get(
+  '/usage',
+  asyncHandler(async (req, res) => {
+    const days = Number(req.query.days);
+    res.json(await usage.usageReport(Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 30));
   }),
 );
 

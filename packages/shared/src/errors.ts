@@ -9,6 +9,8 @@ export const ERROR_CODES = {
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
   INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
   FORBIDDEN: 'FORBIDDEN',
+  /** Signed in, but holding a password somebody else set. Change it first. */
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
   /** The user's school has no active plan — every user of that school is locked out. */
   SCHOOL_SUSPENDED: 'SCHOOL_SUSPENDED',
   /** Role is valid but has no portal login surface in this phase (TEACHER / PARENT). */

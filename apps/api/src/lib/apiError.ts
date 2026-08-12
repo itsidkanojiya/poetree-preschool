@@ -43,6 +43,11 @@ export class ApiError extends Error {
     return new ApiError(403, ERROR_CODES.FORBIDDEN, message);
   }
 
+  /** Signed in, but the password was set by somebody else and must be changed. */
+  static passwordChangeRequired(message: string): ApiError {
+    return new ApiError(403, ERROR_CODES.PASSWORD_CHANGE_REQUIRED, message);
+  }
+
   /** Every user of the school is locked out because its plan is not active. */
   static schoolSuspended(message: string, details?: unknown): ApiError {
     return new ApiError(403, ERROR_CODES.SCHOOL_SUSPENDED, message, details);

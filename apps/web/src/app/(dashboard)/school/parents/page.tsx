@@ -3,6 +3,7 @@ import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { ParentForm } from '../forms';
+import { ResetPasswordButton } from '../reset-password';
 
 const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
@@ -33,7 +34,7 @@ export default async function ParentsPage({
         ) : (
           <>
             <Table>
-              <THead columns={['Parent', 'Phone', 'Relation', 'Children', 'State']} />
+              <THead columns={['Parent', 'Phone', 'Relation', 'Children', 'State', 'Sign-in']} />
               <tbody>
                 {parents.items.map((parent) => (
                   <TRow key={parent.userId}>
@@ -62,6 +63,13 @@ export default async function ParentsPage({
                       <Pill tone={parent.status === 'ACTIVE' ? 'brand' : 'neutral'}>
                         {parent.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                       </Pill>
+                    </TCell>
+                    <TCell>
+                      <ResetPasswordButton
+                        kind="parents"
+                        userId={parent.userId}
+                        name={parent.name}
+                      />
                     </TCell>
                   </TRow>
                 ))}

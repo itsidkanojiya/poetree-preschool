@@ -1,11 +1,44 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { PasswordResetResponse } from '@poetree/shared';
 import { apiFetch, errorMessage } from '@/lib/api';
 
 export interface ActionState {
   error?: string;
   success?: string;
+}
+
+export interface ResetState {
+  error?: string;
+  reset?: PasswordResetResponse;
+}
+
+/**
+ * Sets a new password for a teacher or a parent who cannot get in.
+ *
+ * The reply is handed straight back to the page and never written anywhere
+ * else: not to the log, not to a cookie, not into the revalidated cache.
+ */
+export async function resetPasswordAction(
+  _prev: ResetState,
+  formData: FormData,
+): Promise<ResetState> {
+  const kind = String(formData.get('kind') ?? '');
+  const userId = String(formData.get('userId') ?? '');
+
+  if (kind !== 'parents' && kind !== 'teachers') return { error: 'Unknown user.' };
+  if (!userId) return { error: 'Unknown user.' };
+
+  try {
+    const reset = await apiFetch<PasswordResetResponse>(`/${kind}/${userId}/reset-password`, {
+      method: 'POST',
+      redirectOnAuthFailure: false,
+    });
+    return { reset };
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not reset the password.') };
+  }
 }
 
 function text(formData: FormData, key: string): string | undefined {

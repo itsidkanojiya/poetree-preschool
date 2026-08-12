@@ -179,6 +179,9 @@ export const AUDIT_ACTIONS = [
   'STUDENT_DOCUMENT_REMOVED',
   'DATA_EXPORTED',
   'PASSWORD_CHANGED',
+  // Somebody else setting a password on your behalf is a different event from
+  // you changing your own, and the one worth being able to look up later.
+  'PASSWORD_RESET',
   'LOGIN_SUCCEEDED',
   'LOGIN_FAILED',
 ] as const;

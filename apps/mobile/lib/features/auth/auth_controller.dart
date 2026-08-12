@@ -18,6 +18,7 @@ class AppUser {
     required this.id,
     required this.name,
     required this.role,
+    required this.mustChangePassword,
     this.email,
     this.phone,
     this.schoolName,
@@ -29,6 +30,7 @@ class AppUser {
       id: json['id'] as String,
       name: json['name'] as String,
       role: json['role'] as String,
+      mustChangePassword: json['mustChangePassword'] as bool? ?? false,
       email: json['email'] as String?,
       phone: json['phone'] as String?,
       schoolName: school?['name'] as String?,
@@ -38,6 +40,11 @@ class AppUser {
   final String id;
   final String name;
   final String role;
+
+  /// Signed in with a password the school office chose. The API refuses
+  /// everything but changing it, so the app must not open a normal screen.
+  final bool mustChangePassword;
+
   final String? email;
   final String? phone;
   final String? schoolName;
@@ -58,11 +65,12 @@ class AuthController extends GetxController {
 
     try {
       final data = await api.get<Map<String, dynamic>>('/auth/me');
-      user.value = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+      final signedIn = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+      user.value = signedIn;
       // FCM rotates tokens silently, so a returning user re-registers on every
       // cold start rather than only on the day they signed in.
       unawaited(Get.find<PushService>().start());
-      return _homeFor(user.value!);
+      return _routeFor(signedIn);
     } on DioException {
       // The interceptor already tried to refresh; if we are still here the
       // session is genuinely gone.
@@ -106,7 +114,7 @@ class AuthController extends GetxController {
       // stop someone getting into the app.
       unawaited(Get.find<PushService>().start());
 
-      await Get.offAllNamed<void>(_homeFor(signedIn));
+      await Get.offAllNamed<void>(_routeFor(signedIn));
     } on DioException catch (e) {
       errorMessage.value = _messageFor(e);
     } finally {
@@ -140,6 +148,21 @@ class AuthController extends GetxController {
 
     await Get.offAllNamed<void>('/login');
   }
+
+  /// Re-reads who is signed in. Used after changing a password, which clears
+  /// the flag that is keeping the app on one screen.
+  Future<void> reload() async {
+    final data = await api.get<Map<String, dynamic>>('/auth/me');
+    user.value = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+  }
+
+  Future<void> goHome() async {
+    final signedIn = user.value;
+    if (signedIn != null) await Get.offAllNamed<void>(_routeFor(signedIn));
+  }
+
+  static String _routeFor(AppUser user) =>
+      user.mustChangePassword ? '/change-password' : _homeFor(user);
 
   static String _homeFor(AppUser user) =>
       user.isTeacher ? '/teacher' : '/parent';

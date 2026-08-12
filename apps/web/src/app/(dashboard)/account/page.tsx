@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getCurrentUser } from '@/lib/api';
-import { Avatar, Card, PageHeader, Pill } from '@/components/ui/layout';
+import { Avatar, Card, Notice, PageHeader, Pill } from '@/components/ui/layout';
 import { PasswordForm } from './password-form';
 
 export const metadata: Metadata = { title: 'Your account · Poetree Admin' };
@@ -18,6 +18,15 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="Your account" description="Sign-in details and password." />
+
+      {user.mustChangePassword && (
+        <div className="mb-5">
+          <Notice tone="warning" title="Choose your own password">
+            The one you signed in with was set for you by somebody else, so they know it
+            too. Nothing else in the portal will open until you have changed it.
+          </Notice>
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Card title="Profile">

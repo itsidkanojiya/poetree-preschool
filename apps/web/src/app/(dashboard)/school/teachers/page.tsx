@@ -4,6 +4,7 @@ import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layo
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import { TeacherForm } from '../forms';
+import { ResetPasswordButton } from '../reset-password';
 
 export default async function TeachersPage({
   searchParams,
@@ -34,6 +35,7 @@ export default async function TeachersPage({
                   { label: 'Classes', numeric: true },
                   'Joined',
                   'State',
+                  'Sign-in',
                 ]}
               />
               <tbody>
@@ -53,6 +55,13 @@ export default async function TeachersPage({
                       <Pill tone={teacher.status === 'ACTIVE' ? 'brand' : 'neutral'}>
                         {teacher.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                       </Pill>
+                    </TCell>
+                    <TCell>
+                      <ResetPasswordButton
+                        kind="teachers"
+                        userId={teacher.userId}
+                        name={teacher.name}
+                      />
                     </TCell>
                   </TRow>
                 ))}

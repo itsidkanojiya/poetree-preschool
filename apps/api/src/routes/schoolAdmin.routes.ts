@@ -36,6 +36,7 @@ import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma, prismaUnscoped } from '../db/prisma.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
+import * as passwordService from '../services/password.service.js';
 import * as studentService from '../services/student.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as documentService from '../services/studentDocument.service.js';
@@ -110,6 +111,20 @@ schoolAdminRouter.patch(
   }),
 );
 
+/**
+ * Issues a temporary password for a teacher who cannot get in.
+ *
+ * The office does this while the person is standing there; the reply carries
+ * the password once and it is stored nowhere in the clear.
+ */
+schoolAdminRouter.post(
+  '/teachers/:id/reset-password',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await passwordService.resetPassword(idOf(req), req.auth!.userId));
+  }),
+);
+
 /* -------------------------------------------------------------------------- */
 /* Parents                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -146,6 +161,15 @@ schoolAdminRouter.patch(
     res.json(
       await parentService.updateParent(idOf(req), body<UpdateParentInput>(req), req.auth!.userId),
     );
+  }),
+);
+
+/** The same for a family, which is where nearly all of these will come from. */
+schoolAdminRouter.post(
+  '/parents/:id/reset-password',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await passwordService.resetPassword(idOf(req), req.auth!.userId));
   }),
 );
 

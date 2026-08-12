@@ -9,6 +9,8 @@ declare global {
         userId: string;
         role: Role;
         schoolId: string | null;
+        /** Holding a password somebody else set; only /auth routes will run. */
+        mustChangePassword?: boolean;
       };
       /** Set by `validate`. Controllers read these, never the raw inputs. */
       validated?: {

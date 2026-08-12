@@ -31,6 +31,18 @@ export const changePasswordSchema = z
   });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/**
+ * What an admin is handed after resetting somebody's password.
+ *
+ * Returned once and never stored in the clear — there is nowhere to look it up
+ * afterwards, which is the point. If the office loses it they reset again.
+ */
+export interface PasswordResetResponse {
+  userId: string;
+  name: string;
+  temporaryPassword: string;
+}
+
 export const roleSchema = z.enum(ROLES);
 
 export interface AuthTokens {
@@ -47,6 +59,13 @@ export interface AuthenticatedUser {
   phone: string | null;
   role: (typeof ROLES)[number];
   schoolId: string | null;
+  /**
+   * True while the user is holding a password somebody else chose for them.
+   *
+   * The API refuses everything but changing it, so clients should send them
+   * straight there rather than to a screen they cannot use.
+   */
+  mustChangePassword: boolean;
   school: {
     id: string;
     name: string;
@@ -67,6 +86,14 @@ export interface AccessTokenPayload {
   role: (typeof ROLES)[number];
   schoolId: string | null;
   tokenType: 'access';
+  /**
+   * Carried in the token so the check costs nothing per request.
+   *
+   * Safe to trust: a reset revokes every session, so the holder has to sign in
+   * again to get a token at all, and changing the password hands back a fresh
+   * pair without the claim.
+   */
+  mustChangePassword?: boolean;
 }
 
 export interface RefreshTokenPayload {

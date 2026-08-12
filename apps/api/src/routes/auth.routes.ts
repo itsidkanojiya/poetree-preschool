@@ -4,11 +4,9 @@ import { changePasswordSchema, loginSchema, refreshSchema } from '@poetree/share
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { body, validate } from '../middleware/validate.js';
-import { ApiError } from '../lib/apiError.js';
 import { env } from '../config/env.js';
-import { hashPassword, verifyPassword } from '../lib/password.js';
-import { prismaUnscoped } from '../db/prisma.js';
 import * as authService from '../services/auth.service.js';
+import * as passwordService from '../services/password.service.js';
 import type { ChangePasswordInput, LoginInput, RefreshInput } from '@poetree/shared';
 
 export const authRouter = Router();
@@ -142,30 +140,14 @@ authRouter.post(
   authenticate,
   validate({ body: changePasswordSchema }),
   asyncHandler(async (req, res) => {
-    const input = body<ChangePasswordInput>(req);
-    const userId = req.auth!.userId;
-
-    const user = await prismaUnscoped.user.findUnique({
-      where: { id: userId },
-      select: { passwordHash: true },
-    });
-    if (!user) throw ApiError.unauthenticated();
-
-    if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
-      throw ApiError.invalidCredentials('Your current password is incorrect');
-    }
-
-    await prismaUnscoped.user.update({
-      where: { id: userId },
-      data: {
-        passwordHash: await hashPassword(input.newPassword),
-        mustChangePassword: false,
-      },
-    });
-
-    // Changing a password ends every other session.
-    await authService.logout(undefined, userId);
-
-    res.status(204).send();
+    // Returns a fresh pair. Changing your password ends every session you have,
+    // including this one — without new tokens the reward for doing the right
+    // thing would be the sign-in screen.
+    const tokens = await passwordService.changeOwnPassword(
+      req.auth!.userId,
+      body<ChangePasswordInput>(req),
+      requestMeta(req),
+    );
+    res.json(tokens);
   }),
 );

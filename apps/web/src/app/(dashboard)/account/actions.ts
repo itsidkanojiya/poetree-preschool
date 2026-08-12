@@ -2,7 +2,13 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/lib/auth-cookies';
+import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  cookieOptions,
+  homePathFor,
+  readClaims,
+} from '@/lib/auth-cookies';
 import { apiFetch, errorMessage } from '@/lib/api';
 
 export interface PasswordState {
@@ -10,10 +16,10 @@ export interface PasswordState {
 }
 
 /**
- * Changing a password ends every session, including this one — the API revokes
- * all refresh tokens. So the browser's cookies are cleared and the user is sent
- * back to sign in with the new password, rather than left holding a token that
- * silently stops working on the next navigation.
+ * Changing a password ends every session — the API revokes all refresh tokens
+ * — and hands back a fresh pair for the session doing the changing. Storing
+ * those keeps this browser signed in while every other one is turned out,
+ * which is the point of changing it in the first place.
  */
 export async function changePasswordAction(
   _prev: PasswordState,
@@ -30,19 +36,26 @@ export async function changePasswordAction(
     return { error: 'The new password must be different from the current one.' };
   }
 
+  let tokens: { accessToken: string; refreshToken: string };
+
   try {
-    await apiFetch('/auth/change-password', {
-      method: 'POST',
-      redirectOnAuthFailure: false,
-      body: { currentPassword, newPassword },
-    });
+    tokens = await apiFetch<{ accessToken: string; refreshToken: string }>(
+      '/auth/change-password',
+      {
+        method: 'POST',
+        redirectOnAuthFailure: false,
+        body: { currentPassword, newPassword },
+      },
+    );
   } catch (error) {
     return { error: errorMessage(error, 'Could not change the password.') };
   }
 
   const store = await cookies();
-  store.delete(ACCESS_COOKIE);
-  store.delete(REFRESH_COOKIE);
+  store.set(ACCESS_COOKIE, tokens.accessToken, cookieOptions);
+  store.set(REFRESH_COOKIE, tokens.refreshToken, cookieOptions);
 
-  redirect('/login?reason=password-changed');
+  // The new token no longer carries mustChangePassword, so the middleware will
+  // stop pinning them here.
+  redirect(homePathFor(readClaims(tokens.accessToken)?.role));
 }

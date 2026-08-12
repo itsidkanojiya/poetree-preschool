@@ -13,6 +13,8 @@ export interface AccessClaims {
   role: Role;
   schoolId: string | null;
   exp: number;
+  /** Set while the password was chosen by somebody else. */
+  mustChangePassword?: boolean;
 }
 
 /**

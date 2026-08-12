@@ -28,6 +28,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
       userId: payload.sub,
       role: payload.role,
       schoolId: payload.schoolId,
+      mustChangePassword: payload.mustChangePassword === true,
     };
     next();
   } catch (error) {

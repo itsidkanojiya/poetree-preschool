@@ -25,6 +25,13 @@ const userWithSchool = {
 
 type UserWithSchool = Prisma.UserGetPayload<typeof userWithSchool>;
 
+/** What a caller gets back: the pair, and how long the access half lasts. */
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
 export interface RequestMeta {
   ipAddress?: string | null;
   userAgent?: string | null;
@@ -38,6 +45,7 @@ function toAuthenticatedUser(user: UserWithSchool): AuthenticatedUser {
     phone: user.phone,
     role: user.role as Role,
     schoolId: user.schoolId,
+    mustChangePassword: user.mustChangePassword,
     school: user.school
       ? {
           id: user.school.id,
@@ -68,6 +76,7 @@ async function issueTokens(user: UserWithSchool, meta: RequestMeta) {
 
   return {
     accessToken: signAccessToken({
+      mustChangePassword: user.mustChangePassword,
       userId: user.id,
       role: user.role as Role,
       schoolId: user.schoolId,
@@ -261,6 +270,18 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
   });
 
   return { ...tokens, user: toAuthenticatedUser(user) };
+}
+
+/**
+ * A fresh pair for a user who is already known to be who they say they are.
+ *
+ * Used after a password change, which revokes every session including the one
+ * doing the changing — this is what hands that session its life back.
+ */
+export async function issueTokensFor(userId: string, meta: RequestMeta): Promise<AuthTokens> {
+  const user = await prismaUnscoped.user.findUnique({ where: { id: userId }, ...userWithSchool });
+  if (!user) throw ApiError.unauthenticated('Your account no longer exists');
+  return issueTokens(user, meta);
 }
 
 export async function logout(rawToken: string | undefined, userId: string): Promise<void> {

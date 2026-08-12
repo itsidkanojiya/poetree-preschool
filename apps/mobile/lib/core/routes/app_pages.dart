@@ -5,6 +5,7 @@ import '../../features/activities/activity_list_view.dart';
 import '../../features/activities/activity_models.dart';
 import '../../features/activities/activity_play_view.dart';
 import '../../features/auth/auth_controller.dart';
+import '../../features/auth/change_password_view.dart';
 import '../../features/auth/login_view.dart';
 import '../../features/notifications/inbox_controller.dart';
 import '../../features/notifications/inbox_view.dart';
@@ -76,6 +77,7 @@ class InboxBinding extends Bindings {
 
 class AppRoutes {
   static const login = '/login';
+  static const changePassword = '/change-password';
   static const parent = '/parent';
   static const teacher = '/teacher';
   static const register = '/teacher/register';
@@ -168,6 +170,11 @@ final appPages = <GetPage<dynamic>>[
   GetPage<void>(
     name: AppRoutes.login,
     page: () => const LoginView(),
+    binding: AuthBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.changePassword,
+    page: () => const ChangePasswordView(),
     binding: AuthBinding(),
   ),
   GetPage<void>(

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { enforceSchoolAccess } from '../middleware/enforceSchoolAccess.js';
+import { requirePasswordChange } from '../middleware/requirePasswordChange.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { authRouter } from './auth.routes.js';
@@ -40,7 +41,8 @@ apiRouter.use('/auth', authRouter);
  *   tenantContext       — binds schoolId so Prisma scopes every query
  */
 const secured = Router();
-secured.use(authenticate, enforceSchoolAccess, tenantContext);
+//   requirePasswordChange — a temporary password may only be changed, not used
+secured.use(authenticate, enforceSchoolAccess, requirePasswordChange, tenantContext);
 
 secured.use('/publication', publicationRouter);
 

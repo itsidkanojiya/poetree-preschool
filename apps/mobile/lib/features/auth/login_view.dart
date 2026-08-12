@@ -121,7 +121,32 @@ class LoginView extends GetView<AuthController> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+                    // No self-service reset: parents sign in with a phone
+                    // number and many have no email address on file, and an
+                    // SMS gateway is a bill for something the office already
+                    // does at the gate. So say plainly who to ask.
+                    TextButton(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Forgotten your password?'),
+                          content: const Text(
+                            'Ask the school office. They can set a new one for '
+                            'you in a moment, and you choose your own the next '
+                            'time you sign in.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Right you are'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      child: const Text('Forgotten your password?'),
+                    ),
+                    const SizedBox(height: 12),
                     Text(
                       'Ask the school office if you do not have a password yet.',
                       textAlign: TextAlign.center,

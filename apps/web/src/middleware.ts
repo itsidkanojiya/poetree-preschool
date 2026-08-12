@@ -84,6 +84,18 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   const home = homePathFor(claims.role);
 
+  // A password the office set is good for one thing. The API refuses the rest,
+  // so every other page would render its error state — go where it can be
+  // changed instead.
+  if (claims.mustChangePassword && pathname !== '/account') {
+    const response = NextResponse.redirect(new URL('/account', request.url));
+    if (rotated) {
+      response.cookies.set(ACCESS_COOKIE, rotated.accessToken, cookieOptions);
+      response.cookies.set(REFRESH_COOKIE, rotated.refreshToken, cookieOptions);
+    }
+    return response;
+  }
+
   // Role routing: each dashboard tree belongs to exactly one role.
   const wrongTree =
     (pathname.startsWith('/publication') && claims.role !== 'PUBLICATION_ADMIN') ||

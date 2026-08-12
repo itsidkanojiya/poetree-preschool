@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../config/school_config.dart';
+import '../config/branding.dart';
 
 /// The app's visual language.
 ///
@@ -20,14 +20,12 @@ import '../config/school_config.dart';
 class AppTheme {
   const AppTheme._();
 
-  /// The school's colour, baked in at build time. Poetree navy when a build has
-  /// not been configured yet.
-  static Color get brand {
-    final hex = SchoolConfig.primaryColorHex.replaceAll('#', '');
-    final value = int.tryParse(hex, radix: 16);
-    if (value == null || hex.length != 6) return const Color(0xFF16307C);
-    return Color(0xFF000000 | value);
-  }
+  /// The school's colour, as the Super Admin set it.
+  ///
+  /// Fetched at startup rather than compiled in: the office changing their
+  /// colour in the portal used to need a new APK before anyone saw it. Falls
+  /// back to the build-time value, and then to Poetree navy.
+  static Color get brand => BrandingService.current.primaryColor;
 
   /// Fixed companions. Deliberately not derived from the school colour: a
   /// school with a red brand would otherwise get red "present" ticks and red

@@ -17,6 +17,7 @@ import { fileRouter } from './file.routes.js';
 import { reportRouter } from './report.routes.js';
 import { progressRouter } from './progress.routes.js';
 import { publicationRouter } from './publication.routes.js';
+import { publicRouter } from './public.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
 
 export const apiRouter = Router();
@@ -31,6 +32,14 @@ apiRouter.get(
 );
 
 apiRouter.use('/auth', authRouter);
+
+/**
+ * Unauthenticated, and mounted before the secured tree on purpose.
+ *
+ * A sign-in screen has to carry the school's name and logo before anyone has
+ * signed in. Nothing but branding lives here — see the route file.
+ */
+apiRouter.use('/public', publicRouter);
 
 /**
  * Everything past this point is authenticated, plan-gated and tenant-bound.

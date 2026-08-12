@@ -7,6 +7,7 @@ import { daysUntil, formatDate } from '@/lib/format';
 import {
   AssignPlanPanel,
   CreateAdminPanel,
+  LogoPanel,
   ReactivatePanel,
   SchoolDetailsForm,
   SuspendPanel,
@@ -130,6 +131,13 @@ export default async function SchoolDetailPage({ params }: { params: Promise<{ i
           description="Creates a School Admin who can manage this school's teachers, parents and students."
         >
           <CreateAdminPanel schoolId={school.id} />
+        </Card>
+
+        <Card
+          title="Logo"
+          description="Shown on their app's sign-in screen and beside their name everywhere."
+        >
+          <LogoPanel school={school} />
         </Card>
 
         <Card title="School details">

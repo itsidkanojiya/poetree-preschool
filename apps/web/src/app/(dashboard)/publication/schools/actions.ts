@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { SchoolSummary } from '@poetree/shared';
-import { apiFetch, errorMessage } from '@/lib/api';
+import { cookies } from 'next/headers';
+import { API_BASE_URL, apiFetch, errorMessage } from '@/lib/api';
+import { ACCESS_COOKIE } from '@/lib/auth-cookies';
 
 export interface ActionState {
   error?: string;
@@ -170,4 +172,77 @@ export async function reactivateSchoolAction(
   revalidatePath(`/publication/schools/${schoolId}`);
   revalidatePath('/publication/schools');
   return { success: 'School reactivated. Its users can sign in again.' };
+}
+
+/**
+ * Uploads a logo and points the school at it.
+ *
+ * Two calls, like every other attachment in the system: POST /files owns the
+ * sniffing and the size caps, and this only records which file is the badge.
+ * Done from the server so the token stays in its httpOnly cookie.
+ */
+export async function uploadSchoolLogoAction(
+  schoolId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const file = formData.get('logo');
+
+  // An empty submit means "take it away", which is a real thing to want.
+  if (!(file instanceof File) || file.size === 0) {
+    try {
+      await apiFetch(`/publication/schools/${schoolId}/logo`, {
+        method: 'PUT',
+        redirectOnAuthFailure: false,
+        body: { fileId: null },
+      });
+    } catch (error) {
+      return { error: errorMessage(error, 'Could not remove the logo.') };
+    }
+
+    revalidatePath(`/publication/schools/${schoolId}`);
+    return { success: 'Logo removed.' };
+  }
+
+  let fileId: string;
+
+  try {
+    const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+    const upload = new FormData();
+    upload.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/files`, {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: upload,
+      cache: 'no-store',
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const message =
+        data && typeof data === 'object' && 'error' in data
+          ? String((data as { error: { message?: string } }).error.message ?? 'Upload failed')
+          : 'Upload failed';
+      return { error: message };
+    }
+
+    fileId = (data as { id: string }).id;
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not upload the logo.') };
+  }
+
+  try {
+    await apiFetch(`/publication/schools/${schoolId}/logo`, {
+      method: 'PUT',
+      redirectOnAuthFailure: false,
+      body: { fileId },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'The file uploaded but would not attach.') };
+  }
+
+  revalidatePath(`/publication/schools/${schoolId}`);
+  return { success: 'Saved. It will show on the app and on their sign-in screen.' };
 }

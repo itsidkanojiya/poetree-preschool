@@ -33,6 +33,10 @@ export type CreateSchoolInput = z.infer<typeof createSchoolSchema>;
 export const updateSchoolSchema = createSchoolSchema.omit({ code: true }).partial();
 export type UpdateSchoolInput = z.infer<typeof updateSchoolSchema>;
 
+/** Null clears it. */
+export const setSchoolLogoSchema = z.object({ fileId: idSchema.nullable() });
+export type SetSchoolLogoInput = z.infer<typeof setSchoolLogoSchema>;
+
 export const listSchoolsQuerySchema = paginationQuerySchema.extend({
   status: z.enum(SCHOOL_STATUSES).optional(),
 });

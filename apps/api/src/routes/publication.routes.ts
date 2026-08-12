@@ -10,6 +10,7 @@ import {
   listPlansQuerySchema,
   listSchoolsQuerySchema,
   reactivateSchoolSchema,
+  setSchoolLogoSchema,
   suspendSchoolSchema,
   updateActivitySchema,
   updatePlanSchema,
@@ -225,6 +226,23 @@ publicationRouter.patch(
   validate({ params: idParamSchema, body: updatePlanSchema }),
   asyncHandler(async (req, res) => {
     res.json(await planService.updatePlan(params<{ id: string }>(req).id, body<UpdatePlanInput>(req)));
+  }),
+);
+
+/**
+ * Which uploaded file is this school's logo.
+ *
+ * Two steps, like every other attachment: POST /files owns the bytes, this
+ * records the choice. Passing null takes the logo away again.
+ */
+publicationRouter.put(
+  '/schools/:id/logo',
+  validate({ params: idParamSchema, body: setSchoolLogoSchema }),
+  asyncHandler(async (req, res) => {
+    const { fileId } = body<{ fileId: string | null }>(req);
+    res.json(
+      await schoolService.setSchoolLogo(params<{ id: string }>(req).id, fileId, req.auth!.userId),
+    );
   }),
 );
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'core/api/api_service.dart';
-import 'core/config/school_config.dart';
+import 'core/config/branding.dart';
 import 'core/offline/outbox.dart';
 import 'core/push/push_service.dart';
 import 'core/routes/app_pages.dart';
@@ -26,6 +26,10 @@ Future<void> main() async {
   // AuthController starts it after a successful sign-in and on session restore.
   Get.put<PushService>(PushService(), permanent: true);
 
+  // Before the first frame, so the app is never briefly the wrong colour: the
+  // cached copy returns immediately and the network refresh follows.
+  await BrandingService().load();
+
   // Resolve the session before the first frame, so a signed-in parent never
   // sees the login screen flash past on a cold start.
   final startRoute = await Get.find<AuthController>().resolveStartRoute();
@@ -41,7 +45,7 @@ class PoetreeSchoolApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: SchoolConfig.schoolName,
+      title: BrandingService.current.name,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       // Parents check this at bedtime as often as at the school gate, and the

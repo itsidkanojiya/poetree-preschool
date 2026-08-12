@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/models/attached_file.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
@@ -17,6 +19,8 @@ import 'package:poetree_school/features/teacher/register_controller.dart';
 /// on a specific non-zero value.
 
 void main() {
+  group('branding', _brandingTests);
+
   test('fee ledger reads the money from totals, not the top level', () {
     final ledger = Ledger.fromJson({
       'invoices': [
@@ -274,5 +278,59 @@ void main() {
     expect(row.fullName, 'Aarav Joshi');
     expect(row.status, 'ABSENT');
     expect(row.rollNo, '4');
+  });
+}
+
+void _brandingTests() {
+  test('branding falls back rather than showing a wrong colour', () {
+    // A school that has not set a colour gets Poetree navy, not black or a
+    // crash — this parses whatever the API sends, including nothing.
+    final none = Branding.fromJson({'name': 'Sunrise Preschool'});
+
+    expect(none.name, 'Sunrise Preschool');
+    expect(none.primaryColor, const Color(0xFF16307C));
+    expect(none.logoUrl, isNull);
+    expect(none.absoluteLogoUrl, isNull);
+  });
+
+  test('branding takes the colour the Super Admin set', () {
+    final set = Branding.fromJson({
+      'name': 'Sunrise Preschool',
+      'primaryColor': '#B4451F',
+      'logoUrl': '/api/v1/public/schools/sunrise/logo',
+    });
+
+    expect(set.primaryColor, const Color(0xFFB4451F));
+  });
+
+  test('the logo url is joined without doubling /api/v1', () {
+    final set = Branding.fromJson({
+      'name': 'Sunrise Preschool',
+      'logoUrl': '/api/v1/public/schools/sunrise/logo',
+    });
+
+    // The same doubling that would have broken every homework photograph: the
+    // base URL already ends in /api/v1.
+    expect(set.absoluteLogoUrl, isNotNull);
+    expect('api/v1'.allMatches(set.absoluteLogoUrl!).length, 1);
+    expect(
+      set.absoluteLogoUrl!.endsWith('/api/v1/public/schools/sunrise/logo'),
+      isTrue,
+    );
+  });
+
+  test('branding survives a round trip through the cache', () {
+    // Written to disk on every fetch and read back before the first frame, so
+    // a mangled round trip would show the wrong colour on every cold start.
+    final original = Branding.fromJson({
+      'name': 'Sunrise Preschool',
+      'primaryColor': '#B4451F',
+      'logoUrl': '/api/v1/public/schools/sunrise/logo',
+    });
+    final restored = Branding.fromJson(original.toJson());
+
+    expect(restored.name, original.name);
+    expect(restored.primaryColor, original.primaryColor);
+    expect(restored.logoUrl, original.logoUrl);
   });
 }

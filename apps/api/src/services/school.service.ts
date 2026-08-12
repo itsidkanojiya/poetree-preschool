@@ -33,6 +33,7 @@ const summarySelect = {
   city: true,
   status: true,
   logoUrl: true,
+  logoFileId: true,
   primaryColor: true,
   createdAt: true,
   subscriptions: {
@@ -54,7 +55,11 @@ function toSummary(school: SchoolRow): SchoolSummary {
     code: school.code,
     city: school.city,
     status: school.status,
-    logoUrl: school.logoUrl,
+    // The uploaded logo wins when both exist: somebody who uploads one has
+    // just told us which they mean.
+    logoUrl: school.logoFileId
+      ? `/api/v1/public/schools/${school.code}/logo`
+      : school.logoUrl,
     primaryColor: school.primaryColor,
     planName: subscription?.plan.name ?? null,
     expiresAt: subscription?.expiresAt.toISOString() ?? null,
@@ -475,4 +480,62 @@ export async function reactivateSchool(
     status: 'ACTIVE',
     expiresAt: result.expiresAt?.toISOString() ?? null,
   };
+}
+
+
+/**
+ * Points a school at an already-uploaded file as its logo.
+ *
+ * The bytes go through POST /files like every other upload — magic-byte
+ * sniffing, size caps and EXIF stripping all apply — and this only records
+ * which of them is the logo. Publication-owned (schoolId NULL) or the school's
+ * own are both fine; anything else is not, or one school could wear another's
+ * badge.
+ */
+export async function setSchoolLogo(
+  schoolId: string,
+  fileId: string | null,
+  actorUserId: string,
+): Promise<SchoolSummary> {
+  const current = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true, logoFileId: true },
+  });
+  if (!current) throw ApiError.notFound('School not found');
+
+  if (fileId) {
+    const file = await prismaUnscoped.fileObject.findFirst({
+      where: { id: fileId, deletedAt: null },
+      select: { id: true, schoolId: true, mimeType: true },
+    });
+    if (!file) throw ApiError.badRequest('That file does not exist');
+
+    if (file.schoolId !== null && file.schoolId !== schoolId) {
+      throw ApiError.badRequest('That file belongs to another school');
+    }
+
+    // Served to anyone who knows the school code, so it must be a picture and
+    // not, say, a PDF of somebody's medical letter uploaded by mistake.
+    if (!file.mimeType.startsWith('image/')) {
+      throw ApiError.badRequest('A logo has to be a picture');
+    }
+  }
+
+  const school = await prismaUnscoped.school.update({
+    where: { id: schoolId },
+    data: { logoFileId: fileId },
+    select: summarySelect,
+  });
+
+  await writeAuditLog({
+    action: 'SCHOOL_UPDATED',
+    entity: 'School',
+    entityId: schoolId,
+    schoolId,
+    actorUserId,
+    before: { logoFileId: current.logoFileId },
+    after: { logoFileId: fileId },
+  });
+
+  return toSummary(school);
 }

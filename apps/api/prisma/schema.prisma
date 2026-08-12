@@ -263,7 +263,12 @@ model School {
   state         String? @db.VarChar(100)
   postalCode    String? @db.VarChar(20)
   principalName String? @db.VarChar(120)
+  /// A logo hosted elsewhere. Kept for schools that already had one.
   logoUrl       String? @db.VarChar(500)
+  /// A logo uploaded through the portal. Preferred over logoUrl when both are
+  /// set, and served publicly by school code — a sign-in screen has to be
+  /// branded before anyone has signed in.
+  logoFileId    String? @db.VarChar(191)
   primaryColor  String? @db.VarChar(7)
 
   /// The single switch that gates every user of this school. Only TRIAL and
@@ -273,50 +278,51 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  publication       Publication          @relation(fields: [publicationId], references: [id], onDelete: Restrict)
-  users             User[]
-  teacherProfiles   TeacherProfile[]
-  parentProfiles    ParentProfile[]
-  students          Student[]
-  studentGuardians  StudentGuardian[]
-  studentEnrolments StudentEnrolment[]
-  studentDocuments  StudentDocument[]
-  academicYears     AcademicYear[]
-  classrooms        Classroom[]
-  classroomTeachers ClassroomTeacher[]
-  subjects          Subject[]
-  rooms             Room[]
-  holidays          SchoolHoliday[]
-  sequences          DocumentSequence[]
-  attendanceSessions AttendanceSession[]
-  attendanceRecords  AttendanceRecord[]
-  feeHeads           FeeHead[]
-  feeStructures      FeeStructure[]
-  feeStructureItems  FeeStructureItem[]
-  feeConcessions     FeeConcession[]
-  feeInvoices        FeeInvoice[]
-  feeInvoiceLines    FeeInvoiceLine[]
-  payments           Payment[]
-  paymentAllocations PaymentAllocation[]
-  activityAttempts   ActivityAttempt[]
-  skillProgress      StudentSkillProgress[]
-  timetablePeriods   TimetablePeriod[]
-  timetableEntries   TimetableEntry[]
-  homework           Homework[]
-  homeworkAttachments HomeworkAttachment[]
-  homeworkSubmissions HomeworkSubmission[]
-  homeworkSubmissionFiles HomeworkSubmissionFile[]
-  classroomPosts      ClassroomPost[]
+  publication              Publication               @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  logoFile                 FileObject?               @relation("SchoolLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
+  users                    User[]
+  teacherProfiles          TeacherProfile[]
+  parentProfiles           ParentProfile[]
+  students                 Student[]
+  studentGuardians         StudentGuardian[]
+  studentEnrolments        StudentEnrolment[]
+  studentDocuments         StudentDocument[]
+  academicYears            AcademicYear[]
+  classrooms               Classroom[]
+  classroomTeachers        ClassroomTeacher[]
+  subjects                 Subject[]
+  rooms                    Room[]
+  holidays                 SchoolHoliday[]
+  sequences                DocumentSequence[]
+  attendanceSessions       AttendanceSession[]
+  attendanceRecords        AttendanceRecord[]
+  feeHeads                 FeeHead[]
+  feeStructures            FeeStructure[]
+  feeStructureItems        FeeStructureItem[]
+  feeConcessions           FeeConcession[]
+  feeInvoices              FeeInvoice[]
+  feeInvoiceLines          FeeInvoiceLine[]
+  payments                 Payment[]
+  paymentAllocations       PaymentAllocation[]
+  activityAttempts         ActivityAttempt[]
+  skillProgress            StudentSkillProgress[]
+  timetablePeriods         TimetablePeriod[]
+  timetableEntries         TimetableEntry[]
+  homework                 Homework[]
+  homeworkAttachments      HomeworkAttachment[]
+  homeworkSubmissions      HomeworkSubmission[]
+  homeworkSubmissionFiles  HomeworkSubmissionFile[]
+  classroomPosts           ClassroomPost[]
   classroomPostAttachments ClassroomPostAttachment[]
-  notices             Notice[]
-  noticeTargets       NoticeTarget[]
-  noticeAttachments   NoticeAttachment[]
-  noticeReads         NoticeRead[]
-  files              FileObject[]
-  notifications     Notification[]
-  deviceTokens      DeviceToken[]
-  subscriptions     SchoolSubscription[]
-  auditLogs         AuditLog[]
+  notices                  Notice[]
+  noticeTargets            NoticeTarget[]
+  noticeAttachments        NoticeAttachment[]
+  noticeReads              NoticeRead[]
+  files                    FileObject[]
+  notifications            Notification[]
+  deviceTokens             DeviceToken[]
+  subscriptions            SchoolSubscription[]
+  auditLogs                AuditLog[]
 
   @@index([publicationId])
   @@index([status])
@@ -388,8 +394,8 @@ model ClassLevel {
   minAgeMonths Int?
   maxAgeMonths Int?
 
-  classrooms Classroom[]
-  subjects   Subject[]
+  classrooms    Classroom[]
+  subjects      Subject[]
   feeStructures FeeStructure[]
   skills        Skill[]
   activities    LearningActivity[]
@@ -534,9 +540,9 @@ model Student {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school            School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  guardians         StudentGuardian[]
-  enrolments        StudentEnrolment[]
+  school              School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  guardians           StudentGuardian[]
+  enrolments          StudentEnrolment[]
   documents           StudentDocument[]
   attendanceRecords   AttendanceRecord[]
   homeworkSubmissions HomeworkSubmission[]
@@ -611,13 +617,13 @@ model StudentGuardian {
   studentId       String
   parentProfileId String
 
-  relation  GuardianRelation @default(GUARDIAN)
+  relation           GuardianRelation @default(GUARDIAN)
   /// The default target for notifications about this child.
-  isPrimary Boolean          @default(false)
+  isPrimary          Boolean          @default(false)
   /// Safeguarding: who may be called in an emergency, and who may collect the
   /// child at the gate. Not the same person in every family.
-  isEmergencyContact Boolean @default(false)
-  canPickUp          Boolean @default(true)
+  isEmergencyContact Boolean          @default(false)
+  canPickUp          Boolean          @default(true)
 
   createdAt DateTime @default(now())
 
@@ -645,9 +651,9 @@ model AcademicYear {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  classrooms Classroom[]
-  enrolments StudentEnrolment[]
+  school             School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classrooms         Classroom[]
+  enrolments         StudentEnrolment[]
   holidays           SchoolHoliday[]
   sequences          DocumentSequence[]
   attendanceSessions AttendanceSession[]
@@ -680,9 +686,9 @@ model Classroom {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  classLevel   ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  school             School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel         ClassLevel          @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
   /// Multiple staff per classroom: a class teacher, an assistant, and subject
   /// teachers all coexist without a schema change.
   teachers           ClassroomTeacher[]
@@ -700,7 +706,7 @@ model Classroom {
 }
 
 model ClassroomTeacher {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   schoolId    String
   classroomId String
   userId      String
@@ -739,10 +745,10 @@ model Subject {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school     School?    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  classLevel ClassLevel? @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
-  classrooms ClassroomTeacher[]
-  homework   Homework[]
+  school           School?            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classLevel       ClassLevel?        @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  classrooms       ClassroomTeacher[]
+  homework         Homework[]
   timetableEntries TimetableEntry[]
 
   @@unique([schoolId, code])
@@ -761,7 +767,7 @@ model Room {
 
   createdAt DateTime @default(now())
 
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school           School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   timetableEntries TimetableEntry[]
 
   @@unique([schoolId, name])
@@ -918,14 +924,14 @@ model Homework {
   classroomId    String
   subjectId      String?
 
-  title       String        @db.VarChar(160)
-  description String?       @db.Text
-  assignedById String
-  assignedOn  DateTime      @default(now())
-  dueDate     DateTime      @db.Date
-  status      PublishStatus @default(DRAFT)
+  title              String        @db.VarChar(160)
+  description        String?       @db.Text
+  assignedById       String
+  assignedOn         DateTime      @default(now())
+  dueDate            DateTime      @db.Date
+  status             PublishStatus @default(DRAFT)
   /// When false the child simply does it at home; nothing is uploaded back.
-  allowsSubmission Boolean  @default(false)
+  allowsSubmission   Boolean       @default(false)
   /// The ERP-to-LMS bridge: homework that IS an activity. Completion flows
   /// back from ActivityAttempt, so a parent never marks it done by hand.
   learningActivityId String?
@@ -934,14 +940,14 @@ model Homework {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  school       School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  classroom    Classroom            @relation(fields: [classroomId], references: [id], onDelete: Cascade)
-  subject      Subject?             @relation(fields: [subjectId], references: [id], onDelete: SetNull)
-  assignedBy       User              @relation("HomeworkAuthor", fields: [assignedById], references: [id], onDelete: Restrict)
-  learningActivity LearningActivity? @relation(fields: [learningActivityId], references: [id], onDelete: SetNull)
-  attachments  HomeworkAttachment[]
-  submissions  HomeworkSubmission[]
+  school           School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear     AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classroom        Classroom            @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  subject          Subject?             @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  assignedBy       User                 @relation("HomeworkAuthor", fields: [assignedById], references: [id], onDelete: Restrict)
+  learningActivity LearningActivity?    @relation(fields: [learningActivityId], references: [id], onDelete: SetNull)
+  attachments      HomeworkAttachment[]
+  submissions      HomeworkSubmission[]
 
   @@index([schoolId, classroomId, status])
   @@index([schoolId, dueDate])
@@ -972,12 +978,12 @@ model HomeworkSubmission {
   homeworkId String
   studentId  String
 
-  status       SubmissionStatus @default(PENDING)
-  submittedOn  DateTime?
-  note         String?          @db.VarChar(500)
-  teacherRemark String?         @db.VarChar(500)
-  reviewedById String?
-  reviewedOn   DateTime?
+  status        SubmissionStatus @default(PENDING)
+  submittedOn   DateTime?
+  note          String?          @db.VarChar(500)
+  teacherRemark String?          @db.VarChar(500)
+  reviewedById  String?
+  reviewedOn    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1159,7 +1165,7 @@ model FeeHead {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school      School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   items       FeeStructureItem[]
   concessions FeeConcession[]
   lines       FeeInvoiceLine[]
@@ -1246,7 +1252,7 @@ model FeeInvoice {
   studentId      String
   academicYearId String
 
-  invoiceNo String @db.VarChar(40)
+  invoiceNo   String @db.VarChar(40)
   /// "2026-07", "Q1", "Annual" - the billing window this invoice covers.
   periodLabel String @db.VarChar(40)
 
@@ -1580,6 +1586,7 @@ model FileObject {
   createdAt DateTime  @default(now())
 
   school                   School?                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  brandedSchools           School[]                  @relation("SchoolLogo")
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   documents                StudentDocument[]
   homeworkAttachments      HomeworkAttachment[]

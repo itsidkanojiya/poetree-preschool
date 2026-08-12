@@ -21,6 +21,7 @@ import {
   reactivateSchoolAction,
   suspendSchoolAction,
   updateSchoolAction,
+  uploadSchoolLogoAction,
   type ActionState,
 } from '../actions';
 
@@ -48,7 +49,10 @@ export function SchoolDetailsForm({ school }: { school: SchoolSummary }) {
         <Field label="City">
           <Input name="city" defaultValue={school.city ?? ''} />
         </Field>
-        <Field label="Brand colour" hint="Used on the school's app in Phase 2.">
+        <Field
+          label="Brand colour"
+          hint="Their app and portal take this colour from here, at sign-in."
+        >
           <Input
             name="primaryColor"
             type="color"
@@ -60,6 +64,51 @@ export function SchoolDetailsForm({ school }: { school: SchoolSummary }) {
 
       <SubmitButton variant="secondary" pendingLabel="Saving…">
         Save details
+      </SubmitButton>
+    </form>
+  );
+}
+
+/**
+ * The school's badge.
+ *
+ * Shown on their app's sign-in screen, which is a screen nobody is signed in
+ * to — so this is served publicly by school code, and a stranger who knows the
+ * code can see it. That is the same as walking past the gate.
+ */
+export function LogoPanel({ school }: { school: SchoolSummary }) {
+  const [state, formAction] = useActionState<ActionState, FormData>(
+    uploadSchoolLogoAction.bind(null, school.id),
+    {},
+  );
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+
+      {school.logoUrl && (
+        <div className="flex items-center gap-3">
+          {/* A plain img: next/image wants known dimensions and a loader
+              configured for the host, and this is one small picture served
+              from our own API. */}
+          <img
+            src={school.logoUrl}
+            alt={`${school.name} logo`}
+            className="h-14 w-14 rounded-xl object-contain ring-1 ring-navy-950/10"
+          />
+          <p className="text-xs text-slate-500">
+            This is what families see when they open the app.
+          </p>
+        </div>
+      )}
+
+      <Field label="Logo" hint="PNG or JPEG. Square works best. Submit with nothing chosen to remove it.">
+        <Input name="logo" type="file" accept="image/png,image/jpeg,image/webp" />
+      </Field>
+
+      <SubmitButton variant="secondary" pendingLabel="Saving…">
+        Save logo
       </SubmitButton>
     </form>
   );

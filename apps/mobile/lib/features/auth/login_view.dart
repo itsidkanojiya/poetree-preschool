@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../core/config/school_config.dart';
+import '../../core/config/branding.dart';
 import 'auth_controller.dart';
 
 /// Sign-in.
@@ -40,8 +40,31 @@ class LoginView extends GetView<AuthController> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 12),
+
+                    // The school's own badge, on the one screen where nobody is
+                    // signed in — which is why it comes from the public route
+                    // and needs no token. Image.network is right here and
+                    // nowhere else in this app.
+                    if (BrandingService.current.absoluteLogoUrl != null) ...[
+                      Center(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.network(
+                            BrandingService.current.absoluteLogoUrl!,
+                            height: 88,
+                            width: 88,
+                            fit: BoxFit.contain,
+                            // A logo that will not load must not take the
+                            // sign-in screen with it.
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     Text(
-                      SchoolConfig.schoolName,
+                      BrandingService.current.name,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w600),

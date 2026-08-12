@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/models/attached_file.dart';
 import 'children_controller.dart';
 
 /// Everything the parent screens read about the selected child.
@@ -119,21 +120,39 @@ extension HomeworkSubmissions on ChildController {
   /// Returns null on success, or a sentence to show the parent. The status is
   /// the server's to decide — a parent says "we did this", and whether that
   /// counts is the teacher's judgement.
-  Future<String?> submitHomework(HomeworkItem item, {String? note}) async {
+  Future<String?> submitHomework(
+    HomeworkItem item, {
+    String? note,
+    List<String> photoPaths = const [],
+  }) async {
     final selected = child;
     if (selected == null) return 'No child selected.';
 
     try {
+      // Upload first, then submit. If a photograph fails to reach the school
+      // the submission is not sent either — half a submission with the note
+      // but not the picture is worse than a retry, because the teacher would
+      // see it as done and go looking for work that never arrived.
+      final fileIds = <String>[];
+      for (final path in photoPaths) {
+        final uploaded = await api.upload<Map<String, dynamic>>('/files', path);
+        fileIds.add(uploaded['id'] as String);
+      }
+
       await api.post<dynamic>(
         '/homework/${item.id}/submit',
         body: {
           'studentId': selected.id,
           if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          if (fileIds.isNotEmpty) 'fileIds': fileIds,
         },
       );
 
       item.myStatus = 'SUBMITTED';
       homework.refresh();
+      // Reload so the card shows the photograph back from the server — proof
+      // to the parent that it actually arrived.
+      unawaited(load());
       return null;
     } on DioException catch (e) {
       final payload = e.response?.data;
@@ -214,6 +233,8 @@ class HomeworkItem {
     required this.title,
     required this.dueDate,
     required this.allowsSubmission,
+    required this.attachments,
+    required this.myFiles,
     this.description,
     this.subject,
     this.myStatus,
@@ -222,6 +243,13 @@ class HomeworkItem {
 
   factory HomeworkItem.fromJson(Map<String, dynamic> json) {
     final mine = json['mySubmission'] as Map<String, dynamic>?;
+
+    List<AttachedFile> files(Object? raw) =>
+        (raw as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(AttachedFile.fromJson)
+            .toList();
+
     return HomeworkItem(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -229,8 +257,10 @@ class HomeworkItem {
       dueDate: json['dueDate'] as String,
       allowsSubmission: json['allowsSubmission'] as bool? ?? false,
       subject: (json['subject'] as Map<String, dynamic>?)?['name'] as String?,
+      attachments: files(json['attachments']),
       myStatus: mine?['status'] as String?,
       teacherRemark: mine?['teacherRemark'] as String?,
+      myFiles: files(mine?['files']),
     );
   }
 
@@ -241,9 +271,15 @@ class HomeworkItem {
   final bool allowsSubmission;
   final String? subject;
 
+  /// What the teacher attached — the worksheet, if there is one.
+  final List<AttachedFile> attachments;
+
   /// This child's own submission status, not the class's.
   String? myStatus;
   String? teacherRemark;
+
+  /// What this family already sent in.
+  List<AttachedFile> myFiles;
 
   bool get isDone =>
       myStatus == 'SUBMITTED' || myStatus == 'COMPLETED' || myStatus == 'LATE';
@@ -252,6 +288,14 @@ class HomeworkItem {
   bool get isJudged => myStatus == 'COMPLETED' || myStatus == 'NOT_COMPLETED';
 
   bool get canSubmit => allowsSubmission && !isDone && !isJudged;
+
+  /// Still owed: work that takes a submission and has not had one.
+  ///
+  /// Deliberately excludes NOT_COMPLETED. The API refuses a resubmission once
+  /// the teacher has judged, so counting those as "to do" would point a parent
+  /// at something they cannot act on.
+  bool get isOutstanding =>
+      allowsSubmission && (myStatus == null || myStatus == 'PENDING');
 }
 
 class NoticeItem {

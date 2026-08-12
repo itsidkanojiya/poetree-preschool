@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -203,6 +204,46 @@ class ApiClient {
   Future<T> put<T>(String path, {Object? body}) async {
     final response = await _dio.put<T>(path, data: body);
     return response.data as T;
+  }
+
+  /// Sends one file as multipart.
+  ///
+  /// The content type has to be set per request: the client sets a default of
+  /// application/json in its options, and that default would override
+  /// FormData's own header — leaving the server a body with no multipart
+  /// boundary, which it rightly rejects. Passing it here lets Dio generate the
+  /// boundary.
+  ///
+  /// Goes through the same interceptor as everything else, so an access token
+  /// that expires mid-upload is refreshed and the upload retried.
+  Future<T> upload<T>(
+    String path,
+    String filePath, {
+    String field = 'file',
+  }) async {
+    final form = FormData.fromMap({
+      field: await MultipartFile.fromFile(filePath),
+    });
+
+    final response = await _dio.post<T>(
+      path,
+      data: form,
+      options: Options(contentType: Headers.multipartFormDataContentType),
+    );
+    return response.data as T;
+  }
+
+  /// Fetches bytes for an authenticated file.
+  ///
+  /// Image.network cannot be used for these: /files/:id needs a bearer token,
+  /// and a header captured at build time goes stale when the token rotates.
+  /// Coming through the client means the refresh interceptor covers images too.
+  Future<Uint8List> bytes(String path) async {
+    final response = await _dio.get<List<int>>(
+      path,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(response.data ?? const []);
   }
 
   Future<T> patch<T>(String path, {Object? body}) async {

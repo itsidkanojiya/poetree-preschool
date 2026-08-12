@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
+import '../../core/models/attached_file.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
 import '../notifications/inbox_view.dart';
@@ -1186,6 +1191,8 @@ class _HomeworkTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     if (child.homework.isEmpty) {
       return ListView(
         children: const [
@@ -1195,152 +1202,360 @@ class _HomeworkTab extends StatelessWidget {
       );
     }
 
+    final outstanding = child.homework.where((h) => h.isOutstanding).length;
+
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: child.homework.length,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: child.homework.length + 1,
       itemBuilder: (context, index) {
-        final item = child.homework[index];
-        final colors = Theme.of(context).colorScheme;
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        if (index == 0) {
+          // The teacher sees "8 of 12 done"; a parent saw an undifferentiated
+          // list, which is how homework gets missed.
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    if (item.isDone)
-                      Icon(
-                        item.myStatus == 'COMPLETED'
-                            ? Icons.verified_outlined
-                            : Icons.check_circle_outline,
-                        size: 20,
-                        color: const Color(0xFF16A34A),
-                      ),
-                  ],
-                ),
-                if (item.description != null &&
-                    item.description!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(item.description!),
-                ],
-                const SizedBox(height: 6),
                 Text(
-                  'Due ${_day(item.dueDate)}${item.subject == null ? '' : ' · ${item.subject}'}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: colors.outline),
+                  outstanding == 0 ? 'Nothing to do' : '$outstanding to do',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: outstanding == 0 ? AppTheme.leaf : null,
+                  ),
                 ),
-
-                // The teacher's words come back to the parent — otherwise a
-                // review is something that happens where nobody can see it.
-                if (item.teacherRemark != null &&
-                    item.teacherRemark!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: colors.secondaryContainer,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      item.teacherRemark!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colors.onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-
-                if (item.canSubmit)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => _markDone(context, child, item),
-                      icon: const Icon(Icons.check, size: 18),
-                      label: const Text('Mark as done'),
-                    ),
-                  )
-                else if (item.isDone)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      switch (item.myStatus) {
-                        'COMPLETED' => 'The teacher has marked this done.',
-                        'LATE' => 'Sent in after the due date.',
-                        _ => 'Sent in — waiting for the teacher.',
-                      },
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: colors.outline),
-                    ),
-                  ),
+                const Spacer(),
+                Text(
+                  '${child.homework.length} set in all',
+                  style: theme.textTheme.bodySmall,
+                ),
               ],
             ),
-          ),
-        );
+          );
+        }
+
+        return _HomeworkCard(child: child, item: child.homework[index - 1]);
       },
     );
   }
 }
 
-/// Asks for an optional note, then sends it.
-///
-/// A note rather than a status: whether the work counts as done is the
-/// teacher's judgement, and the parent is only reporting that it happened.
-Future<void> _markDone(
+class _HomeworkCard extends StatelessWidget {
+  const _HomeworkCard({required this.child, required this.item});
+
+  final ChildController child;
+  final HomeworkItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(item.title, style: theme.textTheme.titleMedium),
+              ),
+              if (item.isDone)
+                Icon(
+                  item.myStatus == 'COMPLETED'
+                      ? Icons.verified_rounded
+                      : Icons.check_circle_outline_rounded,
+                  size: 20,
+                  color: AppTheme.leaf,
+                ),
+            ],
+          ),
+          if (item.description != null && item.description!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(item.description!, style: theme.textTheme.bodyMedium),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            'Due ${_day(item.dueDate)}${item.subject == null ? '' : ' · ${item.subject}'}',
+            style: theme.textTheme.bodySmall,
+          ),
+
+          // What the teacher sent, if anything.
+          if (item.attachments.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('FROM THE TEACHER', style: theme.textTheme.labelSmall),
+            const SizedBox(height: 8),
+            _FileStrip(files: item.attachments),
+          ],
+
+          // What this family sent back. Shown from the server rather than the
+          // local file, so it is proof the photograph actually arrived.
+          if (item.myFiles.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('WHAT YOU SENT', style: theme.textTheme.labelSmall),
+            const SizedBox(height: 8),
+            _FileStrip(files: item.myFiles),
+          ],
+
+          if (item.teacherRemark != null && item.teacherRemark!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                item.teacherRemark!,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: colors.onSecondaryContainer,
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 6),
+
+          if (item.canSubmit)
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.tonalIcon(
+                onPressed: () => _sendWork(context, child, item),
+                icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                label: const Text('Send it in'),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(switch (item.myStatus) {
+                'COMPLETED' => 'The teacher has marked this done.',
+                'NOT_COMPLETED' => 'The teacher has asked about this one.',
+                'LATE' => 'Sent in after the due date.',
+                'SUBMITTED' => 'Sent — waiting for the teacher.',
+                // Not every piece of work is handed back. Saying so beats a
+                // card that simply has no button and reads as broken.
+                _ => 'Nothing to send back for this one.',
+              }, style: theme.textTheme.bodySmall),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A row of attachments — thumbnails for pictures, a chip for anything else.
+class _FileStrip extends StatelessWidget {
+  const _FileStrip({required this.files});
+
+  final List<AttachedFile> files;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      height: 74,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: files.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final file = files[index];
+
+          if (!file.isImage) {
+            return Container(
+              width: 150,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 18,
+                    color: colors.outline,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      file.originalName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return GestureDetector(
+            onTap: () =>
+                showPhoto(context, file.path, caption: file.originalName),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AuthedImage(path: file.path, width: 74, height: 74),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Sending the work in: photographs, an optional note, then off it goes.
+Future<void> _sendWork(
   BuildContext context,
   ChildController child,
   HomeworkItem item,
 ) async {
   final noteField = TextEditingController();
+  final picker = ImagePicker();
+  final photos = <XFile>[];
 
-  final confirmed = await showDialog<bool>(
+  final sent = await showModalBottomSheet<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(item.title),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Tell the teacher this is done?'),
-          const SizedBox(height: 12),
-          TextField(
-            controller: noteField,
-            maxLines: 2,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Anything to add? (optional)',
-            ),
-          ),
-        ],
+    isScrollControlled: true,
+    builder: (sheetContext) => Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Not yet'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Mark as done'),
-        ),
-      ],
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          Future<void> pick(ImageSource source) async {
+            // Resized and recompressed on the way in. A modern phone photo is
+            // often over the server's 8 MB cap, and a picture of a crayon
+            // drawing does not need twelve megapixels.
+            final picked = await picker.pickImage(
+              source: source,
+              imageQuality: 70,
+              maxWidth: 1600,
+            );
+            if (picked != null) setState(() => photos.add(picked));
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                'Send a photo of the finished work.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+
+              if (photos.isNotEmpty) ...[
+                SizedBox(
+                  height: 84,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: photos.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          // Straight off local disk — no round trip to preview
+                          // something that has not been sent yet.
+                          child: Image.file(
+                            File(photos[index].path),
+                            width: 84,
+                            height: 84,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: GestureDetector(
+                            onTap: () => setState(() => photos.removeAt(index)),
+                            child: const CircleAvatar(
+                              radius: 11,
+                              backgroundColor: Colors.black54,
+                              child: Icon(
+                                Icons.close,
+                                size: 13,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: photos.length >= 5
+                          ? null
+                          : () => pick(ImageSource.camera),
+                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      label: const Text('Camera'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: photos.length >= 5
+                          ? null
+                          : () => pick(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined, size: 18),
+                      label: const Text('Gallery'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: noteField,
+                maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Anything to tell the teacher? (optional)',
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              FilledButton(
+                onPressed: () => Navigator.of(sheetContext).pop(true),
+                child: const Text('Send to the teacher'),
+              ),
+              const SizedBox(height: 4),
+            ],
+          );
+        },
+      ),
     ),
   );
 
-  if (confirmed != true) return;
+  if (sent != true) return;
 
-  final failure = await child.submitHomework(item, note: noteField.text);
+  final failure = await child.submitHomework(
+    item,
+    note: noteField.text,
+    photoPaths: photos.map((p) => p.path).toList(),
+  );
 
   if (!context.mounted) return;
   ScaffoldMessenger.of(context)

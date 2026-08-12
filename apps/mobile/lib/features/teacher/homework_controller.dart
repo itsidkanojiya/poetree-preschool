@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/models/attached_file.dart';
 
 class TeacherHomework {
   TeacherHomework({
@@ -49,6 +50,7 @@ class Submission {
     required this.studentId,
     required this.fullName,
     required this.status,
+    required this.files,
     this.rollNo,
     this.note,
     this.teacherRemark,
@@ -64,6 +66,10 @@ class Submission {
     note: json['note'] as String?,
     teacherRemark: json['teacherRemark'] as String?,
     submittedOn: json['submittedOn'] as String?,
+    files: (json['files'] as List<dynamic>? ?? <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(AttachedFile.fromJson)
+        .toList(),
   );
 
   final String id;
@@ -74,6 +80,9 @@ class Submission {
   final String? note;
   String? teacherRemark;
   final String? submittedOn;
+
+  /// The photograph the family sent, which is what a preschool submission is.
+  final List<AttachedFile> files;
 
   bool get isWaiting => status == 'SUBMITTED' || status == 'LATE';
   bool get isJudged => status == 'COMPLETED' || status == 'NOT_COMPLETED';
@@ -184,8 +193,14 @@ class TeacherHomeworkController extends GetxController {
     String? remark,
   }) async {
     final previous = submission.status;
+    final previousRemark = submission.teacherRemark;
     submission.status = status;
-    submission.teacherRemark = remark;
+    // Only when one was actually written: the request below omits an empty
+    // remark, so clearing it here would show the teacher a change the server
+    // never made.
+    if (remark != null && remark.trim().isNotEmpty) {
+      submission.teacherRemark = remark.trim();
+    }
     submissions.refresh();
 
     try {
@@ -202,6 +217,7 @@ class TeacherHomeworkController extends GetxController {
       // Put it back rather than leave the screen claiming something the server
       // does not agree with.
       submission.status = previous;
+      submission.teacherRemark = previousRemark;
       submissions.refresh();
       return _messageFor(e, 'Could not save that.');
     }

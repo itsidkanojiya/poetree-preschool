@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/models/attached_file.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/authed_image.dart';
 import 'homework_controller.dart';
 
 String _day(String iso) {
@@ -109,14 +111,29 @@ class TeacherHomeworkView extends GetView<TeacherHomeworkController> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      item.title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                  Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 2),
+                  // The teacher's own queue: work sent in that nobody has
+                  // looked at yet. It is the only number they can act on.
+                  Obx(() {
+                    final waiting = controller.submissions
+                        .where((s) => s.isWaiting)
+                        .length;
+                    return Text(
+                      waiting == 0
+                          ? 'Nothing waiting to be checked'
+                          : '$waiting to check',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -255,14 +272,27 @@ class _SubmissionRow extends StatelessWidget {
       _ => ('Waiting', colors.outline),
     };
 
+    final photos = submission.files.where((f) => f.isImage).toList();
+
     return ListTile(
-      leading: InitialsAvatar(name: submission.fullName, radius: 18),
+      // The photograph, not the initials, is what the teacher is looking for
+      // when they scroll this list.
+      leading: photos.isEmpty
+          ? InitialsAvatar(name: submission.fullName, radius: 18)
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: AuthedImage(
+                path: photos.first.path,
+                width: 44,
+                height: 44,
+              ),
+            ),
       title: Text(submission.fullName),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            photos.length > 1 ? '$label · ${photos.length} photos' : label,
             style: TextStyle(color: color, fontWeight: FontWeight.w600),
           ),
           // A parent's note is the closest thing to them being in the room.
@@ -271,8 +301,20 @@ class _SubmissionRow extends StatelessWidget {
               '“${submission.note}”',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+          if (submission.teacherRemark != null &&
+              submission.teacherRemark!.isNotEmpty)
+            Text(
+              'You said: ${submission.teacherRemark}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.outline,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
         ],
       ),
+      // Opening the work is the deliberate act; the two buttons stay for the
+      // child who did it in the room and needs no photograph looked at.
+      onTap: photos.isEmpty ? null : () => _open(context, photos),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -297,8 +339,112 @@ class _SubmissionRow extends StatelessWidget {
     );
   }
 
-  Future<void> _mark(BuildContext context, String status) async {
-    final failure = await controller.review(submission, status);
+  /// The work itself, large, with somewhere to say a word back about it.
+  Future<void> _open(BuildContext context, List<AttachedFile> photos) async {
+    final remarkField = TextEditingController(
+      text: submission.teacherRemark ?? '',
+    );
+
+    final decision = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                submission.fullName,
+                style: Theme.of(sheetContext).textTheme.titleMedium,
+              ),
+              if (submission.submittedOn != null)
+                Text(
+                  'Sent ${_day(submission.submittedOn!)}',
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(sheetContext).colorScheme.outline,
+                  ),
+                ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 220,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: photos.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) => GestureDetector(
+                    onTap: () => showPhoto(
+                      context,
+                      photos[index].path,
+                      caption: submission.fullName,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: AuthedImage(path: photos[index].path, width: 190),
+                    ),
+                  ),
+                ),
+              ),
+              if (submission.note != null && submission.note!.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  '“${submission.note}”',
+                  style: Theme.of(sheetContext).textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: 14),
+              TextField(
+                controller: remarkField,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'A word back (optional)',
+                  hintText: 'Lovely letters, Aarav',
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          Navigator.of(sheetContext).pop('NOT_COMPLETED'),
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Not done'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          Navigator.of(sheetContext).pop('COMPLETED'),
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (decision == null || !context.mounted) return;
+    await _mark(context, decision, remark: remarkField.text);
+  }
+
+  Future<void> _mark(
+    BuildContext context,
+    String status, {
+    String? remark,
+  }) async {
+    final failure = await controller.review(submission, status, remark: remark);
     if (failure == null || !context.mounted) return;
 
     ScaffoldMessenger.of(context)

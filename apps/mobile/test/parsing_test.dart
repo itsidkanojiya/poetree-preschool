@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poetree_school/core/models/attached_file.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
+import 'package:poetree_school/features/teacher/homework_controller.dart';
 import 'package:poetree_school/features/teacher/register_controller.dart';
 
 /// Response shapes, fixed against what the API actually sends.
@@ -129,6 +131,93 @@ void main() {
     expect(item.myStatus, isNull);
     expect(item.isDone, isFalse);
     expect(item.canSubmit, isTrue);
+  });
+
+  test('an attached file is fetchable by the client, not doubled', () {
+    final file = AttachedFile.fromJson({
+      'id': 'file_1',
+      'originalName': 'letter-a.jpg',
+      'mimeType': 'image/jpeg',
+      'url': '/api/v1/files/file_1',
+    });
+
+    // The API answers with a path rooted at the domain, which is right for the
+    // web portal. Our base URL already ends in /api/v1, so leaving it alone
+    // would fetch /api/v1/api/v1/files/file_1 and every photograph would be a
+    // broken box.
+    expect(file.path, '/files/file_1');
+    expect(file.path.contains('api/v1'), isFalse);
+    expect(file.isImage, isTrue);
+    expect(file.originalName, 'letter-a.jpg');
+  });
+
+  test('homework carries the worksheet and the photos we sent back', () {
+    final item = HomeworkItem.fromJson({
+      'id': 'hw_3',
+      'title': 'Draw your family',
+      'dueDate': '2026-08-25',
+      'allowsSubmission': true,
+      'progress': {'total': 20, 'completed': 3, 'pending': 17},
+      'attachments': [
+        {
+          'id': 'file_w',
+          'originalName': 'worksheet.pdf',
+          'mimeType': 'application/pdf',
+          'url': '/api/v1/files/file_w',
+        },
+      ],
+      'mySubmission': {
+        'id': 'sub_row',
+        'status': 'SUBMITTED',
+        'submittedOn': '2026-08-24',
+        'files': [
+          {
+            'id': 'file_p',
+            'originalName': 'ours.jpg',
+            'mimeType': 'image/jpeg',
+            'url': '/api/v1/files/file_p',
+          },
+        ],
+      },
+    });
+
+    // Asserted non-empty on purpose: the fee ledger read zero for every family
+    // for a week because every assertion there was also true of nothing.
+    expect(item.attachments, hasLength(1));
+    expect(item.attachments.first.path, '/files/file_w');
+    expect(item.attachments.first.isImage, isFalse);
+    expect(item.myFiles, hasLength(1));
+    expect(item.myFiles.first.path, '/files/file_p');
+    expect(item.myFiles.first.isImage, isTrue);
+    expect(item.isOutstanding, isFalse);
+  });
+
+  test('a teacher sees the photo and the words the parent sent with it', () {
+    final submission = Submission.fromJson({
+      'id': 'sub_1',
+      'studentId': 'st_1',
+      'fullName': 'Aarav Sharma',
+      'rollNo': '4',
+      'status': 'SUBMITTED',
+      'note': 'He did it on his own this time',
+      'submittedOn': '2026-08-24T09:12:00.000Z',
+      'files': [
+        {
+          'id': 'file_p',
+          'originalName': 'ours.jpg',
+          'mimeType': 'image/jpeg',
+          'url': '/api/v1/files/file_p',
+        },
+      ],
+    });
+
+    // The note field was read by this screen for months while the API never
+    // sent it; assert the value, not merely that parsing survived.
+    expect(submission.note, 'He did it on his own this time');
+    expect(submission.files, hasLength(1));
+    expect(submission.files.first.path, '/files/file_p');
+    expect(submission.isWaiting, isTrue);
+    expect(submission.isJudged, isFalse);
   });
 
   test('a notice knows whether this parent has read it', () {

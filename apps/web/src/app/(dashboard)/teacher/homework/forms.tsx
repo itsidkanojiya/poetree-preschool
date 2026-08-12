@@ -62,6 +62,18 @@ export function NewHomeworkForm({ classrooms }: { classrooms: MyClassroom[] }) {
         <Textarea name="description" rows={3} placeholder="Trace the letter A five times in the workbook." />
       </Field>
 
+      <Field
+        label="Worksheet (optional)"
+        hint="A page for the family to print or work from. PDF or a photograph."
+      >
+        <Input
+          name="worksheets"
+          type="file"
+          multiple
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+        />
+      </Field>
+
       <div className="space-y-2.5">
         <label className="flex items-center gap-2.5 text-sm text-slate-700">
           <input type="checkbox" name="allowsSubmission" className="h-4 w-4 rounded border-navy-300 text-navy-900" />
@@ -98,10 +110,33 @@ export function SubmissionList({ submissions }: { submissions: SubmissionSummary
       {submissions.map((submission) => (
         <li key={submission.id} className="flex flex-wrap items-center gap-3 py-2.5">
           <Avatar name={submission.fullName} size="sm" />
-          <span className="min-w-0 flex-1 truncate text-sm text-navy-950">
-            {submission.fullName}
-            {submission.rollNo && (
-              <span className="ml-1.5 text-xs text-slate-500">Roll {submission.rollNo}</span>
+          <span className="min-w-0 flex-1 text-sm text-navy-950">
+            <span className="block truncate">
+              {submission.fullName}
+              {submission.rollNo && (
+                <span className="ml-1.5 text-xs text-slate-500">Roll {submission.rollNo}</span>
+              )}
+            </span>
+
+            {/* What the family actually sent. Without it, "done" is a checkbox
+                a parent ticked and the teacher is marking nothing. */}
+            {submission.note && (
+              <span className="block truncate text-xs text-slate-500">“{submission.note}”</span>
+            )}
+            {submission.files.length > 0 && (
+              <span className="mt-1 flex flex-wrap gap-1.5">
+                {submission.files.map((file) => (
+                  <a
+                    key={file.id}
+                    href={`/attachments?id=${file.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-navy-900 hover:bg-slate-200"
+                  >
+                    {file.mimeType.startsWith('image/') ? '🖼' : '📄'} {file.originalName}
+                  </a>
+                ))}
+              </span>
             )}
           </span>
 

@@ -1,12 +1,46 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import type { SubmissionStatus } from '@poetree/shared';
-import { apiFetch, errorMessage } from '@/lib/api';
+import { API_BASE_URL, apiFetch, errorMessage } from '@/lib/api';
+import { ACCESS_COOKIE } from '@/lib/auth-cookies';
 
 export interface HomeworkState {
   error?: string;
   success?: string;
+}
+
+/**
+ * Uploads one worksheet and returns its id.
+ *
+ * Same two-step shape as a student document: POST /files owns the sniffing,
+ * the size caps and where the bytes land, and doing it here rather than in the
+ * browser keeps the access token in its httpOnly cookie.
+ */
+async function uploadWorksheet(file: File): Promise<string> {
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+  const upload = new FormData();
+  upload.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/files`, {
+    method: 'POST',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: upload,
+    cache: 'no-store',
+  });
+
+  const data: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      data && typeof data === 'object' && 'error' in data
+        ? String((data as { error: { message?: string } }).error.message ?? 'Upload failed')
+        : 'Upload failed';
+    throw new Error(message);
+  }
+
+  return (data as { id: string }).id;
 }
 
 export async function createHomeworkAction(
@@ -20,6 +54,18 @@ export async function createHomeworkAction(
   if (!classroomId) return { error: 'Choose a class.' };
   if (title.length < 2) return { error: 'Give the homework a title.' };
 
+  // The worksheet, if the teacher attached one. Uploaded before the homework
+  // exists, so a rejected file costs nothing — better than creating the work
+  // and then failing to hang the page a parent is meant to print off it.
+  const fileIds: string[] = [];
+  try {
+    for (const entry of formData.getAll('worksheets')) {
+      if (entry instanceof File && entry.size > 0) fileIds.push(await uploadWorksheet(entry));
+    }
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not upload the worksheet.') };
+  }
+
   try {
     await apiFetch('/homework', {
       method: 'POST',
@@ -31,6 +77,7 @@ export async function createHomeworkAction(
         dueDate: String(formData.get('dueDate') ?? ''),
         allowsSubmission: formData.get('allowsSubmission') === 'on',
         publish,
+        fileIds: fileIds.length > 0 ? fileIds : undefined,
       },
     });
   } catch (error) {

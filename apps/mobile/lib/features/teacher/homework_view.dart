@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/attached_file.dart';
@@ -65,6 +68,50 @@ class TeacherHomeworkView extends GetView<TeacherHomeworkController> {
                                 color: Theme.of(context).colorScheme.outline,
                               ),
                         ),
+                        if (item.attachments.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          // The teacher's own worksheet, so they can see what
+                          // the class was actually given.
+                          SizedBox(
+                            height: 56,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: item.attachments.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(width: 8),
+                              itemBuilder: (context, i) {
+                                final file = item.attachments[i];
+                                if (!file.isImage) {
+                                  return Chip(
+                                    avatar: const Icon(
+                                      Icons.description_outlined,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      file.originalName,
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                  );
+                                }
+                                return GestureDetector(
+                                  onTap: () => showPhoto(
+                                    context,
+                                    file.path,
+                                    caption: file.originalName,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: AuthedImage(
+                                      path: file.path,
+                                      width: 56,
+                                      height: 56,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                         if (item.isPublished) ...[
                           const SizedBox(height: 10),
                           ClipRRect(
@@ -162,6 +209,8 @@ class TeacherHomeworkView extends GetView<TeacherHomeworkController> {
   Future<void> _compose(BuildContext context) async {
     final titleField = TextEditingController();
     final detailField = TextEditingController();
+    final picker = ImagePicker();
+    final worksheets = <XFile>[];
     var due = DateTime.now().add(const Duration(days: 2));
     var allowsSubmission = true;
 
@@ -218,12 +267,98 @@ class TeacherHomeworkView extends GetView<TeacherHomeworkController> {
                   if (picked != null) setState(() => due = picked);
                 },
               ),
+              if (worksheets.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 84,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: worksheets.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          // Off local disk: nothing has been uploaded yet.
+                          child: Image.file(
+                            File(worksheets[index].path),
+                            width: 84,
+                            height: 84,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => worksheets.removeAt(index)),
+                            child: const CircleAvatar(
+                              radius: 11,
+                              backgroundColor: Colors.black54,
+                              child: Icon(
+                                Icons.close,
+                                size: 13,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              // Photographing a page from the workbook is how a preschool
+              // teacher shares a worksheet; the portal takes PDFs for anyone
+              // who has one ready.
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: worksheets.length >= 3
+                          ? null
+                          : () async {
+                              final picked = await picker.pickImage(
+                                source: ImageSource.camera,
+                                imageQuality: 70,
+                                maxWidth: 1600,
+                              );
+                              if (picked != null) {
+                                setState(() => worksheets.add(picked));
+                              }
+                            },
+                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      label: const Text('Photograph it'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: worksheets.length >= 3
+                          ? null
+                          : () async {
+                              final picked = await picker.pickImage(
+                                source: ImageSource.gallery,
+                                imageQuality: 70,
+                                maxWidth: 1600,
+                              );
+                              if (picked != null) {
+                                setState(() => worksheets.add(picked));
+                              }
+                            },
+                      icon: const Icon(Icons.photo_library_outlined, size: 18),
+                      label: const Text('From gallery'),
+                    ),
+                  ),
+                ],
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: allowsSubmission,
                 onChanged: (value) => setState(() => allowsSubmission = value),
-                title: const Text('Parents can mark it done'),
-                subtitle: const Text('You still decide whether it counts'),
+                title: const Text('Parents can send the work back'),
+                subtitle: const Text('A photo of what the child did'),
               ),
               const SizedBox(height: 8),
               FilledButton(
@@ -245,6 +380,7 @@ class TeacherHomeworkView extends GetView<TeacherHomeworkController> {
       description: detailField.text,
       dueDate: due,
       allowsSubmission: allowsSubmission,
+      worksheetPaths: worksheets.map((w) => w.path).toList(),
     );
 
     if (!context.mounted) return;

@@ -64,6 +64,11 @@ export default async function TeacherHomeworkPage({
                         {item.progress.total > 0 &&
                           ` · ${item.progress.completed} of ${item.progress.total} done`}
                       </span>
+                      {item.attachments.length > 0 && (
+                        <span className="mt-1 block text-xs text-slate-500">
+                          📎 {item.attachments.map((file) => file.originalName).join(', ')}
+                        </span>
+                      )}
                     </a>
                   </li>
                 );

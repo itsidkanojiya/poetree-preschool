@@ -15,6 +15,7 @@ class TeacherHomework {
     required this.assigned,
     required this.completed,
     required this.pending,
+    required this.attachments,
     this.description,
   });
 
@@ -29,6 +30,10 @@ class TeacherHomework {
       assigned: (progress['total'] as num?)?.toInt() ?? 0,
       completed: (progress['completed'] as num?)?.toInt() ?? 0,
       pending: (progress['pending'] as num?)?.toInt() ?? 0,
+      attachments: (json['attachments'] as List<dynamic>? ?? <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(AttachedFile.fromJson)
+          .toList(),
     );
   }
 
@@ -40,6 +45,9 @@ class TeacherHomework {
   final int assigned;
   final int completed;
   final int pending;
+
+  /// The worksheet the teacher set with it, which parents see on their card.
+  final List<AttachedFile> attachments;
 
   bool get isPublished => status == 'PUBLISHED';
 }
@@ -142,11 +150,21 @@ class TeacherHomeworkController extends GetxController {
     String? description,
     required DateTime dueDate,
     required bool allowsSubmission,
+    List<String> worksheetPaths = const [],
   }) async {
     if (classroomId == null) return 'No class selected.';
 
     isSaving.value = true;
     try {
+      // The worksheet goes up before the homework exists, so a rejected file
+      // costs nothing — better than publishing work to thirty families and
+      // then failing to attach the page they are meant to work from.
+      final fileIds = <String>[];
+      for (final path in worksheetPaths) {
+        final uploaded = await api.upload<Map<String, dynamic>>('/files', path);
+        fileIds.add(uploaded['id'] as String);
+      }
+
       final created = await api.post<Map<String, dynamic>>(
         '/homework',
         body: {
@@ -156,6 +174,7 @@ class TeacherHomeworkController extends GetxController {
             'description': description.trim(),
           'dueDate': dueDate.toIso8601String().substring(0, 10),
           'allowsSubmission': allowsSubmission,
+          if (fileIds.isNotEmpty) 'fileIds': fileIds,
         },
       );
 

@@ -75,6 +75,16 @@ homeworkRouter.patch(
   }),
 );
 
+homeworkRouter.delete(
+  '/:id',
+  requirePermission('homework:manage'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await homework.deleteHomework(id(req), req.auth!.userId);
+    res.status(204).end();
+  }),
+);
+
 homeworkRouter.post(
   '/:id/publish',
   requirePermission('homework:manage'),

@@ -389,6 +389,49 @@ export async function updateHomework(
   return getHomework(homeworkId);
 }
 
+/**
+ * Removes a piece of work that should not have been set.
+ *
+ * Soft, because the audit trail should still be able to explain what a class
+ * was once asked to do. Refused once any child has sent something in: a
+ * teacher who deletes the homework would take a parent's photograph and a
+ * child's work with it, and "I set it twice" is not worth that. Those get
+ * archived instead, which stops them reaching parents while keeping the work.
+ */
+export async function deleteHomework(homeworkId: string, actorUserId: string): Promise<void> {
+  const schoolId = requireSchoolId();
+
+  const existing = await prisma.homework.findFirst({
+    where: { id: homeworkId },
+    select: { id: true, classroomId: true, title: true },
+  });
+  if (!existing) throw ApiError.notFound('Homework not found');
+  await assertTeacherOwnsClassroom(existing.classroomId);
+
+  const sentIn = await prisma.homeworkSubmission.count({
+    where: { homeworkId, status: { not: 'PENDING' } },
+  });
+  if (sentIn > 0) {
+    throw ApiError.badRequest(
+      'Some children have already sent this in. Archive it instead of deleting it.',
+    );
+  }
+
+  await prisma.homework.update({
+    where: { id: homeworkId },
+    data: { deletedAt: new Date() },
+  });
+
+  await writeAuditLog({
+    action: 'HOMEWORK_DELETED',
+    entity: 'Homework',
+    entityId: homeworkId,
+    schoolId,
+    actorUserId,
+    before: { title: existing.title, classroomId: existing.classroomId },
+  });
+}
+
 /** Publishing a draft is what creates the submission rows. */
 export async function publishHomework(
   homeworkId: string,

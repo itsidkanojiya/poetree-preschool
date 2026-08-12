@@ -391,6 +391,37 @@ describe.skipIf(!dbUp)('homework submission', () => {
     expect(foreign.status).toBe(404);
   });
 
+  it('removes work set twice, but not work a child has already sent in', async () => {
+    const duplicate = await api
+      .post(`${BASE}/homework`)
+      .set(auth(teacherA))
+      .send({
+        classroomId: schoolA.classroomId,
+        title: 'Draw your family',
+        dueDate: inDays(3),
+        allowsSubmission: true,
+      });
+    const duplicateId = duplicate.body.id as string;
+    await api.post(`${BASE}/homework/${duplicateId}/publish`).set(auth(teacherA));
+
+    const removed = await api.delete(`${BASE}/homework/${duplicateId}`).set(auth(teacherA));
+    expect(removed.status).toBe(204);
+
+    const listed = await api
+      .get(`${BASE}/homework`)
+      .query({ classroomId: schoolA.classroomId, pageSize: 50 })
+      .set(auth(teacherA));
+    expect(listed.body.items.map((h: { id: string }) => h.id)).not.toContain(duplicateId);
+
+    // The one with a photograph in it cannot go the same way. Deleting it
+    // would take a parent's picture and a child's work with it.
+    const refused = await api.delete(`${BASE}/homework/${photoHomeworkId}`).set(auth(teacherA));
+    expect(refused.status).toBe(400);
+
+    const survives = await api.get(`${BASE}/files/${photoId}`).set(auth(parentA));
+    expect(survives.status).toBe(200);
+  });
+
   it('keeps a parent out of the submissions list', async () => {
     // "Who has done their homework" is a list of other people's children.
     const response = await api

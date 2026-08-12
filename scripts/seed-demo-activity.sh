@@ -227,7 +227,22 @@ note "week saved ($code)"
 
 # ------------------------------------------------------------------ homework
 say "Homework"
+
+# Titles the class already has. This script is run again whenever the demo needs
+# refreshing, and without this it sets a second "Practise letter A" every time —
+# which is how production ended up with three duplicated pieces of work and a
+# teacher's list that looked like a bug.
+EXISTING_HW=$(curl -s "$B/homework?classroomId=$CLS&pageSize=100" -H "$TH" \
+  | python -c "import sys,json
+try:
+    for item in json.load(sys.stdin).get('items', []): print(item.get('title',''))
+except Exception: pass")
+
 mkhw() {
+  if printf '%s\n' "$EXISTING_HW" | grep -Fxq "$1"; then
+    note "$1 (already set)"
+    return
+  fi
   DUE=$(date -u -d "$2 days" +%Y-%m-%d 2>/dev/null || date -u -v+${2}d +%Y-%m-%d)
   HW=$(curl -s -X POST "$B/homework" -H "$TH" -H "$JS" \
     -d "{\"classroomId\":\"$CLS\",\"title\":\"$1\",\"description\":\"$3\",\"dueDate\":\"$DUE\",\"allowsSubmission\":true}" \

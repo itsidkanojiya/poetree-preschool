@@ -16,6 +16,7 @@ import {
   storage,
   typeFor,
 } from '../lib/storage.js';
+import { stripImageMetadata } from '../lib/exif.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
 
 export const fileRouter = Router();
@@ -77,10 +78,19 @@ fileRouter.post(
       );
     }
 
+    // Strip metadata before anything touches disk.
+    //
+    // A photograph off a phone carries where it was taken. For this product
+    // that is usually a child's home, because the commonest upload is a parent
+    // photographing homework at the kitchen table. Storing it would mean the
+    // school held, and served back, the address of every family who ever sent
+    // a picture in.
+    const bytes = stripImageMetadata(file.buffer, mime);
+
     const stored = await storage.put({
       schoolId,
       originalName: file.originalname,
-      bytes: file.buffer,
+      bytes,
     });
 
     const record = await prisma.fileObject.create({
@@ -125,6 +135,14 @@ async function assertMayRead(fileId: string): Promise<void> {
         OR: [
           { uploadedById: context.userId },
           { homeworkAttachments: { some: { homework: { classroomId: { in: classrooms } } } } },
+          // Work sent in by a family, for a class this teacher actually takes.
+          // Without this a teacher could open the review screen, see that a
+          // photograph had been submitted, and get a 404 fetching it.
+          {
+            submissionFiles: {
+              some: { submission: { homework: { classroomId: { in: classrooms } } } },
+            },
+          },
           { classroomPostAttachments: { some: { post: { classroomId: { in: classrooms } } } } },
           { noticeAttachments: { some: {} } },
         ],
@@ -166,6 +184,21 @@ async function assertMayRead(fileId: string): Promise<void> {
         },
         { noticeAttachments: { some: { notice: { status: 'PUBLISHED' } } } },
         { documents: { some: { studentId: { in: studentIds } } } },
+        // Their own child's submitted work.
+        //
+        // Scoped by the guardian link and nothing else. Deliberately NOT by
+        // `uploadedById`, which would be the easy way to let a parent re-read
+        // what they sent: it would also hand them any file they had ever
+        // uploaded, whatever it was later attached to.
+        //
+        // The case this has to survive is two children in the same class. They
+        // share a classroom, a teacher and the homework itself, so every
+        // filter except this one passes for both families.
+        {
+          submissionFiles: {
+            some: { submission: { studentId: { in: studentIds } } },
+          },
+        },
       ],
     },
     select: { id: true },

@@ -89,6 +89,14 @@ export interface HomeworkSummary {
   assignedBy: string;
   assignedOn: string;
   attachmentCount: number;
+  /**
+   * The worksheet the teacher attached.
+   *
+   * Carried on the list rather than behind a detail call: there are at most
+   * ten, and a round trip per card would make a parent's homework tab N+1 on
+   * exactly the connection least able to afford it.
+   */
+  attachments: AttachedFile[];
   /** Only meaningful once published. */
   progress: { total: number; completed: number; pending: number };
   /**
@@ -100,7 +108,23 @@ export interface HomeworkSummary {
     status: SubmissionStatus;
     submittedOn: string | null;
     teacherRemark: string | null;
+    /** What this family already sent in, so they can see it came through. */
+    files: AttachedFile[];
   };
+}
+
+/**
+ * A file hanging off a piece of homework or a submission.
+ *
+ * `url` points at the authenticated route, never at storage — the API re-checks
+ * on every request who may see it, so the address alone is not a key.
+ */
+export interface AttachedFile {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
 }
 
 export interface SubmissionSummary {
@@ -110,6 +134,15 @@ export interface SubmissionSummary {
   rollNo: string | null;
   status: SubmissionStatus;
   submittedOn: string | null;
+  /**
+   * What the parent said when they sent it in.
+   *
+   * The teacher's review screen has been rendering this since it was built,
+   * and it was never returned — so the quote was always empty.
+   */
+  note: string | null;
+  /** The photograph of the work, which is what a preschool submission is. */
+  files: AttachedFile[];
   teacherRemark: string | null;
   reviewedOn: string | null;
 }

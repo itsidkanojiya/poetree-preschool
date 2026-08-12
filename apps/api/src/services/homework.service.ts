@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type {
+  AttachedFile,
   CreateClassroomPostInput,
   CreateHomeworkInput,
   ClassroomPostSummary,
@@ -64,11 +65,30 @@ async function notifyHomeworkPublished(
   });
 }
 
+/** Everything an attached file needs to be listed and opened. */
+const attachedFileSelect = {
+  id: true,
+  originalName: true,
+  mimeType: true,
+  sizeBytes: true,
+} as const;
+
+function toAttachedFile(file: {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+}): AttachedFile {
+  // The authenticated route, not a storage path. Guessing it gets you nothing.
+  return { ...file, url: `/api/v1/files/${file.id}` };
+}
+
 const homeworkInclude = {
   classroom: { include: { classLevel: { select: { code: true } } } },
   subject: { select: { id: true, name: true } },
   assignedBy: { select: { name: true } },
   _count: { select: { attachments: true } },
+  attachments: { include: { file: { select: attachedFileSelect } } },
 } satisfies Prisma.HomeworkInclude;
 
 type HomeworkRow = Prisma.HomeworkGetPayload<{ include: typeof homeworkInclude }>;
@@ -92,6 +112,7 @@ function toSummary(
     assignedBy: row.assignedBy.name,
     assignedOn: row.assignedOn.toISOString(),
     attachmentCount: row._count.attachments,
+    attachments: row.attachments.map((a) => toAttachedFile(a.file)),
     progress,
   };
 }
@@ -167,6 +188,7 @@ export async function listHomework(query: ListHomeworkQuery): Promise<Paginated<
         status: true,
         submittedOn: true,
         teacherRemark: true,
+        files: { include: { file: { select: attachedFileSelect } } },
       },
     });
 
@@ -176,6 +198,9 @@ export async function listHomework(query: ListHomeworkQuery): Promise<Paginated<
         status: submission.status,
         submittedOn: submission.submittedOn?.toISOString() ?? null,
         teacherRemark: submission.teacherRemark,
+        // A parent who sent a photo should be able to see that it arrived,
+        // not just be told the status changed.
+        files: submission.files.map((f) => toAttachedFile(f.file)),
       });
     }
   }
@@ -242,9 +267,25 @@ export async function createHomework(
       },
     });
 
-    if (input.fileIds?.length) {
+    // Same rule as a parent's submission: you may only attach what you
+    // uploaded. A homework attachment is readable by every family in the
+    // class, so attaching someone else's file would publish it to thirty
+    // households.
+    const attachmentIds = [...new Set(input.fileIds ?? [])];
+
+    if (attachmentIds.length > 0) {
+      const owned = await tx.fileObject.findMany({
+        where: { id: { in: attachmentIds }, uploadedById: actorUserId },
+        select: { id: true },
+      });
+
+      if (owned.length !== attachmentIds.length) {
+        throw ApiError.badRequest('You can only attach files you uploaded yourself');
+      }
+
       await tx.homeworkAttachment.createMany({
-        data: input.fileIds.map((fileId) => ({ schoolId, homeworkId: homework.id, fileId })),
+        data: attachmentIds.map((fileId) => ({ schoolId, homeworkId: homework.id, fileId })),
+        skipDuplicates: true,
       });
     }
 
@@ -401,7 +442,9 @@ export async function listSubmissions(homeworkId: string): Promise<SubmissionSum
           enrolments: { where: { status: 'ACTIVE' }, take: 1, select: { rollNo: true } },
         },
       },
+      files: { include: { file: { select: attachedFileSelect } } },
     },
+    orderBy: [{ status: 'asc' }],
   });
 
   return submissions.map((submission) => ({
@@ -413,6 +456,11 @@ export async function listSubmissions(homeworkId: string): Promise<SubmissionSum
     rollNo: submission.student.enrolments[0]?.rollNo ?? null,
     status: submission.status,
     submittedOn: submission.submittedOn?.toISOString() ?? null,
+    // Both of these were stored and never returned, so the teacher's review
+    // screen showed an empty quote and no photograph — the two things they
+    // need to decide whether the work is done.
+    note: submission.note,
+    files: submission.files.map((f) => toAttachedFile(f.file)),
     teacherRemark: submission.teacherRemark,
     reviewedOn: submission.reviewedOn?.toISOString() ?? null,
   }));
@@ -498,16 +546,30 @@ export async function submitHomework(
       },
     });
 
-    for (const fileId of input.fileIds ?? []) {
-      // Scoped, so a file id from another school does not attach.
-      const file = await tx.fileObject.findFirst({
-        where: { id: fileId },
+    // Only files this person uploaded themselves.
+    //
+    // The school check alone is not enough now that a submission grants read
+    // access to what is attached to it. Attaching any file id in the school
+    // would have let a parent point their own child's submission at another
+    // family's medical letter and thereby give themselves permission to open
+    // it. Attaching must never widen what you can see.
+    const fileIds = [...new Set(input.fileIds ?? [])];
+
+    if (fileIds.length > 0) {
+      const owned = await tx.fileObject.findMany({
+        where: { id: { in: fileIds }, uploadedById: actorUserId },
         select: { id: true },
       });
-      if (!file) throw ApiError.badRequest('That file does not exist');
 
-      await tx.homeworkSubmissionFile.create({
-        data: { schoolId, submissionId: submission.id, fileId },
+      if (owned.length !== fileIds.length) {
+        throw ApiError.badRequest('You can only attach files you uploaded yourself');
+      }
+
+      // skipDuplicates because (submission, file) is unique: a parent sending
+      // the same photograph twice is a double tap, not a 500.
+      await tx.homeworkSubmissionFile.createMany({
+        data: fileIds.map((fileId) => ({ schoolId, submissionId: submission.id, fileId })),
+        skipDuplicates: true,
       });
     }
   });

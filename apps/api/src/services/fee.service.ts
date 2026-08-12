@@ -535,7 +535,7 @@ export interface LedgerEntry {
  * but the permission says nothing about *whose* fees. Without this, any parent
  * could read any child's arrears by guessing an id.
  */
-async function assertMayReadLedger(studentId: string): Promise<void> {
+export async function assertMayReadLedger(studentId: string): Promise<void> {
   const context = getRequestContext();
   if (!context) throw ApiError.unauthenticated();
   if (context.role !== 'PARENT') return;

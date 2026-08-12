@@ -159,6 +159,8 @@ export async function studentAttendance(
 /* -------------------------------------------------------------------------- */
 
 export interface CollectionRow {
+  /** Carried so the office can open the receipt itself, not just its number. */
+  paymentId: string;
   receiptNo: string;
   paidOn: string;
   student: string;
@@ -186,6 +188,7 @@ export async function feeCollection(range: DateRange): Promise<CollectionRow[]> 
   });
 
   return payments.map((payment) => ({
+    paymentId: payment.id,
     receiptNo: payment.receiptNo,
     paidOn: payment.paidOn.toISOString().slice(0, 10),
     student: [payment.student.firstName, payment.student.lastName].filter(Boolean).join(' '),

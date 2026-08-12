@@ -8,6 +8,7 @@ import { body, params, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import * as fees from '../services/fee.service.js';
+import * as documents from '../services/document.service.js';
 
 export const feeRouter = Router();
 
@@ -219,6 +220,39 @@ feeRouter.post(
   validate({ params: idParamSchema, body: z.object({ reason: z.string().trim().min(3).max(200) }) }),
   asyncHandler(async (req, res) => {
     res.json(await fees.refundPayment(id(req), body<{ reason: string }>(req).reason, req.auth!.userId));
+  }),
+);
+
+/**
+ * The receipt itself, as a document.
+ *
+ * A receipt is what a parent is actually given, and until now the system could
+ * produce the number but not the paper. Guarded inside the service by the same
+ * check the ledger uses, so a parent can print their own child's and nobody
+ * else's.
+ */
+feeRouter.get(
+  '/payments/:id/receipt',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { buffer, filename } = await documents.paymentReceipt(id(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buffer);
+  }),
+);
+
+/** Every bill and payment for one child, on one page. */
+feeRouter.get(
+  '/students/:id/fee-card',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { buffer, filename } = await documents.feeCard(id(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buffer);
   }),
 );
 

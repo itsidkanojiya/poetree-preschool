@@ -38,6 +38,7 @@ interface StudentAttendanceRow {
 }
 
 interface CollectionRow {
+  paymentId: string;
   receiptNo: string;
   paidOn: string;
   student: string;
@@ -403,7 +404,18 @@ function ReportTable({ tab, rows }: { tab: TabKey; rows: unknown[] }) {
         <tbody>
           {(rows as CollectionRow[]).map((row) => (
             <TRow key={row.receiptNo}>
-              <TCell className="font-medium text-navy-950">{row.receiptNo}</TCell>
+              <TCell>
+                {/* The number was already here; now it opens the document a
+                    parent was actually handed. */}
+                <a
+                  href={`/school/documents?kind=receipt&id=${row.paymentId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-navy-900 hover:text-navy-700"
+                >
+                  {row.receiptNo}
+                </a>
+              </TCell>
               <TCell>{formatDate(row.paidOn)}</TCell>
               <TCell>
                 <TPrimary sub={row.admissionNo}>{row.student}</TPrimary>

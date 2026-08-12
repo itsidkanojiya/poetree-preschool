@@ -87,6 +87,7 @@ export default async function FeesPage() {
                   'Admission no.',
                   { label: 'Outstanding', numeric: true },
                   { label: 'Overdue invoices', numeric: true },
+                  { label: 'Fee card', hidden: true },
                 ]}
               />
               <tbody>
@@ -109,6 +110,18 @@ export default async function FeesPage() {
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
+                    </TCell>
+                    <TCell>
+                      {/* Opens rather than downloads: an office looks at a fee
+                          card before deciding to print it. */}
+                      <a
+                        href={`/school/documents?kind=fee-card&id=${row.studentId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium text-navy-900 hover:text-navy-700"
+                      >
+                        Fee card
+                      </a>
                     </TCell>
                   </TRow>
                 ))}

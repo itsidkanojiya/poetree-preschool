@@ -60,8 +60,9 @@ LEVEL_ID=$(curl -s -H "$AH" "$B/class-levels" | python -c "
 import sys,json
 for l in json.load(sys.stdin):
     if l['code']=='$LEVEL_CODE': print(l['id']); break")
-PARENT=$(curl -s -H "$AH" "$B/parents?pageSize=1" | python -c "
-import sys,json;d=json.load(sys.stdin)['items'];print(d[0]['id'] if d else '')")
+EXISTING_ADMISSIONS=$(curl -s -H "$AH" "$B/students?pageSize=100" | python -c "
+import sys,json
+print(' '.join(s['fullName'] for s in json.load(sys.stdin)['items']))")
 
 say "Sunrise Preschool · $LEVEL_CODE · year $AY"
 
@@ -80,13 +81,35 @@ i=0
 for name in "${NAMES[@]}"; do
   i=$((i+1))
   [ "$COUNT" -ge "$TARGET_CHILDREN" ] && break
+
   FIRST=${name%% *}; LAST=${name#* }
+
+  # Skip a name the school already has, or the demo grows a second Aarav
+  # Joshi beside the seeded one and nobody can tell them apart.
+  case " $EXISTING_ADMISSIONS " in *" $FIRST "*) note "skipped $name — already enrolled"; continue ;; esac
+
+  # A parent PER CHILD. Reusing one profile for everybody made that parent the
+  # guardian of the whole class, so signing in showed eleven children in the
+  # switcher — which reads as a data leak even though the app was faithfully
+  # listing children they really were linked to.
+  SLUG=$(echo "$LAST" | tr '[:upper:]' '[:lower:]')
+  PARENT=$(curl -s -X POST "$B/parents" -H "$AH" -H "$JS" \
+    -d "{\"name\":\"$LAST family\",\"phone\":\"+9190000$(printf '%05d' $((10000+i)))\",\"password\":\"$PASSWORD\",\"relation\":\"GUARDIAN\",\"email\":\"$SLUG$i@sunrise.test\"}" \
+    | python -c "import sys,json
+try: print(json.load(sys.stdin)['id'])
+except Exception: print('')")
+
+  if [ -z "$PARENT" ]; then
+    note "could not create a guardian for $name — skipping"
+    continue
+  fi
+
   ADM="SUN-$(printf '%03d' $((100+i)))"
   YEAR=$((2021 + (i % 3)))
   code=$(api POST /students "$AH" "{\"firstName\":\"$FIRST\",\"lastName\":\"$LAST\",\"dateOfBirth\":\"$YEAR-0$((1+i%9))-1$((i%9))\",\"gender\":\"$([ $((i%2)) -eq 0 ] && echo FEMALE || echo MALE)\",\"admissionNo\":\"$ADM\",\"rollNo\":\"$i\",\"classroomId\":\"$CLS\",\"guardians\":[{\"parentProfileId\":\"$PARENT\",\"relation\":\"GUARDIAN\",\"isPrimary\":true}]}")
   if [ "$code" = "201" ]; then
     COUNT=$((COUNT+1))
-    note "added $name"
+    note "added $name with their own guardian"
   fi
 done
 note "class size now: $COUNT"

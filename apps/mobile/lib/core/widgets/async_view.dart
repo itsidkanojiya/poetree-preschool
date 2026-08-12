@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'authed_image.dart';
+
 /// Loading, empty and error states, once, for every screen.
 ///
 /// Written as a shared widget because these three are the states most often
@@ -113,11 +115,21 @@ class _Message extends StatelessWidget {
 }
 
 /// A child's or a person's initials, used wherever a photograph is missing.
+/// A face when the school has uploaded one, initials when it has not.
 class InitialsAvatar extends StatelessWidget {
-  const InitialsAvatar({required this.name, this.radius = 22, super.key});
+  const InitialsAvatar({
+    required this.name,
+    this.radius = 22,
+    this.photoPath,
+    super.key,
+  });
 
   final String name;
   final double radius;
+
+  /// An API path such as `/files/abc`. Authenticated, so it goes through
+  /// AuthedImage rather than Image.network.
+  final String? photoPath;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +141,17 @@ class InitialsAvatar extends StatelessWidget {
         : '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}';
 
     final colors = Theme.of(context).colorScheme;
+
+    final path = photoPath;
+    if (path != null && path.isNotEmpty) {
+      return ClipOval(
+        child: SizedBox(
+          width: radius * 2,
+          height: radius * 2,
+          child: AuthedImage(path: path, width: radius * 2, height: radius * 2),
+        ),
+      );
+    }
 
     return CircleAvatar(
       radius: radius,

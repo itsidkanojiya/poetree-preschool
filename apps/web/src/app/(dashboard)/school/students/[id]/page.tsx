@@ -6,7 +6,7 @@ import { apiFetch, ApiRequestError } from '@/lib/api';
 import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft, IconChart, IconSpark } from '@/components/icons';
 import { formatDate } from '@/lib/format';
-import { AttachDocumentForm, RemoveDocumentButton } from './forms';
+import { AttachDocumentForm, RemoveDocumentButton, StudentPhotoForm } from './forms';
 
 const TYPE_LABELS: Record<string, string> = {
   PHOTO: 'Photograph',
@@ -96,9 +96,13 @@ export default async function StudentDetailPage({
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1.15fr]">
         <div className="space-y-5">
+          <Card title="Photograph">
+            <StudentPhotoForm studentId={student.id} />
+          </Card>
+
           <Card title="Profile">
             <div className="mb-5 flex items-center gap-3">
-              <Avatar name={student.fullName} />
+              <Avatar name={student.fullName} photoUrl={student.avatarUrl} />
               <div>
                 <p className="font-medium text-navy-950">{student.fullName}</p>
                 <p className="text-xs text-slate-500">

@@ -1,6 +1,7 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import {
+  setStudentPhotoSchema,
   attachDocumentSchema,
   createAcademicYearSchema,
   createClassroomSchema,
@@ -249,6 +250,16 @@ schoolAdminRouter.delete(
     const { id, documentId } = params<{ id: string; documentId: string }>(req);
     await documentService.removeDocument(id, documentId, req.auth!.userId);
     res.status(204).send();
+  }),
+);
+
+/** The child's photograph. Null takes it away again. */
+schoolAdminRouter.put(
+  '/students/:id/photo',
+  validate({ params: idParamSchema, body: setStudentPhotoSchema }),
+  asyncHandler(async (req, res) => {
+    const { fileId } = body<{ fileId: string | null }>(req);
+    res.json(await studentService.setStudentPhoto(idOf(req), fileId, req.auth!.userId));
   }),
 );
 

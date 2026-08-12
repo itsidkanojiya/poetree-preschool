@@ -19,6 +19,8 @@ import 'package:poetree_school/features/teacher/register_controller.dart';
 /// on a specific non-zero value.
 
 void main() {
+  group('child photographs', _childPhotoTests);
+
   group('branding', _brandingTests);
 
   test('fee ledger reads the money from totals, not the top level', () {
@@ -332,5 +334,30 @@ void _brandingTests() {
     expect(restored.name, original.name);
     expect(restored.primaryColor, original.primaryColor);
     expect(restored.logoUrl, original.logoUrl);
+  });
+}
+
+void _childPhotoTests() {
+  test('a child’s photograph is fetchable, not doubled', () {
+    final child = Child.fromJson({
+      'id': 'st_1',
+      'fullName': 'Aarav Joshi',
+      'admissionNo': 'A-0001',
+      'avatarUrl': '/api/v1/files/photo_1',
+    });
+
+    // Same trim as every other file path: the client's base URL already ends
+    // in /api/v1, and leaving it would 404 every face in the app.
+    expect(child.photoPath, '/files/photo_1');
+  });
+
+  test('a child with no photograph falls back to initials', () {
+    final child = Child.fromJson({
+      'id': 'st_2',
+      'fullName': 'Diya Nair',
+      'admissionNo': 'A-0002',
+    });
+
+    expect(child.photoPath, isNull);
   });
 }

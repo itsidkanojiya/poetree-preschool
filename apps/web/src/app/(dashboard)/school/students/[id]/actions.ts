@@ -99,3 +99,76 @@ export async function removeDocumentAction(
   revalidatePath(`/school/students/${studentId}`);
   return { success: 'Document removed.' };
 }
+
+
+/**
+ * The child's photograph.
+ *
+ * Same two steps as a document, and never public: a school's logo is painted on
+ * its gate, a four-year-old's face is not. It stays behind /files/:id, where a
+ * parent may see their own child and a teacher the children in their class.
+ */
+export async function setStudentPhotoAction(
+  studentId: string,
+  _prev: DocumentState,
+  formData: FormData,
+): Promise<DocumentState> {
+  const file = formData.get('photo');
+
+  if (!(file instanceof File) || file.size === 0) {
+    try {
+      await apiFetch(`/students/${studentId}/photo`, {
+        method: 'PUT',
+        redirectOnAuthFailure: false,
+        body: { fileId: null },
+      });
+    } catch (error) {
+      return { error: errorMessage(error, 'Could not remove the photograph.') };
+    }
+
+    revalidatePath(`/school/students/${studentId}`);
+    return { success: 'Photograph removed.' };
+  }
+
+  let fileId: string;
+
+  try {
+    const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+    const upload = new FormData();
+    upload.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/files`, {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: upload,
+      cache: 'no-store',
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const message =
+        data && typeof data === 'object' && 'error' in data
+          ? String((data as { error: { message?: string } }).error.message ?? 'Upload failed')
+          : 'Upload failed';
+      return { error: message };
+    }
+
+    fileId = (data as { id: string }).id;
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not upload the photograph.') };
+  }
+
+  try {
+    await apiFetch(`/students/${studentId}/photo`, {
+      method: 'PUT',
+      redirectOnAuthFailure: false,
+      body: { fileId },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'The photograph uploaded but would not attach.') };
+  }
+
+  revalidatePath(`/school/students/${studentId}`);
+  return { success: 'Photograph saved.' };
+}

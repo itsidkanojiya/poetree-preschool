@@ -520,6 +520,9 @@ model Student {
   dateOfBirth   DateTime
   gender        Gender
   avatarUrl     String?       @db.VarChar(500)
+  /// An uploaded photograph, preferred over avatarUrl. Never public: it is a
+  /// picture of somebody's four-year-old and stays behind /files/:id.
+  photoFileId   String?       @db.VarChar(191)
   bloodGroup    String?       @db.VarChar(8)
   status        StudentStatus @default(ACTIVE)
 
@@ -541,6 +544,7 @@ model Student {
   updatedAt DateTime @updatedAt
 
   school              School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  photoFile           FileObject?            @relation("StudentPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
   guardians           StudentGuardian[]
   enrolments          StudentEnrolment[]
   documents           StudentDocument[]
@@ -1587,6 +1591,7 @@ model FileObject {
 
   school                   School?                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   brandedSchools           School[]                  @relation("SchoolLogo")
+  studentPhotos            Student[]                 @relation("StudentPhoto")
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   documents                StudentDocument[]
   homeworkAttachments      HomeworkAttachment[]

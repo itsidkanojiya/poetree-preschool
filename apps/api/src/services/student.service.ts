@@ -52,7 +52,12 @@ function toSummary(student: StudentRow): StudentSummary {
     dateOfBirth: student.dateOfBirth.toISOString(),
     gender: student.gender,
     rollNo: enrolment?.rollNo ?? null,
-    avatarUrl: student.avatarUrl,
+    // The uploaded photograph wins over a typed-in URL: somebody who uploads
+    // one has just said which they mean. Authenticated, unlike a school logo —
+    // this is a picture of a four-year-old.
+    avatarUrl: student.photoFileId
+      ? `/api/v1/files/${student.photoFileId}`
+      : student.avatarUrl,
     bloodGroup: student.bloodGroup,
     status: student.status,
     classroom: enrolment
@@ -330,6 +335,57 @@ export async function updateStudent(
     schoolId,
     actorUserId,
     metadata: { fields: Object.keys(input) },
+  });
+
+  return getStudent(studentId);
+}
+
+
+/**
+ * Points a child's record at an already-uploaded photograph.
+ *
+ * Two steps like every other attachment: POST /files owns the bytes, the
+ * sniffing, the caps and the EXIF stripping, and this records the choice.
+ */
+export async function setStudentPhoto(
+  studentId: string,
+  fileId: string | null,
+  actorUserId: string,
+): Promise<StudentSummary> {
+  const schoolId = requireSchoolId();
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId },
+    select: { id: true, photoFileId: true },
+  });
+  if (!student) throw ApiError.notFound('Student not found');
+
+  if (fileId) {
+    // Through the scoped client, so a file from another school is simply not
+    // there — a child cannot be given a photograph from somebody else's roll.
+    const file = await prisma.fileObject.findFirst({
+      where: { id: fileId, deletedAt: null },
+      select: { id: true, mimeType: true },
+    });
+    if (!file) throw ApiError.badRequest('That file does not exist');
+    if (!file.mimeType.startsWith('image/')) {
+      throw ApiError.badRequest('A photograph has to be a picture');
+    }
+  }
+
+  await prisma.student.update({
+    where: { id: studentId },
+    data: { photoFileId: fileId },
+  });
+
+  await writeAuditLog({
+    action: fileId ? 'STUDENT_DOCUMENT_ATTACHED' : 'STUDENT_DOCUMENT_REMOVED',
+    entity: 'Student',
+    entityId: studentId,
+    schoolId,
+    actorUserId,
+    before: { photoFileId: student.photoFileId },
+    after: { photoFileId: fileId },
   });
 
   return getStudent(studentId);

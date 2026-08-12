@@ -13,10 +13,14 @@ class Child {
     this.classroomId,
     this.classroomLabel,
     this.rollNo,
+    this.photoPath,
   });
 
   factory Child.fromJson(Map<String, dynamic> json) {
     final classroom = json['classroom'] as Map<String, dynamic>?;
+    // The API answers with a path rooted at the domain; ours already ends in
+    // /api/v1. The same trim AttachedFile does, for the same reason.
+    final avatar = json['avatarUrl'] as String?;
     return Child(
       id: json['id'] as String,
       fullName: json['fullName'] as String,
@@ -24,12 +28,19 @@ class Child {
       classroomId: classroom?['id'] as String?,
       classroomLabel: classroom?['label'] as String?,
       rollNo: json['rollNo'] as String?,
+      photoPath: avatar == null || avatar.isEmpty
+          ? null
+          : avatar.replaceFirst('/api/v1', ''),
     );
   }
 
   final String id;
   final String fullName;
   final String admissionNo;
+
+  /// The child's photograph, behind the authenticated file route — it is a
+  /// picture of a four-year-old, not a school badge.
+  final String? photoPath;
   final String? classroomId;
   final String? classroomLabel;
   final String? rollNo;

@@ -3,7 +3,12 @@
 import { useActionState } from 'react';
 import { STUDENT_DOCUMENT_TYPES } from '@poetree/shared';
 import { Field, FieldSet, FormError, FormSuccess, Input, Select, SubmitButton } from '@/components/ui/form';
-import { attachDocumentAction, removeDocumentAction, type DocumentState } from './actions';
+import {
+  attachDocumentAction,
+  removeDocumentAction,
+  setStudentPhotoAction,
+  type DocumentState,
+} from './actions';
 
 const TYPE_LABELS: Record<string, string> = {
   PHOTO: 'Photograph',
@@ -79,6 +84,36 @@ export function RemoveDocumentButton({
         Remove
       </button>
       {state.error && <p className="mt-1 text-xs text-rose-600">{state.error}</p>}
+    </form>
+  );
+}
+
+
+/**
+ * The child's photograph, which is what makes a register of thirty names
+ * usable by a teacher who started on Monday.
+ */
+export function StudentPhotoForm({ studentId }: { studentId: string }) {
+  const [state, formAction] = useActionState<DocumentState, FormData>(
+    setStudentPhotoAction.bind(null, studentId),
+    {},
+  );
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+
+      <Field
+        label="Photograph"
+        hint="Only the school, this child's teachers and their own family can see it. Submit with nothing chosen to remove it."
+      >
+        <Input name="photo" type="file" accept="image/png,image/jpeg,image/webp" />
+      </Field>
+
+      <SubmitButton variant="secondary" pendingLabel="Saving…">
+        Save photograph
+      </SubmitButton>
     </form>
   );
 }

@@ -144,6 +144,15 @@ async function assertMayRead(fileId: string): Promise<void> {
             },
           },
           { classroomPostAttachments: { some: { post: { classroomId: { in: classrooms } } } } },
+          // The face on the register. A teacher who cannot load it sees a row
+          // of broken squares for the children in front of them.
+          {
+            studentPhotos: {
+              some: {
+                enrolments: { some: { classroomId: { in: classrooms }, status: 'ACTIVE' } },
+              },
+            },
+          },
           { noticeAttachments: { some: {} } },
         ],
       },
@@ -182,6 +191,8 @@ async function assertMayRead(fileId: string): Promise<void> {
             },
           },
         },
+        // Their own child's photograph, and no other child's.
+        { studentPhotos: { some: { id: { in: studentIds } } } },
         { noticeAttachments: { some: { notice: { status: 'PUBLISHED' } } } },
         { documents: { some: { studentId: { in: studentIds } } } },
         // Their own child's submitted work.

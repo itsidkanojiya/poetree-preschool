@@ -210,6 +210,10 @@ export interface ParentSummary {
   createdAt: string;
 }
 
+/** Null clears it. */
+export const setStudentPhotoSchema = z.object({ fileId: idSchema.nullable() });
+export type SetStudentPhotoInput = z.infer<typeof setStudentPhotoSchema>;
+
 export interface StudentSummary {
   id: string;
   admissionNo: string;

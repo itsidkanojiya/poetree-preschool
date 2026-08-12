@@ -282,7 +282,16 @@ const AVATAR_TONES = [
   'bg-slate-200 text-slate-700',
 ];
 
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
+export function Avatar({
+  name,
+  size = 'md',
+  photoUrl,
+}: {
+  name: string;
+  size?: 'sm' | 'md';
+  /** An API path. Proxied so the httpOnly cookie's token can be attached. */
+  photoUrl?: string | null;
+}) {
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -295,6 +304,20 @@ export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md'
   for (let i = 0; i < name.length; i += 1) hash = (hash + name.charCodeAt(i)) % AVATAR_TONES.length;
 
   const dimensions = size === 'sm' ? 'h-7 w-7 text-[0.65rem]' : 'h-9 w-9 text-xs';
+
+  const fileId = photoUrl?.split('/').pop();
+  if (fileId) {
+    return (
+      /* A plain img: one small picture from our own API, and next/image would
+         want a loader configured for the host. */
+      <img
+        src={`/attachments?id=${fileId}`}
+        alt=""
+        aria-hidden="true"
+        className={`shrink-0 rounded-full object-cover ${dimensions}`}
+      />
+    );
+  }
 
   return (
     <span

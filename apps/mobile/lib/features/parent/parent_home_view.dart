@@ -188,7 +188,11 @@ class _ChildSwitcher extends StatelessWidget {
                     ),
                   ),
                   padding: const EdgeInsets.all(2),
-                  child: InitialsAvatar(name: child.fullName, radius: 22),
+                  child: InitialsAvatar(
+                    name: child.fullName,
+                    radius: 22,
+                    photoPath: child.photoPath,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(

@@ -35,6 +35,7 @@ const PUBLICATION_NAV: NavGroup[] = [
       { href: '/publication', label: 'Overview', icon: <IconHome size={18} />, exact: true },
       { href: '/publication/schools', label: 'Schools', icon: <IconSchool size={18} /> },
       { href: '/publication/plans', label: 'Plans', icon: <IconPlan size={18} /> },
+      { href: '/publication/activities', label: 'Activities', icon: <IconSpark size={18} /> },
     ],
   },
 ];

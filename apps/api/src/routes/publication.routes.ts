@@ -1,26 +1,32 @@
 import { Router } from 'express';
 import {
   assignSubscriptionSchema,
+  createActivitySchema,
   createPlanSchema,
   createSchoolAdminSchema,
   createSchoolSchema,
   idParamSchema,
+  listActivitiesQuerySchema,
   listPlansQuerySchema,
   listSchoolsQuerySchema,
   reactivateSchoolSchema,
   suspendSchoolSchema,
+  updateActivitySchema,
   updatePlanSchema,
   updateSchoolSchema,
 } from '@poetree/shared';
 import type {
   AssignSubscriptionInput,
+  CreateActivityInput,
   CreatePlanInput,
   CreateSchoolAdminInput,
   CreateSchoolInput,
+  ListActivitiesQuery,
   ListPlansQuery,
   ListSchoolsQuery,
   ReactivateSchoolInput,
   SuspendSchoolInput,
+  UpdateActivityInput,
   UpdatePlanInput,
   UpdateSchoolInput,
 } from '@poetree/shared';
@@ -30,6 +36,8 @@ import { body, params, query, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
 import * as planService from '../services/plan.service.js';
+import * as catalogue from '../services/catalogue.service.js';
+import * as classroomService from '../services/classroom.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -217,5 +225,78 @@ publicationRouter.patch(
   validate({ params: idParamSchema, body: updatePlanSchema }),
   asyncHandler(async (req, res) => {
     res.json(await planService.updatePlan(params<{ id: string }>(req).id, body<UpdatePlanInput>(req)));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Learning activities — the publisher's own product                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The catalogue every school plays from.
+ *
+ * Authoring lives here and nowhere else. A school cannot write an activity, or
+ * edit one, or retire one: sixty schools each amending the alphabet would make
+ * "80% on letter recognition" mean sixty different things.
+ */
+publicationRouter.get(
+  '/activities',
+  validate({ query: listActivitiesQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await catalogue.listActivities(query<ListActivitiesQuery>(req)));
+  }),
+);
+
+/**
+ * Class levels, for the pickers.
+ *
+ * The school-admin tree has its own copy of this route, but a publisher is not
+ * a school admin — without this the level picker on the authoring screen was
+ * silently empty and every activity would have been written for "every level".
+ */
+publicationRouter.get(
+  '/class-levels',
+  asyncHandler(async (_req, res) => {
+    res.json(await classroomService.listClassLevels());
+  }),
+);
+
+/** The skills an activity is filed under, for the pickers. */
+publicationRouter.get(
+  '/skills',
+  asyncHandler(async (_req, res) => {
+    res.json(await catalogue.listSkills());
+  }),
+);
+
+publicationRouter.get(
+  '/activities/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await catalogue.getActivity(params<{ id: string }>(req).id));
+  }),
+);
+
+publicationRouter.post(
+  '/activities',
+  validate({ body: createActivitySchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(await catalogue.createActivity(body<CreateActivityInput>(req), req.auth!.userId));
+  }),
+);
+
+publicationRouter.patch(
+  '/activities/:id',
+  validate({ params: idParamSchema, body: updateActivitySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await catalogue.updateActivity(
+        params<{ id: string }>(req).id,
+        body<UpdateActivityInput>(req),
+        req.auth!.userId,
+      ),
+    );
   }),
 );

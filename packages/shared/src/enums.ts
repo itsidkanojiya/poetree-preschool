@@ -178,6 +178,10 @@ export const AUDIT_ACTIONS = [
   'STUDENT_DOCUMENT_ATTACHED',
   'STUDENT_DOCUMENT_REMOVED',
   'DATA_EXPORTED',
+  // The publisher's own catalogue. Not a school's data, but the thing every
+  // school's children are scored against, so changes to it are worth keeping.
+  'ACTIVITY_CREATED',
+  'ACTIVITY_UPDATED',
   'PASSWORD_CHANGED',
   // Somebody else setting a password on your behalf is a different event from
   // you changing your own, and the one worth being able to look up later.

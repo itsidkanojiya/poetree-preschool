@@ -63,13 +63,6 @@ enum GuardianRelation {
   OTHER
 }
 
-enum ClassLevelCode {
-  PLAY_GROUP
-  NURSERY
-  JUNIOR_KG
-  SENIOR_KG
-}
-
 /// A student's state within ONE academic year. Because enrolment is per-year,
 /// promoting a child never overwrites what they did last year.
 enum EnrolmentStatus {
@@ -386,13 +379,23 @@ model SchoolSubscription {
 
 /// The four preschool levels Poetree publishes for. Global so curriculum and
 /// learning content can attach to a level in a later phase.
+/// A standard — Toddler, Nursery, Junior KG — maintained by the Super Admin.
+///
+/// `code` was an enum of four until the publisher needed a fifth. It is a plain
+/// string now: schools name their first year differently, and adding one should
+/// not need a migration and a release.
 model ClassLevel {
-  id           String         @id @default(cuid())
-  code         ClassLevelCode @unique
-  name         String         @db.VarChar(60)
+  id           String  @id @default(cuid())
+  code         String  @unique @db.VarChar(40)
+  name         String  @db.VarChar(60)
   sortOrder    Int
   minAgeMonths Int?
   maxAgeMonths Int?
+  /// Retired rather than deleted: classrooms and a term of history point here.
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   classrooms    Classroom[]
   subjects      Subject[]

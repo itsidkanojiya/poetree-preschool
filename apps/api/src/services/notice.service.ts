@@ -5,7 +5,6 @@ import type {
   NoticeSummary,
   Paginated,
 } from '@poetree/shared';
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -66,7 +65,7 @@ async function noticeRecipients(
 
 const noticeInclude = {
   createdBy: { select: { name: true } },
-  targets: { include: { classroom: { include: { classLevel: { select: { code: true } } } } } },
+  targets: { include: { classroom: { include: { classLevel: { select: { code: true, name: true } } } } } },
   _count: { select: { attachments: true, reads: true } },
 } satisfies Prisma.NoticeInclude;
 
@@ -85,7 +84,7 @@ function toSummary(row: NoticeRow, extras: Partial<NoticeSummary> = {}): NoticeS
     expiresAt: row.expiresAt?.toISOString() ?? null,
     createdBy: row.createdBy.name,
     classroomLabels: row.targets.map(
-      (t) => `${CLASS_LEVEL_LABELS[t.classroom.classLevel.code]} - ${t.classroom.section}`,
+      (t) => `${t.classroom.classLevel.name} - ${t.classroom.section}`,
     ),
     attachmentCount: row._count.attachments,
     ...extras,

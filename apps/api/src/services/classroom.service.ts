@@ -104,7 +104,7 @@ export async function createAcademicYear(
  * academic year at a time.
  */
 const classroomInclude = {
-  classLevel: { select: { code: true, name: true } },
+  classLevel: { select: { id: true, code: true, name: true } },
   academicYear: { select: { id: true, name: true, isCurrent: true } },
   teachers: {
     where: { role: 'CLASS_TEACHER' as const, endedOn: null },
@@ -123,7 +123,11 @@ function toClassroomSummary(row: ClassroomRow): ClassroomSummary {
     id: row.id,
     section: row.section,
     capacity: row.capacity,
-    classLevel: { code: row.classLevel.code, name: row.classLevel.name },
+    classLevel: {
+      id: row.classLevel.id,
+      code: row.classLevel.code,
+      name: row.classLevel.name,
+    },
     academicYear: {
       id: row.academicYear.id,
       name: row.academicYear.name,
@@ -191,15 +195,16 @@ export async function getClassroom(classroomId: string): Promise<ClassroomSummar
   return toClassroomSummary(row);
 }
 
-async function resolveClassLevelId(code: CreateClassroomInput['classLevelCode']): Promise<string> {
-  const level = await prismaUnscoped.classLevel.findUnique({
-    where: { code },
+/**
+ * Standards are publication-owned rows, so this reads unscoped and checks the
+ * one the school picked is real and still in use.
+ */
+async function assertClassLevelExists(classLevelId: string): Promise<void> {
+  const level = await prismaUnscoped.classLevel.findFirst({
+    where: { id: classLevelId, isActive: true },
     select: { id: true },
   });
-  if (!level) {
-    throw ApiError.internal('Class levels are missing. Run the database seed.');
-  }
-  return level.id;
+  if (!level) throw ApiError.badRequest('Choose a class that exists');
 }
 
 async function assertTeacherBelongsToSchool(teacherId: string): Promise<void> {
@@ -221,7 +226,8 @@ export async function createClassroom(input: CreateClassroomInput): Promise<Clas
 
   if (input.classTeacherId) await assertTeacherBelongsToSchool(input.classTeacherId);
 
-  const classLevelId = await resolveClassLevelId(input.classLevelCode);
+  await assertClassLevelExists(input.classLevelId);
+  const classLevelId = input.classLevelId;
 
   const duplicate = await prisma.classroom.findFirst({
     where: { academicYearId: input.academicYearId, classLevelId, section: input.section },
@@ -261,9 +267,8 @@ export async function updateClassroom(
 
   if (input.classTeacherId) await assertTeacherBelongsToSchool(input.classTeacherId);
 
-  const classLevelId = input.classLevelCode
-    ? await resolveClassLevelId(input.classLevelCode)
-    : undefined;
+  if (input.classLevelId) await assertClassLevelExists(input.classLevelId);
+  const classLevelId = input.classLevelId;
 
   const schoolId = requireSchoolId();
 

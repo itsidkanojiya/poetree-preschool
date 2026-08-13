@@ -1,4 +1,3 @@
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 
@@ -43,7 +42,7 @@ export async function attendanceRegister(
       ...(classroomId ? { classroomId } : {}),
     },
     include: {
-      classroom: { include: { classLevel: { select: { code: true } } } },
+      classroom: { include: { classLevel: { select: { code: true, name: true } } } },
       records: { select: { status: true } },
     },
     orderBy: [{ date: 'asc' }],
@@ -58,7 +57,7 @@ export async function attendanceRegister(
 
     return {
       date: session.date.toISOString().slice(0, 10),
-      classroom: `${CLASS_LEVEL_LABELS[session.classroom.classLevel.code]} ${session.classroom.section}`,
+      classroom: `${session.classroom.classLevel.name} ${session.classroom.section}`,
       present: counts.PRESENT,
       absent: counts.ABSENT,
       late: counts.LATE,
@@ -98,7 +97,7 @@ export async function studentAttendance(
     where: { status: 'ACTIVE', ...(classroomId ? { classroomId } : {}) },
     include: {
       student: { select: { id: true, firstName: true, lastName: true, admissionNo: true } },
-      classroom: { include: { classLevel: { select: { code: true } } } },
+      classroom: { include: { classLevel: { select: { code: true, name: true } } } },
     },
     orderBy: [{ rollNo: 'asc' }],
   });
@@ -142,7 +141,7 @@ export async function studentAttendance(
       student: [enrolment.student.firstName, enrolment.student.lastName]
         .filter(Boolean)
         .join(' '),
-      classroom: `${CLASS_LEVEL_LABELS[enrolment.classroom.classLevel.code]} ${enrolment.classroom.section}`,
+      classroom: `${enrolment.classroom.classLevel.name} ${enrolment.classroom.section}`,
       present: t.PRESENT ?? 0,
       absent: t.ABSENT ?? 0,
       late: t.LATE ?? 0,
@@ -226,7 +225,7 @@ export async function outstandingDues(): Promise<DuesRow[]> {
           enrolments: {
             where: { status: 'ACTIVE' },
             take: 1,
-            include: { classroom: { include: { classLevel: { select: { code: true } } } } },
+            include: { classroom: { include: { classLevel: { select: { code: true, name: true } } } } },
           },
         },
       },
@@ -246,7 +245,7 @@ export async function outstandingDues(): Promise<DuesRow[]> {
         admissionNo: invoice.student.admissionNo,
         student: [invoice.student.firstName, invoice.student.lastName].filter(Boolean).join(' '),
         classroom: enrolment
-          ? `${CLASS_LEVEL_LABELS[enrolment.classroom.classLevel.code]} ${enrolment.classroom.section}`
+          ? `${enrolment.classroom.classLevel.name} ${enrolment.classroom.section}`
           : '',
         invoiceNo: invoice.invoiceNo,
         period: invoice.periodLabel,
@@ -279,7 +278,7 @@ export async function homeworkCompletion(range: DateRange): Promise<HomeworkComp
   const homework = await prisma.homework.findMany({
     where: { status: 'PUBLISHED', dueDate: { gte: range.from, lte: range.to } },
     include: {
-      classroom: { include: { classLevel: { select: { code: true } } } },
+      classroom: { include: { classLevel: { select: { code: true, name: true } } } },
       submissions: { select: { status: true } },
     },
     orderBy: { dueDate: 'asc' },
@@ -293,7 +292,7 @@ export async function homeworkCompletion(range: DateRange): Promise<HomeworkComp
 
     return {
       title: item.title,
-      classroom: `${CLASS_LEVEL_LABELS[item.classroom.classLevel.code]} ${item.classroom.section}`,
+      classroom: `${item.classroom.classLevel.name} ${item.classroom.section}`,
       dueDate: item.dueDate.toISOString().slice(0, 10),
       assigned,
       completed,

@@ -9,14 +9,14 @@
  *
  *   npx tsx prisma/seed-skills.ts
  */
-import { PrismaClient, type ActivityType, type ClassLevelCode } from '@prisma/client';
+import { PrismaClient, type ActivityType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 interface SkillSeed {
   code: string;
   name: string;
-  level: ClassLevelCode;
+  level: string;
   sortOrder: number;
   activities: Array<{ code: string; title: string; type: ActivityType }>;
 }

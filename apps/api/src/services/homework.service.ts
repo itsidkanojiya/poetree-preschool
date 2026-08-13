@@ -12,7 +12,6 @@ import type {
   SubmissionSummary,
   UpdateHomeworkInput,
 } from '@poetree/shared';
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import { prisma, type TenantTransactionClient } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -84,7 +83,7 @@ function toAttachedFile(file: {
 }
 
 const homeworkInclude = {
-  classroom: { include: { classLevel: { select: { code: true } } } },
+  classroom: { include: { classLevel: { select: { code: true, name: true } } } },
   subject: { select: { id: true, name: true } },
   assignedBy: { select: { name: true } },
   _count: { select: { attachments: true } },
@@ -107,7 +106,7 @@ function toSummary(
     allowsSubmission: row.allowsSubmission,
     classroom: {
       id: row.classroom.id,
-      label: `${CLASS_LEVEL_LABELS[row.classroom.classLevel.code]} - ${row.classroom.section}`,
+      label: `${row.classroom.classLevel.name} - ${row.classroom.section}`,
     },
     subject: row.subject ? { id: row.subject.id, name: row.subject.name } : null,
     assignedBy: row.assignedBy.name,

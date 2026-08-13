@@ -10,6 +10,11 @@ export default defineConfig({
     // let one file's cleanup delete another's fixtures.
     fileParallelism: false,
     testTimeout: 30_000,
-    hookTimeout: 30_000,
+    // Setup wipes fifty tables one DELETE at a time, and the database is on the
+    // other end of an SSH tunnel — fifty round trips is twenty-odd seconds on a
+    // good day. Thirty was enough until the schema grew; the suite was timing
+    // out in its own beforeAll and reporting it as an engine error, which reads
+    // like a fault in the code under test rather than in the harness.
+    hookTimeout: 120_000,
   },
 });

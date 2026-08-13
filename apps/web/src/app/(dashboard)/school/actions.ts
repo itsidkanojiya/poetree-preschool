@@ -149,7 +149,7 @@ export async function createClassroomAction(
       redirectOnAuthFailure: false,
       body: {
         academicYearId: text(formData, 'academicYearId'),
-        classLevelCode: text(formData, 'classLevelCode'),
+        classLevelId: text(formData, 'classLevelId'),
         section: text(formData, 'section'),
         capacity: num(formData, 'capacity'),
         classTeacherId: text(formData, 'classTeacherId') ?? null,

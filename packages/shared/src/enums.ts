@@ -41,18 +41,19 @@ export const GUARDIAN_RELATIONS = ['FATHER', 'MOTHER', 'GUARDIAN', 'OTHER'] as c
 export type GuardianRelation = (typeof GUARDIAN_RELATIONS)[number];
 
 /**
- * The four preschool levels Poetree publishes for. Global (not per-school) so
- * curriculum and learning content can attach to a level in a later phase.
+ * The standards a new installation starts with.
+ *
+ * No longer a closed set: standards are rows the Super Admin adds, renames and
+ * reorders, because a school that calls its first year "Toddler" should not
+ * need a release. These four are what the seed writes, and nothing at runtime
+ * may assume the list stops here — read the name off the row instead.
  */
-export const CLASS_LEVEL_CODES = ['PLAY_GROUP', 'NURSERY', 'JUNIOR_KG', 'SENIOR_KG'] as const;
-export type ClassLevelCode = (typeof CLASS_LEVEL_CODES)[number];
-
-export const CLASS_LEVEL_LABELS: Record<ClassLevelCode, string> = {
-  PLAY_GROUP: 'Play Group',
-  NURSERY: 'Nursery',
-  JUNIOR_KG: 'Junior KG',
-  SENIOR_KG: 'Senior KG',
-};
+export const SEED_CLASS_LEVELS = [
+  { code: 'PLAY_GROUP', name: 'Play Group', sortOrder: 1 },
+  { code: 'NURSERY', name: 'Nursery', sortOrder: 2 },
+  { code: 'JUNIOR_KG', name: 'Junior KG', sortOrder: 3 },
+  { code: 'SENIOR_KG', name: 'Senior KG', sortOrder: 4 },
+] as const;
 
 /* -------------------------------------------------------------------------- */
 /* ERP — academic structure                                                   */
@@ -182,6 +183,9 @@ export const AUDIT_ACTIONS = [
   // school's children are scored against, so changes to it are worth keeping.
   'ACTIVITY_CREATED',
   'ACTIVITY_UPDATED',
+  // Standards are no longer compiled in, so changing one is an event.
+  'STANDARD_CREATED',
+  'STANDARD_UPDATED',
   'PASSWORD_CHANGED',
   // Somebody else setting a password on your behalf is a different event from
   // you changing your own, and the one worth being able to look up later.

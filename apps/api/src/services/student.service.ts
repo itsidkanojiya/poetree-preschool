@@ -6,7 +6,6 @@ import type {
   StudentSummary,
   UpdateStudentInput,
 } from '@poetree/shared';
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -63,7 +62,7 @@ function toSummary(student: StudentRow): StudentSummary {
     classroom: enrolment
       ? {
           id: enrolment.classroom.id,
-          label: `${CLASS_LEVEL_LABELS[enrolment.classroom.classLevel.code]} — ${enrolment.classroom.section}`,
+          label: `${enrolment.classroom.classLevel.name} — ${enrolment.classroom.section}`,
         }
       : null,
     guardians: student.guardians.map((link) => ({

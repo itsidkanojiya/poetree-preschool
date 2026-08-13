@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  CLASS_LEVEL_CODES,
   GENDERS,
   GUARDIAN_RELATIONS,
   STUDENT_DOCUMENT_TYPES,
@@ -40,7 +39,11 @@ export type CreateAcademicYearInput = z.infer<typeof createAcademicYearSchema>;
 
 export const createClassroomSchema = z.object({
   academicYearId: idSchema,
-  classLevelCode: z.enum(CLASS_LEVEL_CODES),
+  /**
+   * By id, not by code. Standards are rows the Super Admin maintains, so the
+   * set is open and an enum of four could not describe it.
+   */
+  classLevelId: idSchema,
   /** "A", "B", "Sunflower" — free text, unique per level per academic year. */
   section: z.string().trim().min(1).max(40),
   classTeacherId: idSchema.nullable().optional(),
@@ -241,7 +244,12 @@ export interface ClassroomSummary {
   id: string;
   section: string;
   capacity: number | null;
-  classLevel: { code: (typeof CLASS_LEVEL_CODES)[number]; name: string };
+  /**
+   * The id is carried as well as the name because standards are rows now: an
+   * edit form has to preselect one, and matching on a name a Super Admin can
+   * change is not a key.
+   */
+  classLevel: { id: string; code: string; name: string };
   academicYear: { id: string; name: string; isCurrent: boolean };
   classTeacher: { id: string; name: string } | null;
   studentCount: number;

@@ -3,6 +3,7 @@ import {
   assignSubscriptionSchema,
   createActivitySchema,
   createPlanSchema,
+  createStandardSchema,
   createSchoolAdminSchema,
   createSchoolSchema,
   idParamSchema,
@@ -14,12 +15,14 @@ import {
   suspendSchoolSchema,
   updateActivitySchema,
   updatePlanSchema,
+  updateStandardSchema,
   updateSchoolSchema,
 } from '@poetree/shared';
 import type {
   AssignSubscriptionInput,
   CreateActivityInput,
   CreatePlanInput,
+  CreateStandardInput,
   CreateSchoolAdminInput,
   CreateSchoolInput,
   ListActivitiesQuery,
@@ -29,6 +32,7 @@ import type {
   SuspendSchoolInput,
   UpdateActivityInput,
   UpdatePlanInput,
+  UpdateStandardInput,
   UpdateSchoolInput,
 } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -40,6 +44,7 @@ import * as planService from '../services/plan.service.js';
 import * as catalogue from '../services/catalogue.service.js';
 import * as usage from '../services/usage.service.js';
 import * as classroomService from '../services/classroom.service.js';
+import * as standards from '../services/standard.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -277,6 +282,50 @@ publicationRouter.get(
   validate({ query: listActivitiesQuerySchema }),
   asyncHandler(async (req, res) => {
     res.json(await catalogue.listActivities(query<ListActivitiesQuery>(req)));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Standards — the years a preschool teaches                                  */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/standards',
+  asyncHandler(async (req, res) => {
+    res.json(await standards.listStandards(req.query.includeInactive === 'true'));
+  }),
+);
+
+publicationRouter.post(
+  '/standards',
+  validate({ body: createStandardSchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(await standards.createStandard(body<CreateStandardInput>(req), req.auth!.userId));
+  }),
+);
+
+publicationRouter.patch(
+  '/standards/:id',
+  validate({ params: idParamSchema, body: updateStandardSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await standards.updateStandard(
+        params<{ id: string }>(req).id,
+        body<UpdateStandardInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** Retiring, which is refused while classrooms are still in it. */
+publicationRouter.post(
+  '/standards/:id/retire',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await standards.retireStandard(params<{ id: string }>(req).id, req.auth!.userId));
   }),
 );
 

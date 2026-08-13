@@ -1,4 +1,3 @@
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { assertMayReadLedger } from './fee.service.js';
@@ -51,13 +50,10 @@ async function schoolLetterhead(): Promise<Letterhead> {
 }
 
 function classroomLabel(
-  enrolment: { classroom: { section: string; classLevel: { code: string } } } | undefined,
+  enrolment: { classroom: { section: string; classLevel: { name: string } } } | undefined,
 ): string {
   if (!enrolment) return 'Not enrolled';
-  const level = CLASS_LEVEL_LABELS[
-    enrolment.classroom.classLevel.code as keyof typeof CLASS_LEVEL_LABELS
-  ];
-  return `${level} — ${enrolment.classroom.section}`;
+  return `${enrolment.classroom.classLevel.name} — ${enrolment.classroom.section}`;
 }
 
 /** A receipt for one payment. */
@@ -74,7 +70,7 @@ export async function paymentReceipt(paymentId: string): Promise<{
             where: { status: 'ACTIVE' },
             orderBy: { enrolledOn: 'desc' },
             take: 1,
-            include: { classroom: { include: { classLevel: { select: { code: true } } } } },
+            include: { classroom: { include: { classLevel: { select: { code: true, name: true } } } } },
           },
         },
       },
@@ -203,7 +199,7 @@ export async function feeCard(studentId: string): Promise<{
         orderBy: { enrolledOn: 'desc' },
         take: 1,
         include: {
-          classroom: { include: { classLevel: { select: { code: true } } } },
+          classroom: { include: { classLevel: { select: { code: true, name: true } } } },
           academicYear: { select: { name: true } },
         },
       },

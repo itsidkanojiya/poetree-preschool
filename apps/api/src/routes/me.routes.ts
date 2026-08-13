@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
@@ -35,7 +34,7 @@ meRouter.get(
     res.json(
       classrooms.map((classroom) => ({
         id: classroom.id,
-        label: `${CLASS_LEVEL_LABELS[classroom.classLevel.code]} — ${classroom.section}`,
+        label: `${classroom.classLevel.name} — ${classroom.section}`,
         section: classroom.section,
         classLevel: { code: classroom.classLevel.code, name: classroom.classLevel.name },
         academicYear: {
@@ -102,7 +101,7 @@ meRouter.get(
           classroom: enrolment?.classroom
             ? {
                 id: enrolment.classroom.id,
-                label: `${CLASS_LEVEL_LABELS[enrolment.classroom.classLevel.code]} — ${enrolment.classroom.section}`,
+                label: `${enrolment.classroom.classLevel.name} — ${enrolment.classroom.section}`,
               }
             : null,
           academicYear: enrolment?.academicYear

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { CLASS_LEVEL_CODES, CLASS_LEVEL_LABELS, GENDERS, GUARDIAN_RELATIONS } from '@poetree/shared';
+import { GENDERS, GUARDIAN_RELATIONS } from '@poetree/shared';
 import type {
   AcademicYearSummary,
   ClassroomSummary,
@@ -195,12 +195,19 @@ export function StudentForm({
   );
 }
 
+interface ClassLevelOption {
+  id: string;
+  name: string;
+}
+
 export function ClassroomForm({
   academicYears,
   teachers,
+  classLevels,
 }: {
   academicYears: AcademicYearSummary[];
   teachers: TeacherSummary[];
+  classLevels: ClassLevelOption[];
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createClassroomAction, {});
 
@@ -230,13 +237,14 @@ export function ClassroomForm({
           </Select>
         </Field>
         <Field label="Class" required>
-          <Select name="classLevelCode" required defaultValue="">
+          {/* The standards the Super Admin maintains, not a fixed four. */}
+          <Select name="classLevelId" required defaultValue="">
             <option value="" disabled>
               Choose
             </option>
-            {CLASS_LEVEL_CODES.map((code) => (
-              <option key={code} value={code}>
-                {CLASS_LEVEL_LABELS[code]}
+            {classLevels.map((level) => (
+              <option key={level.id} value={level.id}>
+                {level.name}
               </option>
             ))}
           </Select>

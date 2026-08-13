@@ -11,10 +11,11 @@ import { formatDate } from '@/lib/format';
 import { AcademicYearForm, ClassroomForm } from '../forms';
 
 export default async function ClassroomsPage() {
-  const [classrooms, academicYears, teachers] = await Promise.all([
+  const [classrooms, academicYears, teachers, classLevels] = await Promise.all([
     apiFetch<ClassroomSummary[]>('/classrooms'),
     apiFetch<AcademicYearSummary[]>('/academic-years'),
     apiFetch<Paginated<TeacherSummary>>('/teachers', { query: { pageSize: 100 } }),
+    apiFetch<Array<{ id: string; name: string }>>('/class-levels'),
   ]);
 
   return (
@@ -104,7 +105,11 @@ export default async function ClassroomsPage() {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Card title="Add a classroom">
-          <ClassroomForm academicYears={academicYears} teachers={teachers.items} />
+          <ClassroomForm
+            academicYears={academicYears}
+            teachers={teachers.items}
+            classLevels={classLevels}
+          />
         </Card>
         <Card title="Add an academic year">
           <AcademicYearForm />

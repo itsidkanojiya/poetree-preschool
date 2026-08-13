@@ -7,7 +7,6 @@ import type {
   TransferSectionInput,
   WithdrawStudentInput,
 } from '@poetree/shared';
-import { CLASS_LEVEL_LABELS } from '@poetree/shared';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
@@ -28,13 +27,13 @@ import { nextDocumentNumber } from './sequence.service.js';
 const enrolmentInclude = {
   student: { select: { id: true, firstName: true, lastName: true, admissionNo: true } },
   academicYear: { select: { id: true, name: true } },
-  classroom: { include: { classLevel: { select: { code: true } } } },
+  classroom: { include: { classLevel: { select: { code: true, name: true } } } },
 } satisfies Prisma.StudentEnrolmentInclude;
 
 type EnrolmentRow = Prisma.StudentEnrolmentGetPayload<{ include: typeof enrolmentInclude }>;
 
 function label(classroom: EnrolmentRow['classroom']): string {
-  return `${CLASS_LEVEL_LABELS[classroom.classLevel.code]} — ${classroom.section}`;
+  return `${classroom.classLevel.name} — ${classroom.section}`;
 }
 
 function toSummary(row: EnrolmentRow): EnrolmentSummary {
@@ -121,7 +120,7 @@ export async function promoteStudents(
 
   const target = await prisma.classroom.findFirst({
     where: { id: input.toClassroomId },
-    include: { classLevel: { select: { code: true } } },
+    include: { classLevel: { select: { code: true, name: true } } },
   });
   if (!target) throw ApiError.badRequest('The target classroom does not exist at your school');
 

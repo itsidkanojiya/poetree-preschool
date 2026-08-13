@@ -6,7 +6,7 @@ import type {
   MarkAttendanceInput,
   StudentAttendanceSummary,
 } from '@poetree/shared';
-import { ATTENDANCE_STATUSES, CLASS_LEVEL_LABELS, roleHasPermission } from '@poetree/shared';
+import { ATTENDANCE_STATUSES, roleHasPermission } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -132,7 +132,7 @@ export async function getAttendanceSheet(classroomId: string, rawDate: Date): Pr
 
   const classroom = await prisma.classroom.findFirst({
     where: { id: classroomId },
-    include: { classLevel: { select: { code: true } } },
+    include: { classLevel: { select: { code: true, name: true } } },
   });
   if (!classroom) throw ApiError.notFound('Classroom not found');
 
@@ -181,7 +181,7 @@ export async function getAttendanceSheet(classroomId: string, rawDate: Date): Pr
 
   return {
     classroomId,
-    classroomLabel: `${CLASS_LEVEL_LABELS[classroom.classLevel.code]} — ${classroom.section}`,
+    classroomLabel: `${classroom.classLevel.name} — ${classroom.section}`,
     date: date.toISOString().slice(0, 10),
     isHoliday: Boolean(holiday),
     holidayTitle: holiday?.title ?? null,

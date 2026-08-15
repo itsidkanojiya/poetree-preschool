@@ -51,7 +51,7 @@ export async function createActivityAction(
   const bookId = String(formData.get('bookId') ?? '').trim();
 
   try {
-    await apiFetch('/publication/activities', {
+    await apiFetch('/publication/question-types', {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
@@ -68,7 +68,7 @@ export async function createActivityAction(
     return { error: errorMessage(e, 'Could not save the activity.') };
   }
 
-  revalidatePath('/publication/activities');
+  revalidatePath('/publication/question-types');
   return { success: 'Added to the catalogue. Every school can play it now.' };
 }
 
@@ -97,7 +97,7 @@ export async function updateActivityAction(
   }
 
   try {
-    await apiFetch(`/publication/activities/${id}`, {
+    await apiFetch(`/publication/question-types/${id}`, {
       method: 'PATCH',
       redirectOnAuthFailure: false,
       body,
@@ -106,8 +106,8 @@ export async function updateActivityAction(
     return { error: errorMessage(e, 'Could not save the activity.') };
   }
 
-  revalidatePath('/publication/activities');
-  revalidatePath(`/publication/activities/${id}`);
+  revalidatePath('/publication/question-types');
+  revalidatePath(`/publication/question-types/${id}`);
   return { success: 'Saved.' };
 }
 
@@ -118,7 +118,7 @@ export async function updateActivityAction(
  * evidence behind the mastery figures their parents have already been shown.
  */
 export async function setActivityActiveAction(id: string, isActive: boolean): Promise<void> {
-  await apiFetch(`/publication/activities/${id}`, { method: 'PATCH', body: { isActive } });
-  revalidatePath('/publication/activities');
-  revalidatePath(`/publication/activities/${id}`);
+  await apiFetch(`/publication/question-types/${id}`, { method: 'PATCH', body: { isActive } });
+  revalidatePath('/publication/question-types');
+  revalidatePath(`/publication/question-types/${id}`);
 }

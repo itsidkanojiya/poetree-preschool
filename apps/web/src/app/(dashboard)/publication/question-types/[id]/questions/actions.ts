@@ -121,7 +121,7 @@ export async function addQuestionAction(
         ? await uploadAsset(promptPicture)
         : null;
 
-    await apiFetch(`/publication/activities/${activityId}/questions`, {
+    await apiFetch(`/publication/question-types/${activityId}/questions`, {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
@@ -136,7 +136,7 @@ export async function addQuestionAction(
     return { error: errorMessage(error, 'Could not add the question.') };
   }
 
-  revalidatePath(`/publication/activities/${activityId}/questions`);
+  revalidatePath(`/publication/question-types/${activityId}/questions`);
   return { success: 'Added.' };
 }
 
@@ -163,7 +163,7 @@ export async function updateQuestionAction(
     return { error: errorMessage(error, 'Could not save the question.') };
   }
 
-  revalidatePath(`/publication/activities/${activityId}/questions`);
+  revalidatePath(`/publication/question-types/${activityId}/questions`);
   return { success: 'Saved.' };
 }
 
@@ -172,7 +172,7 @@ export async function deleteQuestionAction(
   questionId: string,
 ): Promise<void> {
   await apiFetch(`/publication/questions/${questionId}`, { method: 'DELETE' });
-  revalidatePath(`/publication/activities/${activityId}/questions`);
+  revalidatePath(`/publication/question-types/${activityId}/questions`);
 }
 
 /**
@@ -188,7 +188,7 @@ export async function moveQuestionAction(
   neighbourId: string,
 ): Promise<void> {
   const questions = await apiFetch<Array<{ id: string; sortOrder: number }>>(
-    `/publication/activities/${activityId}/questions`,
+    `/publication/question-types/${activityId}/questions`,
   );
 
   const mine = questions.find((row) => row.id === questionId);
@@ -211,5 +211,5 @@ export async function moveQuestionAction(
     body: { sortOrder: second },
   });
 
-  revalidatePath(`/publication/activities/${activityId}/questions`);
+  revalidatePath(`/publication/question-types/${activityId}/questions`);
 }

@@ -51,6 +51,12 @@ export interface QuestionOptionRow {
   sortOrder: number;
 }
 
+/** A question with the page and book it belongs to, for the flat list. */
+export interface QuestionWithContext extends QuestionRow {
+  activity: { id: string; title: string; type: string };
+  book: { id: string; name: string } | null;
+}
+
 export interface QuestionRow {
   id: string;
   activityId: string;

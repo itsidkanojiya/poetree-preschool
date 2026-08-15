@@ -22,8 +22,8 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
 
   const [activity, questions] = await Promise.all([
-    apiFetch<CatalogueActivity>(`/publication/activities/${id}`),
-    apiFetch<QuestionRow[]>(`/publication/activities/${id}/questions`),
+    apiFetch<CatalogueActivity>(`/publication/question-types/${id}`),
+    apiFetch<QuestionRow[]>(`/publication/question-types/${id}/questions`),
   ]);
 
   const scored = SCORED.includes(activity.type);
@@ -33,7 +33,7 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <Link
-        href={`/publication/activities/${id}`}
+        href={`/publication/question-types/${id}`}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-900"
       >
         <IconArrowLeft size={16} /> {activity.title}

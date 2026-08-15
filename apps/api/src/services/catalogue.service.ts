@@ -10,6 +10,7 @@ import {
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
+import { problemWith, upconvertStoredContent } from './question.service.js';
 
 /**
  * The publisher's activity catalogue.
@@ -41,12 +42,30 @@ const activityInclude = {
   classLevel: { select: { id: true, code: true } },
   book: { select: { id: true, name: true } },
   _count: { select: { attempts: true } },
+  // Bounded: at most a dozen questions with four options each. Counting them
+  // here is what lets the list say whether a child can actually play this.
+  questions: { where: { isActive: true }, include: { options: { orderBy: { sortOrder: 'asc' } } } },
 } satisfies Prisma.LearningActivityInclude;
 
 type ActivityRow = Prisma.LearningActivityGetPayload<{ include: typeof activityInclude }>;
 
 function toSummary(row: ActivityRow): CatalogueActivity {
-  const content = activityContentSchema.safeParse(row.contentJson);
+  /**
+   * Counted from the question rows, which are where the content now lives.
+   *
+   * This read the stored `contentJson` blob, and went on reading it after the
+   * questions were lifted into rows — so the moment the content contract grew
+   * pictures, every choice activity in the catalogue was labelled "the app
+   * cannot read this, it is invisible to every child" while children were
+   * playing it perfectly well. A screen that cries wolf about six things is
+   * worse than one that says nothing.
+   *
+   * The blob is still the answer for anything not yet lifted.
+   */
+  const usable = row.questions.filter((question) => problemWith(question, row.type) === null);
+  const stored = activityContentSchema.safeParse(upconvertStoredContent(row.contentJson));
+
+  const itemCount = row.questions.length > 0 ? usable.length : stored.success ? stored.data.items.length : 0;
 
   return {
     id: row.id,
@@ -58,15 +77,14 @@ function toSummary(row: ActivityRow): CatalogueActivity {
     book: row.book,
     classLevelId: row.classLevelId,
     classLevelCode: row.classLevel?.code ?? null,
-    // The count is what an editor needs to see at a glance; the content itself
-    // is only sent when one activity is opened.
-    itemCount: content.success ? content.data.items.length : 0,
+    // What an editor needs at a glance: how many questions a child will meet.
+    itemCount,
     /**
-     * An activity with unreadable content is not a small problem: the app
-     * refuses to offer it, so it is invisible to every child until someone
-     * notices. Saying so in the list is how they notice.
+     * An activity nothing can play is not a small problem: the app refuses to
+     * offer it, so it is invisible to every child until somebody notices.
+     * Saying so in the list is how they notice.
      */
-    isPlayable: content.success && content.data.items.length > 0,
+    isPlayable: itemCount > 0,
     attemptCount: row._count.attempts,
     updatedAt: row.updatedAt.toISOString(),
   };

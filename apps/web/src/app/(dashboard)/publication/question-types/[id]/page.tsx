@@ -31,7 +31,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
 
   const [activity, skills, classLevels, books] = await Promise.all([
-    apiFetch<CatalogueActivity & { content: unknown }>(`/publication/activities/${id}`),
+    apiFetch<CatalogueActivity & { content: unknown }>(`/publication/question-types/${id}`),
     apiFetch<Skill[]>('/publication/skills'),
     apiFetch<ClassLevel[]>('/publication/class-levels'),
     apiFetch<BookOption[]>('/publication/books'),
@@ -40,7 +40,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
   return (
     <>
       <Link
-        href="/publication/activities"
+        href="/publication/question-types"
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-900"
       >
         <IconArrowLeft size={16} /> All activities
@@ -59,7 +59,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
         <span className="text-xs text-slate-500">Last changed {formatDate(activity.updatedAt)}</span>
         <RetireButton activity={activity} />
         <Link
-          href={`/publication/activities/${activity.id}/questions`}
+          href={`/publication/question-types/${activity.id}/questions`}
           className="rounded-lg bg-navy-900 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-navy-800"
         >
           {activity.itemCount === 0

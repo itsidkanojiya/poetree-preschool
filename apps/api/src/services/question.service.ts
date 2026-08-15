@@ -5,6 +5,7 @@ import {
   type ActivityContent,
   type CreateQuestionInput,
   type QuestionRow,
+  type QuestionWithContext,
   type UpdateQuestionInput,
 } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
@@ -24,7 +25,9 @@ const questionInclude = {
   options: { orderBy: { sortOrder: 'asc' } },
 } satisfies Prisma.ActivityQuestionInclude;
 
-type QuestionWithOptions = Prisma.ActivityQuestionGetPayload<{ include: typeof questionInclude }>;
+export type QuestionWithOptions = Prisma.ActivityQuestionGetPayload<{
+  include: typeof questionInclude;
+}>;
 
 /** The path that serves a catalogue picture, never a bare file id. */
 export function assetUrl(fileId: string | null): string | null {
@@ -43,7 +46,7 @@ function strokesOf(row: QuestionWithOptions): Strokes | null {
  * A scored question with no right answer is worse than a missing one: a
  * four-year-old taps every square and is told each time that they were wrong.
  */
-function problemWith(row: QuestionWithOptions, type: string): string | null {
+export function problemWith(row: QuestionWithOptions, type: string): string | null {
   const scored = isScored(type as ActivityContent['kind']);
 
   if (type === 'TRACING') {
@@ -108,6 +111,62 @@ export async function listQuestions(activityId: string): Promise<QuestionRow[]> 
   });
 
   return rows.map((row) => toRow(row, activity.type));
+}
+
+/**
+ * Every question in the catalogue, newest page first.
+ *
+ * The per-activity list is what an author uses while writing one page. This is
+ * the other view: everything that exists, so a question can be found without
+ * remembering which page it was on.
+ */
+export async function listAllQuestions(query: {
+  bookId?: string;
+  activityId?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{
+  items: QuestionWithContext[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}> {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 50;
+
+  const where: Prisma.ActivityQuestionWhereInput = {
+    ...(query.activityId ? { activityId: query.activityId } : {}),
+    ...(query.bookId ? { activity: { bookId: query.bookId } } : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    prismaUnscoped.activityQuestion.findMany({
+      where,
+      include: {
+        ...questionInclude,
+        activity: {
+          select: { id: true, title: true, type: true, book: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: [{ activityId: 'asc' }, { sortOrder: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prismaUnscoped.activityQuestion.count({ where }),
+  ]);
+
+  return {
+    items: rows.map((row) => ({
+      ...toRow(row, row.activity.type),
+      activity: { id: row.activity.id, title: row.activity.title, type: row.activity.type },
+      book: row.activity.book,
+    })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
 }
 
 /**

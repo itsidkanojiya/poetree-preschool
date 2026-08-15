@@ -150,7 +150,7 @@ export default async function UsagePage({
             {report.neverPlayed.map((activity) => (
               <li key={activity.activityId}>
                 <Link
-                  href={`/publication/activities/${activity.activityId}`}
+                  href={`/publication/question-types/${activity.activityId}`}
                   className="inline-block rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-navy-900 hover:bg-slate-200"
                 >
                   {activity.title}
@@ -178,7 +178,7 @@ export default async function UsagePage({
               <TRow key={activity.activityId}>
                 <TCell>
                   <Link
-                    href={`/publication/activities/${activity.activityId}`}
+                    href={`/publication/question-types/${activity.activityId}`}
                     className="hover:underline"
                   >
                     <TPrimary sub={activity.code}>{activity.title}</TPrimary>

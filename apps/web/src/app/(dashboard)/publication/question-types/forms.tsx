@@ -123,8 +123,12 @@ export function NewActivityForm({
       <FormSuccess message={state.success} />
 
       <FieldSet>
-        <Field label="Title" required>
-          <Input name="title" required placeholder="Counting apples" />
+        <Field
+          label="Instruction"
+          required
+          hint="Exactly as it reads on the page of the book."
+        >
+          <Input name="title" required placeholder="Circle the correct letter" />
         </Field>
         <Field
           label="Code"
@@ -142,7 +146,11 @@ export function NewActivityForm({
       </FieldSet>
 
       <FieldSet>
-        <Field label="Type" required hint="Decides how it is played and scored. Fixed once saved.">
+        <Field
+          label="Played as"
+          required
+          hint="How a child answers it. Fixed once saved, because it decides how every attempt is scored."
+        >
           <Select
             name="type"
             required
@@ -188,7 +196,7 @@ export function NewActivityForm({
 
       <ContentField value={content} onChange={setContent} type={type} />
 
-      <SubmitButton pendingLabel="Saving…">Add to the catalogue</SubmitButton>
+      <SubmitButton pendingLabel="Saving…">Add question type</SubmitButton>
     </form>
   );
 }

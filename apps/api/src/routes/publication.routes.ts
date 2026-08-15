@@ -511,6 +511,22 @@ publicationRouter.post(
 /* Questions — the rows on a page                                             */
 /* -------------------------------------------------------------------------- */
 
+/** Every question in the catalogue, filterable by book or by page. */
+publicationRouter.get(
+  '/questions',
+  asyncHandler(async (req, res) => {
+    const asString = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
+    res.json(
+      await questions.listAllQuestions({
+        bookId: asString(req.query.bookId),
+        activityId: asString(req.query.activityId),
+        page: Number(req.query.page) || 1,
+        pageSize: Math.min(Number(req.query.pageSize) || 50, 200),
+      }),
+    );
+  }),
+);
+
 publicationRouter.get(
   '/activities/:id/questions',
   validate({ params: idParamSchema }),

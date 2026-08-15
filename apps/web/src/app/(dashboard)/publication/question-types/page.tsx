@@ -6,7 +6,7 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { NewActivityForm, RetireButton } from './forms';
 
-export const metadata: Metadata = { title: 'Activities · Poetree Admin' };
+export const metadata: Metadata = { title: 'Question types · Poetree Admin' };
 
 interface Skill {
   id: string;
@@ -41,7 +41,7 @@ export default async function ActivitiesPage({
   const { page = '1', skillId, search } = await searchParams;
 
   const [activities, skills, classLevels, books] = await Promise.all([
-    apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
+    apiFetch<Paginated<CatalogueActivity>>('/publication/question-types', {
       query: { page, pageSize: 25, skillId, search, includeInactive: 'true' },
     }),
     apiFetch<Skill[]>('/publication/skills'),
@@ -54,34 +54,35 @@ export default async function ActivitiesPage({
   return (
     <>
       <PageHeader
-        title="Activities"
-        description="What children play, written here and shared by every school."
+        title="Question types"
+        description="A page of a book — “Circle the correct letter” — and the questions under it."
       />
 
       {unplayable > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          {unplayable === 1 ? 'One activity has' : `${unplayable} activities have`} content the
-          app cannot read, so {unplayable === 1 ? 'it is' : 'they are'} invisible to every child.
+          {unplayable === 1 ? 'One question type has' : `${unplayable} question types have`} no
+          questions a child can answer, so {unplayable === 1 ? 'it is' : 'they are'} invisible in
+          the app. Open one to add questions.
         </div>
       )}
 
       <Card className="mb-6">
         {activities.items.length === 0 ? (
           <EmptyState
-            title="No activities yet"
-            description="Write the first one below. Every school will be able to play it."
+            title="No question types yet"
+            description="Add the first one below — “Circle the correct letter”, say — then write its questions."
           />
         ) : (
           <>
             <Table>
               <THead
                 columns={[
-                  'Activity',
-                  'Type',
+                  'Question type',
+                  'Played as',
                   'Book',
                   'Skill',
                   'Level',
-                  { label: 'Items', numeric: true },
+                  { label: 'Questions', numeric: true },
                   { label: 'Played', numeric: true },
                   'State',
                   '',
@@ -92,7 +93,7 @@ export default async function ActivitiesPage({
                   <TRow key={activity.id}>
                     <TCell>
                       <Link
-                        href={`/publication/activities/${activity.id}`}
+                        href={`/publication/question-types/${activity.id}`}
                         className="hover:underline"
                       >
                         <TPrimary sub={activity.code}>{activity.title}</TPrimary>
@@ -112,7 +113,7 @@ export default async function ActivitiesPage({
                     <TCell>{activity.classLevelCode ?? 'Every level'}</TCell>
                     <TCell numeric>
                       <Link
-                        href={`/publication/activities/${activity.id}/questions`}
+                        href={`/publication/question-types/${activity.id}/questions`}
                         className="hover:underline"
                       >
                         {activity.itemCount}
@@ -123,7 +124,7 @@ export default async function ActivitiesPage({
                     <TCell numeric>{activity.attemptCount}</TCell>
                     <TCell>
                       {!activity.isPlayable ? (
-                        <Pill tone="neutral">Unreadable</Pill>
+                        <Pill tone="neutral">No questions</Pill>
                       ) : activity.isActive ? (
                         <Pill tone="brand">Live</Pill>
                       ) : (
@@ -142,14 +143,14 @@ export default async function ActivitiesPage({
               page={activities.page}
               totalPages={activities.totalPages}
               total={activities.total}
-              basePath="/publication/activities"
+              basePath="/publication/question-types"
             />
           </>
         )}
       </Card>
 
       <div className="max-w-3xl">
-        <Card title="Write an activity">
+        <Card title="Add a question type">
           <NewActivityForm skills={skills} classLevels={classLevels} books={books} />
         </Card>
       </div>

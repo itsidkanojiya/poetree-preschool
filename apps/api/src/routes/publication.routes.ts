@@ -3,6 +3,7 @@ import {
   assignSubscriptionSchema,
   createActivitySchema,
   createBookSchema,
+  createChapterSchema,
   createPlanSchema,
   createQuestionSchema,
   createStandardSchema,
@@ -18,6 +19,7 @@ import {
   suspendSchoolSchema,
   updateActivitySchema,
   updateBookSchema,
+  updateChapterSchema,
   updatePlanSchema,
   updateQuestionSchema,
   updateStandardSchema,
@@ -27,6 +29,7 @@ import type {
   AssignSubscriptionInput,
   CreateActivityInput,
   CreateBookInput,
+  CreateChapterInput,
   CreatePlanInput,
   CreateQuestionInput,
   CreateStandardInput,
@@ -40,6 +43,7 @@ import type {
   SetSchoolBooksInput,
   UpdateActivityInput,
   UpdateBookInput,
+  UpdateChapterInput,
   UpdatePlanInput,
   UpdateQuestionInput,
   UpdateStandardInput,
@@ -60,6 +64,7 @@ import * as usage from '../services/usage.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as standards from '../services/standard.service.js';
 import * as books from '../services/book.service.js';
+import * as chapters from '../services/chapter.service.js';
 import * as questions from '../services/question.service.js';
 
 /**
@@ -401,6 +406,63 @@ publicationRouter.put(
         req.auth!.userId,
       ),
     );
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Chapters — the sections of a book                                          */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/books/:id/chapters',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await chapters.listChapters(params<{ id: string }>(req).id));
+  }),
+);
+
+/** Every chapter across every book, for a picker that spans them. */
+publicationRouter.get(
+  '/chapters',
+  asyncHandler(async (_req, res) => {
+    res.json(await chapters.listAllChapters());
+  }),
+);
+
+publicationRouter.post(
+  '/books/:id/chapters',
+  validate({ params: idParamSchema, body: createChapterSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(
+      await chapters.createChapter(
+        params<{ id: string }>(req).id,
+        body<CreateChapterInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+publicationRouter.patch(
+  '/chapters/:id',
+  validate({ params: idParamSchema, body: updateChapterSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await chapters.updateChapter(
+        params<{ id: string }>(req).id,
+        body<UpdateChapterInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+publicationRouter.delete(
+  '/chapters/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await chapters.deleteChapter(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );
 

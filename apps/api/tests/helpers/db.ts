@@ -54,6 +54,31 @@ export async function resetDatabase(): Promise<void> {
       AND TABLE_NAME <> '_prisma_migrations'
   `;
 
+  /**
+   * Which tables actually hold anything, in one round trip.
+   *
+   * This used to DELETE from all fifty regardless. Against a database at the
+   * far end of an SSH tunnel that is fifty round trips of latency — twenty-five
+   * seconds on a good day, and past the hook timeout on a bad one, at which
+   * point the suite fails inside its own setup and reports it as an engine
+   * error. After the first file most tables are already empty, so this usually
+   * leaves a handful to clear.
+   *
+   * COUNT(*) subqueries rather than information_schema.TABLE_ROWS: that column
+   * is an estimate for InnoDB and can read zero for a table with rows in it,
+   * which would leave one test file's fixtures alive inside the next one.
+   */
+  const counts = tables.map(({ name }) => `(SELECT COUNT(*) FROM \`${name}\`) AS \`${name}\``);
+  const [rowCounts] = await prismaUnscoped.$queryRawUnsafe<Array<Record<string, bigint>>>(
+    `SELECT ${counts.join(', ')}`,
+  );
+
+  const occupied = tables.filter(({ name }) => Number(rowCounts?.[name] ?? 0) > 0);
+  if (occupied.length === 0) {
+    clearSchoolAccessCache();
+    return;
+  }
+
   // FOREIGN_KEY_CHECKS is per-connection, and Prisma pools connections — issuing
   // these as separate awaits let the disable and the deletes land on different
   // connections, so the constraint was still live when the delete ran. Batching
@@ -63,7 +88,7 @@ export async function resetDatabase(): Promise<void> {
   // which would end the transaction and take the disabled checks with it.
   await prismaUnscoped.$transaction([
     prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0'),
-    ...tables.map(({ name }) => prismaUnscoped.$executeRawUnsafe(`DELETE FROM \`${name}\``)),
+    ...occupied.map(({ name }) => prismaUnscoped.$executeRawUnsafe(`DELETE FROM \`${name}\``)),
     prismaUnscoped.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1'),
   ]);
 

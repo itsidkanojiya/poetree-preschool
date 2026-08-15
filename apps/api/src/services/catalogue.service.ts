@@ -11,6 +11,7 @@ import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 import { problemWith, upconvertStoredContent } from './question.service.js';
+import { assertChapterBelongsToBook } from './chapter.service.js';
 
 /**
  * The publisher's activity catalogue.
@@ -41,6 +42,7 @@ const activityInclude = {
   skill: { select: { id: true, code: true, name: true } },
   classLevel: { select: { id: true, code: true } },
   book: { select: { id: true, name: true } },
+  chapter: { select: { id: true, name: true } },
   _count: { select: { attempts: true } },
   // Bounded: at most a dozen questions with four options each. Counting them
   // here is what lets the list say whether a child can actually play this.
@@ -75,6 +77,7 @@ function toSummary(row: ActivityRow): CatalogueActivity {
     isActive: row.isActive,
     skill: row.skill,
     book: row.book,
+    chapter: row.chapter,
     classLevelId: row.classLevelId,
     classLevelCode: row.classLevel?.code ?? null,
     // What an editor needs at a glance: how many questions a child will meet.
@@ -125,6 +128,7 @@ export async function listActivities(query: {
   pageSize?: number;
   skillId?: string;
   bookId?: string;
+  chapterId?: string;
   classLevelId?: string;
   type?: string;
   search?: string;
@@ -136,6 +140,7 @@ export async function listActivities(query: {
   const where: Prisma.LearningActivityWhereInput = {
     ...(query.skillId ? { skillId: query.skillId } : {}),
     ...(query.bookId ? { bookId: query.bookId } : {}),
+    ...(query.chapterId ? { chapterId: query.chapterId } : {}),
     ...(query.classLevelId ? { classLevelId: query.classLevelId } : {}),
     ...(query.type ? { type: query.type as never } : {}),
     ...(query.includeInactive ? {} : { isActive: true }),
@@ -180,6 +185,7 @@ export async function createActivity(
   actorUserId: string,
 ): Promise<CatalogueActivity> {
   const content = parseContent(input.type, input.content);
+  await assertChapterBelongsToBook(input.chapterId, input.bookId);
 
   const skill = await prismaUnscoped.skill.findUnique({ where: { id: input.skillId } });
   if (!skill) throw ApiError.badRequest('Choose a skill that exists');
@@ -197,6 +203,7 @@ export async function createActivity(
       type: input.type as never,
       skillId: input.skillId,
       bookId: input.bookId ?? null,
+      chapterId: input.chapterId ?? null,
       classLevelId: input.classLevelId ?? null,
       contentJson: content,
       isActive: input.isActive ?? true,
@@ -223,9 +230,15 @@ export async function updateActivity(
 ): Promise<CatalogueActivity> {
   const existing = await prismaUnscoped.learningActivity.findUnique({
     where: { id },
-    select: { id: true, code: true, type: true, title: true, isActive: true },
+    select: { id: true, code: true, type: true, title: true, isActive: true, bookId: true },
   });
   if (!existing) throw ApiError.notFound('Activity not found');
+  const existingBookId = existing.bookId;
+
+  if (input.chapterId !== undefined) {
+    const book = input.bookId === undefined ? existingBookId : input.bookId;
+    await assertChapterBelongsToBook(input.chapterId, book);
+  }
 
   // The type is fixed once children have played it: changing it would leave
   // every past attempt scored against a different kind of question.
@@ -238,6 +251,7 @@ export async function updateActivity(
       title: input.title,
       skillId: input.skillId,
       bookId: input.bookId,
+      chapterId: input.chapterId,
       classLevelId: input.classLevelId,
       isActive: input.isActive,
       ...(content === undefined ? {} : { contentJson: content }),

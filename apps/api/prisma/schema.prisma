@@ -1480,6 +1480,7 @@ model Book {
   classLevel ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
   cover      FileObject?        @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
   activities LearningActivity[]
+  chapters   Chapter[]
   schools    SchoolBook[]
 
   @@index([classLevelId, sortOrder])
@@ -1509,6 +1510,31 @@ model SchoolBook {
   @@map("school_books")
 }
 
+/// A section of a book.
+///
+/// A book has chapters, a chapter has pages, and a page — what this system
+/// calls a question type — has questions. Publication-owned like the book it
+/// belongs to.
+model Chapter {
+  id        String  @id @default(cuid())
+  bookId    String
+  name      String  @db.VarChar(160)
+  /// Printed on the page, and not the same as the order: a book can open with
+  /// "Chapter 0: Getting ready".
+  number    Int?
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  book       Book               @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  activities LearningActivity[]
+
+  @@index([bookId, sortOrder])
+  @@map("chapters")
+}
+
 model LearningActivity {
   id           String       @id @default(cuid())
   code         String       @unique @db.VarChar(40)
@@ -1518,6 +1544,10 @@ model LearningActivity {
   classLevelId String?
   /// The book this question type is a page of.
   bookId       String?
+  /// And the chapter within it. Kept alongside `bookId` rather than derived
+  /// from it because entitlement filters on the book on every catalogue read;
+  /// the two are checked against each other on write.
+  chapterId    String?
   /// The activity definition the app renders — letters to trace, pairs to
   /// match. Shape varies by type, which is why it is JSON rather than columns.
   contentJson  Json?
@@ -1532,9 +1562,11 @@ model LearningActivity {
   attempts   ActivityAttempt[]
   questions  ActivityQuestion[]
   homework   Homework[]
+  chapter    Chapter?           @relation(fields: [chapterId], references: [id])
 
   @@index([skillId])
   @@index([bookId])
+  @@index([chapterId])
   @@index([classLevelId, isActive])
   @@map("learning_activities")
 }

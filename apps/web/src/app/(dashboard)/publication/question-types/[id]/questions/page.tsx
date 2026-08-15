@@ -22,8 +22,8 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
 
   const [activity, questions] = await Promise.all([
-    apiFetch<CatalogueActivity>(`/publication/question-types/${id}`),
-    apiFetch<QuestionRow[]>(`/publication/question-types/${id}/questions`),
+    apiFetch<CatalogueActivity>(`/publication/activities/${id}`),
+    apiFetch<QuestionRow[]>(`/publication/activities/${id}/questions`),
   ]);
 
   const scored = SCORED.includes(activity.type);

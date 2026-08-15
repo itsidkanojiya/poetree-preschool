@@ -33,11 +33,16 @@ class ActivityListView extends GetView<ActivityListController> {
       body: Obx(() {
         final playable = controller.playable;
 
+        // Book first, then the chapter within it — the two things printed on
+        // the cover and the contents page, which is what a family recognises.
         final byBook = <String, List<ActivityDefinition>>{};
         for (final activity in playable) {
-          final heading = activity.bookName.isNotEmpty
+          final book = activity.bookName.isNotEmpty
               ? activity.bookName
               : activity.skillName;
+          final heading = activity.chapterName.isEmpty
+              ? book
+              : '$book · ${activity.chapterName}';
           byBook.putIfAbsent(heading, () => []).add(activity);
         }
 

@@ -12,12 +12,14 @@ class ActivityDefinition {
     required this.type,
     required this.skillName,
     required this.bookName,
+    required this.chapterName,
     this.content,
   });
 
   factory ActivityDefinition.fromJson(Map<String, dynamic> json) {
     final skill = json['skill'] as Map<String, dynamic>?;
     final book = json['book'] as Map<String, dynamic>?;
+    final chapter = json['chapter'] as Map<String, dynamic>?;
     return ActivityDefinition(
       id: json['id'] as String,
       code: json['code'] as String,
@@ -25,6 +27,7 @@ class ActivityDefinition {
       type: json['type'] as String,
       skillName: skill?['name'] as String? ?? '',
       bookName: book?['name'] as String? ?? '',
+      chapterName: chapter?['name'] as String? ?? '',
       content: ActivityContent.tryParse(
         json['contentJson'] as Map<String, dynamic>?,
       ),
@@ -39,6 +42,9 @@ class ActivityDefinition {
 
   /// The book this is a page of. Empty for older content filed under nothing.
   final String bookName;
+
+  /// And the chapter within it, when the publisher has filed it.
+  final String chapterName;
 
   /// Null when nobody has authored content for it yet. The app must not offer
   /// an activity it cannot render.

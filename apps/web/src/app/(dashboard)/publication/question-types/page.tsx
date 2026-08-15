@@ -26,6 +26,13 @@ interface BookOption {
   classLevel: { name: string };
 }
 
+interface ChapterOption {
+  id: string;
+  name: string;
+  bookId: string;
+  bookName: string;
+}
+
 /**
  * The publisher's own product.
  *
@@ -40,13 +47,14 @@ export default async function ActivitiesPage({
 }) {
   const { page = '1', skillId, search } = await searchParams;
 
-  const [activities, skills, classLevels, books] = await Promise.all([
-    apiFetch<Paginated<CatalogueActivity>>('/publication/question-types', {
+  const [activities, skills, classLevels, books, chapters] = await Promise.all([
+    apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
       query: { page, pageSize: 25, skillId, search, includeInactive: 'true' },
     }),
     apiFetch<Skill[]>('/publication/skills'),
     apiFetch<ClassLevel[]>('/publication/class-levels'),
     apiFetch<BookOption[]>('/publication/books'),
+    apiFetch<ChapterOption[]>('/publication/chapters'),
   ]);
 
   const unplayable = activities.items.filter((item) => !item.isPlayable).length;
@@ -80,6 +88,7 @@ export default async function ActivitiesPage({
                   'Question type',
                   'Played as',
                   'Book',
+                  'Chapter',
                   'Skill',
                   'Level',
                   { label: 'Questions', numeric: true },
@@ -108,6 +117,9 @@ export default async function ActivitiesPage({
                            question types. */
                         <span className="text-amber-700">No book</span>
                       )}
+                    </TCell>
+                    <TCell>
+                      {activity.chapter?.name ?? <span className="text-slate-400">—</span>}
                     </TCell>
                     <TCell>{activity.skill.name}</TCell>
                     <TCell>{activity.classLevelCode ?? 'Every level'}</TCell>
@@ -151,7 +163,12 @@ export default async function ActivitiesPage({
 
       <div className="max-w-3xl">
         <Card title="Add a question type">
-          <NewActivityForm skills={skills} classLevels={classLevels} books={books} />
+          <NewActivityForm
+            skills={skills}
+            classLevels={classLevels}
+            books={books}
+            chapters={chapters}
+          />
         </Card>
       </div>
     </>

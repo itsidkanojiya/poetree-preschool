@@ -49,9 +49,10 @@ export async function createActivityAction(
 
   const classLevelId = String(formData.get('classLevelId') ?? '').trim();
   const bookId = String(formData.get('bookId') ?? '').trim();
+  const chapterId = String(formData.get('chapterId') ?? '').trim();
 
   try {
-    await apiFetch('/publication/question-types', {
+    await apiFetch('/publication/activities', {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
@@ -61,6 +62,7 @@ export async function createActivityAction(
         skillId: String(formData.get('skillId') ?? ''),
         classLevelId: classLevelId === '' ? null : classLevelId,
         bookId: bookId === '' ? null : bookId,
+        chapterId: chapterId === '' ? null : chapterId,
         content,
       },
     });
@@ -90,6 +92,9 @@ export async function updateActivityAction(
   const bookId = String(formData.get('bookId') ?? '').trim();
   body.bookId = bookId === '' ? null : bookId;
 
+  const chapterId = String(formData.get('chapterId') ?? '').trim();
+  body.chapterId = chapterId === '' ? null : chapterId;
+
   if (raw !== '') {
     const { content, error } = readContent(raw);
     if (error) return { error };
@@ -97,7 +102,7 @@ export async function updateActivityAction(
   }
 
   try {
-    await apiFetch(`/publication/question-types/${id}`, {
+    await apiFetch(`/publication/activities/${id}`, {
       method: 'PATCH',
       redirectOnAuthFailure: false,
       body,
@@ -118,7 +123,7 @@ export async function updateActivityAction(
  * evidence behind the mastery figures their parents have already been shown.
  */
 export async function setActivityActiveAction(id: string, isActive: boolean): Promise<void> {
-  await apiFetch(`/publication/question-types/${id}`, { method: 'PATCH', body: { isActive } });
+  await apiFetch(`/publication/activities/${id}`, { method: 'PATCH', body: { isActive } });
   revalidatePath('/publication/question-types');
   revalidatePath(`/publication/question-types/${id}`);
 }

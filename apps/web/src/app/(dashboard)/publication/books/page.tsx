@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import type { BookSummary, StandardSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
@@ -51,6 +52,7 @@ export default async function BooksPage() {
                 'Standard',
                 'Code',
                 { label: 'Question types', numeric: true },
+                '',
                 { label: 'Schools', numeric: true },
                 'State',
                 '',
@@ -67,6 +69,14 @@ export default async function BooksPage() {
                     <span className="font-mono text-xs text-slate-500">{book.code}</span>
                   </TCell>
                   <TCell numeric>{book.activityCount}</TCell>
+                  <TCell>
+                    <Link
+                      href={`/publication/books/${book.id}`}
+                      className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+                    >
+                      Chapters
+                    </Link>
+                  </TCell>
                   {/* Schools with it switched on — what was actually sold. */}
                   <TCell numeric>{book.schoolCount}</TCell>
                   <TCell>

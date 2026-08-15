@@ -188,6 +188,8 @@ export const AUDIT_ACTIONS = [
   'STANDARD_UPDATED',
   'BOOK_CREATED',
   'BOOK_UPDATED',
+  'CHAPTER_CREATED',
+  'CHAPTER_UPDATED',
   // Which books a school has is a record of what was sold, so changing it is
   // the kind of thing somebody asks about a year later.
   'SCHOOL_BOOKS_CHANGED',

@@ -30,22 +30,59 @@ interface BookOption {
   classLevel: { name: string };
 }
 
-/** The book picker, shared by both forms. */
-function BookField({ books, selected }: { books: BookOption[]; selected?: string | null }) {
+interface ChapterOption {
+  id: string;
+  name: string;
+  bookId: string;
+  bookName: string;
+}
+
+/**
+ * Where this page lives: the book, and the chapter within it.
+ *
+ * The chapter list shows its book's name against every option rather than
+ * filtering as the book changes — a server-rendered form has no way to react
+ * to the other field, and a chapter from the wrong book is refused on save
+ * with a message that says so.
+ */
+function PlacementFields({
+  books,
+  chapters,
+  book,
+  chapter,
+}: {
+  books: BookOption[];
+  chapters: ChapterOption[];
+  book?: string | null;
+  chapter?: string | null;
+}) {
   return (
-    <Field
-      label="Book"
-      hint="Which book this is a page of. A question type with no book reaches nobody."
-    >
-      <Select name="bookId" defaultValue={selected ?? ''}>
-        <option value="">Not in a book yet</option>
-        {books.map((book) => (
-          <option key={book.id} value={book.id}>
-            {book.classLevel.name} · {book.name}
-          </option>
-        ))}
-      </Select>
-    </Field>
+    <FieldSet>
+      <Field
+        label="Book"
+        hint="A question type with no book reaches nobody — schools are given books."
+      >
+        <Select name="bookId" defaultValue={book ?? ''}>
+          <option value="">Not in a book yet</option>
+          {books.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.classLevel.name} · {option.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field label="Chapter" hint="Optional. Must belong to the book above.">
+        <Select name="chapterId" defaultValue={chapter ?? ''}>
+          <option value="">Not in a chapter</option>
+          {chapters.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.bookName} · {option.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    </FieldSet>
   );
 }
 
@@ -108,10 +145,12 @@ export function NewActivityForm({
   skills,
   classLevels,
   books,
+  chapters,
 }: {
   skills: Option[];
   classLevels: Option[];
   books: BookOption[];
+  chapters: ChapterOption[];
 }) {
   const [state, formAction] = useActionState<ActivityState, FormData>(createActivityAction, {});
   const [type, setType] = useState<string>('COUNTING');
@@ -181,7 +220,7 @@ export function NewActivityForm({
         </Field>
       </FieldSet>
 
-      <BookField books={books} />
+      <PlacementFields books={books} chapters={chapters} />
 
       <Field label="Class level" hint="Leave blank to offer it to every level.">
         <Select name="classLevelId" defaultValue="">
@@ -207,12 +246,14 @@ export function EditActivityForm({
   skills,
   classLevels,
   books,
+  chapters,
 }: {
   activity: CatalogueActivity;
   content: string;
   skills: Option[];
   classLevels: Option[];
   books: BookOption[];
+  chapters: ChapterOption[];
 }) {
   const [state, formAction] = useActionState<ActivityState, FormData>(updateActivityAction, {});
   const [draft, setDraft] = useState(content);
@@ -254,7 +295,12 @@ export function EditActivityForm({
         </Field>
       </FieldSet>
 
-      <BookField books={books} selected={activity.book?.id} />
+      <PlacementFields
+        books={books}
+        chapters={chapters}
+        book={activity.book?.id}
+        chapter={activity.chapter?.id}
+      />
 
       <ContentField value={draft} onChange={setDraft} type={activity.type} />
 

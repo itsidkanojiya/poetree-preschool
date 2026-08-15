@@ -121,7 +121,7 @@ export async function addQuestionAction(
         ? await uploadAsset(promptPicture)
         : null;
 
-    await apiFetch(`/publication/question-types/${activityId}/questions`, {
+    await apiFetch(`/publication/activities/${activityId}/questions`, {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {

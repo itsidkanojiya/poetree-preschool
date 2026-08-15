@@ -4,7 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import 'package:flutter/material.dart';
+
 import 'activity_models.dart';
+import 'animation_view.dart';
 
 /// The catalogue of activities a child can be offered.
 class ActivityListController extends GetxController {
@@ -18,8 +21,38 @@ class ActivityListController extends GetxController {
 
   /// Only what the app can actually render. An activity with no authored
   /// content must never be offered — a child tapping it would find nothing.
+  ///
+  /// Locked ones stay in the list: a book that disappeared until its film had
+  /// been watched would look like a book with nothing in it, and nobody would
+  /// find the film that opens it.
   List<ActivityDefinition> get playable =>
       activities.where((a) => a.isPlayable).toList();
+
+  /// The books this child has still to watch, keyed by book id.
+  final animations = <String, ({String videoId, String bookName})>{}.obs;
+
+  /// Opens the film that unlocks an activity's book, then reloads on the way
+  /// back so the whole book opens at once rather than the one they tapped.
+  Future<void> openAnimation(
+    BuildContext context,
+    ActivityDefinition activity,
+  ) async {
+    final animation = animations[activity.bookId];
+    if (animation == null || studentId == null) return;
+
+    final watched = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AnimationView(
+          videoId: animation.videoId,
+          bookId: activity.bookId,
+          bookName: animation.bookName,
+          studentId: studentId!,
+        ),
+      ),
+    );
+
+    if (watched == true) await load();
+  }
 
   @override
   void onInit() {
@@ -27,16 +60,47 @@ class ActivityListController extends GetxController {
     unawaited(load());
   }
 
+  Future<void> _loadAnimations() async {
+    try {
+      final shelf = await api.get<List<dynamic>>(
+        '/catalogue/children/$studentId/books',
+      );
+      animations.value = {
+        for (final book in shelf.whereType<Map<String, dynamic>>())
+          if ((book['animation'] as Map<String, dynamic>?) != null &&
+              book['isUnlocked'] != true)
+            book['id'] as String: (
+              videoId:
+                  (book['animation'] as Map<String, dynamic>)['videoId']
+                      as String,
+              bookName: book['name'] as String? ?? 'Your book',
+            ),
+      };
+    } on DioException {
+      // The shelf is decoration for the lock screen; failing to load it must
+      // not take the activity list down with it.
+      animations.clear();
+    }
+  }
+
   Future<void> load() async {
     isLoading.value = true;
     error.value = null;
 
     try {
-      final data = await api.get<List<dynamic>>('/progress/activities');
+      final data = await api.get<List<dynamic>>(
+        '/progress/activities',
+        // Named, so the answer says which of these this child may open yet.
+        query: studentId == null ? null : {'studentId': studentId},
+      );
       activities.value = data
           .whereType<Map<String, dynamic>>()
           .map(ActivityDefinition.fromJson)
           .toList();
+
+      // The films behind the locks, so tapping a locked activity has somewhere
+      // to go rather than being a dead end.
+      if (studentId != null) await _loadAnimations();
     } on DioException catch (e) {
       final payload = e.response?.data;
       error.value = payload is Map && payload['error'] is Map

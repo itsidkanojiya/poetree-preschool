@@ -17,6 +17,7 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
         code: String(formData.get('code') ?? '').trim().toUpperCase(),
         name: String(formData.get('name') ?? '').trim(),
         classLevelId: String(formData.get('classLevelId') ?? ''),
+        animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
       },
     });
   } catch (error) {
@@ -40,7 +41,10 @@ export async function renameBookAction(
     await apiFetch(`/publication/books/${id}`, {
       method: 'PATCH',
       redirectOnAuthFailure: false,
-      body: { name: String(formData.get('name') ?? '').trim() },
+      body: {
+        name: String(formData.get('name') ?? '').trim(),
+        animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
+      },
     });
   } catch (error) {
     return { error: errorMessage(error, 'Could not save it.') };

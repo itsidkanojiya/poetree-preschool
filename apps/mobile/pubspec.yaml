@@ -44,6 +44,17 @@ dependencies:
   # both — most take the picture there and then, some already have.
   image_picker: ^1.1.2
 
+  # The animation a child watches before a book opens. Played inside the app,
+  # not handed to the YouTube app: this is the only way to know the video
+  # actually finished rather than a four-year-old tapping away from it, and it
+  # keeps them out of YouTube's recommendations.
+  #
+  # The iframe player rather than youtube_player_flutter: that one pulls in
+  # flutter_inappwebview, whose Android module still calls
+  # getDefaultProguardFile('proguard-android.txt') — removed in AGP 9, so the
+  # app would not build at all. This one sits on Flutter's own webview.
+  youtube_player_iframe: ^5.2.0
+
   # Push. Each school's build needs its own android/app/google-services.json —
   # tool/configure_school.dart puts it there. A build without one still runs:
   # the app degrades to the in-app inbox rather than refusing to start.

@@ -18,7 +18,8 @@ progressRouter.get(
     const classLevelId =
       typeof req.query.classLevelId === 'string' ? req.query.classLevelId : undefined;
     const bookId = typeof req.query.bookId === 'string' ? req.query.bookId : undefined;
-    res.json(await progress.listActivities({ classLevelId, bookId }));
+    const studentId = typeof req.query.studentId === 'string' ? req.query.studentId : undefined;
+    res.json(await progress.listActivities({ classLevelId, bookId, studentId }));
   }),
 );
 

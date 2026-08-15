@@ -1,8 +1,9 @@
 import { Router, type Request } from 'express';
-import { idParamSchema } from '@poetree/shared';
+import { z } from 'zod';
+import { idParamSchema, idSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
-import { params, validate } from '../middleware/validate.js';
+import { body, params, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { env } from '../config/env.js';
@@ -19,6 +20,8 @@ import * as books from '../services/book.service.js';
  */
 export const catalogueRouter = Router();
 
+const watchedBodySchema = z.object({ studentId: idSchema });
+
 /**
  * The books this school has.
  *
@@ -31,6 +34,39 @@ catalogueRouter.get(
   requirePermission('progress:read'),
   asyncHandler(async (_req, res) => {
     res.json(await books.booksForMySchool());
+  }),
+);
+
+/**
+ * This child's shelf: the books their school has, and whether each is open yet.
+ *
+ * Scoped to the caller's school inside the service, and refused for a child
+ * they may not read — a parent asking on behalf of somebody else's child gets
+ * the same 404 they would anywhere else.
+ */
+catalogueRouter.get(
+  '/children/:id/books',
+  requirePermission('progress:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await books.booksForChild(params<{ id: string }>(req).id));
+  }),
+);
+
+/**
+ * The child reached the end of a book's animation.
+ *
+ * `progress:record` rather than `progress:read`: this unlocks content, so it is
+ * the same permission as recording an attempt, and a parent may only do it for
+ * their own children.
+ */
+catalogueRouter.post(
+  '/books/:id/watched',
+  requirePermission('progress:record'),
+  validate({ params: idParamSchema, body: watchedBodySchema }),
+  asyncHandler(async (req, res) => {
+    const { studentId } = body<{ studentId: string }>(req);
+    res.json(await books.recordAnimationWatched(params<{ id: string }>(req).id, studentId));
   }),
 );
 

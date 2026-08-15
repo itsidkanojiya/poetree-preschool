@@ -281,6 +281,7 @@ model School {
   publication              Publication               @relation(fields: [publicationId], references: [id], onDelete: Restrict)
   logoFile                 FileObject?               @relation("SchoolLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
   books                    SchoolBook[]
+  animationViews           BookAnimationView[]
   users                    User[]
   teacherProfiles          TeacherProfile[]
   parentProfiles           ParentProfile[]
@@ -563,6 +564,7 @@ model Student {
   attendanceRecords   AttendanceRecord[]
   homeworkSubmissions HomeworkSubmission[]
   activityAttempts    ActivityAttempt[]
+  animationViews      BookAnimationView[]
   skillProgress       StudentSkillProgress[]
   feeConcessions      FeeConcession[]
   feeInvoices         FeeInvoice[]
@@ -1479,16 +1481,21 @@ model Book {
   classLevelId String
   sortOrder    Int     @default(0)
   coverFileId  String? @db.VarChar(191)
+  /// The animation a child watches before this book's activities open. A
+  /// YouTube link, because these are minutes of video and this box has two
+  /// cores and no CDN.
+  animationUrl String? @db.VarChar(500)
   isActive     Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  classLevel ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
-  cover      FileObject?        @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  classLevel ClassLevel          @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  cover      FileObject?         @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
   activities LearningActivity[]
   chapters   Chapter[]
   schools    SchoolBook[]
+  views      BookAnimationView[]
 
   @@index([classLevelId, sortOrder])
   @@map("books")
@@ -1522,6 +1529,27 @@ model SchoolBook {
 /// A book has chapters, a chapter has pages, and a page — what this system
 /// calls a question type — has questions. Publication-owned like the book it
 /// belongs to.
+/// A child who has watched a book's animation.
+///
+/// Written once, the first time they reach the end. Watched is watched: a
+/// four-year-old coming back to finish the questions should not have to sit
+/// through the video again, and a parent would skip it for them anyway.
+model BookAnimationView {
+  id        String   @id @default(cuid())
+  schoolId  String
+  studentId String
+  bookId    String
+  watchedAt DateTime @default(now())
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, bookId])
+  @@index([schoolId, studentId])
+  @@map("book_animation_views")
+}
+
 model Chapter {
   id        String  @id @default(cuid())
   bookId    String

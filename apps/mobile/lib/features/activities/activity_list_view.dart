@@ -72,30 +72,46 @@ class ActivityListView extends GetView<ActivityListController> {
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer,
+                        backgroundColor: activity.isLocked
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest
+                            : Theme.of(context).colorScheme.primaryContainer,
                         child: Icon(
-                          _iconFor(activity.type),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onPrimaryContainer,
+                          activity.isLocked
+                              ? Icons.play_circle_outline_rounded
+                              : _iconFor(activity.type),
+                          color: activity.isLocked
+                              ? Theme.of(context).colorScheme.outline
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
                         ),
                       ),
                       title: Text(activity.title),
                       subtitle: Text(
-                        activity.content!.isScored
+                        activity.isLocked
+                            // Not "locked": a four-year-old is being told what
+                            // to do next, not refused.
+                            ? 'Watch the film first'
+                            : activity.content!.isScored
                             ? '${activity.content!.itemCount} questions'
                             : '${activity.content!.itemCount} cards to look at',
                       ),
-                      trailing: const Icon(Icons.play_arrow_rounded),
-                      onTap: () => Get.toNamed<void>(
-                        AppRoutes.activityPlay,
-                        arguments: {
-                          'activity': activity,
-                          'studentId': controller.studentId,
-                        },
+                      trailing: Icon(
+                        activity.isLocked
+                            ? Icons.movie_outlined
+                            : Icons.play_arrow_rounded,
                       ),
+                      onTap: () => activity.isLocked
+                          ? controller.openAnimation(context, activity)
+                          : Get.toNamed<void>(
+                              AppRoutes.activityPlay,
+                              arguments: {
+                                'activity': activity,
+                                'studentId': controller.studentId,
+                              },
+                            ),
                     ),
                   ),
                 ),

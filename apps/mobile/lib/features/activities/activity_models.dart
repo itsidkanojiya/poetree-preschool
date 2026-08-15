@@ -13,6 +13,8 @@ class ActivityDefinition {
     required this.skillName,
     required this.bookName,
     required this.chapterName,
+    required this.bookId,
+    required this.isLocked,
     this.content,
   });
 
@@ -28,6 +30,8 @@ class ActivityDefinition {
       skillName: skill?['name'] as String? ?? '',
       bookName: book?['name'] as String? ?? '',
       chapterName: chapter?['name'] as String? ?? '',
+      bookId: book?['id'] as String? ?? '',
+      isLocked: json['isLocked'] as bool? ?? false,
       content: ActivityContent.tryParse(
         json['contentJson'] as Map<String, dynamic>?,
       ),
@@ -45,6 +49,13 @@ class ActivityDefinition {
 
   /// And the chapter within it, when the publisher has filed it.
   final String chapterName;
+
+  final String bookId;
+
+  /// True while this child still has the book's animation to watch. Locked
+  /// activities are still listed — a book that vanished until a video had been
+  /// watched would look like a book with nothing in it.
+  final bool isLocked;
 
   /// Null when nobody has authored content for it yet. The app must not offer
   /// an activity it cannot render.

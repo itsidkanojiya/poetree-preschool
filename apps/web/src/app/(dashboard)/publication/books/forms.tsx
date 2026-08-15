@@ -61,6 +61,13 @@ export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
         />
       </Field>
 
+      <Field
+        label="Animation"
+        hint="A YouTube link. The child watches this once and the book's activities open. Leave blank and they are open from the start."
+      >
+        <Input name="animationUrl" placeholder="https://youtu.be/…" />
+      </Field>
+
       <SubmitButton pendingLabel="Adding…">Add book</SubmitButton>
     </form>
   );
@@ -73,19 +80,28 @@ export function BookNameForm({ book }: { book: BookSummary }) {
   );
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <form action={formAction} className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          name="name"
+          defaultValue={book.name}
+          className="h-9 w-52 text-sm"
+          aria-label={`Name of ${book.name}`}
+        />
+        <button
+          type="submit"
+          className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+        >
+          Save
+        </button>
+      </div>
       <Input
-        name="name"
-        defaultValue={book.name}
-        className="h-9 w-52 text-sm"
-        aria-label={`Name of ${book.name}`}
+        name="animationUrl"
+        defaultValue={book.animation?.url ?? ''}
+        placeholder="YouTube link — children watch this before the activities open"
+        className="h-8 w-full text-xs"
+        aria-label={`Animation for ${book.name}`}
       />
-      <button
-        type="submit"
-        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-      >
-        Save
-      </button>
       {state.error && <span className="text-xs text-rose-600">{state.error}</span>}
     </form>
   );

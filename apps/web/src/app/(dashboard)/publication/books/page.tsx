@@ -51,6 +51,7 @@ export default async function BooksPage() {
                 'Book',
                 'Standard',
                 'Code',
+                'Animation',
                 { label: 'Question types', numeric: true },
                 '',
                 { label: 'Schools', numeric: true },
@@ -67,6 +68,15 @@ export default async function BooksPage() {
                   <TCell>{book.classLevel.name}</TCell>
                   <TCell>
                     <span className="font-mono text-xs text-slate-500">{book.code}</span>
+                  </TCell>
+                  <TCell>
+                    {book.animation ? (
+                      <Pill tone="brand">Watch first</Pill>
+                    ) : (
+                      /* No animation is a real state: the book is simply open
+                         from the start. */
+                      <span className="text-xs text-slate-400">Open</span>
+                    )}
                   </TCell>
                   <TCell numeric>{book.activityCount}</TCell>
                   <TCell>

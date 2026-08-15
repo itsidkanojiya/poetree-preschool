@@ -13,3 +13,4 @@ export * from './schemas/activities.js';
 export * from './schemas/catalogue.js';
 export * from './schemas/standard.js';
 export * from './schemas/book.js';
+export * from './schemas/question.js';

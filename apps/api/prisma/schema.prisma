@@ -1526,10 +1526,11 @@ model LearningActivity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  book       Book?             @relation(fields: [bookId], references: [id], onDelete: SetNull)
-  skill      Skill             @relation(fields: [skillId], references: [id], onDelete: Restrict)
-  classLevel ClassLevel?       @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  book       Book?              @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  skill      Skill              @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  classLevel ClassLevel?        @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
   attempts   ActivityAttempt[]
+  questions  ActivityQuestion[]
   homework   Homework[]
 
   @@index([skillId])
@@ -1539,6 +1540,60 @@ model LearningActivity {
 }
 
 /// One go at an activity. The source of truth for everything below it.
+/// One question a child answers.
+///
+/// These lived inside `LearningActivity.contentJson`. That was right while the
+/// content came from a seed script and wrong the moment a person had to type it
+/// in: adding a question meant rewriting the whole blob, and a picture could not
+/// be referenced from JSON at all.
+model ActivityQuestion {
+  id         String @id @default(cuid())
+  activityId String
+  sortOrder  Int    @default(0)
+
+  /// Read aloud by the app. A child of four cannot read the question.
+  say          String  @db.VarChar(200)
+  promptGlyph  String? @db.VarChar(16)
+  promptFileId String? @db.VarChar(191)
+  /// Tracing paths: arrays of normalised coordinates, which nobody queries.
+  strokesJson  Json?
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activity LearningActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  prompt   FileObject?      @relation("QuestionPrompt", fields: [promptFileId], references: [id], onDelete: SetNull)
+  options  QuestionOption[]
+
+  @@index([activityId, sortOrder])
+  @@map("activity_questions")
+}
+
+/// What the child taps.
+///
+/// `isCorrect` sits on the option rather than an index on the question: an
+/// author ticks the right picture, and the API works out the index the play
+/// engine wants when it serves.
+model QuestionOption {
+  id         String  @id @default(cuid())
+  questionId String
+  sortOrder  Int     @default(0)
+  text       String? @db.VarChar(80)
+  glyph      String? @db.VarChar(16)
+  fileId     String? @db.VarChar(191)
+  isCorrect  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  question ActivityQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  file     FileObject?      @relation("OptionImage", fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([questionId, sortOrder])
+  @@map("question_options")
+}
+
 model ActivityAttempt {
   id         String @id @default(cuid())
   schoolId   String
@@ -1650,6 +1705,8 @@ model FileObject {
   school                   School?                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   brandedSchools           School[]                  @relation("SchoolLogo")
   bookCovers               Book[]                    @relation("BookCover")
+  questionPrompts          ActivityQuestion[]        @relation("QuestionPrompt")
+  optionImages             QuestionOption[]          @relation("OptionImage")
   studentPhotos            Student[]                 @relation("StudentPhoto")
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   documents                StudentDocument[]

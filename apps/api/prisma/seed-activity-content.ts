@@ -117,60 +117,60 @@ const CONTENT: Record<string, ActivityContent> = {
   COUNT_OBJECTS: {
     kind: 'COUNTING',
     items: [
-      { prompt: { say: 'How many apples?', glyph: '🍎🍎' }, options: ['1', '2', '3'], answer: 1 },
-      { prompt: { say: 'How many ducks?', glyph: '🦆🦆🦆' }, options: ['2', '3', '4'], answer: 1 },
-      { prompt: { say: 'How many stars?', glyph: '⭐' }, options: ['1', '2', '3'], answer: 0 },
-      { prompt: { say: 'How many cars?', glyph: '🚗🚗🚗🚗' }, options: ['3', '4', '5'], answer: 1 },
-      { prompt: { say: 'How many flowers?', glyph: '🌸🌸🌸' }, options: ['2', '3', '4'], answer: 1 },
+      { prompt: { say: 'How many apples?', glyph: '🍎🍎' }, options: [{ text: '1' }, { text: '2' }, { text: '3' }], answer: 1 },
+      { prompt: { say: 'How many ducks?', glyph: '🦆🦆🦆' }, options: [{ text: '2' }, { text: '3' }, { text: '4' }], answer: 1 },
+      { prompt: { say: 'How many stars?', glyph: '⭐' }, options: [{ text: '1' }, { text: '2' }, { text: '3' }], answer: 0 },
+      { prompt: { say: 'How many cars?', glyph: '🚗🚗🚗🚗' }, options: [{ text: '3' }, { text: '4' }, { text: '5' }], answer: 1 },
+      { prompt: { say: 'How many flowers?', glyph: '🌸🌸🌸' }, options: [{ text: '2' }, { text: '3' }, { text: '4' }], answer: 1 },
     ],
   },
 
   MATCH_LETTER_PICTURE: {
     kind: 'MATCHING',
     items: [
-      { prompt: { say: 'Which one starts with A?' }, options: ['🍎', '🐝', '🐱'], answer: 0 },
-      { prompt: { say: 'Which one starts with B?' }, options: ['🍎', '🎈', '🌞'], answer: 1 },
-      { prompt: { say: 'Which one starts with C?' }, options: ['🐶', '🐱', '🐟'], answer: 1 },
-      { prompt: { say: 'Which one starts with D?' }, options: ['🐶', '🐘', '🦋'], answer: 0 },
-      { prompt: { say: 'Which one starts with E?' }, options: ['🥚', '🍇', '🌈'], answer: 0 },
+      { prompt: { say: 'Which one starts with A?' }, options: [{ glyph: '🍎' }, { glyph: '🐝' }, { glyph: '🐱' }], answer: 0 },
+      { prompt: { say: 'Which one starts with B?' }, options: [{ glyph: '🍎' }, { glyph: '🎈' }, { glyph: '🌞' }], answer: 1 },
+      { prompt: { say: 'Which one starts with C?' }, options: [{ glyph: '🐶' }, { glyph: '🐱' }, { glyph: '🐟' }], answer: 1 },
+      { prompt: { say: 'Which one starts with D?' }, options: [{ glyph: '🐶' }, { glyph: '🐘' }, { glyph: '🦋' }], answer: 0 },
+      { prompt: { say: 'Which one starts with E?' }, options: [{ glyph: '🥚' }, { glyph: '🍇' }, { glyph: '🌈' }], answer: 0 },
     ],
   },
 
   MATCH_SHAPES: {
     kind: 'MATCHING',
     items: [
-      { prompt: { say: 'Find the circle.', glyph: '⭕' }, options: ['🔺', '⭕', '🟦'], answer: 1 },
-      { prompt: { say: 'Find the triangle.', glyph: '🔺' }, options: ['🔺', '⭕', '🟦'], answer: 0 },
-      { prompt: { say: 'Find the square.', glyph: '🟦' }, options: ['⭕', '🔺', '🟦'], answer: 2 },
-      { prompt: { say: 'Find the star.', glyph: '⭐' }, options: ['⭐', '🟦', '🔺'], answer: 0 },
+      { prompt: { say: 'Find the circle.', glyph: '⭕' }, options: [{ glyph: '🔺' }, { glyph: '⭕' }, { glyph: '🟦' }], answer: 1 },
+      { prompt: { say: 'Find the triangle.', glyph: '🔺' }, options: [{ glyph: '🔺' }, { glyph: '⭕' }, { glyph: '🟦' }], answer: 0 },
+      { prompt: { say: 'Find the square.', glyph: '🟦' }, options: [{ glyph: '⭕' }, { glyph: '🔺' }, { glyph: '🟦' }], answer: 2 },
+      { prompt: { say: 'Find the star.', glyph: '⭐' }, options: [{ glyph: '⭐' }, { glyph: '🟦' }, { glyph: '🔺' }], answer: 0 },
     ],
   },
 
   SORT_SHAPES: {
     kind: 'SORTING',
     items: [
-      { prompt: { say: 'Which one is round?' }, options: ['🟦', '⭕'], answer: 1 },
-      { prompt: { say: 'Which one has corners?' }, options: ['🔺', '⭕'], answer: 0 },
-      { prompt: { say: 'Which one is a box shape?' }, options: ['⭕', '🟦'], answer: 1 },
+      { prompt: { say: 'Which one is round?' }, options: [{ glyph: '🟦' }, { glyph: '⭕' }], answer: 1 },
+      { prompt: { say: 'Which one has corners?' }, options: [{ glyph: '🔺' }, { glyph: '⭕' }], answer: 0 },
+      { prompt: { say: 'Which one is a box shape?' }, options: [{ glyph: '⭕' }, { glyph: '🟦' }], answer: 1 },
     ],
   },
 
   MATCH_COLOURS: {
     kind: 'MATCHING',
     items: [
-      { prompt: { say: 'Find the red one.' }, options: ['🔴', '🔵', '🟡'], answer: 0 },
-      { prompt: { say: 'Find the blue one.' }, options: ['🔴', '🔵', '🟢'], answer: 1 },
-      { prompt: { say: 'Find the yellow one.' }, options: ['🟢', '🟡', '🔵'], answer: 1 },
-      { prompt: { say: 'Find the green one.' }, options: ['🟢', '🔴', '🟡'], answer: 0 },
+      { prompt: { say: 'Find the red one.' }, options: [{ glyph: '🔴' }, { glyph: '🔵' }, { glyph: '🟡' }], answer: 0 },
+      { prompt: { say: 'Find the blue one.' }, options: [{ glyph: '🔴' }, { glyph: '🔵' }, { glyph: '🟢' }], answer: 1 },
+      { prompt: { say: 'Find the yellow one.' }, options: [{ glyph: '🟢' }, { glyph: '🟡' }, { glyph: '🔵' }], answer: 1 },
+      { prompt: { say: 'Find the green one.' }, options: [{ glyph: '🟢' }, { glyph: '🔴' }, { glyph: '🟡' }], answer: 0 },
     ],
   },
 
   COLOUR_THE_FRUIT: {
     kind: 'COLOURING',
     items: [
-      { prompt: { say: 'What colour is a banana?', glyph: '🍌' }, options: ['🔴', '🟡', '🔵'], answer: 1 },
-      { prompt: { say: 'What colour is a strawberry?', glyph: '🍓' }, options: ['🔴', '🟢', '🟡'], answer: 0 },
-      { prompt: { say: 'What colour is a leaf?', glyph: '🍃' }, options: ['🔵', '🟢', '🔴'], answer: 1 },
+      { prompt: { say: 'What colour is a banana?', glyph: '🍌' }, options: [{ glyph: '🔴' }, { glyph: '🟡' }, { glyph: '🔵' }], answer: 1 },
+      { prompt: { say: 'What colour is a strawberry?', glyph: '🍓' }, options: [{ glyph: '🔴' }, { glyph: '🟢' }, { glyph: '🟡' }], answer: 0 },
+      { prompt: { say: 'What colour is a leaf?', glyph: '🍃' }, options: [{ glyph: '🔵' }, { glyph: '🟢' }, { glyph: '🔴' }], answer: 1 },
     ],
   },
 

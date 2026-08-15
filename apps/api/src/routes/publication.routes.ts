@@ -4,6 +4,7 @@ import {
   createActivitySchema,
   createBookSchema,
   createPlanSchema,
+  createQuestionSchema,
   createStandardSchema,
   createSchoolAdminSchema,
   createSchoolSchema,
@@ -18,6 +19,7 @@ import {
   updateActivitySchema,
   updateBookSchema,
   updatePlanSchema,
+  updateQuestionSchema,
   updateStandardSchema,
   updateSchoolSchema,
 } from '@poetree/shared';
@@ -26,6 +28,7 @@ import type {
   CreateActivityInput,
   CreateBookInput,
   CreatePlanInput,
+  CreateQuestionInput,
   CreateStandardInput,
   CreateSchoolAdminInput,
   CreateSchoolInput,
@@ -38,10 +41,15 @@ import type {
   UpdateActivityInput,
   UpdateBookInput,
   UpdatePlanInput,
+  UpdateQuestionInput,
   UpdateStandardInput,
   UpdateSchoolInput,
 } from '@poetree/shared';
+import multer from 'multer';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { ApiError } from '../lib/apiError.js';
+import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, sniffMime, storage, typeFor } from '../lib/storage.js';
+import { stripImageMetadata } from '../lib/exif.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
@@ -52,6 +60,7 @@ import * as usage from '../services/usage.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as standards from '../services/standard.service.js';
 import * as books from '../services/book.service.js';
+import * as questions from '../services/question.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -60,6 +69,12 @@ import * as books from '../services/book.service.js';
 export const publicationRouter = Router();
 
 publicationRouter.use(requireRole('PUBLICATION_ADMIN'));
+
+/** Buffered in memory like every other upload; the cap is enforced per type. */
+const assetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+});
 
 /* -------------------------------------------------------------------------- */
 /* Overview                                                                   */
@@ -274,6 +289,65 @@ publicationRouter.put(
 );
 
 /* -------------------------------------------------------------------------- */
+/* Catalogue artwork                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Uploads a picture for the catalogue.
+ *
+ * Separate from POST /files, which stamps the caller's school onto every row
+ * and would throw for a Super Admin who has no school at all. These are
+ * publication-owned — schoolId NULL — because the same apple is shown to every
+ * child at every school that bought the book.
+ */
+publicationRouter.post(
+  '/assets',
+  assetUpload.single('file'),
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file) throw ApiError.badRequest('No file was uploaded');
+
+    // By content, never by the name or the Content-Type the client sent.
+    const mime = sniffMime(file.buffer);
+    const allowed = mime ? typeFor(mime) : undefined;
+    if (!mime || !allowed) {
+      throw ApiError.badRequest('That file type is not supported', {
+        allowed: ALLOWED_TYPES.map((t) => t.mime),
+      });
+    }
+    if (!mime.startsWith('image/')) {
+      throw ApiError.badRequest('Catalogue artwork has to be a picture');
+    }
+    if (file.size > allowed.maxBytes) {
+      throw ApiError.badRequest(
+        `${mime} files may be at most ${Math.round(allowed.maxBytes / (1024 * 1024))} MB`,
+      );
+    }
+
+    // Stripped like every other upload. Publisher artwork is unlikely to carry
+    // a home address, but the rule is cheaper to keep than to reason about.
+    const bytes = stripImageMetadata(file.buffer, mime);
+    const stored = await storage.put({ schoolId: null, originalName: file.originalname, bytes });
+
+    const record = await prismaUnscoped.fileObject.create({
+      data: {
+        schoolId: null,
+        storageKey: stored.key,
+        originalName: file.originalname.slice(0, 200),
+        mimeType: mime,
+        sizeBytes: stored.sizeBytes,
+        checksum: stored.checksum,
+        uploadedById: req.auth!.userId,
+        visibility: 'PUBLIC',
+      },
+      select: { id: true, originalName: true, mimeType: true, sizeBytes: true },
+    });
+
+    res.status(201).json({ ...record, url: `/api/v1/catalogue/assets/${record.id}` });
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
 /* Books — what Poetree actually sells                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -430,6 +504,55 @@ publicationRouter.post(
     res
       .status(201)
       .json(await catalogue.createActivity(body<CreateActivityInput>(req), req.auth!.userId));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Questions — the rows on a page                                             */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/activities/:id/questions',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await questions.listQuestions(params<{ id: string }>(req).id));
+  }),
+);
+
+publicationRouter.post(
+  '/activities/:id/questions',
+  validate({ params: idParamSchema, body: createQuestionSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(
+      await questions.createQuestion(
+        params<{ id: string }>(req).id,
+        body<CreateQuestionInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+publicationRouter.patch(
+  '/questions/:id',
+  validate({ params: idParamSchema, body: updateQuestionSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await questions.updateQuestion(
+        params<{ id: string }>(req).id,
+        body<UpdateQuestionInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+publicationRouter.delete(
+  '/questions/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await questions.deleteQuestion(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );
 

@@ -3,6 +3,7 @@ import { getRequestContext, requireSchoolId } from '../context/requestContext.js
 import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds } from './scope.service.js';
 import { closeHomeworkForActivity } from './homework.service.js';
+import { composeContent, upconvertStoredContent } from './question.service.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -308,11 +309,56 @@ export async function classroomProgress(classroomId: string): Promise<ClassroomP
   });
 }
 
-/** The catalogue, for an app deciding what to offer a child next. */
-export async function listActivities(classLevelId?: string) {
-  return prismaUnscoped.learningActivity.findMany({
-    where: { isActive: true, ...(classLevelId ? { classLevelId } : {}) },
-    include: { skill: { select: { id: true, code: true, name: true } } },
+/**
+ * The catalogue, for an app deciding what to offer a child next.
+ *
+ * Narrowed to the books this school bought, and to one book when the app asks
+ * for one. A question type outside any book reaches nobody — schools are given
+ * books, not loose pages.
+ *
+ * Content is composed from question rows here rather than read off the stored
+ * blob, so the app is served the shape it has always parsed while authoring
+ * happens against rows. Activities that predate the rows fall back to their
+ * stored JSON, lifted to the current shape on the way out.
+ */
+export async function listActivities(options?: { classLevelId?: string; bookId?: string }) {
+  const schoolId = requireSchoolId();
+
+  const entitled = await prismaUnscoped.schoolBook.findMany({
+    where: { schoolId, enabled: true },
+    select: { bookId: true },
+  });
+  const bookIds = entitled.map((row) => row.bookId);
+
+  if (options?.bookId && !bookIds.includes(options.bookId)) {
+    // Asking for a book this school does not have is not an error worth
+    // explaining — it simply has nothing in it for them.
+    return [];
+  }
+
+  const rows = await prismaUnscoped.learningActivity.findMany({
+    where: {
+      isActive: true,
+      ...(options?.classLevelId ? { classLevelId: options.classLevelId } : {}),
+      ...(options?.bookId
+        ? { bookId: options.bookId }
+        : bookIds.length > 0
+          ? { OR: [{ bookId: { in: bookIds } }, { bookId: null }] }
+          : { bookId: null }),
+    },
+    include: {
+      skill: { select: { id: true, code: true, name: true } },
+      book: { select: { id: true, name: true } },
+    },
     orderBy: [{ code: 'asc' }],
   });
+
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      contentJson:
+        (await composeContent({ id: row.id, type: row.type })) ??
+        upconvertStoredContent(row.contentJson),
+    })),
+  );
 }

@@ -17,7 +17,8 @@ progressRouter.get(
   asyncHandler(async (req, res) => {
     const classLevelId =
       typeof req.query.classLevelId === 'string' ? req.query.classLevelId : undefined;
-    res.json(await progress.listActivities(classLevelId));
+    const bookId = typeof req.query.bookId === 'string' ? req.query.bookId : undefined;
+    res.json(await progress.listActivities({ classLevelId, bookId }));
   }),
 );
 

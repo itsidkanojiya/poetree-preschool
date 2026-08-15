@@ -15,7 +15,12 @@ const dbUp = await isDatabaseReachable();
 const COUNTING = {
   kind: 'COUNTING',
   items: [
-    { prompt: { say: 'How many apples?', glyph: '🍎' }, options: ['1', '2', '3'], answer: 1 },
+    {
+      prompt: { say: 'How many apples?', glyph: '🍎' },
+      // Objects rather than bare strings since an option can be a picture.
+      options: [{ text: '1' }, { text: '2' }, { text: '3' }],
+      answer: 1,
+    },
   ],
 };
 
@@ -76,7 +81,10 @@ describe.skipIf(!dbUp)('the publisher’s activity catalogue', () => {
         title: 'Broken counting',
         type: 'COUNTING',
         skillId,
-        content: { kind: 'COUNTING', items: [{ prompt: { say: 'How many?' }, options: ['1'] }] },
+        content: {
+          kind: 'COUNTING',
+          items: [{ prompt: { say: 'How many?' }, options: [{ text: '1' }] }],
+        },
       });
 
     expect(broken.status).toBe(400);

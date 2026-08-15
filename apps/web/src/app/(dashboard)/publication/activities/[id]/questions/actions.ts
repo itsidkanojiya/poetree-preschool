@@ -41,6 +41,27 @@ async function uploadAsset(file: File): Promise<string> {
   return (data as { id: string }).id;
 }
 
+/**
+ * The drawn path, as the editor serialised it.
+ *
+ * Empty means the author has not drawn anything, which is not the same as
+ * "leave what was there" — but it is what a cleared canvas means, and the API
+ * will refuse to show a tracing question with no path anyway.
+ */
+function readStrokes(formData: FormData): Array<Array<{ x: number; y: number }>> | undefined {
+  const raw = String(formData.get('strokes') ?? '').trim();
+  if (raw === '') return undefined;
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) && parsed.length > 0
+      ? (parsed as Array<Array<{ x: number; y: number }>>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 interface OptionDraft {
   text?: string;
   glyph?: string;
@@ -107,6 +128,7 @@ export async function addQuestionAction(
         say,
         promptGlyph: String(formData.get('promptGlyph') ?? '').trim() || null,
         promptFileId,
+        strokes: readStrokes(formData),
         options,
       },
     });
@@ -133,6 +155,7 @@ export async function updateQuestionAction(
       body: {
         say: String(formData.get('say') ?? '').trim(),
         promptGlyph: String(formData.get('promptGlyph') ?? '').trim() || null,
+        strokes: readStrokes(formData),
         options,
       },
     });

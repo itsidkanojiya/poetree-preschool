@@ -189,6 +189,62 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
     expect(offered.body.find((row: { id: string }) => row.id === activityId)).toBeUndefined();
   });
 
+  it('takes a drawn path for a tracing question, and refuses one without', async () => {
+    const skill = await prismaUnscoped.skill.findFirstOrThrow({ select: { id: true } });
+    const nursery = await prismaUnscoped.classLevel.findUniqueOrThrow({
+      where: { code: 'NURSERY' },
+      select: { id: true },
+    });
+
+    const tracing = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({
+        code: 'TRACE_THE_A',
+        title: 'Trace and write',
+        type: 'TRACING',
+        skillId: skill.id,
+        bookId,
+        classLevelId: nursery.id,
+        content: {
+          kind: 'TRACING',
+          items: [
+            { glyph: 'A', say: 'Trace the letter A', strokes: [[{ x: 0.5, y: 0.1 }, { x: 0.2, y: 0.9 }]] },
+          ],
+        },
+      });
+
+    const drawn = await api
+      .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
+      .set(auth(publisher))
+      .send({
+        say: 'Trace the letter A',
+        promptGlyph: 'A',
+        strokes: [
+          [
+            { x: 0.5, y: 0.1 },
+            { x: 0.2, y: 0.9 },
+          ],
+          [
+            { x: 0.5, y: 0.1 },
+            { x: 0.8, y: 0.9 },
+          ],
+        ],
+      });
+
+    expect(drawn.status).toBe(201);
+    expect(drawn.body.strokes).toHaveLength(2);
+    expect(drawn.body.problem).toBeNull();
+
+    // A letter with no path is a blank square a child is asked to trace.
+    const undrawn = await api
+      .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
+      .set(auth(publisher))
+      .send({ say: 'Trace the letter B', promptGlyph: 'B' });
+
+    expect(undrawn.body.problem).toBe('No strokes to trace yet');
+  });
+
   it('keeps a school out of the question editor', async () => {
     const listed = await api
       .get(`${BASE}/publication/activities/${activityId}/questions`)

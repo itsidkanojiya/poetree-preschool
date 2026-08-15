@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import type { QuestionRow } from '@poetree/shared';
 import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
+import { StrokeEditor } from './stroke-editor';
 import {
   addQuestionAction,
   deleteQuestionAction,
@@ -90,10 +91,13 @@ function optionFileId(option?: QuestionRow['options'][number]): string {
 export function AddQuestionForm({
   activityId,
   scored,
+  tracing,
   count,
 }: {
   activityId: string;
   scored: boolean;
+  /** Tracing is scored, but there is nothing to choose between. */
+  tracing: boolean;
   count: number;
 }) {
   const [state, formAction] = useActionState<QuestionState, FormData>(
@@ -118,22 +122,38 @@ export function AddQuestionForm({
         <Field label="Picture above the question" hint="Optional.">
           <Input type="file" name="prompt-image" accept="image/png,image/jpeg,image/webp" />
         </Field>
-        <Field label="or an emoji" hint="Shown large, above the choices.">
-          <Input name="promptGlyph" placeholder="🍎" />
+        <Field
+          label={tracing ? 'The letter or number' : 'or an emoji'}
+          hint={
+            tracing
+              ? 'Shown faintly under your strokes, and to the child as they trace.'
+              : 'Shown large, above the choices.'
+          }
+        >
+          <Input name="promptGlyph" placeholder={tracing ? 'A' : '🍎'} />
         </Field>
       </div>
 
-      {scored && (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            What they choose between
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[0, 1, 2, 3].map((index) => (
-              <OptionSlot key={index} index={index} scored={scored} />
-            ))}
+      {tracing ? (
+        <Field
+          label="The path to trace"
+          hint="Draw over the letter, one stroke at a time, in the order a child should make them."
+        >
+          <StrokeEditor name="strokes" />
+        </Field>
+      ) : (
+        scored && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              What they choose between
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[0, 1, 2, 3].map((index) => (
+                <OptionSlot key={index} index={index} scored={scored} />
+              ))}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       <SubmitButton pendingLabel="Adding…">
@@ -147,10 +167,12 @@ export function EditQuestionForm({
   activityId,
   question,
   scored,
+  tracing,
 }: {
   activityId: string;
   question: QuestionRow;
   scored: boolean;
+  tracing: boolean;
 }) {
   const [state, formAction] = useActionState<QuestionState, FormData>(
     updateQuestionAction.bind(null, activityId, question.id),
@@ -170,12 +192,27 @@ export function EditQuestionForm({
         <Input name="promptGlyph" defaultValue={question.promptGlyph ?? ''} placeholder="🍎" />
       </Field>
 
-      {scored && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[0, 1, 2, 3].map((index) => (
-            <OptionSlot key={index} index={index} option={question.options[index]} scored={scored} />
-          ))}
-        </div>
+      {tracing ? (
+        <Field label="The path to trace">
+          <StrokeEditor
+            name="strokes"
+            guide={question.promptGlyph ?? undefined}
+            initial={question.strokes ?? undefined}
+          />
+        </Field>
+      ) : (
+        scored && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((index) => (
+              <OptionSlot
+                key={index}
+                index={index}
+                option={question.options[index]}
+                scored={scored}
+              />
+            ))}
+          </div>
+        )
       )}
 
       <SubmitButton variant="secondary" pendingLabel="Saving…">

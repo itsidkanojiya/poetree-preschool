@@ -27,6 +27,7 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
   ]);
 
   const scored = SCORED.includes(activity.type);
+  const tracing = activity.type === 'TRACING';
   const broken = questions.filter((question) => question.problem !== null);
 
   return (
@@ -80,7 +81,12 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
                 />
               </div>
 
-              <EditQuestionForm activityId={id} question={question} scored={scored} />
+              <EditQuestionForm
+                activityId={id}
+                question={question}
+                scored={scored}
+                tracing={tracing}
+              />
             </Card>
           ))}
         </div>
@@ -90,12 +96,19 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
         <Card
           title="Add a question"
           description={
-            scored
-              ? 'A picture, an emoji or a word on each choice. Tick the right one.'
-              : 'Something to look at. Nothing to get wrong.'
+            tracing
+              ? 'Draw the path a child follows with their finger.'
+              : scored
+                ? 'A picture, an emoji or a word on each choice. Tick the right one.'
+                : 'Something to look at. Nothing to get wrong.'
           }
         >
-          <AddQuestionForm activityId={id} scored={scored} count={questions.length} />
+          <AddQuestionForm
+            activityId={id}
+            scored={scored}
+            tracing={tracing}
+            count={questions.length}
+          />
         </Card>
       </div>
     </>

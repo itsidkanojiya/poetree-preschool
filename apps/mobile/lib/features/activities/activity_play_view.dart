@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/widgets/authed_image.dart';
 import 'activity_controller.dart';
 import 'activity_models.dart';
 
@@ -67,7 +68,16 @@ class _ChoiceStep extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 8),
-          if (item.glyph != null)
+          if (item.imagePath != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: AuthedImage(
+                path: item.imagePath!,
+                height: 140,
+                fit: BoxFit.contain,
+              ),
+            )
+          else if (item.glyph != null)
             Text(item.glyph!, style: const TextStyle(fontSize: 64)),
           const SizedBox(height: 12),
           Text(
@@ -80,6 +90,7 @@ class _ChoiceStep extends StatelessWidget {
           Expanded(
             child: GridView.count(
               crossAxisCount: item.options.length > 2 ? 3 : 2,
+              childAspectRatio: 1,
               mainAxisSpacing: 14,
               crossAxisSpacing: 14,
               children: List.generate(item.options.length, (option) {
@@ -102,12 +113,7 @@ class _ChoiceStep extends StatelessWidget {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () => controller.answer(option, item.answer),
-                    child: Center(
-                      child: Text(
-                        item.options[option],
-                        style: const TextStyle(fontSize: 44),
-                      ),
-                    ),
+                    child: _Option(media: item.options[option]),
                   ),
                 );
               }),
@@ -148,7 +154,16 @@ class _CardStep extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (item.glyph != null)
+          if (item.imagePath != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: AuthedImage(
+                path: item.imagePath!,
+                height: 220,
+                fit: BoxFit.contain,
+              ),
+            )
+          else if (item.glyph != null)
             Text(item.glyph!, style: const TextStyle(fontSize: 110)),
           const SizedBox(height: 20),
           Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
@@ -370,6 +385,42 @@ class _Finished extends StatelessWidget {
             child: const Text('Do it again'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One choice: a picture, an emoji, or a word.
+///
+/// A picture fills the tile with padding around it, because clip art with a
+/// white background butted against a coloured tile looks like a mistake.
+class _Option extends StatelessWidget {
+  const _Option({required this.media});
+
+  final ActivityMedia media;
+
+  @override
+  Widget build(BuildContext context) {
+    if (media.imagePath != null) {
+      return Padding(
+        padding: const EdgeInsets.all(10),
+        child: AuthedImage(path: media.imagePath!, fit: BoxFit.contain),
+      );
+    }
+
+    final label = media.glyph ?? media.text ?? '';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: FittedBox(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            // A word needs to be smaller than a single emoji or it will not
+            // fit, and FittedBox does the rest.
+            style: TextStyle(fontSize: label.characters.length > 2 ? 28 : 44),
+          ),
+        ),
       ),
     );
   }

@@ -11,17 +11,20 @@ class ActivityDefinition {
     required this.title,
     required this.type,
     required this.skillName,
+    required this.bookName,
     this.content,
   });
 
   factory ActivityDefinition.fromJson(Map<String, dynamic> json) {
     final skill = json['skill'] as Map<String, dynamic>?;
+    final book = json['book'] as Map<String, dynamic>?;
     return ActivityDefinition(
       id: json['id'] as String,
       code: json['code'] as String,
       title: json['title'] as String,
       type: json['type'] as String,
       skillName: skill?['name'] as String? ?? '',
+      bookName: book?['name'] as String? ?? '',
       content: ActivityContent.tryParse(
         json['contentJson'] as Map<String, dynamic>?,
       ),
@@ -33,6 +36,9 @@ class ActivityDefinition {
   final String title;
   final String type;
   final String skillName;
+
+  /// The book this is a page of. Empty for older content filed under nothing.
+  final String bookName;
 
   /// Null when nobody has authored content for it yet. The app must not offer
   /// an activity it cannot render.
@@ -87,6 +93,42 @@ sealed class ActivityContent {
   /// picture of a cow would put a number on something that is not a test, and
   /// a mastery figure built from it would mean nothing.
   bool get isScored;
+}
+
+/// One thing a child looks at: a picture, an emoji, or a word.
+///
+/// Options were bare strings while emoji were all the catalogue could hold.
+/// A picture arrives as a path this API serves, which goes through AuthedImage
+/// like every other authenticated image in the app.
+class ActivityMedia {
+  const ActivityMedia({this.glyph, this.text, this.imagePath});
+
+  factory ActivityMedia.fromJson(Object? raw) {
+    // A bare string is content written before pictures existed. Reading it is
+    // free and means an older activity still plays.
+    if (raw is String) return ActivityMedia(glyph: raw);
+
+    if (raw is Map<String, dynamic>) {
+      final url = raw['imageUrl'] as String?;
+      return ActivityMedia(
+        glyph: raw['glyph'] as String?,
+        text: raw['text'] as String?,
+        // The API answers with a path rooted at the domain and our base URL
+        // already ends in /api/v1 — the same trim every other file path needs.
+        imagePath: url == null || url.isEmpty
+            ? null
+            : url.replaceFirst('/api/v1', ''),
+      );
+    }
+
+    return const ActivityMedia();
+  }
+
+  final String? glyph;
+  final String? text;
+  final String? imagePath;
+
+  bool get isEmpty => glyph == null && text == null && imagePath == null;
 }
 
 class TracingContent extends ActivityContent {
@@ -149,15 +191,21 @@ class ChoiceItem {
     required this.options,
     required this.answer,
     this.glyph,
+    this.imagePath,
   });
 
   factory ChoiceItem.fromJson(Map<String, dynamic> json) {
     final prompt = json['prompt'] as Map<String, dynamic>? ?? const {};
+    final promptImage = prompt['imageUrl'] as String?;
+
     return ChoiceItem(
       say: prompt['say'] as String? ?? '',
       glyph: prompt['glyph'] as String?,
+      imagePath: promptImage == null || promptImage.isEmpty
+          ? null
+          : promptImage.replaceFirst('/api/v1', ''),
       options: (json['options'] as List<dynamic>? ?? const <dynamic>[])
-          .map((e) => e.toString())
+          .map(ActivityMedia.fromJson)
           .toList(),
       answer: (json['answer'] as num?)?.toInt() ?? 0,
     );
@@ -165,7 +213,10 @@ class ChoiceItem {
 
   final String say;
   final String? glyph;
-  final List<String> options;
+
+  /// A picture above the choices, when the question needs one.
+  final String? imagePath;
+  final List<ActivityMedia> options;
   final int answer;
 }
 
@@ -183,15 +234,27 @@ class CardContent extends ActivityContent {
 }
 
 class CardItem {
-  CardItem({required this.title, required this.say, this.glyph});
+  CardItem({
+    required this.title,
+    required this.say,
+    this.glyph,
+    this.imagePath,
+  });
 
-  factory CardItem.fromJson(Map<String, dynamic> json) => CardItem(
-    title: json['title'] as String? ?? '',
-    say: json['say'] as String? ?? '',
-    glyph: json['glyph'] as String?,
-  );
+  factory CardItem.fromJson(Map<String, dynamic> json) {
+    final url = json['imageUrl'] as String?;
+    return CardItem(
+      title: json['title'] as String? ?? '',
+      say: json['say'] as String? ?? '',
+      glyph: json['glyph'] as String?,
+      imagePath: url == null || url.isEmpty
+          ? null
+          : url.replaceFirst('/api/v1', ''),
+    );
+  }
 
   final String title;
   final String say;
   final String? glyph;
+  final String? imagePath;
 }

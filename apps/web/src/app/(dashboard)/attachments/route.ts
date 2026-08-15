@@ -38,9 +38,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // Catalogue artwork is publication-owned and served by its own route; a
+  // school's uploads are tenant-scoped and served by /files/:id. The two
+  // authorisation models are deliberately separate on the API, so the caller
+  // has to say which it wants rather than have this guess.
+  const kind = request.nextUrl.searchParams.get('kind');
+  const path = kind === 'catalogue' ? `/catalogue/assets/${id}` : `/files/${id}`;
+
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
 
-  const response = await fetch(`${API_BASE_URL}/files/${id}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
     cache: 'no-store',
   });

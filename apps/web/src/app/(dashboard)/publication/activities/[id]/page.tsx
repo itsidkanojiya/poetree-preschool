@@ -58,6 +58,14 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
         {!activity.isPlayable && <Pill tone="neutral">The app cannot read this content</Pill>}
         <span className="text-xs text-slate-500">Last changed {formatDate(activity.updatedAt)}</span>
         <RetireButton activity={activity} />
+        <Link
+          href={`/publication/activities/${activity.id}/questions`}
+          className="rounded-lg bg-navy-900 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-navy-800"
+        >
+          {activity.itemCount === 0
+            ? 'Add questions'
+            : `Edit ${activity.itemCount} ${activity.itemCount === 1 ? 'question' : 'questions'}`}
+        </Link>
       </div>
 
       <div className="max-w-3xl">

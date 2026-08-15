@@ -110,7 +110,14 @@ export default async function ActivitiesPage({
                     </TCell>
                     <TCell>{activity.skill.name}</TCell>
                     <TCell>{activity.classLevelCode ?? 'Every level'}</TCell>
-                    <TCell numeric>{activity.itemCount}</TCell>
+                    <TCell numeric>
+                      <Link
+                        href={`/publication/activities/${activity.id}/questions`}
+                        className="hover:underline"
+                      >
+                        {activity.itemCount}
+                      </Link>
+                    </TCell>
                     {/* Across every school. The one number that says whether
                         writing this was worth the afternoon. */}
                     <TCell numeric>{activity.attemptCount}</TCell>

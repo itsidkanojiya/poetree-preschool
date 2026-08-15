@@ -17,11 +17,12 @@ IconData _iconFor(String type) => switch (type) {
   _ => Icons.auto_stories_outlined,
 };
 
-/// What a child can play, grouped by the skill it builds.
+/// What a child can play, grouped by the book it comes from.
 ///
-/// Grouped by skill rather than listed flat because the skill is what a parent
-/// sees on the progress screen — so the connection between "we did the letter
-/// game" and "letter recognition went up" is visible rather than inferred.
+/// By book because that is what a family recognises: the EVS book is a thing
+/// they own, on a shelf, with the same pictures in it. Anything not filed under
+/// a book falls back to the skill it builds, which is what the whole screen used
+/// to be grouped by.
 class ActivityListView extends GetView<ActivityListController> {
   const ActivityListView({super.key});
 
@@ -32,9 +33,12 @@ class ActivityListView extends GetView<ActivityListController> {
       body: Obx(() {
         final playable = controller.playable;
 
-        final bySkill = <String, List<ActivityDefinition>>{};
+        final byBook = <String, List<ActivityDefinition>>{};
         for (final activity in playable) {
-          bySkill.putIfAbsent(activity.skillName, () => []).add(activity);
+          final heading = activity.bookName.isNotEmpty
+              ? activity.bookName
+              : activity.skillName;
+          byBook.putIfAbsent(heading, () => []).add(activity);
         }
 
         return AsyncView(
@@ -44,11 +48,11 @@ class ActivityListView extends GetView<ActivityListController> {
           onRetry: controller.load,
           emptyTitle: 'Nothing to play yet',
           emptyMessage:
-              'The school has not published any activities. They will appear here.',
+              'Nothing from your school’s books yet. It will appear here.',
           builder: (context) => ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              for (final entry in bySkill.entries) ...[
+              for (final entry in byBook.entries) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
                   child: Text(

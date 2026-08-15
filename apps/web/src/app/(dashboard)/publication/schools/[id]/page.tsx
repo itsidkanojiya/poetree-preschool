@@ -7,12 +7,12 @@ import { daysUntil, formatDate } from '@/lib/format';
 import type { SchoolBookRow } from '@poetree/shared';
 import { SchoolBooksPanel } from '../../books/forms';
 import {
-  AssignPlanPanel,
   CreateAdminPanel,
   LogoPanel,
   ReactivatePanel,
   SchoolDetailsForm,
   SuspendPanel,
+  ValidityPanel,
 } from './panels';
 
 interface SuspensionImpact {
@@ -123,10 +123,10 @@ export default async function SchoolDetailPage({ params }: { params: Promise<{ i
         </Card>
 
         <Card
-          title="Subscription plan"
-          description="Assigning a plan also sets the school to active."
+          title="Access"
+          description="How long this school can use the product. Nothing else gates them."
         >
-          <AssignPlanPanel school={school} plans={plans.items} />
+          <ValidityPanel school={school} />
         </Card>
 
         <Card

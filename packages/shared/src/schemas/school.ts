@@ -33,6 +33,16 @@ export type CreateSchoolInput = z.infer<typeof createSchoolSchema>;
 export const updateSchoolSchema = createSchoolSchema.omit({ code: true }).partial();
 export type UpdateSchoolInput = z.infer<typeof updateSchoolSchema>;
 
+/**
+ * How long this school's access lasts.
+ *
+ * Null means no end date — they stay on until somebody sets one. A date in the
+ * past locks them out immediately, which is the fastest way to stop a school
+ * that has not paid without suspending them by hand.
+ */
+export const setSchoolValiditySchema = z.object({ validUntil: z.coerce.date().nullable() });
+export type SetSchoolValidityInput = z.infer<typeof setSchoolValiditySchema>;
+
 /** Null clears it. */
 export const setSchoolLogoSchema = z.object({ fileId: idSchema.nullable() });
 export type SetSchoolLogoInput = z.infer<typeof setSchoolLogoSchema>;
@@ -84,6 +94,8 @@ export interface SchoolSummary {
   primaryColor: string | null;
   planName: string | null;
   expiresAt: string | null;
+  /** The school's own end date, which is what actually gates them. */
+  validUntil: string | null;
   counts: {
     users: number;
     teachers: number;

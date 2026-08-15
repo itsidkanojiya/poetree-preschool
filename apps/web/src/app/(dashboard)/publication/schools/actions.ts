@@ -246,3 +246,41 @@ export async function uploadSchoolLogoAction(
   revalidatePath(`/publication/schools/${schoolId}`);
   return { success: 'Saved. It will show on the app and on their sign-in screen.' };
 }
+
+
+/**
+ * How long a school's access lasts.
+ *
+ * Clearing the date leaves them on indefinitely; a date in the past locks them
+ * out on their next request, which is the quickest way to stop a school that
+ * has not paid.
+ */
+export async function setSchoolValidityAction(
+  schoolId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const raw = String(formData.get('validUntil') ?? '').trim();
+
+  try {
+    await apiFetch(`/publication/schools/${schoolId}/validity`, {
+      method: 'PUT',
+      redirectOnAuthFailure: false,
+      body: { validUntil: raw === '' ? null : raw },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the validity.') };
+  }
+
+  revalidatePath(`/publication/schools/${schoolId}`);
+  revalidatePath('/publication/schools');
+
+  return {
+    success:
+      raw === ''
+        ? 'No end date. They stay on until you set one.'
+        : new Date(raw).getTime() > Date.now()
+          ? 'Saved. They are active until then.'
+          : 'Saved. That date has passed, so they are locked out now.',
+  };
+}

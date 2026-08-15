@@ -50,6 +50,7 @@ async function loadSchoolAccess(schoolId: string): Promise<SchoolAccess | null> 
       id: true,
       name: true,
       status: true,
+      validUntil: true,
       subscriptions: {
         where: { isCurrent: true },
         orderBy: { createdAt: 'desc' },
@@ -64,22 +65,27 @@ async function loadSchoolAccess(schoolId: string): Promise<SchoolAccess | null> 
   const subscription = school.subscriptions[0] ?? null;
   let status: SchoolStatus = school.status;
 
-  // Lazy expiry: a plan that ran out blocks the school on the next request,
-  // which keeps a scheduled job out of Phase 1 entirely.
-  if (
-    subscription &&
-    ACTIVE_SCHOOL_STATUSES.includes(status) &&
-    subscription.expiresAt.getTime() <= Date.now()
-  ) {
+  /**
+   * When their access runs out.
+   *
+   * The school's own date is the answer; a subscription's is the fallback for
+   * schools set up before the date moved onto the school, so nobody's access
+   * changed on the day that shipped.
+   */
+  const expiresAt = school.validUntil ?? subscription?.expiresAt ?? null;
+
+  // Lazy expiry: a date that has passed blocks the school on its next request,
+  // so nothing has to be running at midnight for this to be right.
+  if (expiresAt && ACTIVE_SCHOOL_STATUSES.includes(status) && expiresAt.getTime() <= Date.now()) {
     status = 'EXPIRED';
-    await prismaUnscoped.$transaction([
-      prismaUnscoped.school.update({ where: { id: schoolId }, data: { status: 'EXPIRED' } }),
-      prismaUnscoped.schoolSubscription.update({
+    await prismaUnscoped.school.update({ where: { id: schoolId }, data: { status: 'EXPIRED' } });
+    if (subscription) {
+      await prismaUnscoped.schoolSubscription.update({
         where: { id: subscription.id },
         data: { status: 'EXPIRED' },
-      }),
-    ]);
-    logger.info('School plan expired', { schoolId, expiresAt: subscription.expiresAt });
+      });
+    }
+    logger.info('School validity ended', { schoolId, expiresAt });
   }
 
   return {
@@ -87,7 +93,7 @@ async function loadSchoolAccess(schoolId: string): Promise<SchoolAccess | null> 
     name: school.name,
     status,
     blockedReason: status === 'SUSPENDED' ? (subscription?.suspendedReason ?? null) : null,
-    planExpiresAt: subscription?.expiresAt ?? null,
+    planExpiresAt: expiresAt,
   };
 }
 
@@ -108,7 +114,7 @@ export function isSchoolUsable(status: SchoolStatus): boolean {
 
 const BLOCK_MESSAGES: Record<Exclude<SchoolStatus, 'TRIAL' | 'ACTIVE'>, string> = {
   SUSPENDED: 'Your school’s access has been suspended. Please contact Poetree Publication.',
-  EXPIRED: 'Your school’s subscription has expired. Please contact Poetree Publication to renew.',
+  EXPIRED: 'Your school’s access has ended. Please contact Poetree Publication to renew it.',
 };
 
 /**

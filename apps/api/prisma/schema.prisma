@@ -268,6 +268,13 @@ model School {
   /// ACTIVE permit login; SUSPENDED and EXPIRED lock everyone out.
   status SchoolStatus @default(TRIAL)
 
+  /// How long their access lasts. Null means no end date has been set yet.
+  ///
+  /// Checked lazily on the next request rather than by a scheduled job: a
+  /// school whose date has passed is expired the moment somebody tries to use
+  /// it, which needs nothing running at midnight to be correct.
+  validUntil DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

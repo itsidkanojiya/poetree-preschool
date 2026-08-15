@@ -135,8 +135,7 @@ export default async function SchoolsPage({
                   'School',
                   'Code',
                   'Status',
-                  'Plan',
-                  'Expires',
+                  'Valid until',
                   { label: 'Students', numeric: true },
                   { label: 'Users', numeric: true },
                   { label: 'Manage', hidden: true },
@@ -144,7 +143,7 @@ export default async function SchoolsPage({
               />
               <tbody>
                 {data.items.map((school) => {
-                  const remaining = daysUntil(school.expiresAt);
+                  const remaining = daysUntil(school.validUntil ?? school.expiresAt);
                   return (
                     <TRow key={school.id}>
                       <TCell>
@@ -158,13 +157,21 @@ export default async function SchoolsPage({
                       <TCell>
                         <StatusBadge status={school.status} />
                       </TCell>
-                      <TCell>{school.planName ?? '—'}</TCell>
                       <TCell>
-                        {formatDate(school.expiresAt)}
+                        {school.validUntil ? (
+                          formatDate(school.validUntil)
+                        ) : (
+                          /* No end date is a real state, not a missing value:
+                             they stay on until somebody sets one. */
+                          <span className="text-slate-400">No end date</span>
+                        )}
                         {remaining !== null && remaining <= 30 && remaining > 0 && (
                           <span className="mt-0.5 block text-xs text-gold-700">
-                            in {remaining} day{remaining === 1 ? '' : 's'}
+                            {remaining} day{remaining === 1 ? '' : 's'} left
                           </span>
+                        )}
+                        {remaining !== null && remaining <= 0 && (
+                          <span className="mt-0.5 block text-xs text-rose-600">Lapsed</span>
                         )}
                       </TCell>
                       <TCell numeric>{school.counts.students}</TCell>

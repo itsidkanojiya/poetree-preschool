@@ -20,6 +20,7 @@ import {
   createSchoolAdminAction,
   reactivateSchoolAction,
   suspendSchoolAction,
+  setSchoolValidityAction,
   updateSchoolAction,
   uploadSchoolLogoAction,
   type ActionState,
@@ -109,6 +110,47 @@ export function LogoPanel({ school }: { school: SchoolSummary }) {
 
       <SubmitButton variant="secondary" pendingLabel="Saving…">
         Save logo
+      </SubmitButton>
+    </form>
+  );
+}
+
+/**
+ * The one lever: a date.
+ *
+ * Everything else about access follows from it — past means locked out,
+ * future means in, and extending an expired school brings them back without
+ * anybody having to know to press reactivate as well.
+ */
+export function ValidityPanel({ school }: { school: SchoolSummary }) {
+  const [state, formAction] = useActionState<ActionState, FormData>(
+    setSchoolValidityAction.bind(null, school.id),
+    {},
+  );
+
+  const current = school.validUntil ? school.validUntil.slice(0, 10) : '';
+  const lapsed = school.validUntil !== null && new Date(school.validUntil).getTime() <= Date.now();
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+
+      {lapsed && (
+        <Notice tone="warning" title="This date has passed">
+          Nobody at this school can sign in. Set a later date to let them back in.
+        </Notice>
+      )}
+
+      <Field
+        label="Valid until"
+        hint="Leave blank for no end date. When it passes, everybody at the school is locked out."
+      >
+        <Input name="validUntil" type="date" defaultValue={current} />
+      </Field>
+
+      <SubmitButton variant="secondary" pendingLabel="Saving…">
+        Save validity
       </SubmitButton>
     </form>
   );

@@ -16,6 +16,7 @@ import {
   reactivateSchoolSchema,
   setSchoolBooksSchema,
   setSchoolLogoSchema,
+  setSchoolValiditySchema,
   suspendSchoolSchema,
   updateActivitySchema,
   updateBookSchema,
@@ -273,6 +274,27 @@ publicationRouter.get(
   asyncHandler(async (req, res) => {
     const days = Number(req.query.days);
     res.json(await usage.usageReport(Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 30));
+  }),
+);
+
+/**
+ * How long this school's access lasts.
+ *
+ * A date, and nothing else. When it passes their users are locked out on the
+ * next request; extending it lets them straight back in.
+ */
+publicationRouter.put(
+  '/schools/:id/validity',
+  validate({ params: idParamSchema, body: setSchoolValiditySchema }),
+  asyncHandler(async (req, res) => {
+    const { validUntil } = body<{ validUntil: Date | null }>(req);
+    res.json(
+      await schoolService.setSchoolValidity(
+        params<{ id: string }>(req).id,
+        validUntil,
+        req.auth!.userId,
+      ),
+    );
   }),
 );
 

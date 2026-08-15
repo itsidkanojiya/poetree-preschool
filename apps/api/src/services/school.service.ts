@@ -33,6 +33,7 @@ const summarySelect = {
   code: true,
   city: true,
   status: true,
+  validUntil: true,
   logoUrl: true,
   logoFileId: true,
   primaryColor: true,
@@ -63,7 +64,8 @@ function toSummary(school: SchoolRow): SchoolSummary {
       : school.logoUrl,
     primaryColor: school.primaryColor,
     planName: subscription?.plan.name ?? null,
-    expiresAt: subscription?.expiresAt.toISOString() ?? null,
+    expiresAt: school.validUntil?.toISOString() ?? subscription?.expiresAt.toISOString() ?? null,
+    validUntil: school.validUntil?.toISOString() ?? null,
     counts: {
       users: school._count.users,
       teachers: school._count.teacherProfiles,
@@ -541,6 +543,59 @@ export async function setSchoolLogo(
     actorUserId,
     before: { logoFileId: current.logoFileId },
     after: { logoFileId: fileId },
+  });
+
+  return toSummary(school);
+}
+
+
+/**
+ * Sets how long a school's access lasts.
+ *
+ * The only lever the publisher wanted: a date, and a locked-out school when it
+ * passes. Extending it on an expired school brings them back — otherwise the
+ * obvious act of renewing would leave every teacher still shut out, and
+ * somebody would have to know to press reactivate as well.
+ */
+export async function setSchoolValidity(
+  schoolId: string,
+  validUntil: Date | null,
+  actorUserId: string,
+): Promise<SchoolSummary> {
+  const current = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true, status: true, validUntil: true },
+  });
+  if (!current) throw ApiError.notFound('School not found');
+
+  const stillValid = validUntil === null || validUntil.getTime() > Date.now();
+
+  // A suspension is a deliberate act by a person and is not undone by a date:
+  // only an expiry is lifted here.
+  const status =
+    current.status === 'EXPIRED' && stillValid
+      ? 'ACTIVE'
+      : stillValid
+        ? current.status
+        : 'EXPIRED';
+
+  const school = await prismaUnscoped.school.update({
+    where: { id: schoolId },
+    data: { validUntil, status },
+    select: summarySelect,
+  });
+
+  // The gate caches per school; without this the change waits out the TTL.
+  invalidateSchoolAccess(schoolId);
+
+  await writeAuditLog({
+    action: validUntil && !stillValid ? 'SCHOOL_SUSPENDED' : 'SCHOOL_UPDATED',
+    entity: 'School',
+    entityId: schoolId,
+    schoolId,
+    actorUserId,
+    before: { validUntil: current.validUntil, status: current.status },
+    after: { validUntil, status },
   });
 
   return toSummary(school);

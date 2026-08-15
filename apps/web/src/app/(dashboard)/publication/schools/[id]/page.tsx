@@ -4,6 +4,8 @@ import { apiFetch } from '@/lib/api';
 import { Card, Meter, PageHeader, Pill, StatTile, StatusBadge } from '@/components/ui/layout';
 import { IconArrowLeft, IconStudent, IconTeacher } from '@/components/icons';
 import { daysUntil, formatDate } from '@/lib/format';
+import type { SchoolBookRow } from '@poetree/shared';
+import { SchoolBooksPanel } from '../../books/forms';
 import {
   AssignPlanPanel,
   CreateAdminPanel,
@@ -23,10 +25,11 @@ interface SuspensionImpact {
 export default async function SchoolDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [school, plans, impact] = await Promise.all([
+  const [school, plans, impact, schoolBooks] = await Promise.all([
     apiFetch<SchoolSummary>(`/publication/schools/${id}`),
     apiFetch<Paginated<PlanSummary>>('/publication/plans', { query: { pageSize: 100 } }),
     apiFetch<SuspensionImpact>(`/publication/schools/${id}/suspension-impact`),
+    apiFetch<SchoolBookRow[]>(`/publication/schools/${id}/books`),
   ]);
 
   const blocked = school.status === 'SUSPENDED' || school.status === 'EXPIRED';
@@ -131,6 +134,13 @@ export default async function SchoolDetailPage({ params }: { params: Promise<{ i
           description="Creates a School Admin who can manage this school's teachers, parents and students."
         >
           <CreateAdminPanel schoolId={school.id} />
+        </Card>
+
+        <Card
+          title="Books"
+          description="What this school bought. Only these appear in their app."
+        >
+          <SchoolBooksPanel schoolId={school.id} rows={schoolBooks} />
         </Card>
 
         <Card

@@ -20,6 +20,12 @@ interface ClassLevel {
   name: string;
 }
 
+interface BookOption {
+  id: string;
+  name: string;
+  classLevel: { name: string };
+}
+
 /**
  * The publisher's own product.
  *
@@ -34,12 +40,13 @@ export default async function ActivitiesPage({
 }) {
   const { page = '1', skillId, search } = await searchParams;
 
-  const [activities, skills, classLevels] = await Promise.all([
+  const [activities, skills, classLevels, books] = await Promise.all([
     apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
       query: { page, pageSize: 25, skillId, search, includeInactive: 'true' },
     }),
     apiFetch<Skill[]>('/publication/skills'),
     apiFetch<ClassLevel[]>('/publication/class-levels'),
+    apiFetch<BookOption[]>('/publication/books'),
   ]);
 
   const unplayable = activities.items.filter((item) => !item.isPlayable).length;
@@ -71,6 +78,7 @@ export default async function ActivitiesPage({
                 columns={[
                   'Activity',
                   'Type',
+                  'Book',
                   'Skill',
                   'Level',
                   { label: 'Items', numeric: true },
@@ -91,6 +99,15 @@ export default async function ActivitiesPage({
                       </Link>
                     </TCell>
                     <TCell>{titleCase(activity.type)}</TCell>
+                    <TCell>
+                      {activity.book ? (
+                        activity.book.name
+                      ) : (
+                        /* Reaches nobody: a school is given books, not loose
+                           question types. */
+                        <span className="text-amber-700">No book</span>
+                      )}
+                    </TCell>
                     <TCell>{activity.skill.name}</TCell>
                     <TCell>{activity.classLevelCode ?? 'Every level'}</TCell>
                     <TCell numeric>{activity.itemCount}</TCell>
@@ -126,7 +143,7 @@ export default async function ActivitiesPage({
 
       <div className="max-w-3xl">
         <Card title="Write an activity">
-          <NewActivityForm skills={skills} classLevels={classLevels} />
+          <NewActivityForm skills={skills} classLevels={classLevels} books={books} />
         </Card>
       </div>
     </>

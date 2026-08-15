@@ -48,6 +48,7 @@ export async function createActivityAction(
   if (error) return { error };
 
   const classLevelId = String(formData.get('classLevelId') ?? '').trim();
+  const bookId = String(formData.get('bookId') ?? '').trim();
 
   try {
     await apiFetch('/publication/activities', {
@@ -59,6 +60,7 @@ export async function createActivityAction(
         type: String(formData.get('type') ?? ''),
         skillId: String(formData.get('skillId') ?? ''),
         classLevelId: classLevelId === '' ? null : classLevelId,
+        bookId: bookId === '' ? null : bookId,
         content,
       },
     });
@@ -84,6 +86,9 @@ export async function updateActivityAction(
 
   const classLevelId = String(formData.get('classLevelId') ?? '').trim();
   body.classLevelId = classLevelId === '' ? null : classLevelId;
+
+  const bookId = String(formData.get('bookId') ?? '').trim();
+  body.bookId = bookId === '' ? null : bookId;
 
   if (raw !== '') {
     const { content, error } = readContent(raw);

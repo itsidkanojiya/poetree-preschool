@@ -17,6 +17,7 @@ import { paginate, toSkipTake } from '../lib/pagination.js';
 import { scopeKeyFor, slugify } from '../lib/scope.js';
 import { logger } from '../lib/logger.js';
 import { writeAuditLog } from './audit.service.js';
+import { seedEntitlementsForSchool } from './book.service.js';
 import { invalidateSchoolAccess } from './schoolAccess.service.js';
 import { revokeAllSessionsForSchool } from './auth.service.js';
 
@@ -148,6 +149,11 @@ export async function createSchool(
     },
     select: summarySelect,
   });
+
+  // Every book, switched on. The Super Admin has just sold them something and
+  // an empty shelf on day one is the worse first impression; turning a book
+  // off afterwards is the deliberate act.
+  await seedEntitlementsForSchool(prismaUnscoped, school.id);
 
   await writeAuditLog({
     action: 'SCHOOL_CREATED',

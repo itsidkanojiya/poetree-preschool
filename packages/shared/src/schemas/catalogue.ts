@@ -39,7 +39,13 @@ const activityCodeSchema = z
 
 export const createActivitySchema = z.object({
   code: activityCodeSchema,
+  /**
+   * The instruction as it reads in the book — "Circle the correct letter".
+   * This is the question *type*; the questions themselves sit under it.
+   */
   title: z.string().trim().min(2).max(160),
+  /** The book this is a page of. */
+  bookId: idSchema.nullish(),
   type: z.enum(ACTIVITY_TYPES),
   skillId: idSchema,
   /** Null means every class level; most activities are for one. */
@@ -58,6 +64,7 @@ export type CreateActivityInput = z.infer<typeof createActivitySchema>;
  */
 export const updateActivitySchema = z.object({
   title: z.string().trim().min(2).max(160).optional(),
+  bookId: idSchema.nullish(),
   skillId: idSchema.optional(),
   classLevelId: idSchema.nullish(),
   content: activityContentSchema.optional(),
@@ -69,6 +76,7 @@ export const listActivitiesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   skillId: idSchema.optional(),
+  bookId: idSchema.optional(),
   classLevelId: idSchema.optional(),
   type: z.enum(ACTIVITY_TYPES).optional(),
   search: z.string().trim().max(120).optional(),
@@ -84,6 +92,7 @@ export interface CatalogueActivity {
   type: string;
   isActive: boolean;
   skill: { id: string; code: string; name: string };
+  book: { id: string; name: string } | null;
   classLevelId: string | null;
   classLevelCode: string | null;
   itemCount: number;

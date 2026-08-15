@@ -186,6 +186,11 @@ export const AUDIT_ACTIONS = [
   // Standards are no longer compiled in, so changing one is an event.
   'STANDARD_CREATED',
   'STANDARD_UPDATED',
+  'BOOK_CREATED',
+  'BOOK_UPDATED',
+  // Which books a school has is a record of what was sold, so changing it is
+  // the kind of thing somebody asks about a year later.
+  'SCHOOL_BOOKS_CHANGED',
   'PASSWORD_CHANGED',
   // Somebody else setting a password on your behalf is a different event from
   // you changing your own, and the one worth being able to look up later.

@@ -21,13 +21,20 @@ interface ClassLevel {
   name: string;
 }
 
+interface BookOption {
+  id: string;
+  name: string;
+  classLevel: { name: string };
+}
+
 export default async function ActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [activity, skills, classLevels] = await Promise.all([
+  const [activity, skills, classLevels, books] = await Promise.all([
     apiFetch<CatalogueActivity & { content: unknown }>(`/publication/activities/${id}`),
     apiFetch<Skill[]>('/publication/skills'),
     apiFetch<ClassLevel[]>('/publication/class-levels'),
+    apiFetch<BookOption[]>('/publication/books'),
   ]);
 
   return (
@@ -60,6 +67,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
             content={JSON.stringify(activity.content ?? {}, null, 2)}
             skills={skills}
             classLevels={classLevels}
+            books={books}
           />
         </Card>
       </div>

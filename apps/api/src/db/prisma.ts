@@ -31,6 +31,9 @@ export const TENANT_MODELS = new Set<string>([
   'ClassroomTeacher',
   'Subject',
   'Room',
+  // Which books this school bought. The book itself is publication-owned and
+  // shared; the row saying who has it is the school's.
+  'SchoolBook',
   'SchoolHoliday',
   // Attendance
   'AttendanceSession',

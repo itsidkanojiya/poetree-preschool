@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   assignSubscriptionSchema,
   createActivitySchema,
+  createBookSchema,
   createPlanSchema,
   createStandardSchema,
   createSchoolAdminSchema,
@@ -11,9 +12,11 @@ import {
   listPlansQuerySchema,
   listSchoolsQuerySchema,
   reactivateSchoolSchema,
+  setSchoolBooksSchema,
   setSchoolLogoSchema,
   suspendSchoolSchema,
   updateActivitySchema,
+  updateBookSchema,
   updatePlanSchema,
   updateStandardSchema,
   updateSchoolSchema,
@@ -21,6 +24,7 @@ import {
 import type {
   AssignSubscriptionInput,
   CreateActivityInput,
+  CreateBookInput,
   CreatePlanInput,
   CreateStandardInput,
   CreateSchoolAdminInput,
@@ -30,7 +34,9 @@ import type {
   ListSchoolsQuery,
   ReactivateSchoolInput,
   SuspendSchoolInput,
+  SetSchoolBooksInput,
   UpdateActivityInput,
+  UpdateBookInput,
   UpdatePlanInput,
   UpdateStandardInput,
   UpdateSchoolInput,
@@ -45,6 +51,7 @@ import * as catalogue from '../services/catalogue.service.js';
 import * as usage from '../services/usage.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as standards from '../services/standard.service.js';
+import * as books from '../services/book.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -262,6 +269,63 @@ publicationRouter.put(
     const { fileId } = body<{ fileId: string | null }>(req);
     res.json(
       await schoolService.setSchoolLogo(params<{ id: string }>(req).id, fileId, req.auth!.userId),
+    );
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Books — what Poetree actually sells                                        */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/books',
+  asyncHandler(async (req, res) => {
+    const classLevelId = typeof req.query.classLevelId === 'string' ? req.query.classLevelId : undefined;
+    res.json(await books.listBooks(classLevelId));
+  }),
+);
+
+publicationRouter.post(
+  '/books',
+  validate({ body: createBookSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await books.createBook(body<CreateBookInput>(req), req.auth!.userId));
+  }),
+);
+
+publicationRouter.patch(
+  '/books/:id',
+  validate({ params: idParamSchema, body: updateBookSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await books.updateBook(
+        params<{ id: string }>(req).id,
+        body<UpdateBookInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** Which books this school bought. */
+publicationRouter.get(
+  '/schools/:id/books',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await books.booksForSchoolAdmin(params<{ id: string }>(req).id));
+  }),
+);
+
+publicationRouter.put(
+  '/schools/:id/books',
+  validate({ params: idParamSchema, body: setSchoolBooksSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await books.setSchoolBooks(
+        params<{ id: string }>(req).id,
+        body<SetSchoolBooksInput>(req),
+        req.auth!.userId,
+      ),
     );
   }),
 );

@@ -39,6 +39,7 @@ const KIND_FOR_TYPE: Record<string, ActivityContent['kind']> = {
 const activityInclude = {
   skill: { select: { id: true, code: true, name: true } },
   classLevel: { select: { id: true, code: true } },
+  book: { select: { id: true, name: true } },
   _count: { select: { attempts: true } },
 } satisfies Prisma.LearningActivityInclude;
 
@@ -54,6 +55,7 @@ function toSummary(row: ActivityRow): CatalogueActivity {
     type: row.type,
     isActive: row.isActive,
     skill: row.skill,
+    book: row.book,
     classLevelId: row.classLevelId,
     classLevelCode: row.classLevel?.code ?? null,
     // The count is what an editor needs to see at a glance; the content itself
@@ -104,6 +106,7 @@ export async function listActivities(query: {
   page?: number;
   pageSize?: number;
   skillId?: string;
+  bookId?: string;
   classLevelId?: string;
   type?: string;
   search?: string;
@@ -114,6 +117,7 @@ export async function listActivities(query: {
 
   const where: Prisma.LearningActivityWhereInput = {
     ...(query.skillId ? { skillId: query.skillId } : {}),
+    ...(query.bookId ? { bookId: query.bookId } : {}),
     ...(query.classLevelId ? { classLevelId: query.classLevelId } : {}),
     ...(query.type ? { type: query.type as never } : {}),
     ...(query.includeInactive ? {} : { isActive: true }),
@@ -174,6 +178,7 @@ export async function createActivity(
       title: input.title,
       type: input.type as never,
       skillId: input.skillId,
+      bookId: input.bookId ?? null,
       classLevelId: input.classLevelId ?? null,
       contentJson: content,
       isActive: input.isActive ?? true,
@@ -214,6 +219,7 @@ export async function updateActivity(
     data: {
       title: input.title,
       skillId: input.skillId,
+      bookId: input.bookId,
       classLevelId: input.classLevelId,
       isActive: input.isActive,
       ...(content === undefined ? {} : { contentJson: content }),

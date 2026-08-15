@@ -24,6 +24,31 @@ interface Option {
   name: string;
 }
 
+interface BookOption {
+  id: string;
+  name: string;
+  classLevel: { name: string };
+}
+
+/** The book picker, shared by both forms. */
+function BookField({ books, selected }: { books: BookOption[]; selected?: string | null }) {
+  return (
+    <Field
+      label="Book"
+      hint="Which book this is a page of. A question type with no book reaches nobody."
+    >
+      <Select name="bookId" defaultValue={selected ?? ''}>
+        <option value="">Not in a book yet</option>
+        {books.map((book) => (
+          <option key={book.id} value={book.id}>
+            {book.classLevel.name} · {book.name}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  );
+}
+
 /**
  * A starting point for each type, so nobody has to remember the shape.
  *
@@ -82,9 +107,11 @@ function cardTemplate(kind: string, title: string, say: string, glyph: string): 
 export function NewActivityForm({
   skills,
   classLevels,
+  books,
 }: {
   skills: Option[];
   classLevels: Option[];
+  books: BookOption[];
 }) {
   const [state, formAction] = useActionState<ActivityState, FormData>(createActivityAction, {});
   const [type, setType] = useState<string>('COUNTING');
@@ -146,6 +173,8 @@ export function NewActivityForm({
         </Field>
       </FieldSet>
 
+      <BookField books={books} />
+
       <Field label="Class level" hint="Leave blank to offer it to every level.">
         <Select name="classLevelId" defaultValue="">
           <option value="">Every level</option>
@@ -169,11 +198,13 @@ export function EditActivityForm({
   content,
   skills,
   classLevels,
+  books,
 }: {
   activity: CatalogueActivity;
   content: string;
   skills: Option[];
   classLevels: Option[];
+  books: BookOption[];
 }) {
   const [state, formAction] = useActionState<ActivityState, FormData>(updateActivityAction, {});
   const [draft, setDraft] = useState(content);
@@ -214,6 +245,8 @@ export function EditActivityForm({
           </Select>
         </Field>
       </FieldSet>
+
+      <BookField books={books} selected={activity.book?.id} />
 
       <ContentField value={draft} onChange={setDraft} type={activity.type} />
 

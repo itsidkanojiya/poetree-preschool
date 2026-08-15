@@ -16,6 +16,7 @@ import { notificationRouter } from './notification.routes.js';
 import { fileRouter } from './file.routes.js';
 import { reportRouter } from './report.routes.js';
 import { progressRouter } from './progress.routes.js';
+import { catalogueRouter } from './catalogue.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { publicRouter } from './public.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
@@ -69,6 +70,7 @@ secured.use('/notifications', notificationRouter);
 secured.use('/files', fileRouter);
 secured.use('/reports', reportRouter);
 secured.use('/progress', progressRouter);
+secured.use('/catalogue', catalogueRouter);
 
 secured.use('/', schoolAdminRouter);
 

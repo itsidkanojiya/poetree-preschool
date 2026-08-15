@@ -12,3 +12,4 @@ export * from './schemas/teaching.js';
 export * from './schemas/activities.js';
 export * from './schemas/catalogue.js';
 export * from './schemas/standard.js';
+export * from './schemas/book.js';

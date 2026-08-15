@@ -273,6 +273,7 @@ model School {
 
   publication              Publication               @relation(fields: [publicationId], references: [id], onDelete: Restrict)
   logoFile                 FileObject?               @relation("SchoolLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
+  books                    SchoolBook[]
   users                    User[]
   teacherProfiles          TeacherProfile[]
   parentProfiles           ParentProfile[]
@@ -398,6 +399,7 @@ model ClassLevel {
   updatedAt DateTime @updatedAt
 
   classrooms    Classroom[]
+  books         Book[]
   subjects      Subject[]
   feeStructures FeeStructure[]
   skills        Skill[]
@@ -1458,6 +1460,55 @@ model Skill {
   @@map("skills")
 }
 
+/// A book — the thing Poetree sells.
+///
+/// "Nursery EVS", "Junior KG Phonics". It belongs to one standard and holds the
+/// question types a child plays. Publication-owned: there is no schoolId here,
+/// because a book has to mean the same thing at every school that bought it.
+model Book {
+  id           String  @id @default(cuid())
+  code         String  @unique @db.VarChar(40)
+  name         String  @db.VarChar(120)
+  classLevelId String
+  sortOrder    Int     @default(0)
+  coverFileId  String? @db.VarChar(191)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classLevel ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  cover      FileObject?        @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  activities LearningActivity[]
+  schools    SchoolBook[]
+
+  @@index([classLevelId, sortOrder])
+  @@map("books")
+}
+
+/// What a school bought.
+///
+/// A school that took only the English book should see only English. A row
+/// exists per school and book so the toggle has something to hold; a book added
+/// later is written disabled for existing schools, because appearing by itself
+/// at a school that did not buy it is the failure that matters.
+model SchoolBook {
+  id       String  @id @default(cuid())
+  schoolId String
+  bookId   String
+  enabled  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, bookId])
+  @@index([schoolId, enabled])
+  @@map("school_books")
+}
+
 model LearningActivity {
   id           String       @id @default(cuid())
   code         String       @unique @db.VarChar(40)
@@ -1465,6 +1516,8 @@ model LearningActivity {
   type         ActivityType
   skillId      String
   classLevelId String?
+  /// The book this question type is a page of.
+  bookId       String?
   /// The activity definition the app renders — letters to trace, pairs to
   /// match. Shape varies by type, which is why it is JSON rather than columns.
   contentJson  Json?
@@ -1473,12 +1526,14 @@ model LearningActivity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  book       Book?             @relation(fields: [bookId], references: [id], onDelete: SetNull)
   skill      Skill             @relation(fields: [skillId], references: [id], onDelete: Restrict)
   classLevel ClassLevel?       @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
   attempts   ActivityAttempt[]
   homework   Homework[]
 
   @@index([skillId])
+  @@index([bookId])
   @@index([classLevelId, isActive])
   @@map("learning_activities")
 }
@@ -1594,6 +1649,7 @@ model FileObject {
 
   school                   School?                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   brandedSchools           School[]                  @relation("SchoolLogo")
+  bookCovers               Book[]                    @relation("BookCover")
   studentPhotos            Student[]                 @relation("StudentPhoto")
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   documents                StudentDocument[]

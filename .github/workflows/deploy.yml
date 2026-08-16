@@ -95,22 +95,32 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # ssh-keyscan reaches over the network, so a single blip on the runner
-          # would otherwise fail the whole deploy under `set -e`. Retry before
-          # giving up, and check we actually captured a host key rather than
-          # trusting the exit code.
-          for attempt in 1 2 3; do
-            ssh-keyscan -T 10 -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # ssh-keyscan reaches over the network, so a blip between the runner
+          # and the VPS would otherwise fail the whole deploy under `set -e`.
+          # Check we actually captured a host key rather than trusting the exit
+          # code.
+          #
+          # Three attempts over 45s was not enough: a deploy failed here having
+          # never reached the box at all — sshd logged no connection from the
+          # runner, while a runner an hour earlier had connected fine. Whatever
+          # dropped it lasted longer than the window we allowed for it. Six
+          # attempts backing off to 30s covers about four minutes, which is
+          # cheap next to a release that does not happen.
+          delay=5
+          for attempt in 1 2 3 4 5 6; do
+            ssh-keyscan -T 15 -p "${VPS_PORT:-22}" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
             if [ -s ~/.ssh/known_hosts ]; then
               echo "Host key captured on attempt ${attempt}"
               break
             fi
-            echo "ssh-keyscan attempt ${attempt} returned nothing; retrying"
-            sleep 5
+            echo "ssh-keyscan attempt ${attempt} returned nothing; retrying in ${delay}s"
+            sleep "$delay"
+            [ "$delay" -lt 30 ] && delay=$((delay * 2))
           done
 
           if [ ! -s ~/.ssh/known_hosts ]; then
             echo "::error::Could not reach ${VPS_HOST}:${VPS_PORT:-22} to read its host key."
+            echo "::error::The VPS was unreachable from this runner. Re-run the job."
             exit 1
           fi
 

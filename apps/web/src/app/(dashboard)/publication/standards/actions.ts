@@ -50,6 +50,10 @@ export async function renameStandardAction(
       body: {
         name: String(formData.get('name') ?? '').trim(),
         sortOrder: optionalNumber(formData, 'sortOrder') ?? undefined,
+        // Editable now that the standard has a page of its own with room for
+        // them. Null is a real answer here — "no guidance" — so it is sent.
+        minAgeMonths: optionalNumber(formData, 'minAgeMonths'),
+        maxAgeMonths: optionalNumber(formData, 'maxAgeMonths'),
       },
     });
   } catch (error) {
@@ -57,6 +61,7 @@ export async function renameStandardAction(
   }
 
   revalidatePath('/publication/standards');
+  revalidatePath(`/publication/standards/${id}`);
   return { success: 'Saved.' };
 }
 
@@ -71,4 +76,5 @@ export async function setStandardActiveAction(id: string, isActive: boolean): Pr
     await apiFetch(`/publication/standards/${id}/retire`, { method: 'POST' });
   }
   revalidatePath('/publication/standards');
+  revalidatePath(`/publication/standards/${id}`);
 }

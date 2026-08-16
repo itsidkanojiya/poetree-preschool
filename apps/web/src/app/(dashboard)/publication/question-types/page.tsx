@@ -9,22 +9,10 @@ import type {
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
-import { NewActivityForm, RetireButton } from './forms';
 import { TypeFilterBar } from './filters';
+import { IconPlus } from '@/components/icons';
 
 export const metadata: Metadata = { title: 'Question types · Poetree Admin' };
-
-interface Skill {
-  id: string;
-  code: string;
-  name: string;
-}
-
-interface ClassLevel {
-  id: string;
-  code: string;
-  name: string;
-}
 
 interface BookOption {
   id: string;
@@ -53,17 +41,14 @@ export default async function ActivitiesPage({
 }) {
   const { page = '1', ...filters } = await searchParams;
 
-  const [activities, skills, classLevels, books, chapters] = await Promise.all([
+  const [activities, books, chapters, standards] = await Promise.all([
     apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
       query: { ...filters, page, pageSize: 25, includeInactive: 'true' },
     }),
-    apiFetch<Skill[]>('/publication/skills'),
-    apiFetch<ClassLevel[]>('/publication/class-levels'),
     apiFetch<BookOption[]>('/publication/books'),
     apiFetch<ChapterOption[]>('/publication/chapters'),
+    apiFetch<StandardSummary[]>('/publication/standards'),
   ]);
-
-  const standards = await apiFetch<StandardSummary[]>('/publication/standards');
 
   // Carried into the paging links, or page two of a filtered list is page two
   // of the whole catalogue.
@@ -78,6 +63,15 @@ export default async function ActivitiesPage({
       <PageHeader
         title="Question types"
         description="A page of a book — “Circle the correct letter” — and the questions under it."
+        action={
+          <Link
+            href="/publication/question-types/new"
+            className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+          >
+            <IconPlus size={17} />
+            Add question type
+          </Link>
+        }
       />
 
       <TypeFilterBar filters={filters} standards={standards} books={books} chapters={chapters} />
@@ -90,11 +84,11 @@ export default async function ActivitiesPage({
         </div>
       )}
 
-      <Card className="mb-6">
+      <Card>
         {activities.items.length === 0 ? (
           <EmptyState
             title="No question types yet"
-            description="Add the first one below — “Circle the correct letter”, say — then write its questions."
+            description="Add the first one — “Circle the correct letter”, say — then write its questions."
           />
         ) : (
           <>
@@ -110,7 +104,6 @@ export default async function ActivitiesPage({
                   { label: 'Questions', numeric: true },
                   { label: 'Played', numeric: true },
                   'State',
-                  '',
                 ]}
               />
               <tbody>
@@ -159,9 +152,6 @@ export default async function ActivitiesPage({
                         <Pill tone="neutral">Retired</Pill>
                       )}
                     </TCell>
-                    <TCell>
-                      <RetireButton activity={activity} />
-                    </TCell>
                   </TRow>
                 ))}
               </tbody>
@@ -178,17 +168,6 @@ export default async function ActivitiesPage({
           </>
         )}
       </Card>
-
-      <div className="max-w-3xl">
-        <Card title="Add a question type">
-          <NewActivityForm
-            skills={skills}
-            classLevels={classLevels}
-            books={books}
-            chapters={chapters}
-          />
-        </Card>
-      </div>
     </>
   );
 }

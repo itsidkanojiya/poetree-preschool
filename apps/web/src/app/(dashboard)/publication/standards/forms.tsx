@@ -10,6 +10,7 @@ import {
   Input,
   SubmitButton,
 } from '@/components/ui/form';
+import { LiveSwitch } from '@/components/ui/live-switch';
 import {
   createStandardAction,
   renameStandardAction,
@@ -54,58 +55,89 @@ export function NewStandardForm() {
   );
 }
 
-/** Renaming and reordering in place — the two things actually done often. */
-export function StandardRow({ standard }: { standard: StandardSummary }) {
+/**
+ * Everything about a standard that can change.
+ *
+ * The code cannot: fee structures refer to it, and an import file naming a code
+ * that moved would file children into the wrong year.
+ */
+export function StandardDetailsForm({ standard }: { standard: StandardSummary }) {
   const [state, formAction] = useActionState<StandardState, FormData>(
     renameStandardAction.bind(null, standard.id),
     {},
   );
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
-      <Input
-        name="name"
-        defaultValue={standard.name}
-        className="h-9 w-44 text-sm"
-        aria-label={`Name of ${standard.name}`}
-      />
-      <Input
-        name="sortOrder"
-        type="number"
-        defaultValue={standard.sortOrder}
-        className="h-9 w-16 text-sm"
-        aria-label={`Order of ${standard.name}`}
-      />
-      <button
-        type="submit"
-        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+    <form action={formAction} className="space-y-5">
+      <FormError message={state.error} />
+      <FormSuccess message={state.success} />
+
+      <FieldSet>
+        <Field label="Name" required hint="What a parent and a teacher will read.">
+          <Input name="name" required defaultValue={standard.name} />
+        </Field>
+        <Field label="Code" hint="Chosen when it was added, and fixed.">
+          <Input value={standard.code} disabled readOnly className="font-mono" />
+        </Field>
+      </FieldSet>
+
+      <Field
+        label="Order"
+        hint="Where this year sits among the others — the order every list of standards is drawn in."
       >
-        Save
-      </button>
-      {state.error && <span className="text-xs text-rose-600">{state.error}</span>}
+        <Input name="sortOrder" type="number" min={0} max={100} defaultValue={standard.sortOrder} />
+      </Field>
+
+      <FieldSet>
+        <Field label="Youngest age (months)" hint="Guidance for the office. Never enforced.">
+          <Input
+            name="minAgeMonths"
+            type="number"
+            min={0}
+            max={240}
+            defaultValue={standard.minAgeMonths ?? ''}
+          />
+        </Field>
+        <Field label="Oldest age (months)">
+          <Input
+            name="maxAgeMonths"
+            type="number"
+            min={0}
+            max={240}
+            defaultValue={standard.maxAgeMonths ?? ''}
+          />
+        </Field>
+      </FieldSet>
+
+      <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
     </form>
   );
 }
 
-export function RetireStandardButton({ standard }: { standard: StandardSummary }) {
-  const action = setStandardActiveAction.bind(null, standard.id, !standard.isActive);
-
+export function StandardLiveSwitch({ standard }: { standard: StandardSummary }) {
   return (
-    <form action={action}>
-      <button
-        type="submit"
-        // Refused server-side while classrooms are in it, so the count is shown
-        // rather than the button hidden — a disabled control with no reason is
-        // worse than an answer.
-        title={
-          standard.isActive && standard.classroomCount > 0
-            ? `${standard.classroomCount} classrooms are still in this standard`
-            : undefined
-        }
-        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-      >
-        {standard.isActive ? 'Retire' : 'Bring back'}
-      </button>
-    </form>
+    <LiveSwitch
+      on={standard.isActive}
+      action={setStandardActiveAction.bind(null, standard.id, !standard.isActive)}
+      label={
+        standard.isActive
+          ? `Stop offering ${standard.name}`
+          : `Offer ${standard.name} again`
+      }
+      onTitle="Offered"
+      offTitle="Not offered"
+      onNote="Schools can open a new class in this year, and books can be written for it."
+      offNote="No school can open a new class in this year. Classes already in it carry on exactly as they are, and nothing filed against them is lost."
+      // Refused server-side while classes are in it, so the reason is shown
+      // rather than the control hidden — a control that does nothing with no
+      // reason given is worse than an answer.
+      blockedReason={
+        standard.classroomCount > 0
+          ? `${standard.classroomCount} ${
+              standard.classroomCount === 1 ? 'class is' : 'classes are'
+            } in this standard, so this will be refused until they move.`
+          : undefined
+      }
+    />
   );
 }

@@ -11,6 +11,7 @@ import {
   Select,
   SubmitButton,
 } from '@/components/ui/form';
+import { LiveSwitch } from '@/components/ui/live-switch';
 import { Notice } from '@/components/ui/layout';
 import {
   createBookAction,
@@ -187,50 +188,23 @@ export function BookCoverForm({ book }: { book: BookSummary }) {
   );
 }
 
-/**
- * Whether schools may have this book at all.
- *
- * Was a button reading "Retire", which named what would happen to the button
- * rather than what is true of the book. It looked identical either way, so the
- * only way to know the state was to read the word on it and invert it. A switch
- * shows the state before anybody touches it.
- */
+/** Whether schools may have this book at all. */
 export function BookLiveSwitch({ book }: { book: BookSummary }) {
-  const action = setBookActiveAction.bind(null, book.id, !book.isActive);
-
   return (
-    <form action={action} className="flex flex-wrap items-center justify-between gap-4">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-navy-950">
-          {book.isActive ? 'On sale' : 'Withdrawn'}
-        </p>
-        <p className="mt-0.5 max-w-md text-xs text-slate-500">
-          {book.isActive
-            ? 'Schools that have this book can use it, and it can be sold to more.'
-            : 'Hidden from every school, including any that already had it. Nothing children have done is lost — switching it back on returns them exactly where they were.'}
-        </p>
-      </div>
-
-      {/* A submit button drawn as a switch: no client state to hold in step
-          with the server, and it still works before React has loaded. */}
-      <button
-        type="submit"
-        role="switch"
-        aria-checked={book.isActive}
-        aria-label={book.isActive ? `Withdraw ${book.name}` : `Put ${book.name} back on sale`}
-        className={`relative h-7 w-12 shrink-0 rounded-full ring-1 transition-colors ${
-          book.isActive
-            ? 'bg-navy-900 ring-navy-900 hover:bg-navy-800'
-            : 'bg-slate-200 ring-navy-950/10 hover:bg-slate-300'
-        }`}
-      >
-        <span
-          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
-            book.isActive ? 'left-6' : 'left-1'
-          }`}
-        />
-      </button>
-    </form>
+    <LiveSwitch
+      on={book.isActive}
+      action={setBookActiveAction.bind(null, book.id, !book.isActive)}
+      label={book.isActive ? `Withdraw ${book.name}` : `Put ${book.name} back on sale`}
+      onTitle="On sale"
+      offTitle="Withdrawn"
+      onNote="Schools that have this book can use it, and it can be sold to more."
+      offNote="Hidden from every school, including any that already had it. Nothing children have done is lost — switching it back on returns them exactly where they were."
+      blockedReason={
+        book.schoolCount > 0
+          ? `${book.schoolCount} ${book.schoolCount === 1 ? 'school has' : 'schools have'} this book switched on.`
+          : undefined
+      }
+    />
   );
 }
 

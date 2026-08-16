@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api';
 import { Card, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { formatDate } from '@/lib/format';
-import { EditActivityForm, RetireButton } from '../forms';
+import { ActivityLiveSwitch, EditActivityForm } from '../forms';
 
 export const metadata: Metadata = { title: 'Activity · Poetree Admin' };
 
@@ -47,14 +47,16 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <Link
-        href="/publication/question-types"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-900"
-      >
-        <IconArrowLeft size={16} /> All activities
-      </Link>
-
       <PageHeader
+        eyebrow={
+          <Link
+            href="/publication/question-types"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
+          >
+            <IconArrowLeft size={16} />
+            All question types
+          </Link>
+        }
         title={activity.title}
         description={`${activity.code} · played ${activity.attemptCount} ${
           activity.attemptCount === 1 ? 'time' : 'times'
@@ -62,22 +64,12 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
       />
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        {activity.isActive ? <Pill tone="brand">Live</Pill> : <Pill tone="neutral">Retired</Pill>}
         {!activity.isPlayable && <Pill tone="neutral">The app cannot read this content</Pill>}
         <span className="text-xs text-slate-500">Last changed {formatDate(activity.updatedAt)}</span>
-        <RetireButton activity={activity} />
-        <Link
-          href={`/publication/question-types/${activity.id}/questions`}
-          className="rounded-lg bg-navy-900 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-navy-800"
-        >
-          {activity.itemCount === 0
-            ? 'Add questions'
-            : `Edit ${activity.itemCount} ${activity.itemCount === 1 ? 'question' : 'questions'}`}
-        </Link>
       </div>
 
-      <div className="max-w-3xl">
-        <Card title="Edit">
+      <div className="grid max-w-5xl gap-4 lg:grid-cols-2">
+        <Card title="The question type">
           <EditActivityForm
             activity={activity}
             content={JSON.stringify(activity.content ?? {}, null, 2)}
@@ -87,6 +79,31 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
             chapters={chapters}
           />
         </Card>
+
+        <div className="space-y-4">
+          <Card
+            title="Questions"
+            description="What a child actually answers. A page with none of these reaches nobody."
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-600">
+                {activity.itemCount === 0
+                  ? 'Nothing written yet.'
+                  : `${activity.itemCount} ${activity.itemCount === 1 ? 'question' : 'questions'}.`}
+              </p>
+              <Link
+                href={`/publication/question-types/${activity.id}/questions`}
+                className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+              >
+                {activity.itemCount === 0 ? 'Write the questions' : 'Edit the questions'}
+              </Link>
+            </div>
+          </Card>
+
+          <Card title="In the book">
+            <ActivityLiveSwitch activity={activity} />
+          </Card>
+        </div>
       </div>
     </>
   );

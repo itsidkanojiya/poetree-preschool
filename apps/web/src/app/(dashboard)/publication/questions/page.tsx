@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { QuestionFilterBar } from './filters';
+import { IconPlus } from '@/components/icons';
 
 export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
 
@@ -55,6 +56,14 @@ export default async function QuestionsPage({
 
   const broken = questions.items.filter((question) => question.problem !== null);
 
+  // A question cannot exist on its own — it belongs to a question type, which
+  // is the page it is printed on. So Add goes straight to that page when the
+  // filters have already named one, and to the list of them when they have not,
+  // because choosing the page is the first thing to do either way.
+  const chosenType = filters.activityId
+    ? types.items.find((type) => type.id === filters.activityId)
+    : undefined;
+
   // Carried into the paging links: without this, page two of a filtered list is
   // page two of the whole catalogue, which looks like the filter forgot itself.
   const query = new URLSearchParams(
@@ -69,6 +78,19 @@ export default async function QuestionsPage({
           Object.values(filters).some(Boolean)
             ? `${questions.total} ${questions.total === 1 ? 'question' : 'questions'} match. Open one to edit it on its page.`
             : 'Every question in the catalogue. Open the one you want and edit it on its page.'
+        }
+        action={
+          <Link
+            href={
+              chosenType
+                ? `/publication/question-types/${chosenType.id}/questions`
+                : '/publication/question-types'
+            }
+            className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+          >
+            <IconPlus size={17} />
+            {chosenType ? `Add to ${chosenType.title}` : 'Add question'}
+          </Link>
         }
       />
 
@@ -160,6 +182,7 @@ export default async function QuestionsPage({
 
       <p className="mt-4 text-xs text-slate-500">
         {types.total} question {types.total === 1 ? 'type' : 'types'} in the catalogue.
+        {!chosenType && ' A question is written on one of them — pick the type to add to.'}
       </p>
     </>
   );

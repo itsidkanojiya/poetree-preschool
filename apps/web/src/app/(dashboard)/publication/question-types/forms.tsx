@@ -12,6 +12,7 @@ import {
   SubmitButton,
   Textarea,
 } from '@/components/ui/form';
+import { LiveSwitch } from '@/components/ui/live-switch';
 import {
   createActivityAction,
   setActivityActiveAction,
@@ -355,19 +356,26 @@ function countItems(raw: string): number | null {
 }
 
 /**
- * Retiring an activity is a flag, not a delete, so the button says so.
+ * Whether children are given this page at all. A flag, never a delete: what
+ * they have already answered on it has to keep meaning something.
  */
-export function RetireButton({ activity }: { activity: CatalogueActivity }) {
-  const action = setActivityActiveAction.bind(null, activity.id, !activity.isActive);
-
+export function ActivityLiveSwitch({ activity }: { activity: CatalogueActivity }) {
   return (
-    <form action={action}>
-      <button
-        type="submit"
-        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-      >
-        {activity.isActive ? 'Retire' : 'Bring back'}
-      </button>
-    </form>
+    <LiveSwitch
+      on={activity.isActive}
+      action={setActivityActiveAction.bind(null, activity.id, !activity.isActive)}
+      label={activity.isActive ? `Withdraw ${activity.title}` : `Bring back ${activity.title}`}
+      onTitle="In the book"
+      offTitle="Withdrawn"
+      onNote="Children with this book are given this page."
+      offNote="No child is given this page any more. Every answer already recorded against it is kept, and bringing it back returns it exactly as it was."
+      blockedReason={
+        activity.attemptCount > 0
+          ? `Answered ${activity.attemptCount} ${
+              activity.attemptCount === 1 ? 'time' : 'times'
+            } so far, across every school.`
+          : undefined
+      }
+    />
   );
 }

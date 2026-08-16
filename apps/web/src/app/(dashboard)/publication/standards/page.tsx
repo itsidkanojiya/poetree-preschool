@@ -1,9 +1,10 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import type { StandardSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
-import { TCell, THead, TRow, Table } from '@/components/ui/table';
-import { NewStandardForm, RetireStandardButton, StandardRow } from './forms';
+import { TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
+import { IconPlus } from '@/components/icons';
 
 export const metadata: Metadata = { title: 'Standards · Poetree Admin' };
 
@@ -15,6 +16,8 @@ export const metadata: Metadata = { title: 'Standards · Poetree Admin' };
  * rather than to each school: a book and a child's progress both hang off a
  * standard, so sixty schools each inventing their own would make "Nursery"
  * mean sixty different things.
+ *
+ * A list, and only a list. Editing is on the standard's own page.
  */
 export default async function StandardsPage() {
   const standards = await apiFetch<StandardSummary[]>('/publication/standards', {
@@ -28,52 +31,62 @@ export default async function StandardsPage() {
       <PageHeader
         title="Standards"
         description="The years a school teaches. Books, classes and progress all hang off these."
+        action={
+          <Link
+            href="/publication/standards/new"
+            className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+          >
+            <IconPlus size={17} />
+            Add standard
+          </Link>
+        }
       />
 
-      <Card className="mb-6">
+      <Card>
         {standards.length === 0 ? (
           <EmptyState
             title="No standards yet"
-            description="Add the first one below — a school cannot open a class without one."
+            description="Add the first one — a school cannot open a class without one."
           />
         ) : (
           <Table>
             <THead
               columns={[
                 'Standard',
-                'Code',
                 'Age',
+                { label: 'Order', numeric: true },
                 { label: 'Classes', numeric: true },
                 'State',
-                '',
               ]}
             />
             <tbody>
               {standards.map((standard) => (
                 <TRow key={standard.id}>
                   <TCell>
-                    <StandardRow standard={standard} />
-                  </TCell>
-                  <TCell>
-                    <span className="font-mono text-xs text-slate-500">{standard.code}</span>
+                    <Link
+                      href={`/publication/standards/${standard.id}`}
+                      className="hover:underline"
+                    >
+                      <TPrimary sub={standard.code}>{standard.name}</TPrimary>
+                    </Link>
                   </TCell>
                   <TCell>
                     {months(standard.minAgeMonths) && months(standard.maxAgeMonths)
                       ? `${months(standard.minAgeMonths)}–${months(standard.maxAgeMonths)}`
                       : '—'}
                   </TCell>
+                  {/* The order children meet these years in, which is the order
+                      every list of standards in the product is drawn in. */}
+                  <TCell numeric>{standard.sortOrder}</TCell>
                   {/* Across every school. It is what makes a standard
                       undeletable, so it is shown before anybody tries. */}
                   <TCell numeric>{standard.classroomCount}</TCell>
                   <TCell>
                     {standard.isActive ? (
-                      <Pill tone="brand">Live</Pill>
+                      <Pill tone="brand">In use</Pill>
                     ) : (
-                      <Pill tone="neutral">Retired</Pill>
+                      <Pill tone="neutral">Not offered</Pill>
                     )}
-                  </TCell>
-                  <TCell>
-                    <RetireStandardButton standard={standard} />
                   </TCell>
                 </TRow>
               ))}
@@ -81,12 +94,6 @@ export default async function StandardsPage() {
           </Table>
         )}
       </Card>
-
-      <div className="max-w-3xl">
-        <Card title="Add a standard">
-          <NewStandardForm />
-        </Card>
-      </div>
     </>
   );
 }

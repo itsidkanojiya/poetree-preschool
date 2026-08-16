@@ -1,8 +1,9 @@
-import type { ClassroomSummary, NoticeSummary, Paginated } from '@poetree/shared';
+import type { NoticeSummary, Paginated } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { formatDate } from '@/lib/format';
-import { NewNoticeForm } from './forms';
+import Link from 'next/link';
+import { IconPlus } from '@/components/icons';
 
 const TYPE_TONE: Record<string, 'neutral' | 'brand' | 'gold'> = {
   GENERAL: 'neutral',
@@ -13,29 +14,30 @@ const TYPE_TONE: Record<string, 'neutral' | 'brand' | 'gold'> = {
 };
 
 export default async function NoticesPage() {
-  const [notices, classrooms] = await Promise.all([
-    apiFetch<Paginated<NoticeSummary>>('/notices', { query: { pageSize: 30 } }),
-    apiFetch<ClassroomSummary[]>('/classrooms'),
-  ]);
+  const notices = await apiFetch<Paginated<NoticeSummary>>('/notices', {
+    query: { pageSize: 30 },
+  });
 
   return (
     <>
       <PageHeader
         title="Notices"
         description="Announcements to parents, teachers, or specific classes."
+        action={
+          <Link href="/school/notices/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
+            <IconPlus size={17} />
+            Write a notice
+          </Link>
+        }
       />
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_1.1fr]">
-        <Card title="Write a notice">
-          <NewNoticeForm classrooms={classrooms} />
-        </Card>
-
+      <div>
         <Card
           title="Published"
           description="Read counts show how many recipients have opened each one."
         >
           {notices.items.length === 0 ? (
-            <EmptyState title="No notices yet" description="Write the first one on the left." />
+            <EmptyState title="No notices yet" description="Nothing has been sent to families yet." />
           ) : (
             <ul className="space-y-2.5">
               {notices.items.map((notice) => (

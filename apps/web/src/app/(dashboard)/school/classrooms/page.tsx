@@ -1,21 +1,15 @@
-import type {
-  AcademicYearSummary,
-  ClassroomSummary,
-  Paginated,
-  TeacherSummary,
-} from '@poetree/shared';
+import Link from 'next/link';
+import type { AcademicYearSummary, ClassroomSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
-import { AcademicYearForm, ClassroomForm } from '../forms';
+import { IconPlus } from '@/components/icons';
 
 export default async function ClassroomsPage() {
-  const [classrooms, academicYears, teachers, classLevels] = await Promise.all([
+  const [classrooms, academicYears] = await Promise.all([
     apiFetch<ClassroomSummary[]>('/classrooms'),
     apiFetch<AcademicYearSummary[]>('/academic-years'),
-    apiFetch<Paginated<TeacherSummary>>('/teachers', { query: { pageSize: 100 } }),
-    apiFetch<Array<{ id: string; name: string }>>('/class-levels'),
   ]);
 
   return (
@@ -23,13 +17,24 @@ export default async function ClassroomsPage() {
       <PageHeader
         title="Classrooms"
         description="Sections per class level, within an academic year."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/school/classrooms/academic-years/new" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
+              Add academic year
+            </Link>
+            <Link href="/school/classrooms/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
+              <IconPlus size={17} />
+              Add classroom
+            </Link>
+          </div>
+        }
       />
 
       <Card className="mb-6" title="Classrooms">
         {classrooms.length === 0 ? (
           <EmptyState
             title="No classrooms yet"
-            description="Create an academic year first, then add sections."
+            description="Create an academic year first, then add your sections."
           />
         ) : (
           <Table>
@@ -67,7 +72,7 @@ export default async function ClassroomsPage() {
         )}
       </Card>
 
-      <Card className="mb-6" title="Academic years">
+      <Card title="Academic years">
         {academicYears.length === 0 ? (
           <EmptyState
             title="No academic year yet"
@@ -102,19 +107,6 @@ export default async function ClassroomsPage() {
           </Table>
         )}
       </Card>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="Add a classroom">
-          <ClassroomForm
-            academicYears={academicYears}
-            teachers={teachers.items}
-            classLevels={classLevels}
-          />
-        </Card>
-        <Card title="Add an academic year">
-          <AcademicYearForm />
-        </Card>
-      </div>
     </>
   );
 }

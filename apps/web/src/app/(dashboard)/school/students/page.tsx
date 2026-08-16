@@ -1,11 +1,10 @@
 import Link from 'next/link';
-import type { ClassroomSummary, Paginated, ParentSummary, StudentSummary } from '@poetree/shared';
+import type { ClassroomSummary, Paginated, StudentSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
-import { IconSearch } from '@/components/icons';
+import { IconPlus, IconSearch } from '@/components/icons';
 import { formatDate } from '@/lib/format';
-import { StudentForm } from '../forms';
 
 export default async function StudentsPage({
   searchParams,
@@ -14,11 +13,12 @@ export default async function StudentsPage({
 }) {
   const { page = '1', search, classroomId } = await searchParams;
 
-  const [students, parents, classrooms] = await Promise.all([
+  // The classroom filter still needs the list of classrooms; the parents were
+  // only ever for the add form, which now fetches its own.
+  const [students, classrooms] = await Promise.all([
     apiFetch<Paginated<StudentSummary>>('/students', {
       query: { page, pageSize: 20, search, classroomId },
     }),
-    apiFetch<Paginated<ParentSummary>>('/parents', { query: { pageSize: 100 } }),
     apiFetch<ClassroomSummary[]>('/classrooms'),
   ]);
 
@@ -26,7 +26,16 @@ export default async function StudentsPage({
 
   return (
     <>
-      <PageHeader title="Students" description="Children enrolled at your school." />
+      <PageHeader
+        title="Students"
+        description="Children enrolled at your school."
+        action={
+          <Link href="/school/students/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
+            <IconPlus size={17} />
+            Add student
+          </Link>
+        }
+      />
 
       <Card className="mb-5">
         <form className="flex flex-wrap items-end gap-3" action="/school/students">
@@ -162,12 +171,6 @@ export default async function StudentsPage({
           </>
         )}
       </Card>
-
-      <div className="max-w-3xl">
-        <Card title="Add a student">
-          <StudentForm parents={parents.items} classrooms={classrooms} />
-        </Card>
-      </div>
     </>
   );
 }

@@ -2,7 +2,8 @@ import type { Paginated, ParentSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
-import { ParentForm } from '../forms';
+import Link from 'next/link';
+import { IconPlus } from '@/components/icons';
 import { ResetPasswordButton } from '../reset-password';
 
 const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
@@ -23,6 +24,12 @@ export default async function ParentsPage({
       <PageHeader
         title="Parents"
         description="Parents own the family login. Children are profiles under their account."
+        action={
+          <Link href="/school/parents/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
+            <IconPlus size={17} />
+            Add parent
+          </Link>
+        }
       />
 
       <Card className="mb-6">
@@ -85,12 +92,6 @@ export default async function ParentsPage({
           </>
         )}
       </Card>
-
-      <div className="max-w-3xl">
-        <Card title="Add a parent">
-          <ParentForm />
-        </Card>
-      </div>
     </>
   );
 }

@@ -3,7 +3,8 @@ import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
-import { TeacherForm } from '../forms';
+import Link from 'next/link';
+import { IconPlus } from '@/components/icons';
 import { ResetPasswordButton } from '../reset-password';
 
 export default async function TeachersPage({
@@ -19,11 +20,20 @@ export default async function TeachersPage({
 
   return (
     <>
-      <PageHeader title="Teachers" description="Teaching staff at your school." />
+      <PageHeader
+        title="Teachers"
+        description="Teaching staff at your school."
+        action={
+          <Link href="/school/teachers/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
+            <IconPlus size={17} />
+            Add teacher
+          </Link>
+        }
+      />
 
-      <Card className="mb-6">
+      <Card>
         {teachers.items.length === 0 ? (
-          <EmptyState title="No teachers yet" description="Add your first teacher below." />
+          <EmptyState title="No teachers yet" description="Add your first teacher to get started." />
         ) : (
           <>
             <Table>
@@ -77,12 +87,6 @@ export default async function TeachersPage({
           </>
         )}
       </Card>
-
-      <div className="max-w-3xl">
-        <Card title="Add a teacher">
-          <TeacherForm />
-        </Card>
-      </div>
     </>
   );
 }

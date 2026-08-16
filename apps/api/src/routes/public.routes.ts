@@ -4,9 +4,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { params, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
-import { storage } from '../lib/storage.js';
-import { env } from '../config/env.js';
-import { logger } from '../lib/logger.js';
+import { sendStoredFile } from '../lib/sendStoredFile.js';
 
 /**
  * The only routes in this system that answer without a token.
@@ -102,17 +100,6 @@ publicRouter.get(
     // on every cold start of every family's phone.
     res.setHeader('Cache-Control', 'public, max-age=86400');
 
-    if (env.USE_X_ACCEL_REDIRECT) {
-      res.setHeader('X-Accel-Redirect', `/_protected_files/${file.storageKey}`);
-      res.end();
-      return;
-    }
-
-    res.sendFile(storage.locate(file.storageKey), (error) => {
-      if (error) {
-        logger.error('Failed to serve a school logo', { code, error: error.message });
-        if (!res.headersSent) res.status(404).end();
-      }
-    });
+    sendStoredFile(req, res, file, { code });
   }),
 );

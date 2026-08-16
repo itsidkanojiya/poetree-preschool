@@ -7,8 +7,6 @@ import { tenantContext } from '../middleware/tenantContext.js';
 import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
-import { env } from '../config/env.js';
-import { logger } from '../lib/logger.js';
 import {
   ALLOWED_TYPES,
   MAX_UPLOAD_BYTES,
@@ -18,6 +16,7 @@ import {
 } from '../lib/storage.js';
 import { stripImageMetadata } from '../lib/exif.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
+import { sendStoredFile } from '../lib/sendStoredFile.js';
 
 export const fileRouter = Router();
 
@@ -249,19 +248,7 @@ fileRouter.get(
     );
     res.setHeader('Cache-Control', 'private, max-age=300');
 
-    if (env.USE_X_ACCEL_REDIRECT) {
-      res.setHeader('X-Accel-Redirect', `/_protected_files/${file.storageKey}`);
-      res.end();
-      return;
-    }
-
-    // Development, and any deployment without Nginx in front.
-    res.sendFile(storage.locate(file.storageKey), (error) => {
-      if (error) {
-        logger.error('Failed to serve file', { fileId, error: error.message });
-        if (!res.headersSent) res.status(404).end();
-      }
-    });
+    sendStoredFile(req, res, file, { fileId });
   }),
 );
 

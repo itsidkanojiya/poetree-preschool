@@ -6,10 +6,8 @@ import { requirePermission } from '../middleware/requirePermission.js';
 import { body, params, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
-import { env } from '../config/env.js';
-import { logger } from '../lib/logger.js';
-import { storage } from '../lib/storage.js';
 import * as books from '../services/book.service.js';
+import { sendStoredFile } from '../lib/sendStoredFile.js';
 
 /**
  * The catalogue as a school sees it.
@@ -101,17 +99,6 @@ catalogueRouter.get(
     // phone at every school fetches the same bytes.
     res.setHeader('Cache-Control', 'public, max-age=86400');
 
-    if (env.USE_X_ACCEL_REDIRECT) {
-      res.setHeader('X-Accel-Redirect', `/_protected_files/${file.storageKey}`);
-      res.end();
-      return;
-    }
-
-    res.sendFile(storage.locate(file.storageKey), (error) => {
-      if (error) {
-        logger.error('Failed to serve a catalogue asset', { fileId, error: error.message });
-        if (!res.headersSent) res.status(404).end();
-      }
-    });
+    sendStoredFile(req, res, file, { fileId });
   }),
 );

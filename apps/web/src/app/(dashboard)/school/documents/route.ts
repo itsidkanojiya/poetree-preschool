@@ -31,8 +31,13 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
 
+  // The portal's server fetches this API on loopback, so an X-Accel-Redirect
+  // would be answered by nobody — Nginx is not in the path. Ask for the bytes.
   const response = await fetch(`${API_BASE_URL}${build(id)}`, {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      'x-no-accel': '1',
+    },
     cache: 'no-store',
   });
 

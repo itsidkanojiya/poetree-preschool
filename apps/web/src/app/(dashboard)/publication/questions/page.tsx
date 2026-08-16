@@ -2,7 +2,6 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import type {
   BookSummary,
-  CatalogueActivity,
   ChapterOption,
   Paginated,
   QuestionWithContext,
@@ -12,6 +11,7 @@ import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { QuestionFilterBar } from './filters';
+import { allActivities } from './all-activities';
 import { IconPlus } from '@/components/icons';
 
 export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
@@ -49,9 +49,7 @@ export default async function QuestionsPage({
     apiFetch<StandardSummary[]>('/publication/standards'),
     apiFetch<BookSummary[]>('/publication/books'),
     apiFetch<ChapterOption[]>('/publication/chapters'),
-    apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
-      query: { pageSize: 200, includeInactive: 'true' },
-    }),
+    allActivities(),
   ]);
 
   const broken = questions.items.filter((question) => question.problem !== null);

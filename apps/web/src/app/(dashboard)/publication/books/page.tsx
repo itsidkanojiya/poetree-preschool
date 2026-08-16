@@ -1,25 +1,27 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { BookSummary, StandardSummary } from '@poetree/shared';
+import type { BookSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { TCell, THead, TRow, Table } from '@/components/ui/table';
-import { BookCoverForm, BookNameForm, NewBookForm, RetireBookButton } from './forms';
+import { IconPlus } from '@/components/icons';
+import { BookCover } from './forms';
 
 export const metadata: Metadata = { title: 'Books · Poetree Admin' };
 
 /**
  * What Poetree sells.
  *
- * A book belongs to one standard and holds the question types a child plays.
- * Adding one here does not give it to anybody — a new book is switched off at
+ * A list and nothing else. Every field used to be editable in place, which put
+ * four forms in every row and made the shelf itself hard to read — the one
+ * question this screen should answer at a glance is "what do we publish", and
+ * it was the hardest thing to see. Editing happens on the book's own page.
+ *
+ * Adding one here does not give it to anybody: a new book is switched off at
  * every school until somebody sells it, which is done on the school's own page.
  */
 export default async function BooksPage() {
-  const [books, standards] = await Promise.all([
-    apiFetch<BookSummary[]>('/publication/books'),
-    apiFetch<StandardSummary[]>('/publication/standards'),
-  ]);
+  const books = await apiFetch<BookSummary[]>('/publication/books');
 
   const empty = books.filter((book) => book.isActive && book.activityCount === 0);
 
@@ -28,6 +30,15 @@ export default async function BooksPage() {
       <PageHeader
         title="Books"
         description="Each one belongs to a standard and holds the questions children play."
+        action={
+          <Link
+            href="/publication/books/new"
+            className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+          >
+            <IconPlus size={17} />
+            Add book
+          </Link>
+        }
       />
 
       {empty.length > 0 && (
@@ -38,70 +49,63 @@ export default async function BooksPage() {
         </div>
       )}
 
-      <Card className="mb-6">
+      <Card>
         {books.length === 0 ? (
           <EmptyState
             title="No books yet"
-            description="Add the first one below, then turn it on for the schools that bought it."
+            description="Add the first one, then turn it on for the schools that bought it."
           />
         ) : (
           <Table>
             <THead
               columns={[
-                'Cover',
+                '',
                 'Book',
                 'Standard',
-                'Code',
                 'Animation',
                 { label: 'Question types', numeric: true },
-                '',
                 { label: 'Schools', numeric: true },
                 'State',
-                '',
               ]}
             />
             <tbody>
               {books.map((book) => (
                 <TRow key={book.id}>
                   <TCell>
-                    <BookCoverForm book={book} />
+                    <Link href={`/publication/books/${book.id}`} aria-label={`Open ${book.name}`}>
+                      <BookCover book={book} />
+                    </Link>
                   </TCell>
                   <TCell>
-                    <BookNameForm book={book} />
+                    <Link
+                      href={`/publication/books/${book.id}`}
+                      className="font-medium text-navy-950 hover:underline"
+                    >
+                      {book.name}
+                    </Link>
+                    <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                      {book.code}
+                    </span>
                   </TCell>
                   <TCell>{book.classLevel.name}</TCell>
-                  <TCell>
-                    <span className="font-mono text-xs text-slate-500">{book.code}</span>
-                  </TCell>
                   <TCell>
                     {book.animation ? (
                       <Pill tone="brand">Watch first</Pill>
                     ) : (
                       /* No animation is a real state: the book is simply open
                          from the start. */
-                      <span className="text-xs text-slate-400">Open</span>
+                      <span className="text-xs text-slate-400">Open from the start</span>
                     )}
                   </TCell>
                   <TCell numeric>{book.activityCount}</TCell>
-                  <TCell>
-                    <Link
-                      href={`/publication/books/${book.id}`}
-                      className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-                    >
-                      Chapters
-                    </Link>
-                  </TCell>
                   {/* Schools with it switched on — what was actually sold. */}
                   <TCell numeric>{book.schoolCount}</TCell>
                   <TCell>
                     {book.isActive ? (
                       <Pill tone="brand">Live</Pill>
                     ) : (
-                      <Pill tone="neutral">Retired</Pill>
+                      <Pill tone="neutral">Withdrawn</Pill>
                     )}
-                  </TCell>
-                  <TCell>
-                    <RetireBookButton book={book} />
                   </TCell>
                 </TRow>
               ))}
@@ -109,12 +113,6 @@ export default async function BooksPage() {
           </Table>
         )}
       </Card>
-
-      <div className="max-w-3xl">
-        <Card title="Add a book">
-          <NewBookForm standards={standards} />
-        </Card>
-      </div>
     </>
   );
 }

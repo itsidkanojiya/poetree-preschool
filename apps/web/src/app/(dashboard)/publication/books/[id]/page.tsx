@@ -5,15 +5,19 @@ import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { ChapterRow, DeleteChapterButton, NewChapterForm } from './forms';
+import { BookCoverForm, BookDetailsForm, BookLiveSwitch } from '../forms';
 
-export const metadata: Metadata = { title: 'Chapters · Poetree Admin' };
+export const metadata: Metadata = { title: 'Book · Poetree Admin' };
 
 /**
- * One book, and the chapters it is divided into.
+ * One book: everything true of it, and the chapters it is divided into.
  *
  * Standard → Book → Chapter → Question type → Questions. This is the middle of
  * that, and it is where an author works: a chapter is what a teacher and a
  * publisher both think in — "we're on chapter three".
+ *
+ * The book's own fields live here rather than in the list, so the list can be
+ * read as a list.
  */
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,8 +52,32 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         title={book.name}
         description={`${book.classLevel.name} · ${activities.total} question ${
           activities.total === 1 ? 'type' : 'types'
-        }`}
+        } · ${book.schoolCount} ${book.schoolCount === 1 ? 'school' : 'schools'}`}
+        eyebrow={!book.isActive ? <Pill tone="neutral">Withdrawn</Pill> : undefined}
       />
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <Card title="The book">
+          <BookDetailsForm book={book} />
+        </Card>
+
+        <div className="space-y-4">
+          <Card
+            title="Cover"
+            description="What a child looks for on the shelf, long before they can read the name."
+          >
+            <BookCoverForm book={book} />
+          </Card>
+
+          <Card title="On sale">
+            <BookLiveSwitch book={book} />
+          </Card>
+        </div>
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+        Chapters
+      </h2>
 
       <div className="mb-6 space-y-4">
         {chapters.length === 0 ? (

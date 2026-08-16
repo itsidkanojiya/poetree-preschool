@@ -8,7 +8,7 @@ import type {
   UpdateBookInput,
 } from '@poetree/shared';
 import { youTubeVideoId } from '@poetree/shared';
-import { prismaUnscoped } from '../db/prisma.js';
+import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { assertCanReadStudent } from './scope.service.js';
 import { assertCatalogueAssets } from './question.service.js';
@@ -319,19 +319,47 @@ export async function seedEntitlementsForSchool(
  * video does not lock itself, which matters because most of the catalogue has
  * none and locking it all would empty the app.
  */
+/**
+ * The standard a child is in, by way of the class they sit in this year.
+ *
+ * Null when they have no active enrolment — a child mid-admission, or one whose
+ * year has ended. Their shelf then falls back to everything the school has
+ * rather than nothing, because an empty shelf reads as a broken app while a
+ * slightly long one only reads as a long one.
+ */
+async function classLevelOf(studentId: string): Promise<string | null> {
+  const enrolment = await prisma.studentEnrolment.findFirst({
+    where: { studentId, status: 'ACTIVE' },
+    orderBy: { enrolledOn: 'desc' },
+    select: { classroom: { select: { classLevelId: true } } },
+  });
+
+  return enrolment?.classroom.classLevelId ?? null;
+}
+
 export async function booksForChild(studentId: string): Promise<BookForChild[]> {
   await assertCanReadStudent(studentId);
   const schoolId = requireSchoolId();
 
-  const entitlements = await prismaUnscoped.schoolBook.findMany({
-    where: { schoolId, enabled: true },
-    select: { bookId: true },
-  });
+  const [entitlements, classLevelId] = await Promise.all([
+    prismaUnscoped.schoolBook.findMany({
+      where: { schoolId, enabled: true },
+      select: { bookId: true },
+    }),
+    classLevelOf(studentId),
+  ]);
   if (entitlements.length === 0) return [];
 
   const [books, watched] = await Promise.all([
     prismaUnscoped.book.findMany({
-      where: { id: { in: entitlements.map((row) => row.bookId) }, isActive: true },
+      where: {
+        id: { in: entitlements.map((row) => row.bookId) },
+        isActive: true,
+        // A school buys a book for the whole school, but a child is only in one
+        // year of it. Without this a Nursery child's shelf carries the Junior KG
+        // workbook — work they have not been taught — next to their own.
+        ...(classLevelId ? { classLevelId } : {}),
+      },
       include: { classLevel: { select: { id: true, name: true } } },
       orderBy: [{ classLevel: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     }),

@@ -185,6 +185,41 @@ describe.skipIf(!dbUp)('books and who has them', () => {
     expect(evs.coverUrl).toContain(`/catalogue/assets/${artwork.body.id}`);
   });
 
+  it('keeps another year’s workbook off a child’s shelf', async () => {
+    // A school buys a book for the whole school, so entitlement alone would put
+    // the Junior KG workbook on a Nursery child's shelf — work they have not
+    // been taught, beside their own. The seeded child sits in Nursery.
+    const juniorKg = await prismaUnscoped.classLevel.findUniqueOrThrow({
+      where: { code: 'JUNIOR_KG' },
+      select: { id: true },
+    });
+
+    const older = await api
+      .post(`${BASE}/publication/books`)
+      .set(auth(publisher))
+      .send({ code: 'JRKG_ENG', name: 'Junior KG English', classLevelId: juniorKg.id });
+
+    await api
+      .put(`${BASE}/publication/schools/${bought.id}/books`)
+      .set(auth(publisher))
+      .send({
+        books: [
+          { bookId: evsId, enabled: true },
+          { bookId: older.body.id, enabled: true },
+        ],
+      });
+
+    const parent = await login(bought.parentPhone);
+    const shelf = await api
+      .get(`${BASE}/catalogue/children/${bought.studentId}/books`)
+      .set(auth(parent));
+
+    expect(shelf.status).toBe(200);
+    const names = shelf.body.map((row: { name: string }) => row.name);
+    expect(names).toContain('EVS Book');
+    expect(names).not.toContain('Junior KG English');
+  });
+
   it('refuses a school’s own file as a book cover', async () => {
     // The mirror of the leak the catalogue asset route is careful about: a
     // school file is tenant-scoped, and hanging one off a book would serve one
@@ -229,7 +264,10 @@ describe.skipIf(!dbUp)('books and who has them', () => {
       select: { enabled: true },
     });
 
-    expect(rows).toHaveLength(2);
+    // Counted rather than written down: tests above add books of their own,
+    // and the rule being pinned is "one row per book, all on", not "three".
+    const catalogue = await prismaUnscoped.book.count({ where: { isActive: true } });
+    expect(rows).toHaveLength(catalogue);
     expect(rows.every((row) => row.enabled)).toBe(true);
   });
 });

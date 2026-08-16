@@ -1,9 +1,17 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { BookSummary, CatalogueActivity, Paginated, QuestionWithContext } from '@poetree/shared';
+import type {
+  BookSummary,
+  CatalogueActivity,
+  ChapterOption,
+  Paginated,
+  QuestionWithContext,
+  StandardSummary,
+} from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
+import { QuestionFilterBar } from './filters';
 
 export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
 
@@ -21,43 +29,56 @@ export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
 export default async function QuestionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ bookId?: string; activityId?: string; page?: string }>;
+  searchParams: Promise<{
+    classLevelId?: string;
+    bookId?: string;
+    chapterId?: string;
+    activityId?: string;
+    type?: string;
+    search?: string;
+    page?: string;
+  }>;
 }) {
-  const { bookId, activityId, page = '1' } = await searchParams;
+  const { page = '1', ...filters } = await searchParams;
 
-  const [questions, books, types] = await Promise.all([
+  const [questions, standards, books, chapters, types] = await Promise.all([
     apiFetch<Paginated<QuestionWithContext>>('/publication/questions', {
-      query: { bookId, activityId, page, pageSize: 50 },
+      query: { ...filters, page, pageSize: 50 },
     }),
+    apiFetch<StandardSummary[]>('/publication/standards'),
     apiFetch<BookSummary[]>('/publication/books'),
+    apiFetch<ChapterOption[]>('/publication/chapters'),
     apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
-      query: { pageSize: 100, includeInactive: 'true' },
+      query: { pageSize: 200, includeInactive: 'true' },
     }),
   ]);
 
   const broken = questions.items.filter((question) => question.problem !== null);
 
+  // Carried into the paging links: without this, page two of a filtered list is
+  // page two of the whole catalogue, which looks like the filter forgot itself.
+  const query = new URLSearchParams(
+    Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  ).toString();
+
   return (
     <>
       <PageHeader
         title="Questions"
-        description="Every question in the catalogue. Open the one you want and edit it on its page."
+        description={
+          Object.values(filters).some(Boolean)
+            ? `${questions.total} ${questions.total === 1 ? 'question' : 'questions'} match. Open one to edit it on its page.`
+            : 'Every question in the catalogue. Open the one you want and edit it on its page.'
+        }
       />
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <FilterLink href="/publication/questions" active={!bookId && !activityId}>
-          All
-        </FilterLink>
-        {books.map((book) => (
-          <FilterLink
-            key={book.id}
-            href={`/publication/questions?bookId=${book.id}`}
-            active={bookId === book.id}
-          >
-            {book.name}
-          </FilterLink>
-        ))}
-      </div>
+      <QuestionFilterBar
+        filters={filters}
+        standards={standards}
+        books={books}
+        chapters={chapters}
+        types={types.items}
+      />
 
       {broken.length > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
@@ -76,7 +97,7 @@ export default async function QuestionsPage({
           <>
             <Table>
               <THead
-                columns={['Question', 'Question type', 'Book', 'Answer', 'State']}
+                columns={['Question', 'Question type', 'Book', 'Chapter', 'Answer', 'State']}
               />
               <tbody>
                 {questions.items.map((question) => (
@@ -108,6 +129,9 @@ export default async function QuestionsPage({
                       )}
                     </TCell>
                     <TCell>
+                      {question.chapter?.name ?? <span className="text-slate-400">—</span>}
+                    </TCell>
+                    <TCell>
                       <Answer question={question} />
                     </TCell>
                     <TCell>
@@ -126,7 +150,9 @@ export default async function QuestionsPage({
               page={questions.page}
               totalPages={questions.totalPages}
               total={questions.total}
-              basePath="/publication/questions"
+              basePath={
+                query ? `/publication/questions?${query}` : '/publication/questions'
+              }
             />
           </>
         )}
@@ -166,25 +192,4 @@ function Answer({ question }: { question: QuestionWithContext }) {
   }
 
   return <span className="text-sm">{correct.glyph ?? correct.text}</span>;
-}
-
-function FilterLink({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-        active ? 'bg-navy-900 text-white' : 'text-navy-900 ring-1 ring-navy-200 hover:bg-navy-50'
-      }`}
-    >
-      {children}
-    </Link>
-  );
 }

@@ -1,10 +1,16 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { CatalogueActivity, Paginated } from '@poetree/shared';
+import type {
+  CatalogueActivity,
+  ChapterOption,
+  Paginated,
+  StandardSummary,
+} from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { NewActivityForm, RetireButton } from './forms';
+import { TypeFilterBar } from './filters';
 
 export const metadata: Metadata = { title: 'Question types · Poetree Admin' };
 
@@ -26,13 +32,6 @@ interface BookOption {
   classLevel: { name: string };
 }
 
-interface ChapterOption {
-  id: string;
-  name: string;
-  bookId: string;
-  bookName: string;
-}
-
 /**
  * The publisher's own product.
  *
@@ -43,19 +42,34 @@ interface ChapterOption {
 export default async function ActivitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; skillId?: string; search?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    classLevelId?: string;
+    bookId?: string;
+    chapterId?: string;
+    type?: string;
+    search?: string;
+  }>;
 }) {
-  const { page = '1', skillId, search } = await searchParams;
+  const { page = '1', ...filters } = await searchParams;
 
   const [activities, skills, classLevels, books, chapters] = await Promise.all([
     apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
-      query: { page, pageSize: 25, skillId, search, includeInactive: 'true' },
+      query: { ...filters, page, pageSize: 25, includeInactive: 'true' },
     }),
     apiFetch<Skill[]>('/publication/skills'),
     apiFetch<ClassLevel[]>('/publication/class-levels'),
     apiFetch<BookOption[]>('/publication/books'),
     apiFetch<ChapterOption[]>('/publication/chapters'),
   ]);
+
+  const standards = await apiFetch<StandardSummary[]>('/publication/standards');
+
+  // Carried into the paging links, or page two of a filtered list is page two
+  // of the whole catalogue.
+  const query = new URLSearchParams(
+    Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  ).toString();
 
   const unplayable = activities.items.filter((item) => !item.isPlayable).length;
 
@@ -65,6 +79,8 @@ export default async function ActivitiesPage({
         title="Question types"
         description="A page of a book — “Circle the correct letter” — and the questions under it."
       />
+
+      <TypeFilterBar filters={filters} standards={standards} books={books} chapters={chapters} />
 
       {unplayable > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
@@ -155,7 +171,9 @@ export default async function ActivitiesPage({
               page={activities.page}
               totalPages={activities.totalPages}
               total={activities.total}
-              basePath="/publication/question-types"
+              basePath={
+                query ? `/publication/question-types?${query}` : '/publication/question-types'
+              }
             />
           </>
         )}

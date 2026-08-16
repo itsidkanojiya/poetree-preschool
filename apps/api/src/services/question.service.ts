@@ -121,8 +121,12 @@ export async function listQuestions(activityId: string): Promise<QuestionRow[]> 
  * remembering which page it was on.
  */
 export async function listAllQuestions(query: {
+  classLevelId?: string;
   bookId?: string;
+  chapterId?: string;
   activityId?: string;
+  type?: string;
+  search?: string;
   page?: number;
   pageSize?: number;
 }): Promise<{
@@ -135,9 +139,26 @@ export async function listAllQuestions(query: {
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 50;
 
+  /**
+   * Everything except the search narrows the page a question sits on rather
+   * than the question itself, so they all fold into one `activity` clause —
+   * two separate ones would silently replace each other.
+   */
+  const activity: Prisma.LearningActivityWhereInput = {
+    ...(query.bookId ? { bookId: query.bookId } : {}),
+    ...(query.chapterId ? { chapterId: query.chapterId } : {}),
+    ...(query.type ? { type: query.type as never } : {}),
+    // By the standard the *book* is for, not the activity's own level: a
+    // standard is something a book belongs to, and that is how somebody
+    // filtering by "Nursery" is thinking.
+    ...(query.classLevelId ? { book: { classLevelId: query.classLevelId } } : {}),
+  };
+
   const where: Prisma.ActivityQuestionWhereInput = {
     ...(query.activityId ? { activityId: query.activityId } : {}),
-    ...(query.bookId ? { activity: { bookId: query.bookId } } : {}),
+    ...(Object.keys(activity).length > 0 ? { activity } : {}),
+    // The words the app reads aloud, which is the only text a question has.
+    ...(query.search ? { say: { contains: query.search } } : {}),
   };
 
   const [rows, total] = await Promise.all([
@@ -146,7 +167,13 @@ export async function listAllQuestions(query: {
       include: {
         ...questionInclude,
         activity: {
-          select: { id: true, title: true, type: true, book: { select: { id: true, name: true } } },
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            book: { select: { id: true, name: true } },
+            chapter: { select: { id: true, name: true } },
+          },
         },
       },
       orderBy: [{ activityId: 'asc' }, { sortOrder: 'asc' }],
@@ -161,6 +188,7 @@ export async function listAllQuestions(query: {
       ...toRow(row, row.activity.type),
       activity: { id: row.activity.id, title: row.activity.title, type: row.activity.type },
       book: row.activity.book,
+      chapter: row.activity.chapter,
     })),
     total,
     page,

@@ -55,6 +55,7 @@ export interface QuestionOptionRow {
 export interface QuestionWithContext extends QuestionRow {
   activity: { id: string; title: string; type: string };
   book: { id: string; name: string } | null;
+  chapter: { id: string; name: string } | null;
 }
 
 export interface QuestionRow {

@@ -602,8 +602,12 @@ publicationRouter.get(
     const asString = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
     res.json(
       await questions.listAllQuestions({
+        classLevelId: asString(req.query.classLevelId),
         bookId: asString(req.query.bookId),
+        chapterId: asString(req.query.chapterId),
         activityId: asString(req.query.activityId),
+        type: asString(req.query.type),
+        search: asString(req.query.search),
         page: Number(req.query.page) || 1,
         pageSize: Math.min(Number(req.query.pageSize) || 50, 200),
       }),

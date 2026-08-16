@@ -170,6 +170,61 @@ describe.skipIf(!dbUp)('chapters', () => {
     expect(response.body.error.message).toContain('question type');
   });
 
+  it('narrows the question list by where a question lives', async () => {
+    // The catalogue is hundreds of rows. Every filter is a way of getting to
+    // the page somebody is actually working on.
+    const evsChapter = await prismaUnscoped.chapter.findFirstOrThrow({
+      where: { bookId: evsId },
+      select: { id: true },
+    });
+
+    const all = await api.get(`${BASE}/publication/questions`).set(auth(publisher));
+    expect(all.body.total).toBeGreaterThan(0);
+
+    const byBook = await api
+      .get(`${BASE}/publication/questions`)
+      .query({ bookId: evsId })
+      .set(auth(publisher));
+    expect(byBook.body.items.every((q: { book: { id: string } }) => q.book.id === evsId)).toBe(true);
+
+    const byChapter = await api
+      .get(`${BASE}/publication/questions`)
+      .query({ chapterId: evsChapter.id })
+      .set(auth(publisher));
+    expect(byChapter.body.total).toBe(byBook.body.total);
+
+    // A chapter from the other book has nothing in it, which is the honest
+    // answer rather than an error.
+    const elsewhere = await api
+      .get(`${BASE}/publication/questions`)
+      .query({ chapterId: englishChapterId })
+      .set(auth(publisher));
+    expect(elsewhere.body.total).toBe(0);
+  });
+
+  it('combines filters rather than letting the last one win', async () => {
+    // Every filter but the search narrows the *page* a question sits on, so
+    // they fold into one clause — two separate ones would silently replace
+    // each other and the second filter would appear to do nothing.
+    const both = await api
+      .get(`${BASE}/publication/questions`)
+      .query({ bookId: englishId, chapterId: englishChapterId })
+      .set(auth(publisher));
+    expect(both.body.total).toBe(0);
+
+    const searched = await api
+      .get(`${BASE}/publication/questions`)
+      .query({ bookId: evsId, search: 'leaves' })
+      .set(auth(publisher));
+    expect(searched.body.total).toBe(1);
+
+    const missing = await api
+      .get(`${BASE}/publication/questions`)
+      .query({ bookId: evsId, search: 'nothing matches this' })
+      .set(auth(publisher));
+    expect(missing.body.total).toBe(0);
+  });
+
   it('is the publisher’s alone', async () => {
     const admin = await login(school.adminEmail);
 

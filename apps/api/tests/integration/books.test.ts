@@ -12,6 +12,11 @@ import { disconnectPrisma, prismaUnscoped } from '../../src/db/prisma.js';
 
 const dbUp = await isDatabaseReachable();
 
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 describe.skipIf(!dbUp)('books and who has them', () => {
   let baseline: Baseline;
   let bought: TestSchool;
@@ -145,6 +150,65 @@ describe.skipIf(!dbUp)('books and who has them', () => {
       .send({ code: 'NUR_EVS', name: 'EVS again', classLevelId: nurseryId });
 
     expect(clash.status).toBe(409);
+  });
+
+  it('carries a cover from the publisher all the way to a family', async () => {
+    // The cover is the only thing a four-year-old can use to find their book,
+    // so it has to survive the whole trip: publisher upload, the book row, and
+    // out again on the child's shelf.
+    const artwork = await api
+      .post(`${BASE}/publication/assets`)
+      .set(auth(publisher))
+      .attach('file', TINY_PNG, 'evs-cover.png');
+    expect(artwork.status).toBe(201);
+
+    const patched = await api
+      .patch(`${BASE}/publication/books/${evsId}`)
+      .set(auth(publisher))
+      .send({ coverFileId: artwork.body.id });
+    expect(patched.status).toBe(200);
+    expect(patched.body.coverUrl).toContain(artwork.body.id);
+
+    // Switched back on, because the test above took it away.
+    await api
+      .put(`${BASE}/publication/schools/${bought.id}/books`)
+      .set(auth(publisher))
+      .send({ books: [{ bookId: evsId, enabled: true }] });
+
+    const parent = await login(bought.parentPhone);
+    const shelf = await api
+      .get(`${BASE}/catalogue/children/${bought.studentId}/books`)
+      .set(auth(parent));
+
+    expect(shelf.status).toBe(200);
+    const evs = shelf.body.find((row: { id: string }) => row.id === evsId);
+    expect(evs.coverUrl).toContain(`/catalogue/assets/${artwork.body.id}`);
+  });
+
+  it('refuses a school’s own file as a book cover', async () => {
+    // The mirror of the leak the catalogue asset route is careful about: a
+    // school file is tenant-scoped, and hanging one off a book would serve one
+    // school's bytes to every other school that bought it — through a route
+    // that deliberately asks no questions about tenancy.
+    const admin = await login(bought.adminEmail);
+    const theirs = await api
+      .post(`${BASE}/files`)
+      .set(auth(admin))
+      .attach('file', TINY_PNG, 'ours.png');
+    expect(theirs.status).toBe(201);
+
+    const rejected = await api
+      .patch(`${BASE}/publication/books/${phonicsId}`)
+      .set(auth(publisher))
+      .send({ coverFileId: theirs.body.id });
+
+    expect(rejected.status).toBe(400);
+
+    const book = await prismaUnscoped.book.findUniqueOrThrow({
+      where: { id: phonicsId },
+      select: { coverFileId: true },
+    });
+    expect(book.coverFileId).toBeNull();
   });
 
   it('starts a brand new school with everything switched on', async () => {

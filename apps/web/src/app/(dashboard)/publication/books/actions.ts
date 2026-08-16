@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
+import { uploadCatalogueAsset } from '@/lib/catalogue-assets';
 
 export interface BookState {
   error?: string;
@@ -86,4 +87,36 @@ export async function setSchoolBooksAction(
 
   revalidatePath(`/publication/schools/${schoolId}`);
   return { success: `Saved. They have ${enabled.size} of ${bookIds.length} books.` };
+}
+
+
+/**
+ * The picture on the front of the book.
+ *
+ * Two steps, like every other attachment: the upload route owns the sniffing
+ * and the caps, and this records which file the book wears. An empty submit
+ * clears it — a cover somebody uploaded by mistake has to be removable.
+ */
+export async function setBookCoverAction(
+  bookId: string,
+  _prev: BookState,
+  formData: FormData,
+): Promise<BookState> {
+  const file = formData.get('cover');
+
+  try {
+    const coverFileId =
+      file instanceof File && file.size > 0 ? await uploadCatalogueAsset(file) : null;
+
+    await apiFetch(`/publication/books/${bookId}`, {
+      method: 'PATCH',
+      redirectOnAuthFailure: false,
+      body: { coverFileId },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the cover.') };
+  }
+
+  revalidatePath('/publication/books');
+  return { success: file instanceof File && file.size > 0 ? 'Cover saved.' : 'Cover removed.' };
 }

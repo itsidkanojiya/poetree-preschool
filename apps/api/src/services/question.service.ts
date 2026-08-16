@@ -204,7 +204,9 @@ export async function listAllQuestions(query: {
  * homework — must never end up inside content served to every school that
  * bought the book.
  */
-async function assertCatalogueAssets(fileIds: Array<string | null | undefined>): Promise<void> {
+export async function assertCatalogueAssets(
+  fileIds: Array<string | null | undefined>,
+): Promise<void> {
   const wanted = [...new Set(fileIds.filter((id): id is string => Boolean(id)))];
   if (wanted.length === 0) return;
 

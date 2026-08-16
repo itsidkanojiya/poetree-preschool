@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/models/attached_file.dart';
+import 'package:poetree_school/features/activities/book_shelf_controller.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
 import 'package:poetree_school/features/teacher/homework_controller.dart';
@@ -20,6 +21,7 @@ import 'package:poetree_school/features/teacher/register_controller.dart';
 
 void main() {
   group('child photographs', _childPhotoTests);
+  group('the book shelf', _shelfTests);
 
   group('branding', _brandingTests);
 
@@ -359,5 +361,52 @@ void _childPhotoTests() {
     });
 
     expect(child.photoPath, isNull);
+  });
+}
+
+void _shelfTests() {
+  test('a book cover is fetchable, not doubled', () {
+    final book = ShelfBook.fromJson({
+      'id': 'bk_1',
+      'name': 'EVS Book',
+      'classLevel': {'name': 'Nursery'},
+      'coverUrl': '/api/v1/catalogue/assets/f_1',
+      'isUnlocked': true,
+    });
+
+    // The trim that would otherwise 404 every cover on the shelf.
+    expect(book.coverPath, '/catalogue/assets/f_1');
+    expect(book.levelName, 'Nursery');
+  });
+
+  test('a book with no cover parses to null, not an empty path', () {
+    // An empty string is truthy enough to reach AuthedImage and would draw a
+    // broken square where the coloured fallback card belongs.
+    final book = ShelfBook.fromJson({
+      'id': 'bk_2',
+      'name': 'Phonics',
+      'coverUrl': '',
+      'isUnlocked': true,
+    });
+
+    expect(book.coverPath, isNull);
+    expect(book.hasAnimation, isFalse);
+  });
+
+  test('a book is locked only when there is a film to watch', () {
+    final locked = ShelfBook.fromJson({
+      'id': 'bk_3',
+      'name': 'Numbers',
+      'animation': {'videoId': 'dQw4w9WgXcQ'},
+      'isUnlocked': false,
+    });
+    expect(locked.hasAnimation, isTrue);
+    expect(locked.isUnlocked, isFalse);
+
+    // No animation at all: nothing was ever withheld, so the shelf must not
+    // draw a play badge on it.
+    final open = ShelfBook.fromJson({'id': 'bk_4', 'name': 'Rhymes'});
+    expect(open.hasAnimation, isFalse);
+    expect(open.isUnlocked, isTrue);
   });
 }

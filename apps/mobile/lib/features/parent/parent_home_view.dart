@@ -330,8 +330,11 @@ class _Overview extends StatelessWidget {
           _PlayCard(
             firstName: selected.firstName,
             onTap: () => Get.toNamed<void>(
-              AppRoutes.activities,
-              arguments: {'studentId': selected.id},
+              AppRoutes.books,
+              arguments: {
+                'studentId': selected.id,
+                'childName': selected.firstName,
+              },
             ),
           ),
 

@@ -11,6 +11,7 @@ import { youTubeVideoId } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { assertCanReadStudent } from './scope.service.js';
+import { assertCatalogueAssets } from './question.service.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 
@@ -75,6 +76,11 @@ export async function createBook(
   input: CreateBookInput,
   actorUserId: string,
 ): Promise<BookSummary> {
+  // The same rule as question artwork: a cover is served to every school that
+  // bought the book, so a school's own file — a child's photograph, a parent's
+  // homework — must never become one.
+  await assertCatalogueAssets([input.coverFileId]);
+
   const level = await prismaUnscoped.classLevel.findUnique({
     where: { id: input.classLevelId },
     select: { id: true },
@@ -140,6 +146,8 @@ export async function updateBook(
 ): Promise<BookSummary> {
   const existing = await prismaUnscoped.book.findUnique({ where: { id }, select: { name: true } });
   if (!existing) throw ApiError.notFound('Book not found');
+
+  await assertCatalogueAssets([input.coverFileId]);
 
   await prismaUnscoped.book.update({
     where: { id },

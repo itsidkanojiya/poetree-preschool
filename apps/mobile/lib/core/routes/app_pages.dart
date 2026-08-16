@@ -2,6 +2,8 @@ import 'package:get/get.dart';
 
 import '../../features/activities/activity_controller.dart';
 import '../../features/activities/activity_list_view.dart';
+import '../../features/activities/book_shelf_controller.dart';
+import '../../features/activities/book_shelf_view.dart';
 import '../../features/activities/activity_models.dart';
 import '../../features/activities/activity_play_view.dart';
 import '../../features/auth/auth_controller.dart';
@@ -86,6 +88,7 @@ class AppRoutes {
   static const stream = '/stream';
   static const teacherHomework = '/teacher/homework';
   static const roster = '/teacher/class';
+  static const books = '/books';
   static const activities = '/activities';
   static const activityPlay = '/activities/play';
   static const blocked = '/blocked';
@@ -96,7 +99,25 @@ class ActivityListBinding extends Bindings {
   void dependencies() {
     final args = Get.arguments as Map<String, dynamic>? ?? const {};
     Get.put<ActivityListController>(
-      ActivityListController(studentId: args['studentId'] as String?),
+      ActivityListController(
+        studentId: args['studentId'] as String?,
+        // Absent when this is the whole shelf rather than one book.
+        bookId: args['bookId'] as String?,
+        bookName: args['bookName'] as String?,
+      ),
+    );
+  }
+}
+
+class BookShelfBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<BookShelfController>(
+      BookShelfController(
+        studentId: args['studentId'] as String?,
+        childName: args['childName'] as String? ?? '',
+      ),
     );
   }
 }
@@ -216,6 +237,11 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.roster,
     page: () => const RosterView(),
     binding: RosterBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.books,
+    page: () => const BookShelfView(),
+    binding: BookShelfBinding(),
   ),
   GetPage<void>(
     name: AppRoutes.activities,

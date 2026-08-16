@@ -11,9 +11,13 @@ import 'animation_view.dart';
 
 /// The catalogue of activities a child can be offered.
 class ActivityListController extends GetxController {
-  ActivityListController({required this.studentId});
+  ActivityListController({required this.studentId, this.bookId, this.bookName});
 
   final String? studentId;
+
+  /// Set when this list is one book rather than everything the school has.
+  final String? bookId;
+  final String? bookName;
 
   final activities = <ActivityDefinition>[].obs;
   final isLoading = true.obs;
@@ -31,20 +35,30 @@ class ActivityListController extends GetxController {
   /// The books this child has still to watch, keyed by book id.
   final animations = <String, ({String videoId, String bookName})>{}.obs;
 
-  /// Opens the film that unlocks an activity's book, then reloads on the way
-  /// back so the whole book opens at once rather than the one they tapped.
+  /// The film standing between this child and the book they have opened.
+  ///
+  /// Null when the book has none, when they have watched it, or when this list
+  /// is the whole shelf rather than one book.
+  ({String videoId, String bookName})? get pendingAnimation =>
+      bookId == null ? null : animations[bookId];
+
+  /// Tapping a locked activity: the film that opens its book.
   Future<void> openAnimation(
     BuildContext context,
     ActivityDefinition activity,
-  ) async {
-    final animation = animations[activity.bookId];
+  ) => playAnimation(context, activity.bookId);
+
+  /// Opens the film that unlocks a book, then reloads on the way back so the
+  /// whole book opens at once rather than the one activity they tapped.
+  Future<void> playAnimation(BuildContext context, String forBookId) async {
+    final animation = animations[forBookId];
     if (animation == null || studentId == null) return;
 
     final watched = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AnimationView(
           videoId: animation.videoId,
-          bookId: activity.bookId,
+          bookId: forBookId,
           bookName: animation.bookName,
           studentId: studentId!,
         ),
@@ -90,8 +104,11 @@ class ActivityListController extends GetxController {
     try {
       final data = await api.get<List<dynamic>>(
         '/progress/activities',
-        // Named, so the answer says which of these this child may open yet.
-        query: studentId == null ? null : {'studentId': studentId},
+        query: {
+          // Named, so the answer says which of these this child may open yet.
+          if (studentId != null) 'studentId': studentId,
+          if (bookId != null) 'bookId': bookId,
+        },
       );
       activities.value = data
           .whereType<Map<String, dynamic>>()

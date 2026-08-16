@@ -16,6 +16,7 @@ import {
   createBookAction,
   renameBookAction,
   setBookActiveAction,
+  setBookCoverAction,
   setSchoolBooksAction,
   type BookState,
 } from './actions';
@@ -103,6 +104,56 @@ export function BookNameForm({ book }: { book: BookSummary }) {
         aria-label={`Animation for ${book.name}`}
       />
       {state.error && <span className="text-xs text-rose-600">{state.error}</span>}
+    </form>
+  );
+}
+
+/**
+ * The cover, which is what a child actually recognises on the shelf.
+ *
+ * Shown through the proxy rather than straight from the API: the access token
+ * lives in an httpOnly cookie, so no plain img can carry it.
+ */
+export function BookCoverForm({ book }: { book: BookSummary }) {
+  const [state, formAction] = useActionState<BookState, FormData>(
+    setBookCoverAction.bind(null, book.id),
+    {},
+  );
+
+  const fileId = book.coverUrl?.split('/').pop();
+
+  return (
+    <form action={formAction} className="flex items-center gap-2">
+      {fileId ? (
+        /* A plain img: one small picture from our own API, and next/image
+           would want a loader configured for the host. */
+        <img
+          src={`/attachments?kind=catalogue&id=${fileId}`}
+          alt=""
+          className="h-14 w-11 shrink-0 rounded-md object-cover ring-1 ring-navy-950/10"
+        />
+      ) : (
+        <span className="grid h-14 w-11 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] text-slate-400 ring-1 ring-navy-950/10">
+          none
+        </span>
+      )}
+
+      <span className="min-w-0">
+        <Input
+          name="cover"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="h-8 w-44 text-xs"
+          aria-label={`Cover for ${book.name}`}
+        />
+        <button
+          type="submit"
+          className="mt-1 rounded-lg px-2 py-0.5 text-[11px] font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+        >
+          {fileId ? 'Replace' : 'Upload'}
+        </button>
+        {state.error && <span className="ml-1 text-[11px] text-rose-600">{state.error}</span>}
+      </span>
     </form>
   );
 }

@@ -29,7 +29,7 @@ class ActivityListView extends GetView<ActivityListController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Things to do')),
+      appBar: AppBar(title: Text(controller.bookName ?? 'Things to do')),
       body: Obx(() {
         final playable = controller.playable;
 
@@ -57,6 +57,15 @@ class ActivityListView extends GetView<ActivityListController> {
           builder: (context) => ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
+              // The film first, which is the order the book is meant to be
+              // used in. Before this it was only met by tapping something
+              // locked, which is a strange way to be introduced to it.
+              if (controller.pendingAnimation != null)
+                _WatchFirstCard(
+                  title: controller.pendingAnimation!.bookName,
+                  onPlay: () =>
+                      controller.playAnimation(context, controller.bookId!),
+                ),
               for (final entry in byBook.entries) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
@@ -120,6 +129,73 @@ class ActivityListView extends GetView<ActivityListController> {
           ),
         );
       }),
+    );
+  }
+}
+
+/// The film that opens a book, at the top of it.
+class _WatchFirstCard extends StatelessWidget {
+  const _WatchFirstCard({required this.title, required this.onPlay});
+
+  final String title;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: colors.primaryContainer,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onPlay,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: colors.onPrimaryContainer.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 28,
+                    color: colors.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Watch this first',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colors.onPrimaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'The film for $title. Everything below opens after it.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onPrimaryContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

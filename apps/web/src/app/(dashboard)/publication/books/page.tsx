@@ -4,7 +4,7 @@ import type { BookSummary, StandardSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { TCell, THead, TRow, Table } from '@/components/ui/table';
-import { BookNameForm, NewBookForm, RetireBookButton } from './forms';
+import { BookCoverForm, BookNameForm, NewBookForm, RetireBookButton } from './forms';
 
 export const metadata: Metadata = { title: 'Books · Poetree Admin' };
 
@@ -48,6 +48,7 @@ export default async function BooksPage() {
           <Table>
             <THead
               columns={[
+                'Cover',
                 'Book',
                 'Standard',
                 'Code',
@@ -62,6 +63,9 @@ export default async function BooksPage() {
             <tbody>
               {books.map((book) => (
                 <TRow key={book.id}>
+                  <TCell>
+                    <BookCoverForm book={book} />
+                  </TCell>
                   <TCell>
                     <BookNameForm book={book} />
                   </TCell>

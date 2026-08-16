@@ -1,44 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
-import { API_BASE_URL, apiFetch, errorMessage } from '@/lib/api';
-import { ACCESS_COOKIE } from '@/lib/auth-cookies';
+import { apiFetch, errorMessage } from '@/lib/api';
+import { uploadCatalogueAsset } from '@/lib/catalogue-assets';
 
 export interface QuestionState {
   error?: string;
   success?: string;
-}
-
-/**
- * Uploads one picture to the catalogue and returns its id.
- *
- * Done from the server so the access token stays in its httpOnly cookie, the
- * same two-step every other attachment in this system uses.
- */
-async function uploadAsset(file: File): Promise<string> {
-  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-  const form = new FormData();
-  form.append('file', file);
-
-  const response = await fetch(`${API_BASE_URL}/publication/assets`, {
-    method: 'POST',
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-    body: form,
-    cache: 'no-store',
-  });
-
-  const data: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message =
-      data && typeof data === 'object' && 'error' in data
-        ? String((data as { error: { message?: string } }).error.message ?? 'Upload failed')
-        : 'Upload failed';
-    throw new Error(message);
-  }
-
-  return (data as { id: string }).id;
 }
 
 /**
@@ -88,7 +56,7 @@ async function readOptions(formData: FormData): Promise<OptionDraft[]> {
 
     let fileId: string | null = keep === '' ? null : keep;
     if (picture instanceof File && picture.size > 0) {
-      fileId = await uploadAsset(picture);
+      fileId = await uploadCatalogueAsset(picture);
     }
 
     if (text === '' && glyph === '' && fileId === null) continue;
@@ -118,7 +86,7 @@ export async function addQuestionAction(
     const promptPicture = formData.get('prompt-image');
     const promptFileId =
       promptPicture instanceof File && promptPicture.size > 0
-        ? await uploadAsset(promptPicture)
+        ? await uploadCatalogueAsset(promptPicture)
         : null;
 
     await apiFetch(`/publication/activities/${activityId}/questions`, {

@@ -40,9 +40,16 @@ class ActivityListView extends GetView<ActivityListController> {
           final book = activity.bookName.isNotEmpty
               ? activity.bookName
               : activity.skillName;
-          final heading = activity.chapterName.isEmpty
-              ? book
-              : '$book · ${activity.chapterName}';
+          // Inside one book the app bar already says which book it is, so the
+          // heading is the chapter alone. Across the whole shelf it has to
+          // carry both or the chapters run together.
+          final heading = controller.bookId != null
+              ? (activity.chapterName.isEmpty
+                    ? 'In this book'
+                    : activity.chapterName)
+              : (activity.chapterName.isEmpty
+                    ? book
+                    : '$book · ${activity.chapterName}');
           byBook.putIfAbsent(heading, () => []).add(activity);
         }
 

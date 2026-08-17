@@ -239,4 +239,103 @@ describe.skipIf(!dbUp)('chapters', () => {
       .send({ name: 'Our own chapter' });
     expect(written.status).toBe(403);
   });
+  it('renumbers the contents page when chapters are dragged', async () => {
+    // Three chapters, printed 1-2-3, dragged so the last one leads.
+    const made = [];
+    for (const [index, name] of ['One', 'Two', 'Three'].entries()) {
+      const created = await api
+        .post(`${BASE}/publication/books/${englishId}/chapters`)
+        .set(auth(publisher))
+        .send({ name: `Drag ${name}`, number: index + 1 });
+      made.push(created.body.id as string);
+    }
+
+    // Every chapter the book has, not only the three just made — the book was
+    // seeded with one, and a partial list is refused on purpose.
+    const others = await prismaUnscoped.chapter.findMany({
+      where: { bookId: englishId, id: { notIn: made } },
+      select: { id: true },
+    });
+
+    const reordered = await api
+      .put(`${BASE}/publication/books/${englishId}/chapters/order`)
+      .set(auth(publisher))
+      .send({ chapterIds: [made[2], made[0], made[1], ...others.map((row) => row.id)] });
+
+    expect(reordered.status).toBe(200);
+
+    const moved = await prismaUnscoped.chapter.findMany({
+      where: { id: { in: made } },
+      select: { id: true, number: true, sortOrder: true },
+    });
+    const byId = new Map(moved.map((row) => [row.id, row]));
+
+    // The one that moved to the front is now printed as chapter 1.
+    expect(byId.get(made[2]!)?.number).toBe(1);
+    expect(byId.get(made[0]!)?.number).toBe(2);
+    expect(byId.get(made[1]!)?.number).toBe(3);
+    expect(byId.get(made[2]!)?.sortOrder).toBe(1);
+  });
+
+  it('leaves an unnumbered chapter unnumbered when the list moves', async () => {
+    // A book opening with "Getting ready" should not sprout a number for it
+    // because somebody dragged the chapter below it.
+    const intro = await api
+      .post(`${BASE}/publication/books/${evsId}/chapters`)
+      .set(auth(publisher))
+      .send({ name: 'Getting ready' });
+
+    const first = await api
+      .post(`${BASE}/publication/books/${evsId}/chapters`)
+      .set(auth(publisher))
+      .send({ name: 'Numbered one', number: 1 });
+
+    const existing = await prismaUnscoped.chapter.findMany({
+      where: { bookId: evsId },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true },
+    });
+
+    const order = [
+      first.body.id as string,
+      intro.body.id as string,
+      ...existing
+        .map((row) => row.id)
+        .filter((id) => id !== intro.body.id && id !== first.body.id),
+    ];
+
+    const response = await api
+      .put(`${BASE}/publication/books/${evsId}/chapters/order`)
+      .set(auth(publisher))
+      .send({ chapterIds: order });
+    expect(response.status).toBe(200);
+
+    const after = await prismaUnscoped.chapter.findUnique({
+      where: { id: intro.body.id as string },
+      select: { number: true, sortOrder: true },
+    });
+    expect(after?.number).toBeNull();
+    expect(after?.sortOrder).toBe(2);
+  });
+
+  it('refuses an order that is not this book’s chapters', async () => {
+    // A partial list would leave the chapters it forgot on stale positions,
+    // which is how a contents page ends up with two chapter threes.
+    const partial = await api
+      .put(`${BASE}/publication/books/${englishId}/chapters/order`)
+      .set(auth(publisher))
+      .send({ chapterIds: [englishChapterId] });
+    expect(partial.status).toBe(400);
+
+    // And a chapter belonging to a different book is not this book's to sort.
+    const all = await prismaUnscoped.chapter.findMany({
+      where: { bookId: englishId },
+      select: { id: true },
+    });
+    const foreign = await api
+      .put(`${BASE}/publication/books/${englishId}/chapters/order`)
+      .set(auth(publisher))
+      .send({ chapterIds: [...all.map((row) => row.id).slice(1), evsChapterId] });
+    expect(foreign.status).toBe(400);
+  });
 });

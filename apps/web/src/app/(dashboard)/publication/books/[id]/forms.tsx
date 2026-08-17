@@ -27,22 +27,26 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
   return (
     <form action={formAction} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          name="number"
-          type="number"
-          min={0}
-          max={999}
-          placeholder="No."
-          className="h-9 w-16 text-sm"
-          aria-label="Chapter number"
-        />
-        <Input
-          name="name"
-          required
-          placeholder="Letters A to E"
-          className="h-9 w-56 text-sm"
-          aria-label="Chapter name"
-        />
+        <span className="w-14">
+          <Input
+            name="number"
+            type="number"
+            min={0}
+            max={999}
+            placeholder="No."
+            className="px-2 py-1.5 text-center text-sm"
+            aria-label="Chapter number"
+          />
+        </span>
+        <span className="w-56">
+          <Input
+            name="name"
+            required
+            placeholder="Letters A to E"
+            className="py-1.5 text-sm"
+            aria-label="Chapter name"
+          />
+        </span>
         <SubmitButton pendingLabel="Adding…">Add chapter</SubmitButton>
       </div>
 
@@ -61,19 +65,26 @@ export function ChapterRow({ chapter }: { chapter: ChapterSummary }) {
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
-      <Input
-        name="number"
-        type="number"
-        defaultValue={chapter.number ?? ''}
-        className="h-9 w-16 text-sm"
-        aria-label={`Number of ${chapter.name}`}
-      />
-      <Input
-        name="name"
-        defaultValue={chapter.name}
-        className="h-9 w-56 text-sm"
-        aria-label={`Name of ${chapter.name}`}
-      />
+      {/* Width lives on a wrapper, not on the input: Input's own base class is
+          w-full, so a w-16 appended after it does not reliably win — which is
+          how a compact row ended up as three stretched boxes stacked. */}
+      <span className="w-14">
+        <Input
+          name="number"
+          type="number"
+          defaultValue={chapter.number ?? ''}
+          className="px-2 py-1.5 text-center text-sm"
+          aria-label={`Number of ${chapter.name}`}
+        />
+      </span>
+      <span className="w-56">
+        <Input
+          name="name"
+          defaultValue={chapter.name}
+          className="py-1.5 text-sm"
+          aria-label={`Name of ${chapter.name}`}
+        />
+      </span>
       <button
         type="submit"
         className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"

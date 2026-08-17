@@ -182,3 +182,15 @@ export const IconDownload = (p: IconProps) => (
     <path d="M5 19h14" />
   </Svg>
 );
+
+/** Six dots: the universal "pick this up and move it". */
+export const IconGrip = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none" />
+  </Svg>
+);

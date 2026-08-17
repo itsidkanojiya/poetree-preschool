@@ -4,6 +4,7 @@ import {
   createActivitySchema,
   createBookSchema,
   createChapterSchema,
+  reorderChaptersSchema,
   createPlanSchema,
   createQuestionSchema,
   createStandardSchema,
@@ -36,6 +37,7 @@ import type {
   CreateStandardInput,
   CreateSchoolAdminInput,
   CreateSchoolInput,
+  ReorderChaptersInput,
   ListActivitiesQuery,
   ListPlansQuery,
   ListSchoolsQuery,
@@ -468,6 +470,21 @@ publicationRouter.post(
       await chapters.createChapter(
         params<{ id: string }>(req).id,
         body<CreateChapterInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** The contents page, as dragged into order. */
+publicationRouter.put(
+  '/books/:id/chapters/order',
+  validate({ params: idParamSchema, body: reorderChaptersSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await chapters.reorderChapters(
+        params<{ id: string }>(req).id,
+        body<ReorderChaptersInput>(req).chapterIds,
         req.auth!.userId,
       ),
     );

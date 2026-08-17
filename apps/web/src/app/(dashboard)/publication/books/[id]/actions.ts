@@ -65,3 +65,21 @@ export async function deleteChapterAction(bookId: string, chapterId: string): Pr
   await apiFetch(`/publication/chapters/${chapterId}`, { method: 'DELETE' });
   revalidatePath(`/publication/books/${bookId}`);
 }
+
+/**
+ * The contents page, as dragged.
+ *
+ * The whole running order goes at once rather than the one chapter that moved:
+ * moving a chapter changes the position of everything after it, and sending the
+ * list is simpler than describing the ripple.
+ */
+export async function reorderChaptersAction(
+  bookId: string,
+  chapterIds: string[],
+): Promise<void> {
+  await apiFetch(`/publication/books/${bookId}/chapters/order`, {
+    method: 'PUT',
+    body: { chapterIds },
+  });
+  revalidatePath(`/publication/books/${bookId}`);
+}

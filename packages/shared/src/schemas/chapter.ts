@@ -25,6 +25,18 @@ export const updateChapterSchema = createChapterSchema.partial().extend({
 });
 export type UpdateChapterInput = z.infer<typeof updateChapterSchema>;
 
+/**
+ * A new running order for a book's chapters, as dragged.
+ *
+ * The whole list every time, not a from/to pair: a partial order is ambiguous
+ * about everything it does not mention, and this is small enough that sending
+ * all of it is simpler than reasoning about the gap.
+ */
+export const reorderChaptersSchema = z.object({
+  chapterIds: z.array(idSchema).min(1).max(999),
+});
+export type ReorderChaptersInput = z.infer<typeof reorderChaptersSchema>;
+
 export interface ChapterSummary {
   id: string;
   bookId: string;

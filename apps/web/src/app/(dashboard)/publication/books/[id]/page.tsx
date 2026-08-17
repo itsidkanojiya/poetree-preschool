@@ -4,7 +4,8 @@ import type { BookSummary, CatalogueActivity, ChapterSummary, Paginated } from '
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
-import { ChapterRow, DeleteChapterButton, NewChapterForm } from './forms';
+import { NewChapterForm } from './forms';
+import { ChapterList } from './chapter-list';
 import { BookCoverForm, BookDetailsForm, BookLiveSwitch } from '../forms';
 
 export const metadata: Metadata = { title: 'Book · Poetree Admin' };
@@ -73,52 +74,16 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
             None yet. A short book may not need any — its pages simply sit in the book itself.
           </p>
         ) : (
-          <ul className="mb-4 divide-y divide-navy-950/[0.06]">
-            {chapters.map((chapter) => {
-              const pages = activities.items.filter(
-                (activity) => activity.chapter?.id === chapter.id,
-              );
-
-              return (
-                <li key={chapter.id} className="py-4 first:pt-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <ChapterRow chapter={chapter} />
-                    <span className="flex items-center gap-2">
-                      {chapter.questionCount === 0 ? (
-                        /* Named but not written: the state worth seeing at a
-                           glance, because it looks finished from the outside. */
-                        <Pill tone="neutral">Nothing written yet</Pill>
-                      ) : (
-                        <Pill tone="brand">
-                          {chapter.questionCount}{' '}
-                          {chapter.questionCount === 1 ? 'question' : 'questions'}
-                        </Pill>
-                      )}
-                      <DeleteChapterButton chapter={chapter} />
-                    </span>
-                  </div>
-
-                  {pages.length > 0 && (
-                    <ul className="mt-2 space-y-1 border-l-2 border-navy-950/[0.06] pl-4">
-                      {pages.map((page) => (
-                        <li key={page.id} className="flex items-center justify-between gap-3">
-                          <Link
-                            href={`/publication/question-types/${page.id}/questions`}
-                            className="text-sm text-navy-950 hover:underline"
-                          >
-                            {page.title}
-                          </Link>
-                          <span className="text-xs text-slate-500">
-                            {page.itemCount} {page.itemCount === 1 ? 'question' : 'questions'}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <ChapterList
+            bookId={id}
+            chapters={chapters}
+            pages={activities.items.map((activity) => ({
+              id: activity.id,
+              title: activity.title,
+              itemCount: activity.itemCount,
+              chapterId: activity.chapter?.id ?? null,
+            }))}
+          />
         )}
 
         {/* At the end of the list, which is where the next chapter appears. */}

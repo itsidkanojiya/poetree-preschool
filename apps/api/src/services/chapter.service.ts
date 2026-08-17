@@ -144,6 +144,67 @@ export async function updateChapter(
 }
 
 /**
+ * The order the contents page runs in, as somebody dragged it.
+ *
+ * The whole list arrives and must match the book's chapters exactly — no
+ * strays, none missing. A partial list would leave the unnamed ones with stale
+ * positions, which is how a contents page ends up with two chapter threes.
+ *
+ * `sortOrder` moves for everything. `number` is what is *printed* on the page,
+ * and only chapters that already had one get renumbered: a book that opens with
+ * an unnumbered "Getting ready" should not sprout a number for it because
+ * somebody dragged the chapter below it.
+ */
+export async function reorderChapters(
+  bookId: string,
+  chapterIds: string[],
+  actorUserId: string,
+): Promise<ChapterSummary[]> {
+  const existing = await prismaUnscoped.chapter.findMany({
+    where: { bookId },
+    select: { id: true, number: true },
+  });
+
+  const known = new Set(existing.map((row) => row.id));
+  const asked = new Set(chapterIds);
+
+  if (asked.size !== chapterIds.length) {
+    throw ApiError.badRequest('The same chapter was listed twice');
+  }
+  if (asked.size !== known.size || chapterIds.some((id) => !known.has(id))) {
+    throw ApiError.badRequest('That is not this book’s list of chapters');
+  }
+
+  const numbered = new Map(existing.map((row) => [row.id, row.number !== null]));
+  let printed = 0;
+
+  await prismaUnscoped.$transaction(
+    chapterIds.map((id, index) => {
+      if (numbered.get(id)) printed += 1;
+
+      return prismaUnscoped.chapter.update({
+        where: { id },
+        data: {
+          sortOrder: index + 1,
+          ...(numbered.get(id) ? { number: printed } : {}),
+        },
+      });
+    }),
+  );
+
+  await writeAuditLog({
+    action: 'CHAPTERS_REORDERED',
+    entity: 'Book',
+    entityId: bookId,
+    schoolId: null,
+    actorUserId,
+    after: { order: chapterIds },
+  });
+
+  return listChapters(bookId);
+}
+
+/**
  * Removing a chapter.
  *
  * Refused while question types are filed under it. Deleting would set their

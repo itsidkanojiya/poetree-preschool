@@ -621,6 +621,15 @@ publicationRouter.post(
 /* Questions — the rows on a page                                             */
 /* -------------------------------------------------------------------------- */
 
+/** One question, with the page it sits on. */
+publicationRouter.get(
+  '/questions/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await questions.getQuestion(params<{ id: string }>(req).id));
+  }),
+);
+
 /** Every question in the catalogue, filterable by book or by page. */
 publicationRouter.get(
   '/questions',

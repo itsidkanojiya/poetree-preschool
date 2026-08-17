@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import type { QuestionRow } from '@poetree/shared';
 import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
+import { ConfirmButton } from '@/components/ui/confirm-button';
 import { StrokeEditor } from './stroke-editor';
 import {
   addQuestionAction,
@@ -252,11 +253,17 @@ export function QuestionControls({
           </button>
         </form>
       )}
-      <form action={deleteQuestionAction.bind(null, activityId, question.id)}>
-        <button type="submit" className={CONTROL} title="Remove this question">
-          Remove
-        </button>
-      </form>
+      <ConfirmButton
+        action={deleteQuestionAction.bind(null, activityId, question.id)}
+        label="Remove"
+        title="Remove this question?"
+        body={
+          question.say
+            ? `“${question.say}” goes, along with its choices, its picture and any strokes drawn for it. There is no undo.`
+            : 'This question goes, along with its choices, its picture and any strokes drawn for it. There is no undo.'
+        }
+        confirmLabel="Remove the question"
+      />
     </div>
   );
 }

@@ -198,6 +198,40 @@ export async function listAllQuestions(query: {
 }
 
 /**
+ * One question, with enough about the page it sits on to edit it.
+ *
+ * The editor needs the activity's type — a tracing question is drawn, a
+ * matching one is a list of choices — so the question alone is not enough to
+ * put on screen, and asking for it by id should not mean fetching the whole
+ * page it belongs to first.
+ */
+export async function getQuestion(questionId: string): Promise<QuestionWithContext> {
+  const row = await prismaUnscoped.activityQuestion.findUnique({
+    where: { id: questionId },
+    include: {
+      ...questionInclude,
+      activity: {
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          book: { select: { id: true, name: true } },
+          chapter: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+  if (!row) throw ApiError.notFound('Question not found');
+
+  return {
+    ...toRow(row, row.activity.type),
+    activity: { id: row.activity.id, title: row.activity.title, type: row.activity.type },
+    book: row.activity.book,
+    chapter: row.activity.chapter,
+  };
+}
+
+/**
  * Checks that every picture referenced is a catalogue asset.
  *
  * A file id that belongs to a school — a child's photograph, a parent's

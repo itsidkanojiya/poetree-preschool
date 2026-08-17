@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import type { ChapterSummary } from '@poetree/shared';
 import { FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
+import { ConfirmButton } from '@/components/ui/confirm-button';
 import {
   createChapterAction,
   deleteChapterAction,
@@ -97,23 +98,21 @@ export function ChapterRow({ chapter }: { chapter: ChapterSummary }) {
 }
 
 export function DeleteChapterButton({ chapter }: { chapter: ChapterSummary }) {
-  const action = deleteChapterAction.bind(null, chapter.bookId, chapter.id);
-
   return (
-    <form action={action}>
-      <button
-        type="submit"
-        // Refused server-side while pages are filed under it, so the count is
-        // shown rather than the button hidden.
-        title={
-          chapter.activityCount > 0
-            ? `${chapter.activityCount} question types are in this chapter`
-            : undefined
-        }
-        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-      >
-        Remove
-      </button>
-    </form>
+    <ConfirmButton
+      action={deleteChapterAction.bind(null, chapter.bookId, chapter.id)}
+      label="Remove"
+      title={`Remove “${chapter.name}”?`}
+      // Refused server-side while pages are filed under it, so the reason is
+      // said here rather than the button hidden.
+      body={
+        chapter.activityCount > 0
+          ? `${chapter.activityCount} question ${
+              chapter.activityCount === 1 ? 'type is' : 'types are'
+            } filed under this chapter, so this will be refused until they move. Nothing is lost by trying.`
+          : 'The chapter goes. Nothing is filed under it, so nothing else changes.'
+      }
+      confirmLabel="Remove the chapter"
+    />
   );
 }

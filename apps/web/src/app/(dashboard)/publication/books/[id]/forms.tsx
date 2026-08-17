@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import type { ChapterSummary } from '@poetree/shared';
-import { Field, FieldSet, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
+import { FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
 import {
   createChapterAction,
   deleteChapterAction,
@@ -10,6 +10,14 @@ import {
   type ChapterState,
 } from './actions';
 
+/**
+ * Adding a chapter, on one line at the end of the list it joins.
+ *
+ * Was a card of its own below everything else, so writing a contents page meant
+ * scrolling to the bottom, typing, and scrolling back to see where it landed.
+ * Somebody entering six chapters did that six times. Here the field sits under
+ * the last chapter, which is where the next one appears.
+ */
 export function NewChapterForm({ bookId }: { bookId: string }) {
   const [state, formAction] = useActionState<ChapterState, FormData>(
     createChapterAction.bind(null, bookId),
@@ -17,23 +25,29 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
   );
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          name="number"
+          type="number"
+          min={0}
+          max={999}
+          placeholder="No."
+          className="h-9 w-16 text-sm"
+          aria-label="Chapter number"
+        />
+        <Input
+          name="name"
+          required
+          placeholder="Letters A to E"
+          className="h-9 w-56 text-sm"
+          aria-label="Chapter name"
+        />
+        <SubmitButton pendingLabel="Adding…">Add chapter</SubmitButton>
+      </div>
+
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
-
-      <FieldSet>
-        <Field label="Chapter" required hint="As it reads in the contents page.">
-          <Input name="name" required placeholder="Letters A to E" />
-        </Field>
-        <Field
-          label="Number"
-          hint="What is printed on the page. Leave blank if the book has none."
-        >
-          <Input name="number" type="number" min={0} max={999} placeholder="1" />
-        </Field>
-      </FieldSet>
-
-      <SubmitButton pendingLabel="Adding…">Add chapter</SubmitButton>
     </form>
   );
 }

@@ -60,8 +60,103 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         } · ${book.schoolCount} ${book.schoolCount === 1 ? 'school' : 'schools'}`}
       />
 
-      <div className="mb-6 grid items-start gap-4 lg:grid-cols-2">
-        <Card title="The book">
+      {/* Chapters first. This is the contents page — the thing an author works
+          through, and the thing anybody opening the book wants to see. The
+          book's own name, cover and film are set once and then left alone, so
+          they sit underneath. */}
+      <Card
+        title="Chapters"
+        description="The contents page. Every question type in the book is filed under one of these."
+      >
+        {chapters.length === 0 ? (
+          <p className="mb-4 text-sm text-slate-500">
+            None yet. A short book may not need any — its pages simply sit in the book itself.
+          </p>
+        ) : (
+          <ul className="mb-4 divide-y divide-navy-950/[0.06]">
+            {chapters.map((chapter) => {
+              const pages = activities.items.filter(
+                (activity) => activity.chapter?.id === chapter.id,
+              );
+
+              return (
+                <li key={chapter.id} className="py-4 first:pt-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <ChapterRow chapter={chapter} />
+                    <span className="flex items-center gap-2">
+                      {chapter.questionCount === 0 ? (
+                        /* Named but not written: the state worth seeing at a
+                           glance, because it looks finished from the outside. */
+                        <Pill tone="neutral">Nothing written yet</Pill>
+                      ) : (
+                        <Pill tone="brand">
+                          {chapter.questionCount}{' '}
+                          {chapter.questionCount === 1 ? 'question' : 'questions'}
+                        </Pill>
+                      )}
+                      <DeleteChapterButton chapter={chapter} />
+                    </span>
+                  </div>
+
+                  {pages.length > 0 && (
+                    <ul className="mt-2 space-y-1 border-l-2 border-navy-950/[0.06] pl-4">
+                      {pages.map((page) => (
+                        <li key={page.id} className="flex items-center justify-between gap-3">
+                          <Link
+                            href={`/publication/question-types/${page.id}/questions`}
+                            className="text-sm text-navy-950 hover:underline"
+                          >
+                            {page.title}
+                          </Link>
+                          <span className="text-xs text-slate-500">
+                            {page.itemCount} {page.itemCount === 1 ? 'question' : 'questions'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* At the end of the list, which is where the next chapter appears. */}
+        <div className="border-t border-navy-950/[0.06] pt-4">
+          <NewChapterForm bookId={id} />
+        </div>
+      </Card>
+
+      {unfiled.length > 0 && (
+        <Card
+          className="mt-4"
+          title="Not in a chapter"
+          description="These are in the book but not filed under any chapter. Children still see them."
+        >
+          <ul className="divide-y divide-navy-950/[0.06]">
+            {unfiled.map((page) => (
+              <li key={page.id} className="flex items-center justify-between gap-3 py-2">
+                <Link
+                  href={`/publication/question-types/${page.id}`}
+                  className="text-sm text-navy-950 hover:underline"
+                >
+                  {page.title}
+                </Link>
+                <span className="text-xs text-slate-500">
+                  {page.itemCount} {page.itemCount === 1 ? 'question' : 'questions'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wider text-slate-400">
+        The book itself
+      </h2>
+
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card title="Name and film">
           <BookDetailsForm book={book} />
         </Card>
 
@@ -79,93 +174,6 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
-        Chapters
-      </h2>
-
-      <div className="mb-6 space-y-4">
-        {chapters.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            None yet. A short book may not need any — its pages simply sit in the book itself.
-          </p>
-        ) : (
-          chapters.map((chapter) => {
-            const pages = activities.items.filter((activity) => activity.chapter?.id === chapter.id);
-
-            return (
-              <Card key={chapter.id}>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <ChapterRow chapter={chapter} />
-                  <span className="flex items-center gap-2">
-                    {chapter.questionCount === 0 ? (
-                      /* Named but not written: the state worth seeing at a
-                         glance, because it looks finished from the outside. */
-                      <Pill tone="neutral">Nothing written yet</Pill>
-                    ) : (
-                      <Pill tone="brand">
-                        {chapter.questionCount}{' '}
-                        {chapter.questionCount === 1 ? 'question' : 'questions'}
-                      </Pill>
-                    )}
-                    <DeleteChapterButton chapter={chapter} />
-                  </span>
-                </div>
-
-                {pages.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    No pages in this chapter yet. Add a question type and choose this chapter.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-navy-950/[0.06]">
-                    {pages.map((page) => (
-                      <li key={page.id} className="flex items-center justify-between gap-3 py-2">
-                        <Link
-                          href={`/publication/question-types/${page.id}/questions`}
-                          className="text-sm text-navy-950 hover:underline"
-                        >
-                          {page.title}
-                        </Link>
-                        <span className="text-xs text-slate-500">
-                          {page.itemCount} {page.itemCount === 1 ? 'question' : 'questions'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            );
-          })
-        )}
-
-        {unfiled.length > 0 && (
-          <Card
-            title="Not in a chapter"
-            description="These are in the book but not filed under any chapter. Children still see them."
-          >
-            <ul className="divide-y divide-navy-950/[0.06]">
-              {unfiled.map((page) => (
-                <li key={page.id} className="flex items-center justify-between gap-3 py-2">
-                  <Link
-                    href={`/publication/question-types/${page.id}`}
-                    className="text-sm text-navy-950 hover:underline"
-                  >
-                    {page.title}
-                  </Link>
-                  <span className="text-xs text-slate-500">
-                    {page.itemCount} {page.itemCount === 1 ? 'question' : 'questions'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-      </div>
-
-      <div className="max-w-3xl">
-        <Card title="Add a chapter">
-          <NewChapterForm bookId={id} />
-        </Card>
-      </div>
     </>
   );
 }

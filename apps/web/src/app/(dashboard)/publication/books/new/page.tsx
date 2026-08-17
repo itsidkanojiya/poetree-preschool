@@ -24,7 +24,7 @@ export default async function NewBookPage() {
           </Link>
         }
         title="Add a book"
-        description="The cover and the film are added on the book's own page, once it exists."
+        description="Everything here can be changed later. Only the code is fixed once saved."
       />
       <div className="max-w-3xl">
         <Card>

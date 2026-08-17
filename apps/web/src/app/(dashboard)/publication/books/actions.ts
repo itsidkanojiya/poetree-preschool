@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { uploadCatalogueAsset } from '@/lib/catalogue-assets';
 
@@ -10,8 +11,17 @@ export interface BookState {
 }
 
 export async function createBookAction(_prev: BookState, formData: FormData): Promise<BookState> {
+  let created: { id: string };
+
   try {
-    await apiFetch('/publication/books', {
+    // The cover goes up first, so the book is created already wearing it. The
+    // alternative was a book that exists with no cover for as long as it takes
+    // somebody to remember to go back and add one.
+    const file = formData.get('cover');
+    const coverFileId =
+      file instanceof File && file.size > 0 ? await uploadCatalogueAsset(file) : null;
+
+    created = await apiFetch<{ id: string }>('/publication/books', {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
@@ -19,6 +29,7 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
         name: String(formData.get('name') ?? '').trim(),
         classLevelId: String(formData.get('classLevelId') ?? ''),
         animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
+        coverFileId,
       },
     });
   } catch (error) {
@@ -26,11 +37,10 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
   }
 
   revalidatePath('/publication/books');
-  return {
-    // Said plainly because it is the surprising half of the rule: a new book is
-    // off everywhere until somebody sells it.
-    success: 'Added. Turn it on for the schools that bought it, on their page.',
-  };
+  // Straight to the book, which is where its chapters are written — and where
+  // the surprising half of the rule is visible: a new book is switched off at
+  // every school until somebody sells it.
+  redirect(`/publication/books/${created.id}`);
 }
 
 export async function renameBookAction(

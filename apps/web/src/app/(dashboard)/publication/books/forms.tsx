@@ -70,6 +70,13 @@ export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
         <Input name="animationUrl" placeholder="https://youtu.be/…" />
       </Field>
 
+      <Field
+        label="Cover"
+        hint="Tall reads best — the shelf draws it book-shaped, not square. It can be added or changed later."
+      >
+        <Input name="cover" type="file" accept="image/png,image/jpeg,image/webp" />
+      </Field>
+
       <SubmitButton pendingLabel="Adding…">Add book</SubmitButton>
     </form>
   );

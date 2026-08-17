@@ -191,4 +191,37 @@ describe.skipIf(!dbUp)('plan control and cascade blocking', () => {
     const request = await api.get(`${BASE}/students`).set(auth(session));
     expect(request.status).toBe(200);
   });
+  it('lists a school’s own administrators to the publisher', async () => {
+    // The portal could create these and never read them back, so a support call
+    // about "our login stopped working" had no screen to answer it from.
+    const response = await api
+      .get(`${BASE}/publication/schools/${schoolA.id}/admins`)
+      .set(auth(superAdmin));
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].email).toBe(schoolA.adminEmail);
+    // Signed in during beforeAll, so this is the useful half of the answer.
+    expect(response.body[0].lastLoginAt).not.toBeNull();
+    // Never the hash, by omission rather than by deletion.
+    expect(response.body[0]).not.toHaveProperty('passwordHash');
+  });
+
+  it('shows the neighbouring school none of its administrators', async () => {
+    const response = await api
+      .get(`${BASE}/publication/schools/${schoolA.id}/admins`)
+      .set(auth(adminB));
+
+    // A school admin is not the publisher, and this is somebody else's school.
+    expect(response.status).toBe(403);
+  });
+
+  it('does not count a school’s teachers among its administrators', async () => {
+    const admins = await api
+      .get(`${BASE}/publication/schools/${schoolA.id}/admins`)
+      .set(auth(superAdmin));
+
+    const emails = admins.body.map((row: { email: string }) => row.email);
+    expect(emails).not.toContain(schoolA.teacherEmail);
+  });
 });

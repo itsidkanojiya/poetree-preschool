@@ -6,6 +6,7 @@ import type {
   ListSchoolsQuery,
   Paginated,
   ReactivateSchoolInput,
+  SchoolAdminSummary,
   SchoolSummary,
   SuspendSchoolInput,
   UpdateSchoolInput,
@@ -199,6 +200,41 @@ export async function updateSchool(
   });
 
   return toSummary(school);
+}
+
+/**
+ * The administrators a school already has.
+ *
+ * Read through prismaUnscoped with an explicit schoolId: this is the publisher
+ * asking about somebody else's school, so there is no tenant in context to
+ * scope it for us.
+ */
+export async function listSchoolAdmins(schoolId: string): Promise<SchoolAdminSummary[]> {
+  const school = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true },
+  });
+  if (!school) throw ApiError.notFound('School not found');
+
+  const admins = await prismaUnscoped.user.findMany({
+    where: { schoolId, role: 'SCHOOL_ADMIN' },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      status: true,
+      lastLoginAt: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return admins.map((admin) => ({
+    ...admin,
+    lastLoginAt: admin.lastLoginAt?.toISOString() ?? null,
+    createdAt: admin.createdAt.toISOString(),
+  }));
 }
 
 export async function createSchoolAdmin(

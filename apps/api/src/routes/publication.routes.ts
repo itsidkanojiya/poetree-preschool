@@ -160,6 +160,15 @@ publicationRouter.patch(
   }),
 );
 
+/** Who can already sign in to this school as its administrator. */
+publicationRouter.get(
+  '/schools/:id/admins',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await schoolService.listSchoolAdmins(params<{ id: string }>(req).id));
+  }),
+);
+
 publicationRouter.post(
   '/schools/:id/admins',
   validate({ params: idParamSchema, body: createSchoolAdminSchema }),

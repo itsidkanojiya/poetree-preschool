@@ -84,6 +84,24 @@ export const reactivateSchoolSchema = z.object({
 });
 export type ReactivateSchoolInput = z.infer<typeof reactivateSchoolSchema>;
 
+/**
+ * One of a school's own administrators, as the publisher sees them.
+ *
+ * The portal could create these and never look at them: a support call about
+ * "our login stopped working" had no screen to answer it from, and the Users
+ * tile said 1 without saying who.
+ */
+export interface SchoolAdminSummary {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  /** Null until they have signed in once — which is the useful part. */
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
 export interface SchoolSummary {
   id: string;
   name: string;

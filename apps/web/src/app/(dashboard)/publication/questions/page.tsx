@@ -74,8 +74,8 @@ export default async function QuestionsPage({
         title="Questions"
         description={
           Object.values(filters).some(Boolean)
-            ? `${questions.total} ${questions.total === 1 ? 'question' : 'questions'} match. Open one to edit it on its page.`
-            : 'Every question in the catalogue. Open the one you want and edit it on its page.'
+            ? `${questions.total} ${questions.total === 1 ? 'question' : 'questions'} match. Click one to open and edit it.`
+            : 'Every question in the catalogue. Click one to open and edit it.'
         }
         action={
           <Link
@@ -124,7 +124,7 @@ export default async function QuestionsPage({
                   <TRow key={question.id}>
                     <TCell>
                       <Link
-                        href={`/publication/question-types/${question.activityId}/questions`}
+                        href={`/publication/question-types/${question.activityId}/questions/${question.id}`}
                         className="hover:underline"
                       >
                         <TPrimary

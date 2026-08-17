@@ -270,4 +270,41 @@ describe.skipIf(!dbUp)('books and who has them', () => {
     expect(rows).toHaveLength(catalogue);
     expect(rows.every((row) => row.enabled)).toBe(true);
   });
+  it('writes its own code when the form does not send one', async () => {
+    // Nobody should have to invent NUR_GRAMMAR. Asked to name a book "Grammar"
+    // under Nursery, that is what anybody would write, so the code writes
+    // itself — and stays fixed afterwards, which is the point of having one.
+    const created = await api
+      .post(`${BASE}/publication/books`)
+      .set(auth(publisher))
+      .send({ name: 'Grammar', classLevelId: nurseryId });
+
+    expect(created.status).toBe(201);
+    expect(created.body.code).toBe('NURSERY_GRAMMAR');
+  });
+
+  it('gives two books of the same name under one standard different codes', async () => {
+    // Not a mistake worth an error: the second one just gets a number.
+    const first = await api
+      .post(`${BASE}/publication/books`)
+      .set(auth(publisher))
+      .send({ name: 'Rhymes', classLevelId: nurseryId });
+    const second = await api
+      .post(`${BASE}/publication/books`)
+      .set(auth(publisher))
+      .send({ name: 'Rhymes', classLevelId: nurseryId });
+
+    expect(first.body.code).toBe('NURSERY_RHYMES');
+    expect(second.status).toBe(201);
+    expect(second.body.code).toBe('NURSERY_RHYMES_2');
+  });
+
+  it('still takes a code that is given, for a catalogue being imported', async () => {
+    const created = await api
+      .post(`${BASE}/publication/books`)
+      .set(auth(publisher))
+      .send({ code: 'LEGACY_042', name: 'Imported', classLevelId: nurseryId });
+
+    expect(created.body.code).toBe('LEGACY_042');
+  });
 });

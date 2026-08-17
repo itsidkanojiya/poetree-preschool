@@ -53,16 +53,6 @@ export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
         </Field>
       </FieldSet>
 
-      <Field label="Code" required hint="Fixed once saved. How an import file refers to it.">
-        <Input
-          name="code"
-          required
-          placeholder="NUR_EVS"
-          pattern="[A-Za-z][A-Za-z0-9_]{1,39}"
-          className="font-mono uppercase"
-        />
-      </Field>
-
       <Field
         label="Animation"
         hint="A YouTube link. The child watches this once and the book's activities open. Leave blank and they are open from the start."

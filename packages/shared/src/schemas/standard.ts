@@ -22,7 +22,8 @@ const standardCodeSchema = z
   .regex(/^[A-Z][A-Z0-9_]{1,39}$/, 'Use capitals, digits and underscores, e.g. TODDLER');
 
 export const createStandardSchema = z.object({
-  code: standardCodeSchema,
+  /** Derived from the name when not given. */
+  code: standardCodeSchema.optional(),
   name: z.string().trim().min(2).max(60),
   sortOrder: z.number().int().min(0).max(999).optional(),
   /** Guidance for the office when enrolling, never enforced. */

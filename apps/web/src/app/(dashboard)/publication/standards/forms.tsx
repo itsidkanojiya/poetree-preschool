@@ -26,20 +26,9 @@ export function NewStandardForm() {
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
 
-      <FieldSet>
-        <Field label="Name" required hint="What a parent and a teacher will read.">
-          <Input name="name" required placeholder="Toddler" />
-        </Field>
-        <Field label="Code" required hint="Fixed once saved. Fee structures refer to it.">
-          <Input
-            name="code"
-            required
-            placeholder="TODDLER"
-            pattern="[A-Za-z][A-Za-z0-9_]{1,39}"
-            className="font-mono uppercase"
-          />
-        </Field>
-      </FieldSet>
+      <Field label="Name" required hint="What a parent and a teacher will read.">
+        <Input name="name" required placeholder="Toddler" />
+      </Field>
 
       <FieldSet>
         <Field label="Youngest age (months)" hint="Guidance for the office. Never enforced.">

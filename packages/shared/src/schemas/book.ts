@@ -22,7 +22,8 @@ const bookCodeSchema = z
   .regex(/^[A-Z][A-Z0-9_]{1,39}$/, 'Use capitals, digits and underscores, e.g. NUR_EVS');
 
 export const createBookSchema = z.object({
-  code: bookCodeSchema,
+  /** Derived from the standard and the name when not given. */
+  code: bookCodeSchema.optional(),
   name: z.string().trim().min(2).max(120),
   classLevelId: idSchema,
   sortOrder: z.number().int().min(0).max(999).optional(),

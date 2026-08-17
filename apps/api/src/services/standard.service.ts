@@ -1,6 +1,7 @@
 import type { CreateStandardInput, StandardSummary, UpdateStandardInput } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
+import { slugCode, uniqueCode } from '../lib/code.js';
 import { writeAuditLog } from './audit.service.js';
 
 /**
@@ -51,11 +52,19 @@ export async function createStandard(
   input: CreateStandardInput,
   actorUserId: string,
 ): Promise<StandardSummary> {
+  const code =
+    input.code ??
+    (await uniqueCode(
+      slugCode(input.name),
+      async (candidate) =>
+        (await prismaUnscoped.classLevel.count({ where: { code: candidate } })) > 0,
+    ));
+
   const clash = await prismaUnscoped.classLevel.findUnique({
-    where: { code: input.code },
+    where: { code },
     select: { id: true },
   });
-  if (clash) throw ApiError.conflict(`A standard with the code ${input.code} already exists`);
+  if (clash) throw ApiError.conflict(`A standard with the code ${code} already exists`);
 
   const last = await prismaUnscoped.classLevel.findFirst({
     orderBy: { sortOrder: 'desc' },
@@ -64,7 +73,7 @@ export async function createStandard(
 
   const row = await prismaUnscoped.classLevel.create({
     data: {
-      code: input.code,
+      code,
       name: input.name,
       // Added at the end unless placed: a new standard is usually the oldest
       // year, and guessing wrong is one drag to fix.

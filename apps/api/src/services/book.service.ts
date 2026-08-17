@@ -13,6 +13,7 @@ import { getRequestContext, requireSchoolId } from '../context/requestContext.js
 import { assertCanReadStudent } from './scope.service.js';
 import { assertCatalogueAssets } from './question.service.js';
 import { ApiError } from '../lib/apiError.js';
+import { slugCode, uniqueCode } from '../lib/code.js';
 import { writeAuditLog } from './audit.service.js';
 
 /**
@@ -83,15 +84,29 @@ export async function createBook(
 
   const level = await prismaUnscoped.classLevel.findUnique({
     where: { id: input.classLevelId },
-    select: { id: true },
+    select: { id: true, code: true },
   });
   if (!level) throw ApiError.badRequest('Choose a standard that exists');
 
+  /**
+   * NUR_GRAMMAR, without anybody having to think of it.
+   *
+   * Two books called "English" is not a mistake — one is Nursery's and one is
+   * Junior KG's — and the standard in the stem keeps those apart on its own.
+   */
+  const code =
+    input.code ??
+    (await uniqueCode(
+      slugCode(level.code, input.name),
+      async (candidate) =>
+        (await prismaUnscoped.book.count({ where: { code: candidate } })) > 0,
+    ));
+
   const clash = await prismaUnscoped.book.findUnique({
-    where: { code: input.code },
+    where: { code },
     select: { id: true },
   });
-  if (clash) throw ApiError.conflict(`A book with the code ${input.code} already exists`);
+  if (clash) throw ApiError.conflict(`A book with the code ${code} already exists`);
 
   const last = await prismaUnscoped.book.findFirst({
     where: { classLevelId: input.classLevelId },
@@ -101,7 +116,7 @@ export async function createBook(
 
   const row = await prismaUnscoped.book.create({
     data: {
-      code: input.code,
+      code,
       name: input.name,
       classLevelId: input.classLevelId,
       sortOrder: input.sortOrder ?? (last?.sortOrder ?? 0) + 1,

@@ -25,7 +25,7 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
-        code: String(formData.get('code') ?? '').trim().toUpperCase(),
+        // No code: the API derives one from the standard and the name.
         name: String(formData.get('name') ?? '').trim(),
         classLevelId: String(formData.get('classLevelId') ?? ''),
         animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,

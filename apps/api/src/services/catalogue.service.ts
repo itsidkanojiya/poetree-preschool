@@ -9,6 +9,7 @@ import {
 } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
+import { slugCode, uniqueCode } from '../lib/code.js';
 import { writeAuditLog } from './audit.service.js';
 import { problemWith, upconvertStoredContent } from './question.service.js';
 import { assertChapterBelongsToBook } from './chapter.service.js';
@@ -190,15 +191,23 @@ export async function createActivity(
   const skill = await prismaUnscoped.skill.findUnique({ where: { id: input.skillId } });
   if (!skill) throw ApiError.badRequest('Choose a skill that exists');
 
+  const code =
+    input.code ??
+    (await uniqueCode(
+      slugCode(input.title),
+      async (candidate) =>
+        (await prismaUnscoped.learningActivity.count({ where: { code: candidate } })) > 0,
+    ));
+
   const clash = await prismaUnscoped.learningActivity.findUnique({
-    where: { code: input.code },
+    where: { code },
     select: { id: true },
   });
-  if (clash) throw ApiError.conflict(`An activity with the code ${input.code} already exists`);
+  if (clash) throw ApiError.conflict(`An activity with the code ${code} already exists`);
 
   const row = await prismaUnscoped.learningActivity.create({
     data: {
-      code: input.code,
+      code,
       title: input.title,
       type: input.type as never,
       skillId: input.skillId,

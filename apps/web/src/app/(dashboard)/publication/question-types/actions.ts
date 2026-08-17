@@ -56,7 +56,7 @@ export async function createActivityAction(
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
-        code: String(formData.get('code') ?? '').trim().toUpperCase(),
+        // No code: the API derives one from the instruction.
         title: String(formData.get('title') ?? '').trim(),
         type: String(formData.get('type') ?? ''),
         skillId: String(formData.get('skillId') ?? ''),

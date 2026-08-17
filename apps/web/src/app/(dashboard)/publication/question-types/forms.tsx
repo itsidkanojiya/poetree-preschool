@@ -162,28 +162,9 @@ export function NewActivityForm({
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
 
-      <FieldSet>
-        <Field
-          label="Instruction"
-          required
-          hint="Exactly as it reads on the page of the book."
-        >
-          <Input name="title" required placeholder="Circle the correct letter" />
-        </Field>
-        <Field
-          label="Code"
-          required
-          hint="Printed against the workbook page. Cannot be changed later."
-        >
-          <Input
-            name="code"
-            required
-            placeholder="COUNT_APPLES_1"
-            pattern="[A-Za-z][A-Za-z0-9_]{2,39}"
-            className="font-mono uppercase"
-          />
-        </Field>
-      </FieldSet>
+      <Field label="Instruction" required hint="Exactly as it reads on the page of the book.">
+        <Input name="title" required placeholder="Circle the correct letter" />
+      </Field>
 
       <FieldSet>
         <Field

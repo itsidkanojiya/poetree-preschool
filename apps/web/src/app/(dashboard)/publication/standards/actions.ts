@@ -24,7 +24,7 @@ export async function createStandardAction(
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
-        code: String(formData.get('code') ?? '').trim().toUpperCase(),
+        // No code: the API derives one from the name.
         name: String(formData.get('name') ?? '').trim(),
         minAgeMonths: optionalNumber(formData, 'minAgeMonths'),
         maxAgeMonths: optionalNumber(formData, 'maxAgeMonths'),

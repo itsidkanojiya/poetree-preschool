@@ -38,7 +38,8 @@ const activityCodeSchema = z
   );
 
 export const createActivitySchema = z.object({
-  code: activityCodeSchema,
+  /** Derived from the title when not given. */
+  code: activityCodeSchema.optional(),
   /**
    * The instruction as it reads in the book — "Circle the correct letter".
    * This is the question *type*; the questions themselves sit under it.

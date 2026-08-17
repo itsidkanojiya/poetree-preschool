@@ -1,17 +1,10 @@
 import Link from 'next/link';
-import type {
-  Paginated,
-  PlanSummary,
-  SchoolAdminSummary,
-  SchoolBookRow,
-  SchoolSummary,
-} from '@poetree/shared';
+import type { SchoolAdminSummary, SchoolBookRow, SchoolSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import {
   Avatar,
   Card,
   EmptyState,
-  Meter,
   PageHeader,
   Pill,
   StatTile,
@@ -67,19 +60,25 @@ export default async function SchoolDetailPage({
     ? (requested as Tab)
     : 'overview';
 
-  const [school, plans, impact, schoolBooks, admins] = await Promise.all([
+  const [school, impact, schoolBooks, admins] = await Promise.all([
     apiFetch<SchoolSummary>(`/publication/schools/${id}`),
-    apiFetch<Paginated<PlanSummary>>('/publication/plans', { query: { pageSize: 100 } }),
     apiFetch<SuspensionImpact>(`/publication/schools/${id}/suspension-impact`),
     apiFetch<SchoolBookRow[]>(`/publication/schools/${id}/books`),
     apiFetch<SchoolAdminSummary[]>(`/publication/schools/${id}/admins`),
   ]);
 
-  const blocked = school.status === 'SUSPENDED' || school.status === 'EXPIRED';
-  const remaining = daysUntil(school.expiresAt);
+  /**
+   * Whether they can sign in, which is not quite what the stored status says.
+   *
+   * Expiry is lazy: a school whose date has passed is still stored ACTIVE until
+   * somebody there makes a request, and only then flipped. So the badge can read
+   * Active for a school that is already locked out — and reading the date here
+   * is the difference between the screen being right and being reassuring.
+   */
+  const lapsed = school.validUntil !== null && new Date(school.validUntil).getTime() <= Date.now();
+  const blocked = school.status === 'SUSPENDED' || school.status === 'EXPIRED' || lapsed;
 
-  // Seat limits come from the plan currently assigned to this school.
-  const currentPlan = plans.items.find((plan) => plan.name === school.planName) ?? null;
+  const remaining = daysUntil(school.validUntil);
   const enabledBooks = schoolBooks.filter((row) => row.enabled).length;
 
   const href = (next: Tab) => `/publication/schools/${id}?tab=${next}`;
@@ -120,16 +119,20 @@ export default async function SchoolDetailPage({
       {tab === 'overview' && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* Was the plan, which this product no longer has. The date is
+                what actually decides whether anybody here can sign in. */}
             <StatTile
-              label="Plan"
-              value={school.planName ?? 'None'}
+              label="Access"
+              value={school.validUntil ? formatDate(school.validUntil) : 'No end date'}
               tone={blocked ? 'critical' : 'default'}
               hint={
-                school.expiresAt
-                  ? remaining !== null && remaining > 0
-                    ? `Expires ${formatDate(school.expiresAt)} · ${remaining} days left`
-                    : `Expired ${formatDate(school.expiresAt)}`
-                  : 'No plan assigned yet'
+                school.status === 'SUSPENDED'
+                  ? 'Suspended by hand — nobody can sign in'
+                  : !school.validUntil
+                    ? 'They can use it indefinitely'
+                    : lapsed
+                      ? 'That date has passed — nobody can sign in'
+                      : `${remaining} ${remaining === 1 ? 'day' : 'days'} left`
               }
             />
             <StatTile
@@ -149,33 +152,15 @@ export default async function SchoolDetailPage({
             />
           </div>
 
-          {currentPlan && (
-            <div className="mt-4">
-              <Card
-                title="Plan usage"
-                description={`Seat limits from the ${currentPlan.name} plan.`}
-              >
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Meter
-                    label="Students"
-                    used={school.counts.students}
-                    limit={currentPlan.maxStudents}
-                  />
-                  <Meter
-                    label="Teachers"
-                    used={school.counts.teachers}
-                    limit={currentPlan.maxTeachers}
-                  />
-                </div>
-              </Card>
-            </div>
-          )}
-
           {blocked && (
             <div className="mt-4">
               <Card
                 title="Nobody here can sign in"
-                description="Put that right under Access."
+                description={
+                  school.status === 'SUSPENDED'
+                    ? 'This school was suspended by hand.'
+                    : 'Their access date has passed. Set a later one to let them back in.'
+                }
               >
                 <Link
                   href={href('access')}

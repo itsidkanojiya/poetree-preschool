@@ -133,8 +133,7 @@ export default async function PublicationOverviewPage() {
                 columns={[
                   'School',
                   'Status',
-                  'Plan',
-                  'Expires',
+                  'Access ends',
                   { label: 'Students', numeric: true },
                   { label: 'Manage', hidden: true },
                 ]}
@@ -150,7 +149,6 @@ export default async function PublicationOverviewPage() {
                       <TCell>
                         <StatusBadge status={school.status} />
                       </TCell>
-                      <TCell>{school.planName ?? '—'}</TCell>
                       <TCell>
                         {formatDate(school.expiresAt)}
                         {remaining !== null && remaining <= 30 && remaining > 0 && (

@@ -30,15 +30,6 @@ export function NewStandardForm() {
         <Input name="name" required placeholder="Toddler" />
       </Field>
 
-      <FieldSet>
-        <Field label="Youngest age (months)" hint="Guidance for the office. Never enforced.">
-          <Input name="minAgeMonths" type="number" min={0} max={240} placeholder="18" />
-        </Field>
-        <Field label="Oldest age (months)">
-          <Input name="maxAgeMonths" type="number" min={0} max={240} placeholder="30" />
-        </Field>
-      </FieldSet>
-
       <SubmitButton pendingLabel="Adding…">Add standard</SubmitButton>
     </form>
   );
@@ -76,27 +67,6 @@ export function StandardDetailsForm({ standard }: { standard: StandardSummary })
       >
         <Input name="sortOrder" type="number" min={0} max={100} defaultValue={standard.sortOrder} />
       </Field>
-
-      <FieldSet>
-        <Field label="Youngest age (months)" hint="Guidance for the office. Never enforced.">
-          <Input
-            name="minAgeMonths"
-            type="number"
-            min={0}
-            max={240}
-            defaultValue={standard.minAgeMonths ?? ''}
-          />
-        </Field>
-        <Field label="Oldest age (months)">
-          <Input
-            name="maxAgeMonths"
-            type="number"
-            min={0}
-            max={240}
-            defaultValue={standard.maxAgeMonths ?? ''}
-          />
-        </Field>
-      </FieldSet>
 
       <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
     </form>

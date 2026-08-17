@@ -20,21 +20,19 @@ export async function createStandardAction(
   formData: FormData,
 ): Promise<StandardState> {
   try {
-    await apiFetch('/publication/standards', {
+    await apiFetch('/publication/books/standards', {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
         // No code: the API derives one from the name.
         name: String(formData.get('name') ?? '').trim(),
-        minAgeMonths: optionalNumber(formData, 'minAgeMonths'),
-        maxAgeMonths: optionalNumber(formData, 'maxAgeMonths'),
       },
     });
   } catch (error) {
     return { error: errorMessage(error, 'Could not add the standard.') };
   }
 
-  revalidatePath('/publication/standards');
+  revalidatePath('/publication/books/standards');
   return { success: 'Added. Schools can open classes in it now.' };
 }
 
@@ -44,24 +42,20 @@ export async function renameStandardAction(
   formData: FormData,
 ): Promise<StandardState> {
   try {
-    await apiFetch(`/publication/standards/${id}`, {
+    await apiFetch(`/publication/books/standards/${id}`, {
       method: 'PATCH',
       redirectOnAuthFailure: false,
       body: {
         name: String(formData.get('name') ?? '').trim(),
         sortOrder: optionalNumber(formData, 'sortOrder') ?? undefined,
-        // Editable now that the standard has a page of its own with room for
-        // them. Null is a real answer here — "no guidance" — so it is sent.
-        minAgeMonths: optionalNumber(formData, 'minAgeMonths'),
-        maxAgeMonths: optionalNumber(formData, 'maxAgeMonths'),
       },
     });
   } catch (error) {
     return { error: errorMessage(error, 'Could not save it.') };
   }
 
-  revalidatePath('/publication/standards');
-  revalidatePath(`/publication/standards/${id}`);
+  revalidatePath('/publication/books/standards');
+  revalidatePath(`/publication/books/standards/${id}`);
   return { success: 'Saved.' };
 }
 
@@ -71,10 +65,10 @@ export async function renameStandardAction(
  */
 export async function setStandardActiveAction(id: string, isActive: boolean): Promise<void> {
   if (isActive) {
-    await apiFetch(`/publication/standards/${id}`, { method: 'PATCH', body: { isActive: true } });
+    await apiFetch(`/publication/books/standards/${id}`, { method: 'PATCH', body: { isActive: true } });
   } else {
-    await apiFetch(`/publication/standards/${id}/retire`, { method: 'POST' });
+    await apiFetch(`/publication/books/standards/${id}/retire`, { method: 'POST' });
   }
-  revalidatePath('/publication/standards');
-  revalidatePath(`/publication/standards/${id}`);
+  revalidatePath('/publication/books/standards');
+  revalidatePath(`/publication/books/standards/${id}`);
 }

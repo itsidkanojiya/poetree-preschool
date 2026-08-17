@@ -12,7 +12,7 @@ export default function NewStandardPage() {
       <PageHeader
         eyebrow={
           <Link
-            href="/publication/standards"
+            href="/publication/books/standards"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
           >
             <IconArrowLeft size={16} />

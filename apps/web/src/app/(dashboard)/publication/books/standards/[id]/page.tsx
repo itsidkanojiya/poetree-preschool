@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: 'Standard · Poetree Admin' };
 export default async function StandardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const standards = await apiFetch<StandardSummary[]>('/publication/standards', {
+  const standards = await apiFetch<StandardSummary[]>('/publication/books/standards', {
     query: { includeInactive: 'true' },
   });
   const standard = standards.find((row) => row.id === id);
@@ -31,7 +31,7 @@ export default async function StandardPage({ params }: { params: Promise<{ id: s
       <PageHeader
         eyebrow={
           <Link
-            href="/publication/standards"
+            href="/publication/books/standards"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
           >
             <IconArrowLeft size={16} />

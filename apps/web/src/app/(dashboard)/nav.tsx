@@ -34,7 +34,6 @@ const PUBLICATION_NAV: NavGroup[] = [
     items: [
       { href: '/publication', label: 'Overview', icon: <IconHome size={18} />, exact: true },
       { href: '/publication/schools', label: 'Schools', icon: <IconSchool size={18} /> },
-      { href: '/publication/standards', label: 'Standards', icon: <IconClassroom size={18} /> },
       { href: '/publication/books', label: 'Books', icon: <IconPlan size={18} /> },
       {
         href: '/publication/question-types',

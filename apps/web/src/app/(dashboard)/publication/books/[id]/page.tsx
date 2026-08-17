@@ -41,22 +41,26 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
   return (
     <>
-      <Link
-        href="/publication/books"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-900"
-      >
-        <IconArrowLeft size={16} /> All books
-      </Link>
-
       <PageHeader
+        eyebrow={
+          <span className="flex items-center gap-2">
+            <Link
+              href="/publication/books"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
+            >
+              <IconArrowLeft size={16} />
+              All books
+            </Link>
+            {!book.isActive && <Pill tone="neutral">Withdrawn</Pill>}
+          </span>
+        }
         title={book.name}
         description={`${book.classLevel.name} · ${activities.total} question ${
           activities.total === 1 ? 'type' : 'types'
         } · ${book.schoolCount} ${book.schoolCount === 1 ? 'school' : 'schools'}`}
-        eyebrow={!book.isActive ? <Pill tone="neutral">Withdrawn</Pill> : undefined}
       />
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+      <div className="mb-6 grid items-start gap-4 lg:grid-cols-2">
         <Card title="The book">
           <BookDetailsForm book={book} />
         </Card>
@@ -69,7 +73,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
             <BookCoverForm book={book} />
           </Card>
 
-          <Card title="On sale">
+          <Card title="Availability">
             <BookLiveSwitch book={book} />
           </Card>
         </div>
@@ -81,12 +85,9 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
       <div className="mb-6 space-y-4">
         {chapters.length === 0 ? (
-          <Card>
-            <EmptyState
-              title="No chapters yet"
-              description="Add the first one below, then file the book's pages into it."
-            />
-          </Card>
+          <p className="text-sm text-slate-500">
+            None yet. A short book may not need any — its pages simply sit in the book itself.
+          </p>
         ) : (
           chapters.map((chapter) => {
             const pages = activities.items.filter((activity) => activity.chapter?.id === chapter.id);

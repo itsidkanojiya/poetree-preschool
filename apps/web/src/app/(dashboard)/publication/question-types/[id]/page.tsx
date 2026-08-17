@@ -68,7 +68,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
         <span className="text-xs text-slate-500">Last changed {formatDate(activity.updatedAt)}</span>
       </div>
 
-      <div className="grid max-w-5xl gap-4 lg:grid-cols-2">
+      <div className="grid max-w-5xl items-start gap-4 lg:grid-cols-2">
         <Card title="The question type">
           <EditActivityForm
             activity={activity}
@@ -100,7 +100,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
             </div>
           </Card>
 
-          <Card title="In the book">
+          <Card title="Availability">
             <ActivityLiveSwitch activity={activity} />
           </Card>
         </div>

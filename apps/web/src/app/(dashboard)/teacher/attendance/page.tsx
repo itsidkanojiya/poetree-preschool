@@ -25,12 +25,10 @@ export default async function TeacherAttendancePage({
     return (
       <>
         <PageHeader title="Attendance" />
-        <Card>
-          <EmptyState
-            title="You are not assigned to a class yet"
-            description="Ask the school office to assign you as a class teacher."
-          />
-        </Card>
+        <EmptyState
+          title="You are not assigned to a class yet"
+          description="Ask the school office to assign you as a class teacher."
+        />
       </>
     );
   }

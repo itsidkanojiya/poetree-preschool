@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import type { CatalogueActivity, QuestionRow } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
+import { Card, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { AddQuestionForm, EditQuestionForm, QuestionControls } from './forms';
 
@@ -52,12 +52,9 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
       )}
 
       {questions.length === 0 ? (
-        <Card className="mb-6">
-          <EmptyState
-            title="No questions yet"
-            description="Add the first one below. Until then this page reaches nobody."
-          />
-        </Card>
+        <p className="mb-6 text-sm text-amber-700">
+          Nothing written yet, so this page reaches nobody. Add the first question below.
+        </p>
       ) : (
         <div className="mb-6 space-y-4">
           {questions.map((question, index) => (

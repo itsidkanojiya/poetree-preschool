@@ -8,6 +8,7 @@ import type {
 } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import {
+  Avatar,
   Card,
   EmptyState,
   Meter,
@@ -16,7 +17,6 @@ import {
   StatTile,
   StatusBadge,
 } from '@/components/ui/layout';
-import { TCell, THead, TRow, Table } from '@/components/ui/table';
 import { TabStrip } from '@/components/ui/tab-strip';
 import { IconArrowLeft, IconStudent, IconTeacher } from '@/components/icons';
 import { daysUntil, formatDate } from '@/lib/format';
@@ -190,47 +190,55 @@ export default async function SchoolDetailPage({
       )}
 
       {tab === 'accounts' && (
-        <div className="grid gap-5 xl:grid-cols-2">
-          <Card
-            title="Administrators"
-            description="Who can sign in to this school and run it."
-          >
+        /* items-start, so a card with one person in it does not stretch to
+           match the form beside it. */
+        <div className="grid items-start gap-5 xl:grid-cols-2">
+          <Card title="Administrators" description="Who can sign in to this school and run it.">
             {admins.length === 0 ? (
               <EmptyState
                 title="No administrator yet"
                 description="Nobody can sign in to this school. Create one beside this."
               />
             ) : (
-              <Table>
-                <THead columns={['Name', 'Signs in with', 'Last signed in', 'State']} />
-                <tbody>
-                  {admins.map((admin) => (
-                    <TRow key={admin.id}>
-                      <TCell>{admin.name}</TCell>
-                      <TCell>
-                        <span className="text-sm">{admin.email ?? admin.phone ?? '—'}</span>
-                      </TCell>
-                      <TCell>
-                        {admin.lastLoginAt ? (
-                          formatDate(admin.lastLoginAt)
-                        ) : (
-                          /* The useful half: an account made weeks ago and
-                             never used is usually a password that never
-                             reached anybody. */
-                          <span className="text-amber-700">Never</span>
-                        )}
-                      </TCell>
-                      <TCell>
-                        {admin.status === 'ACTIVE' ? (
-                          <Pill tone="brand">Active</Pill>
-                        ) : (
-                          <Pill tone="neutral">{admin.status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}</Pill>
-                        )}
-                      </TCell>
-                    </TRow>
-                  ))}
-                </tbody>
-              </Table>
+              /* A list, not a table. Four columns in a half-width card grew a
+                 sideways scrollbar and hid the last of them behind it — and a
+                 handful of people was never tabular data in the first place. */
+              <ul className="divide-y divide-navy-950/[0.06]">
+                {admins.map((admin) => (
+                  <li
+                    key={admin.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar name={admin.name} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-navy-950">{admin.name}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          {admin.email ?? admin.phone ?? 'No email or phone on file'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {admin.status !== 'ACTIVE' && (
+                        <Pill tone="neutral">
+                          {admin.status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}
+                        </Pill>
+                      )}
+                      {admin.lastLoginAt ? (
+                        <span className="text-xs text-slate-500">
+                          Last signed in {formatDate(admin.lastLoginAt)}
+                        </span>
+                      ) : (
+                        /* The diagnostic half: an account made weeks ago and
+                           never used is usually a password that never reached
+                           anybody. */
+                        <Pill tone="gold">Never signed in</Pill>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
 
@@ -244,7 +252,7 @@ export default async function SchoolDetailPage({
       )}
 
       {tab === 'access' && (
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid items-start gap-5 xl:grid-cols-2">
           <Card
             title="Access"
             description="How long this school can use the product. Nothing else gates them."
@@ -282,7 +290,7 @@ export default async function SchoolDetailPage({
       )}
 
       {tab === 'details' && (
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid items-start gap-5 xl:grid-cols-2">
           <Card title="School details">
             <SchoolDetailsForm school={school} />
           </Card>

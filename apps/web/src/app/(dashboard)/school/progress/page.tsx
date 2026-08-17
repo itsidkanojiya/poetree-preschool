@@ -79,12 +79,10 @@ export default async function ProgressPage({
     return (
       <>
         <PageHeader title="Progress" description="What each child can do, and how we know." />
-        <Card>
-          <EmptyState
-            title="No classes yet"
-            description="Create a class and enrol children before progress has anything to measure."
-          />
-        </Card>
+        <EmptyState
+          title="No classes yet"
+          description="Create a class and enrol children before progress has anything to measure."
+        />
       </>
     );
   }

@@ -44,13 +44,13 @@ export default async function StandardPage({ params }: { params: Promise<{ id: s
         } across every school`}
       />
 
-      <div className="grid max-w-5xl gap-4 lg:grid-cols-2">
+      <div className="grid max-w-5xl items-start gap-4 lg:grid-cols-2">
         <Card title="The standard">
           <StandardDetailsForm standard={standard} />
         </Card>
 
         <div className="space-y-4">
-          <Card title="Offered to schools">
+          <Card title="Availability">
             <StandardLiveSwitch standard={standard} />
           </Card>
 

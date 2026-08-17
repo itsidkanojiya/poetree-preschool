@@ -118,9 +118,15 @@ export function BookDetailsForm({ book }: { book: BookSummary }) {
   );
 }
 
-/** The cover as the list draws it: a picture, or the fact there isn't one. */
-export function BookCover({ book }: { book: BookSummary }) {
+/**
+ * The cover: a picture, or the fact there isn't one.
+ *
+ * Thumbnail size in a list, and `large` on the book's own page, where the point
+ * is to look at it rather than to tell one row from another.
+ */
+export function BookCover({ book, large }: { book: BookSummary; large?: boolean }) {
   const fileId = book.coverUrl?.split('/').pop();
+  const size = large ? 'h-40 w-[7.5rem]' : 'h-14 w-11';
 
   return fileId ? (
     /* A plain img: one small picture from our own API, and next/image would
@@ -128,11 +134,13 @@ export function BookCover({ book }: { book: BookSummary }) {
     <img
       src={`/attachments?kind=catalogue&id=${fileId}`}
       alt=""
-      className="h-14 w-11 shrink-0 rounded-md object-cover ring-1 ring-navy-950/10"
+      className={`${size} shrink-0 rounded-lg object-cover ring-1 ring-navy-950/10`}
     />
   ) : (
-    <span className="grid h-14 w-11 shrink-0 place-items-center rounded-md bg-slate-100 text-[10px] text-slate-400 ring-1 ring-navy-950/10">
-      none
+    <span
+      className={`${size} grid shrink-0 place-items-center rounded-lg bg-slate-100 text-center text-[10px] text-slate-400 ring-1 ring-navy-950/10`}
+    >
+      no cover
     </span>
   );
 }
@@ -157,31 +165,26 @@ export function BookCoverForm({ book }: { book: BookSummary }) {
       <FormSuccess message={state.success} />
 
       <div className="flex items-start gap-4">
-        <BookCover book={book} />
+        {/* Drawn at the size and shape the shelf draws it, so what you are
+            looking at is what a child will see. */}
+        <BookCover book={book} large />
 
         <div className="min-w-0 flex-1 space-y-3">
-          <Field
-            label={hasCover ? 'Replace the cover' : 'Cover'}
-            hint="A tall picture reads best — the shelf draws this book-shaped, not square."
-          >
-            <Input
-              name="cover"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              aria-label={`Cover for ${book.name}`}
-            />
-          </Field>
+          <Input
+            name="cover"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            aria-label={`Cover for ${book.name}`}
+          />
 
           <SubmitButton variant="secondary" pendingLabel="Uploading…">
-            {hasCover ? 'Replace cover' : 'Upload cover'}
+            {hasCover ? 'Replace' : 'Upload'}
           </SubmitButton>
 
-          {hasCover && (
-            <p className="text-xs text-slate-500">
-              Submitting with no file chosen takes the cover off, and the shelf goes back to a
-              coloured card carrying the name.
-            </p>
-          )}
+          <p className="text-xs text-slate-500">
+            Tall reads best — the shelf draws it book-shaped, not square.
+            {hasCover && ' Submit with nothing chosen to take it off again.'}
+          </p>
         </div>
       </div>
     </form>

@@ -48,12 +48,10 @@ export default async function TimetablePage({
     return (
       <>
         <PageHeader title="Timetable" />
-        <Card>
-          <EmptyState
-            title="No classrooms yet"
-            description="Create an academic year and a classroom before building a timetable."
-          />
-        </Card>
+        <EmptyState
+          title="No classrooms yet"
+          description="Create an academic year and a classroom before building a timetable."
+        />
       </>
     );
   }

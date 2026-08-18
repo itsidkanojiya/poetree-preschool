@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import {
   ACTIVITY_TYPES,
+  ACTIVITY_TYPE_LABELS,
   type ChapterOption,
   type StandardSummary,
 } from '@poetree/shared';
@@ -75,7 +76,7 @@ export function TypeFilterBar({
           <option value="">Played any way</option>
           {ACTIVITY_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type.charAt(0) + type.slice(1).toLowerCase()}
+              {ACTIVITY_TYPE_LABELS[type].label}
             </option>
           ))}
         </Select>

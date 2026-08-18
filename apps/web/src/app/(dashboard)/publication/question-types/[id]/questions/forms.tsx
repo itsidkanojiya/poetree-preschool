@@ -14,21 +14,26 @@ import {
 } from './actions';
 
 /**
- * One option slot: a picture, an emoji or a word, and a radio for the right
- * answer.
+ * One option slot: a picture, an emoji or a word, and a way to mark it right.
  *
- * Four slots are always shown and the empty ones are ignored on save — an
- * author filling two is writing a two-choice question, which is what most
- * preschool pages are.
+ * Slots are always shown and the empty ones are ignored on save — an author
+ * filling two is writing a two-choice question, which is what most preschool
+ * pages are.
+ *
+ * A radio where exactly one answer is right, a checkbox where several may be.
+ * The control is the explanation: nobody has to be told that a page called
+ * "tap all the animals" allows more than one.
  */
 function OptionSlot({
   index,
   option,
   scored,
+  multi,
 }: {
   index: number;
   option?: QuestionRow['options'][number];
   scored: boolean;
+  multi: boolean;
 }) {
   return (
     <div className="rounded-xl p-3 ring-1 ring-navy-950/[0.08]">
@@ -39,13 +44,13 @@ function OptionSlot({
         {scored && (
           <label className="flex items-center gap-1.5 text-xs text-slate-600">
             <input
-              type="radio"
+              type={multi ? 'checkbox' : 'radio'}
               name="correct"
               value={index}
               defaultChecked={option?.isCorrect}
-              className="h-3.5 w-3.5 border-navy-300 text-navy-900"
+              className={`h-3.5 w-3.5 border-navy-300 text-navy-900 ${multi ? 'rounded' : ''}`}
             />
-            Right answer
+            {multi ? 'A right answer' : 'Right answer'}
           </label>
         )}
       </div>
@@ -93,12 +98,15 @@ export function AddQuestionForm({
   activityId,
   scored,
   tracing,
+  multi,
   count,
 }: {
   activityId: string;
   scored: boolean;
   /** Tracing is scored, but there is nothing to choose between. */
   tracing: boolean;
+  /** More than one option may be marked right. Multiple choice alone. */
+  multi: boolean;
   count: number;
 }) {
   const [state, formAction] = useActionState<QuestionState, FormData>(
@@ -149,10 +157,15 @@ export function AddQuestionForm({
               What they choose between
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {[0, 1, 2, 3].map((index) => (
-                <OptionSlot key={index} index={index} scored={scored} />
+              {(multi ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((index) => (
+                <OptionSlot key={index} index={index} scored={scored} multi={multi} />
               ))}
             </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {multi
+                ? 'Tick every answer that is right. Leave the slots you do not need empty.'
+                : 'Tick the one that is right. Leave the slots you do not need empty.'}
+            </p>
           </div>
         )
       )}
@@ -169,11 +182,13 @@ export function EditQuestionForm({
   question,
   scored,
   tracing,
+  multi,
 }: {
   activityId: string;
   question: QuestionRow;
   scored: boolean;
   tracing: boolean;
+  multi: boolean;
 }) {
   const [state, formAction] = useActionState<QuestionState, FormData>(
     updateQuestionAction.bind(null, activityId, question.id),
@@ -204,12 +219,13 @@ export function EditQuestionForm({
       ) : (
         scored && (
           <div className="grid gap-3 sm:grid-cols-2">
-            {[0, 1, 2, 3].map((index) => (
+            {(multi ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((index) => (
               <OptionSlot
                 key={index}
                 index={index}
                 option={question.options[index]}
                 scored={scored}
+                multi={multi}
               />
             ))}
           </div>

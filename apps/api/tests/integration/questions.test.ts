@@ -29,6 +29,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
   let appleId: string;
   let ballId: string;
   let schoolFileId: string;
+  let skillId: string;
 
   beforeAll(async () => {
     await resetDatabase();
@@ -74,6 +75,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
         },
       });
     activityId = activity.body.id as string;
+    skillId = skill.id;
 
     // Two pieces of catalogue artwork.
     const apple = await api
@@ -262,5 +264,114 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
       .set(auth(admin))
       .attach('file', TINY_PNG, 'ours.png');
     expect(uploaded.status).toBe(403);
+  });
+  it('lets a multiple-choice question have more than one right answer', async () => {
+    // The rule everywhere else is exactly one — ambiguity at three reads as
+    // failure. This is the one type where a set is the point: "tap all the
+    // animals" cannot be written any other way.
+    const activity = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({
+        title: 'Tap all the animals',
+        type: 'MULTIPLE_CHOICE',
+        skillId,
+        bookId,
+      });
+    expect(activity.status).toBe(201);
+
+    const question = await api
+      .post(`${BASE}/publication/activities/${activity.body.id}/questions`)
+      .set(auth(publisher))
+      .send({
+        say: 'Which of these are animals?',
+        options: [
+          { glyph: '🐈', isCorrect: true },
+          { glyph: '🚗', isCorrect: false },
+          { glyph: '🐕', isCorrect: true },
+        ],
+      });
+    expect(question.status).toBe(201);
+    expect(question.body.problem).toBeNull();
+
+    // And it reaches the app with every answer, not the first one. The
+    // entitlement test above leaves this book switched off on purpose.
+    await api
+      .put(`${BASE}/publication/schools/${school.id}/books`)
+      .set(auth(publisher))
+      .send({ books: [{ bookId, enabled: true }] });
+
+    const forApp = await api.get(`${BASE}/progress/activities`).set(auth(parent));
+    const composed = forApp.body.find(
+      (row: { id: string }) => row.id === activity.body.id,
+    );
+    expect(composed.contentJson.kind).toBe('MULTIPLE_CHOICE');
+    expect(composed.contentJson.items[0].answers).toEqual([0, 2]);
+  });
+
+  it('still insists on exactly one right answer everywhere else', async () => {
+    const activity = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({ title: 'Pick the letter', type: 'SINGLE_CHOICE', skillId, bookId });
+
+    const question = await api
+      .post(`${BASE}/publication/activities/${activity.body.id}/questions`)
+      .set(auth(publisher))
+      .send({
+        say: 'Which is A?',
+        options: [
+          { glyph: 'A', isCorrect: true },
+          { glyph: 'B', isCorrect: true },
+        ],
+      });
+
+    // Written, but never shown to a child until somebody fixes it.
+    expect(question.body.problem).toBe('More than one answer is marked right');
+  });
+
+  it('plays drag and drop from the same content as a tap question', async () => {
+    // Same shape, different finger. If these ever diverge, the editor and the
+    // scoring have to fork with them.
+    const activity = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({ title: 'Drag the apple', type: 'DRAG_DROP', skillId, bookId });
+
+    await api
+      .post(`${BASE}/publication/activities/${activity.body.id}/questions`)
+      .set(auth(publisher))
+      .send({
+        say: 'Put the apple in the basket',
+        options: [
+          { glyph: '🍎', isCorrect: true },
+          { glyph: '🚗', isCorrect: false },
+        ],
+      });
+
+    await api
+      .put(`${BASE}/publication/schools/${school.id}/books`)
+      .set(auth(publisher))
+      .send({ books: [{ bookId, enabled: true }] });
+
+    const forApp = await api.get(`${BASE}/progress/activities`).set(auth(parent));
+    const composed = forApp.body.find(
+      (row: { id: string }) => row.id === activity.body.id,
+    );
+    expect(composed.contentJson.kind).toBe('DRAG_DROP');
+    expect(composed.contentJson.items[0].answer).toBe(0);
+  });
+
+  it('creates a question type with no content at all', async () => {
+    // The create form no longer asks for JSON: a question type is the
+    // instruction at the top of a page, and its questions are written after.
+    const activity = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({ title: 'Colour the fruit', type: 'COLOURING', skillId, bookId });
+
+    expect(activity.status).toBe(201);
+    // Nothing to play yet, and the app is told so rather than shown an empty page.
+    expect(activity.body.isPlayable).toBe(false);
   });
 });

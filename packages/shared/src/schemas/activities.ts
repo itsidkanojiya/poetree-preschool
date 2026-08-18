@@ -80,7 +80,14 @@ export const tracingContentSchema = z.object({
 
 /** Tap the one that matches the prompt. */
 export const choiceContentSchema = z.object({
-  kind: z.enum(['MATCHING', 'COUNTING', 'SORTING', 'COLOURING']),
+  /**
+   * One right answer, however it is reached. SINGLE_CHOICE and DRAG_DROP hold
+   * exactly the same thing — a prompt, some options, and which one is right —
+   * and differ only in whether the child taps the answer or drags it into
+   * place. Splitting them into two shapes would duplicate the schema, the
+   * editor and the scoring to record a preference about fingers.
+   */
+  kind: z.enum(['SINGLE_CHOICE', 'MATCHING', 'COUNTING', 'SORTING', 'COLOURING', 'DRAG_DROP']),
   items: z
     .array(
       z.object({
@@ -94,6 +101,34 @@ export const choiceContentSchema = z.object({
         options: z.array(activityMediaSchema).min(2).max(4),
         /** Index into `options`. Exactly one, deliberately. */
         answer: z.number().int().min(0).max(3),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
+
+/**
+ * More than one right answer, marked together.
+ *
+ * This is the one shape that breaks the rule written at the top of this file —
+ * that no activity may have more than one right answer, because ambiguity at
+ * three reads as failure. It is here because a publisher asked for it, and it
+ * earns its place further up the school: "tap all the animals" is a real page
+ * in a Senior KG workbook and cannot be written any other way.
+ *
+ * The child taps as many as they think, then says they are done — so nothing is
+ * scored until they choose to be finished, and a first tap is never a mistake.
+ * Up to six options rather than four: the whole point is a set to sift.
+ */
+export const multiChoiceContentSchema = z.object({
+  kind: z.literal('MULTIPLE_CHOICE'),
+  items: z
+    .array(
+      z.object({
+        prompt: promptSchema,
+        options: z.array(activityMediaSchema).min(2).max(6),
+        /** Indexes into `options`. At least one, or there is nothing to find. */
+        answers: z.array(z.number().int().min(0).max(5)).min(1).max(6),
       }),
     )
     .min(1)
@@ -119,12 +154,14 @@ export const cardContentSchema = z.object({
 export const activityContentSchema = z.discriminatedUnion('kind', [
   tracingContentSchema,
   choiceContentSchema,
+  multiChoiceContentSchema,
   cardContentSchema,
 ]);
 
 export type ActivityContent = z.infer<typeof activityContentSchema>;
 export type TracingContent = z.infer<typeof tracingContentSchema>;
 export type ChoiceContent = z.infer<typeof choiceContentSchema>;
+export type MultiChoiceContent = z.infer<typeof multiChoiceContentSchema>;
 export type CardContent = z.infer<typeof cardContentSchema>;
 
 /**
@@ -135,6 +172,15 @@ export type CardContent = z.infer<typeof cardContentSchema>;
  * mastery figures built from it would mean nothing.
  */
 export function isScored(kind: ActivityContent['kind']): boolean {
-  return kind === 'TRACING' || kind === 'MATCHING' || kind === 'COUNTING' ||
-    kind === 'SORTING' || kind === 'COLOURING';
+  return kind !== 'FLASHCARD' && kind !== 'RHYME' && kind !== 'STORY';
+}
+
+/** Scored, and answered by choosing between options rather than by drawing. */
+export function isChoice(kind: ActivityContent['kind']): boolean {
+  return isScored(kind) && kind !== 'TRACING';
+}
+
+/** More than one answer may be marked right. Only one type works this way. */
+export function isMultiAnswer(kind: ActivityContent['kind']): boolean {
+  return kind === 'MULTIPLE_CHOICE';
 }

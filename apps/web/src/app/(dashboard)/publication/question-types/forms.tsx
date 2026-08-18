@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { ACTIVITY_TYPES, type CatalogueActivity } from '@poetree/shared';
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, type CatalogueActivity } from '@poetree/shared';
 import {
   Field,
   FieldSet,
@@ -87,61 +87,6 @@ function PlacementFields({
   );
 }
 
-/**
- * A starting point for each type, so nobody has to remember the shape.
- *
- * These are real, playable examples rather than empty scaffolding — an author
- * can change the words and have something a child can use.
- */
-const TEMPLATES: Record<string, string> = {
-  TRACING: JSON.stringify(
-    {
-      kind: 'TRACING',
-      items: [
-        {
-          glyph: 'A',
-          say: 'Trace the letter A',
-          strokes: [
-            [
-              { x: 0.5, y: 0.1 },
-              { x: 0.2, y: 0.9 },
-            ],
-            [
-              { x: 0.5, y: 0.1 },
-              { x: 0.8, y: 0.9 },
-            ],
-            [
-              { x: 0.32, y: 0.6 },
-              { x: 0.68, y: 0.6 },
-            ],
-          ],
-        },
-      ],
-    },
-    null,
-    2,
-  ),
-  MATCHING: choiceTemplate('MATCHING', 'Which one is the cat?', '🐈', ['🐈', '🐕', '🐇']),
-  COUNTING: choiceTemplate('COUNTING', 'How many apples?', '🍎🍎', ['1', '2', '3']),
-  SORTING: choiceTemplate('SORTING', 'Which one is a fruit?', '🍌', ['🍌', '🚗', '👟']),
-  COLOURING: choiceTemplate('COLOURING', 'Which one is red?', '🔴', ['🔴', '🟢', '🔵']),
-  FLASHCARD: cardTemplate('FLASHCARD', 'Apple', 'A is for apple.', '🍎'),
-  RHYME: cardTemplate('RHYME', 'Twinkle twinkle', 'Twinkle, twinkle, little star.', '⭐'),
-  STORY: cardTemplate('STORY', 'The hungry cat', 'Once there was a cat who was very hungry.', '🐈'),
-};
-
-function choiceTemplate(kind: string, say: string, glyph: string, options: string[]): string {
-  return JSON.stringify(
-    { kind, items: [{ prompt: { say, glyph }, options, answer: 0 }] },
-    null,
-    2,
-  );
-}
-
-function cardTemplate(kind: string, title: string, say: string, glyph: string): string {
-  return JSON.stringify({ kind, items: [{ glyph, title, say }] }, null, 2);
-}
-
 export function NewActivityForm({
   skills,
   classLevels,
@@ -154,8 +99,7 @@ export function NewActivityForm({
   chapters: ChapterOption[];
 }) {
   const [state, formAction] = useActionState<ActivityState, FormData>(createActivityAction, {});
-  const [type, setType] = useState<string>('COUNTING');
-  const [content, setContent] = useState<string>(TEMPLATES.COUNTING!);
+  const [type, setType] = useState<string>('SINGLE_CHOICE');
 
   return (
     <form action={formAction} className="space-y-5">
@@ -176,20 +120,17 @@ export function NewActivityForm({
             name="type"
             required
             value={type}
-            onChange={(event) => {
-              const next = event.target.value;
-              setType(next);
-              // Swapping type without swapping the content would guarantee a
-              // rejection, so the example follows the choice.
-              setContent(TEMPLATES[next] ?? '');
-            }}
+            onChange={(event) => setType(event.target.value)}
           >
             {ACTIVITY_TYPES.map((option) => (
               <option key={option} value={option}>
-                {option.charAt(0) + option.slice(1).toLowerCase()}
+                {ACTIVITY_TYPE_LABELS[option].label}
               </option>
             ))}
           </Select>
+          <p className="mt-1.5 text-xs text-slate-500">
+            {ACTIVITY_TYPE_LABELS[type as keyof typeof ACTIVITY_TYPE_LABELS]?.hint}
+          </p>
         </Field>
         <Field label="Skill" required hint="What mastery this counts towards.">
           <Select name="skillId" required>
@@ -215,8 +156,10 @@ export function NewActivityForm({
         </Select>
       </Field>
 
-      <ContentField value={content} onChange={setContent} type={type} />
-
+      {/* No content here any more. A question type is the instruction at the
+          top of a page; its questions are written on their own screen, one at a
+          time, with pictures and a stroke pad — which is where somebody who has
+          never seen JSON can actually write them. */}
       <SubmitButton pendingLabel="Saving…">Add question type</SubmitButton>
     </form>
   );
@@ -284,46 +227,53 @@ export function EditActivityForm({
         chapter={activity.chapter?.id}
       />
 
-      <ContentField value={draft} onChange={setDraft} type={activity.type} />
+      <RawContentField value={draft} onChange={setDraft} />
 
       <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
     </form>
   );
 }
 
-function ContentField({
+/**
+ * The stored content, for an activity old enough to still have some.
+ *
+ * Content is composed from question rows now. This remains only for the
+ * activities written before that — hidden behind a disclosure, because it is
+ * the one thing on these screens that assumes the reader knows what JSON is,
+ * and for everything authored today it is empty and irrelevant.
+ */
+function RawContentField({
   value,
   onChange,
-  type,
 }: {
   value: string;
   onChange: (next: string) => void;
-  type: string;
 }) {
   const items = countItems(value);
+  const empty = value.trim() === '' || value.trim() === '{}';
+
+  if (empty) return null;
 
   return (
-    <Field
-      label="What the child sees"
-      required
-      hint={
-        type === 'TRACING'
-          ? 'Strokes are 0–1 coordinates, so they render on any screen size.'
-          : 'Every question needs a picture or a sound — a child of four cannot read the words.'
-      }
-    >
+    <details className="rounded-xl bg-slate-50 p-4 ring-1 ring-navy-950/[0.06]">
+      <summary className="cursor-pointer text-sm font-medium text-navy-950">
+        Stored content
+      </summary>
+      <p className="mt-2 text-xs text-slate-500">
+        Written before questions had a screen of their own. Editing the questions
+        replaces this.
+      </p>
       <Textarea
         name="content"
-        rows={16}
-        required
+        rows={14}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="font-mono text-xs"
+        className="mt-3 font-mono text-xs"
       />
       <p className="mt-1.5 text-xs text-slate-500">
         {items === null ? 'Not valid JSON yet.' : `${items} ${items === 1 ? 'item' : 'items'}.`}
       </p>
-    </Field>
+    </details>
   );
 }
 

@@ -42,7 +42,17 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
         }
 
         return switch (content) {
+          // Drag and drop carries the same content as a tap question; what
+          // changes is how the child gets the answer there.
+          ChoiceContent c when c.kind == 'DRAG_DROP' => _DragStep(
+            controller: controller,
+            content: c,
+          ),
           ChoiceContent c => _ChoiceStep(controller: controller, content: c),
+          MultiChoiceContent c => _MultiChoiceStep(
+            controller: controller,
+            content: c,
+          ),
           CardContent c => _CardStep(controller: controller, content: c),
           TracingContent c => _TracingStep(controller: controller, content: c),
           null => const Center(child: Text('Nothing to do here yet.')),
@@ -115,6 +125,258 @@ class _ChoiceStep extends StatelessWidget {
                     onTap: () => controller.answer(option, item.answer),
                     child: _Option(media: item.options[option]),
                   ),
+                );
+              }),
+            ),
+          ),
+
+          if (chosen != null) ...[
+            Text(
+              controller.wasCorrect.value == true
+                  ? 'Yes! Well done.'
+                  : 'Nearly — this one is right.',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: controller.next,
+              child: Text(controller.isLast ? 'Finish' : 'Next'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Tap everything that fits, then say you are done.
+///
+/// Nothing is judged on the first tap. A child sifting a set changes their mind
+/// — that is the skill being practised — so choices stay editable until they
+/// press the button, and only then is the whole set marked at once.
+class _MultiChoiceStep extends StatelessWidget {
+  const _MultiChoiceStep({required this.controller, required this.content});
+
+  final ActivityPlayController controller;
+  final MultiChoiceContent content;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = content.items[controller.index.value];
+    final done = controller.chosen.value != null;
+    final picked = controller.picked;
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          if (item.imagePath != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: AuthedImage(
+                path: item.imagePath!,
+                height: 130,
+                fit: BoxFit.contain,
+              ),
+            )
+          else if (item.glyph != null)
+            Text(item.glyph!, style: const TextStyle(fontSize: 60)),
+          const SizedBox(height: 12),
+          Text(
+            item.say,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 20),
+
+          Expanded(
+            child: GridView.count(
+              crossAxisCount: item.options.length > 4 ? 3 : 2,
+              childAspectRatio: 1,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              children: List.generate(item.options.length, (option) {
+                final isPicked = picked.contains(option);
+                final isAnswer = item.answers.contains(option);
+
+                // Before finishing, a tick is just a tick. Afterwards every
+                // right answer is shown, including the ones they missed.
+                final colour = !done
+                    ? isPicked
+                          ? const Color(0xFFDBEAFE)
+                          : Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest
+                    : isAnswer
+                    ? const Color(0xFFDCFCE7)
+                    : isPicked
+                    ? const Color(0xFFFEE2E2)
+                    : Theme.of(context).colorScheme.surfaceContainerHighest;
+
+                return Material(
+                  color: colour,
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: done ? null : () => controller.toggle(option),
+                    child: Stack(
+                      children: [
+                        _Option(media: item.options[option]),
+                        if (isPicked)
+                          const Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Icon(Icons.check_circle, size: 22),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+
+          if (!done)
+            FilledButton(
+              // Nothing chosen is not an answer; it is a child who has not
+              // started, and marking it wrong would teach them that trying is
+              // the risky part.
+              onPressed: picked.isEmpty
+                  ? null
+                  : () => controller.finishMulti(item.answers),
+              child: const Text('Done'),
+            )
+          else ...[
+            Text(
+              controller.wasCorrect.value == true
+                  ? 'Yes! You found them all.'
+                  : 'Nearly — the green ones are right.',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: controller.next,
+              child: Text(controller.isLast ? 'Finish' : 'Next'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Drag the answer into the box.
+///
+/// The same question as a tap, with the answer carried rather than pointed at.
+/// Tapping still works: a two-year-old with a small finger should not be locked
+/// out of a page because dragging is hard, and the answer is the same either
+/// way.
+class _DragStep extends StatelessWidget {
+  const _DragStep({required this.controller, required this.content});
+
+  final ActivityPlayController controller;
+  final ChoiceContent content;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = content.items[controller.index.value];
+    final chosen = controller.chosen.value;
+    final colors = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          Text(
+            item.say,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 16),
+
+          // The target: what the dragged answer lands on.
+          DragTarget<int>(
+            onAcceptWithDetails: (details) =>
+                controller.answer(details.data, item.answer),
+            builder: (context, candidate, _) => Container(
+              height: 150,
+              decoration: BoxDecoration(
+                color: chosen == null
+                    ? (candidate.isEmpty
+                          ? colors.surfaceContainerHighest
+                          : const Color(0xFFDBEAFE))
+                    : controller.wasCorrect.value == true
+                    ? const Color(0xFFDCFCE7)
+                    : const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: colors.outlineVariant,
+                  width: 2,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: chosen == null
+                  ? (item.imagePath != null
+                        ? AuthedImage(
+                            path: item.imagePath!,
+                            height: 110,
+                            fit: BoxFit.contain,
+                          )
+                        : Text(
+                            item.glyph ?? 'Drop it here',
+                            style: TextStyle(
+                              fontSize: item.glyph == null ? 18 : 56,
+                              color: colors.outline,
+                            ),
+                          ))
+                  : _Option(media: item.options[chosen]),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Expanded(
+            child: GridView.count(
+              crossAxisCount: item.options.length > 2 ? 3 : 2,
+              childAspectRatio: 1,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              children: List.generate(item.options.length, (option) {
+                final tile = Material(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    // Tap as well as drag, deliberately.
+                    onTap: chosen == null
+                        ? () => controller.answer(option, item.answer)
+                        : null,
+                    child: _Option(media: item.options[option]),
+                  ),
+                );
+
+                if (chosen != null) return Opacity(opacity: 0.4, child: tile);
+
+                return Draggable<int>(
+                  data: option,
+                  feedback: Material(
+                    color: Colors.transparent,
+                    child: SizedBox(
+                      width: 96,
+                      height: 96,
+                      child: Material(
+                        color: const Color(0xFFDBEAFE),
+                        borderRadius: BorderRadius.circular(20),
+                        elevation: 6,
+                        child: _Option(media: item.options[option]),
+                      ),
+                    ),
+                  ),
+                  childWhenDragging: Opacity(opacity: 0.3, child: tile),
+                  child: tile,
                 );
               }),
             ),

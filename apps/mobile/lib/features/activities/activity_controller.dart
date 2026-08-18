@@ -172,6 +172,36 @@ class ActivityPlayController extends GetxController {
     if (right) correct.value += 1;
   }
 
+  /// Which options are ticked so far on a multiple-choice question.
+  ///
+  /// Nothing is judged until the child says they are done, so a first tap is
+  /// never a mistake and can always be taken back.
+  final picked = <int>{}.obs;
+
+  void toggle(int option) {
+    if (chosen.value != null) return;
+    if (picked.contains(option)) {
+      picked.remove(option);
+    } else {
+      picked.add(option);
+    }
+  }
+
+  /// Marks a multiple-choice question, once the child says they have finished.
+  ///
+  /// Right means exactly the right set: every answer found and none of the
+  /// wrong ones. Partly right is still shown as the whole answer afterwards,
+  /// because being told only "no" teaches nothing.
+  void finishMulti(Set<int> answers) {
+    if (chosen.value != null) return;
+
+    chosen.value = 0;
+    final right =
+        picked.length == answers.length && picked.every(answers.contains);
+    wasCorrect.value = right;
+    if (right) correct.value += 1;
+  }
+
   /// For cards, which have no right answer — just seen.
   void seen() {
     if (chosen.value != null) return;
@@ -182,6 +212,7 @@ class ActivityPlayController extends GetxController {
   void next() {
     chosen.value = null;
     wasCorrect.value = null;
+    picked.clear();
 
     if (isLast) {
       isFinished.value = true;

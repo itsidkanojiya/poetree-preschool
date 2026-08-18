@@ -29,11 +29,14 @@ import { assertChapterBelongsToBook } from './chapter.service.js';
 
 /** The content shape each activity type must carry. */
 const KIND_FOR_TYPE: Record<string, ActivityContent['kind']> = {
-  TRACING: 'TRACING',
+  SINGLE_CHOICE: 'SINGLE_CHOICE',
+  MULTIPLE_CHOICE: 'MULTIPLE_CHOICE',
   MATCHING: 'MATCHING',
+  TRACING: 'TRACING',
   COUNTING: 'COUNTING',
   SORTING: 'SORTING',
   COLOURING: 'COLOURING',
+  DRAG_DROP: 'DRAG_DROP',
   FLASHCARD: 'FLASHCARD',
   RHYME: 'RHYME',
   STORY: 'STORY',
@@ -185,7 +188,8 @@ export async function createActivity(
   input: CreateActivityInput,
   actorUserId: string,
 ): Promise<CatalogueActivity> {
-  const content = parseContent(input.type, input.content);
+  // Absent for anything authored in the portal: its questions are rows.
+  const content = input.content === undefined ? null : parseContent(input.type, input.content);
   await assertChapterBelongsToBook(input.chapterId, input.bookId);
 
   const skill = await prismaUnscoped.skill.findUnique({ where: { id: input.skillId } });
@@ -214,7 +218,7 @@ export async function createActivity(
       bookId: input.bookId ?? null,
       chapterId: input.chapterId ?? null,
       classLevelId: input.classLevelId ?? null,
-      contentJson: content,
+      ...(content === null ? {} : { contentJson: content }),
       isActive: input.isActive ?? true,
     },
     include: activityInclude,

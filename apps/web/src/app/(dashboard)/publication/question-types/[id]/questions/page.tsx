@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { isMultiAnswer, isScored, type ActivityContent } from '@poetree/shared';
 import type { Metadata } from 'next';
 import type { CatalogueActivity, QuestionRow } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
@@ -7,9 +8,6 @@ import { IconArrowLeft } from '@/components/icons';
 import { AddQuestionForm, EditQuestionForm, QuestionControls } from './forms';
 
 export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
-
-/** The types a child answers rather than simply looks at. */
-const SCORED = ['TRACING', 'MATCHING', 'COUNTING', 'SORTING', 'COLOURING'];
 
 /**
  * The questions on one page of a book.
@@ -26,7 +24,8 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
     apiFetch<QuestionRow[]>(`/publication/activities/${id}/questions`),
   ]);
 
-  const scored = SCORED.includes(activity.type);
+  const scored = isScored(activity.type as ActivityContent['kind']);
+  const multi = isMultiAnswer(activity.type as ActivityContent['kind']);
   const tracing = activity.type === 'TRACING';
   const broken = questions.filter((question) => question.problem !== null);
 
@@ -83,6 +82,7 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
                 question={question}
                 scored={scored}
                 tracing={tracing}
+                multi={multi}
               />
             </Card>
           ))}
@@ -104,6 +104,7 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
             activityId={id}
             scored={scored}
             tracing={tracing}
+            multi={multi}
             count={questions.length}
           />
         </Card>

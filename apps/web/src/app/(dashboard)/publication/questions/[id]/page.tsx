@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { isMultiAnswer, isScored, type ActivityContent } from '@poetree/shared';
 import type { Metadata } from 'next';
 import type { QuestionRow, QuestionWithContext } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
@@ -10,9 +11,6 @@ import {
 } from '../../question-types/[id]/questions/forms';
 
 export const metadata: Metadata = { title: 'Question · Poetree Admin' };
-
-/** The types a child answers rather than simply looks at. */
-const SCORED = ['TRACING', 'MATCHING', 'COUNTING', 'SORTING', 'COLOURING'];
 
 /**
  * One question, on its own.
@@ -34,8 +32,9 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
   );
 
   const index = siblings.findIndex((row) => row.id === id);
-  const scored = SCORED.includes(question.activity.type);
+  const scored = isScored(question.activity.type as ActivityContent['kind']);
   const tracing = question.activity.type === 'TRACING';
+  const multi = isMultiAnswer(question.activity.type as ActivityContent['kind']);
   const previous = siblings[index - 1];
   const next = siblings[index + 1];
 
@@ -91,6 +90,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
             question={siblings[index] ?? (question as unknown as QuestionRow)}
             scored={scored}
             tracing={tracing}
+            multi={multi}
           />
         </Card>
 

@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import {
   activityContentSchema,
+  isMultiAnswer,
   isScored,
   type ActivityContent,
   type CreateQuestionInput,
@@ -60,12 +61,20 @@ export function problemWith(row: QuestionWithOptions, type: string): string | nu
     return null;
   }
 
+  const multi = isMultiAnswer(type as ActivityContent['kind']);
+
   if (row.options.length < 2) return 'Needs at least two things to choose between';
-  if (row.options.length > 4) return 'More than four choices is too many for this age';
+  // Six where several answers are wanted, because the point is a set to sift;
+  // four otherwise, which is as much as a three-year-old can hold at once.
+  if (row.options.length > (multi ? 6 : 4)) {
+    return multi
+      ? 'More than six choices is too many for this age'
+      : 'More than four choices is too many for this age';
+  }
 
   const correct = row.options.filter((option) => option.isCorrect).length;
   if (correct === 0) return 'Nothing is marked as the right answer';
-  if (correct > 1) return 'More than one answer is marked right';
+  if (correct > 1 && !multi) return 'More than one answer is marked right';
 
   return null;
 }
@@ -442,7 +451,27 @@ export async function composeContent(activity: {
             strokes: strokesOf(row) ?? [],
           })),
         }
-      : isScored(kind)
+      : isMultiAnswer(kind)
+        ? {
+            kind: 'MULTIPLE_CHOICE' as const,
+            items: usable.map((row) => ({
+              prompt: {
+                say: row.say,
+                ...(row.promptGlyph ? { glyph: row.promptGlyph } : {}),
+                ...(row.promptFileId ? { imageUrl: assetUrl(row.promptFileId)! } : {}),
+              },
+              options: row.options.map((option) => ({
+                ...(option.glyph ? { glyph: option.glyph } : {}),
+                ...(option.text ? { text: option.text } : {}),
+                ...(option.fileId ? { imageUrl: assetUrl(option.fileId)! } : {}),
+              })),
+              // Every box the author ticked, as indexes.
+              answers: row.options
+                .map((option, index) => (option.isCorrect ? index : -1))
+                .filter((index) => index >= 0),
+            })),
+          }
+        : isScored(kind)
         ? {
             kind,
             items: usable.map((row) => ({

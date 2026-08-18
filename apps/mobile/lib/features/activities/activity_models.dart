@@ -82,11 +82,24 @@ sealed class ActivityContent {
             .map(TracingItem.fromJson)
             .toList(),
       ),
-      'MATCHING' || 'COUNTING' || 'SORTING' || 'COLOURING' => ChoiceContent(
+      // Single choice and drag and drop hold the same thing as matching — a
+      // prompt, some options and which one is right. Only the finger differs.
+      'SINGLE_CHOICE' ||
+      'MATCHING' ||
+      'COUNTING' ||
+      'SORTING' ||
+      'COLOURING' ||
+      'DRAG_DROP' => ChoiceContent(
         kind: json['kind'] as String,
         items: items
             .whereType<Map<String, dynamic>>()
             .map(ChoiceItem.fromJson)
+            .toList(),
+      ),
+      'MULTIPLE_CHOICE' => MultiChoiceContent(
+        items: items
+            .whereType<Map<String, dynamic>>()
+            .map(MultiChoiceItem.fromJson)
             .toList(),
       ),
       'FLASHCARD' || 'RHYME' || 'STORY' => CardContent(
@@ -235,6 +248,56 @@ class ChoiceItem {
   final String? imagePath;
   final List<ActivityMedia> options;
   final int answer;
+}
+
+/// More than one right answer, tapped together.
+class MultiChoiceContent extends ActivityContent {
+  const MultiChoiceContent({required this.items});
+
+  final List<MultiChoiceItem> items;
+
+  @override
+  int get itemCount => items.length;
+
+  @override
+  bool get isScored => true;
+}
+
+class MultiChoiceItem {
+  MultiChoiceItem({
+    required this.say,
+    required this.options,
+    required this.answers,
+    this.glyph,
+    this.imagePath,
+  });
+
+  factory MultiChoiceItem.fromJson(Map<String, dynamic> json) {
+    final prompt = json['prompt'] as Map<String, dynamic>? ?? const {};
+    final promptImage = prompt['imageUrl'] as String?;
+
+    return MultiChoiceItem(
+      say: prompt['say'] as String? ?? '',
+      glyph: prompt['glyph'] as String?,
+      imagePath: promptImage == null || promptImage.isEmpty
+          ? null
+          : promptImage.replaceFirst('/api/v1', ''),
+      options: (json['options'] as List<dynamic>? ?? const <dynamic>[])
+          .map(ActivityMedia.fromJson)
+          .toList(),
+      answers: (json['answers'] as List<dynamic>? ?? const <dynamic>[])
+          .map((value) => (value as num).toInt())
+          .toSet(),
+    );
+  }
+
+  final String say;
+  final String? glyph;
+  final String? imagePath;
+  final List<ActivityMedia> options;
+
+  /// Every index that counts as right. A set, because order is not an answer.
+  final Set<int> answers;
 }
 
 class CardContent extends ActivityContent {

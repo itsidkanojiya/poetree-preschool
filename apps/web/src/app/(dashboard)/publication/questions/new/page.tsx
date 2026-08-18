@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { isMultiAnswer, isScored, type ActivityContent } from '@poetree/shared';
 import type { Metadata } from 'next';
 import type { CatalogueActivity, QuestionRow } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
@@ -9,9 +10,6 @@ import { allActivities } from '../all-activities';
 import { TypePicker } from './type-picker';
 
 export const metadata: Metadata = { title: 'Add a question · Poetree Admin' };
-
-/** The types a child answers rather than simply looks at. */
-const SCORED = ['TRACING', 'MATCHING', 'COUNTING', 'SORTING', 'COLOURING'];
 
 /**
  * Writing a question, without leaving Questions.
@@ -73,8 +71,10 @@ export default async function NewQuestionPage({
             description={
               activity.type === 'TRACING'
                 ? 'Draw the path a child follows with their finger.'
-                : SCORED.includes(activity.type)
-                  ? 'A picture, an emoji or a word on each choice. Tick the right one.'
+                : isScored(activity.type as ActivityContent['kind'])
+                  ? isMultiAnswer(activity.type as ActivityContent['kind'])
+                    ? 'A picture, an emoji or a word on each choice. Tick every right one.'
+                    : 'A picture, an emoji or a word on each choice. Tick the right one.'
                   : 'Something to look at. Nothing to get wrong.'
             }
             action={
@@ -88,8 +88,9 @@ export default async function NewQuestionPage({
           >
             <AddQuestionForm
               activityId={activity.id}
-              scored={SCORED.includes(activity.type)}
+              scored={isScored(activity.type as ActivityContent['kind'])}
               tracing={activity.type === 'TRACING'}
+              multi={isMultiAnswer(activity.type as ActivityContent['kind'])}
               count={existing.length}
             />
           </Card>

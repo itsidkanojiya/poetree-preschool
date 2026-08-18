@@ -45,7 +45,9 @@ interface OptionDraft {
  * tap.
  */
 async function readOptions(formData: FormData): Promise<OptionDraft[]> {
-  const correct = String(formData.get('correct') ?? '');
+  // getAll, because a multiple-choice question ticks more than one box and a
+  // radio group sends exactly one — the same code reads both.
+  const correct = new Set(formData.getAll('correct').map(String));
   const drafts: OptionDraft[] = [];
 
   for (let index = 0; index < 4; index += 1) {
@@ -65,7 +67,7 @@ async function readOptions(formData: FormData): Promise<OptionDraft[]> {
       text: text === '' ? undefined : text,
       glyph: glyph === '' ? undefined : glyph,
       fileId,
-      isCorrect: correct === String(index),
+      isCorrect: correct.has(String(index)),
     });
   }
 

@@ -14,6 +14,15 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  /**
+   * Where `prisma migrate dev` replays the migrations to work out a diff.
+   *
+   * Named explicitly because the database user is deliberately least-privilege
+   * and cannot create databases — without this, generating a migration fails
+   * asking for a permission it should never be given. Only `migrate dev` reads
+   * it; the deploy runs `migrate deploy`, which needs no shadow at all.
+   */
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 enum Role {
@@ -132,12 +141,15 @@ enum PaymentStatus {
 /// The interactive activity types Poetree publishes. Content is authored once
 /// at publication level and reused by every school.
 enum ActivityType {
-  TRACING
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
   MATCHING
+  TRACING
   COUNTING
-  FLASHCARD
   SORTING
   COLOURING
+  DRAG_DROP
+  FLASHCARD
   RHYME
   STORY
 }

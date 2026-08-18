@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: 'Standards · Poetree Admin' };
  * A list, and only a list. Editing is on the standard's own page.
  */
 export default async function StandardsPage() {
-  const standards = await apiFetch<StandardSummary[]>('/publication/books/standards', {
+  const standards = await apiFetch<StandardSummary[]>('/publication/standards', {
     query: { includeInactive: 'true' },
   });
 

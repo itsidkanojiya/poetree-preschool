@@ -20,7 +20,7 @@ export async function createStandardAction(
   formData: FormData,
 ): Promise<StandardState> {
   try {
-    await apiFetch('/publication/books/standards', {
+    await apiFetch('/publication/standards', {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
@@ -42,7 +42,7 @@ export async function renameStandardAction(
   formData: FormData,
 ): Promise<StandardState> {
   try {
-    await apiFetch(`/publication/books/standards/${id}`, {
+    await apiFetch(`/publication/standards/${id}`, {
       method: 'PATCH',
       redirectOnAuthFailure: false,
       body: {
@@ -65,9 +65,9 @@ export async function renameStandardAction(
  */
 export async function setStandardActiveAction(id: string, isActive: boolean): Promise<void> {
   if (isActive) {
-    await apiFetch(`/publication/books/standards/${id}`, { method: 'PATCH', body: { isActive: true } });
+    await apiFetch(`/publication/standards/${id}`, { method: 'PATCH', body: { isActive: true } });
   } else {
-    await apiFetch(`/publication/books/standards/${id}/retire`, { method: 'POST' });
+    await apiFetch(`/publication/standards/${id}/retire`, { method: 'POST' });
   }
   revalidatePath('/publication/books/standards');
   revalidatePath(`/publication/books/standards/${id}`);

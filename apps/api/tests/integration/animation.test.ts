@@ -24,6 +24,7 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
   let school: TestSchool;
   let publisher: Session;
   let parent: Session;
+  let skillId: string;
   let lockedBookId: string;
   let openBookId: string;
   let lockedActivityId: string;
@@ -39,6 +40,7 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
     const skill = await prismaUnscoped.skill.create({
       data: { code: 'LETTERS', name: 'Letters' },
     });
+    skillId = skill.id;
     const nursery = await prismaUnscoped.classLevel.findUniqueOrThrow({
       where: { code: 'NURSERY' },
       select: { id: true },
@@ -195,5 +197,37 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
 
     // Same school, same book — every filter passes except the guardian link.
     expect(response.status).toBe(404);
+  });
+  it('locks an every-book page behind the film of the book it was opened from', async () => {
+    // A page that belongs in every book has no link row to read a book from, so
+    // it arrived saying it was in no book — and a page in no book is never
+    // locked. It would have been the one way past the film.
+    const everywhere = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({
+        title: 'Warm up',
+        type: 'FLASHCARD',
+        skillId,
+        allBooks: true,
+        bookIds: [],
+      });
+    expect(everywhere.status).toBe(201);
+
+    // An earlier test in this file watches the film, so put the book back to
+    // locked — the state this is about.
+    await prismaUnscoped.bookAnimationView.deleteMany({
+      where: { studentId: school.studentId, bookId: lockedBookId },
+    });
+
+    const offered = await api
+      .get(`${BASE}/progress/activities`)
+      .query({ studentId: school.studentId, bookId: lockedBookId })
+      .set(auth(parent));
+
+    const row = offered.body.find((item: { id: string }) => item.id === everywhere.body.id);
+    expect(row).toBeDefined();
+    expect(row.book.id).toBe(lockedBookId);
+    expect(row.isLocked).toBe(true);
   });
 });

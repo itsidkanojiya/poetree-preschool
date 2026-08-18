@@ -381,6 +381,21 @@ export async function listActivities(options?: {
    */
   const locked = options?.studentId ? await lockedBookIdsFor(options.studentId) : new Set<string>();
 
+  /**
+   * The book the child opened, for pages that belong to every book.
+   *
+   * Those have no link rows to read a name from, so without this they arrive
+   * saying they are in no book at all — and a page in no book is never locked,
+   * which would quietly let an every-book page skip the film that gates the
+   * book it was opened from.
+   */
+  const asked = options?.bookId
+    ? await prismaUnscoped.book.findUnique({
+        where: { id: options.bookId },
+        select: { id: true, name: true },
+      })
+    : null;
+
   return Promise.all(
     rows.map(async (row) => {
       /**
@@ -393,6 +408,7 @@ export async function listActivities(options?: {
        */
       const book =
         row.books.find((link) => link.bookId === options?.bookId)?.book ??
+        (row.allBooks ? asked : null) ??
         row.books[0]?.book ??
         null;
 

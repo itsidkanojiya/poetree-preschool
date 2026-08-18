@@ -71,8 +71,15 @@ export const createActivitySchema = z.object({
    * This is the question *type*; the questions themselves sit under it.
    */
   title: z.string().trim().min(2).max(160),
-  /** The book this is a page of, and the chapter within it. */
-  bookId: idSchema.nullish(),
+  /**
+   * Which books this page is in. Several, because the same "trace the letter
+   * A" is a page of the phonics book and of Nursery English, and copying it
+   * would split one child's practice into two piles of attempts.
+   */
+  bookIds: z.array(idSchema).max(50).optional(),
+  /** Every book the school has, including ones added later. */
+  allBooks: z.boolean().optional(),
+  /** Only meaningful for a page that lives in exactly one book. */
   chapterId: idSchema.nullish(),
   type: z.enum(ACTIVITY_TYPES),
   skillId: idSchema,
@@ -101,7 +108,8 @@ export type CreateActivityInput = z.infer<typeof createActivitySchema>;
  */
 export const updateActivitySchema = z.object({
   title: z.string().trim().min(2).max(160).optional(),
-  bookId: idSchema.nullish(),
+  bookIds: z.array(idSchema).max(50).optional(),
+  allBooks: z.boolean().optional(),
   chapterId: idSchema.nullish(),
   skillId: idSchema.optional(),
   classLevelId: idSchema.nullish(),
@@ -131,7 +139,12 @@ export interface CatalogueActivity {
   type: string;
   isActive: boolean;
   skill: { id: string; code: string; name: string };
+  /** Every book it is a page of. */
+  books: Array<{ id: string; name: string }>;
+  /** The first of them, since most pages are in exactly one. */
   book: { id: string; name: string } | null;
+  /** A standing rule: in every book the school has, present and future. */
+  allBooks: boolean;
   chapter: { id: string; name: string } | null;
   classLevelId: string | null;
   classLevelCode: string | null;

@@ -45,7 +45,10 @@ const KIND_FOR_TYPE: Record<string, ActivityContent['kind']> = {
 const activityInclude = {
   skill: { select: { id: true, code: true, name: true } },
   classLevel: { select: { id: true, code: true } },
-  book: { select: { id: true, name: true } },
+  books: {
+    include: { book: { select: { id: true, name: true } } },
+    orderBy: { sortOrder: 'asc' },
+  },
   chapter: { select: { id: true, name: true } },
   _count: { select: { attempts: true } },
   // Bounded: at most a dozen questions with four options each. Counting them
@@ -80,7 +83,12 @@ function toSummary(row: ActivityRow): CatalogueActivity {
     type: row.type,
     isActive: row.isActive,
     skill: row.skill,
-    book: row.book,
+    // Every book it is a page of. `book` stays alongside as the first of them,
+    // because a great deal of this product asks "which book is this in" and
+    // most pages are still in exactly one.
+    books: row.books.map((link) => link.book),
+    book: row.books[0]?.book ?? null,
+    allBooks: row.allBooks,
     chapter: row.chapter,
     classLevelId: row.classLevelId,
     classLevelCode: row.classLevel?.code ?? null,
@@ -143,7 +151,11 @@ export async function listActivities(query: {
 
   const where: Prisma.LearningActivityWhereInput = {
     ...(query.skillId ? { skillId: query.skillId } : {}),
-    ...(query.bookId ? { bookId: query.bookId } : {}),
+    // A page counts as in this book if it is linked to it, or if it is one of
+    // the pages that belong in every book.
+    ...(query.bookId
+      ? { OR: [{ books: { some: { bookId: query.bookId } } }, { allBooks: true }] }
+      : {}),
     ...(query.chapterId ? { chapterId: query.chapterId } : {}),
     ...(query.classLevelId ? { classLevelId: query.classLevelId } : {}),
     ...(query.type ? { type: query.type as never } : {}),
@@ -190,7 +202,12 @@ export async function createActivity(
 ): Promise<CatalogueActivity> {
   // Absent for anything authored in the portal: its questions are rows.
   const content = input.content === undefined ? null : parseContent(input.type, input.content);
-  await assertChapterBelongsToBook(input.chapterId, input.bookId);
+  // A chapter belongs to one book, so filing at creation only makes sense for
+  // a page going into exactly one.
+  if (input.chapterId) {
+    const only = input.bookIds?.length === 1 ? input.bookIds[0]! : null;
+    await assertChapterBelongsToBook(input.chapterId, only);
+  }
 
   const skill = await prismaUnscoped.skill.findUnique({ where: { id: input.skillId } });
   if (!skill) throw ApiError.badRequest('Choose a skill that exists');
@@ -215,11 +232,17 @@ export async function createActivity(
       title: input.title,
       type: input.type as never,
       skillId: input.skillId,
-      bookId: input.bookId ?? null,
       chapterId: input.chapterId ?? null,
       classLevelId: input.classLevelId ?? null,
+      allBooks: input.allBooks ?? false,
       ...(content === null ? {} : { contentJson: content }),
       isActive: input.isActive ?? true,
+      books: {
+        create: (input.bookIds ?? []).map((bookId, index) => ({
+          bookId,
+          sortOrder: index,
+        })),
+      },
     },
     include: activityInclude,
   });
@@ -243,14 +266,32 @@ export async function updateActivity(
 ): Promise<CatalogueActivity> {
   const existing = await prismaUnscoped.learningActivity.findUnique({
     where: { id },
-    select: { id: true, code: true, type: true, title: true, isActive: true, bookId: true },
+    select: {
+      id: true,
+      code: true,
+      type: true,
+      title: true,
+      isActive: true,
+      books: { select: { bookId: true } },
+    },
   });
   if (!existing) throw ApiError.notFound('Activity not found');
-  const existingBookId = existing.bookId;
 
-  if (input.chapterId !== undefined) {
-    const book = input.bookId === undefined ? existingBookId : input.bookId;
-    await assertChapterBelongsToBook(input.chapterId, book);
+  /**
+   * A chapter belongs to one book, so it only means anything for a page that
+   * lives in one. Checked against the books it will have after this save, not
+   * the ones it had before — otherwise moving a page and filing it in one go
+   * is refused for a state that is about to stop being true.
+   */
+  const bookIds = input.bookIds ?? existing.books.map((link) => link.bookId);
+
+  if (input.chapterId !== undefined && input.chapterId !== null) {
+    if (bookIds.length !== 1) {
+      throw ApiError.badRequest(
+        'Only a page that lives in exactly one book can be filed in a chapter',
+      );
+    }
+    await assertChapterBelongsToBook(input.chapterId, bookIds[0]!);
   }
 
   // The type is fixed once children have played it: changing it would leave
@@ -263,11 +304,22 @@ export async function updateActivity(
     data: {
       title: input.title,
       skillId: input.skillId,
-      bookId: input.bookId,
       chapterId: input.chapterId,
       classLevelId: input.classLevelId,
       isActive: input.isActive,
+      allBooks: input.allBooks,
       ...(content === undefined ? {} : { contentJson: content }),
+      // Sent whole and replaced whole. A page removed from a book is only
+      // expressible as the absence of it, so a partial list would be unable to
+      // say "take this out of Phonics".
+      ...(input.bookIds === undefined
+        ? {}
+        : {
+            books: {
+              deleteMany: {},
+              create: input.bookIds.map((bookId, index) => ({ bookId, sortOrder: index })),
+            },
+          }),
     },
     include: activityInclude,
   });

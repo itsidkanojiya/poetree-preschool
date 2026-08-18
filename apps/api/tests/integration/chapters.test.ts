@@ -32,6 +32,7 @@ describe.skipIf(!dbUp)('chapters', () => {
   let evsChapterId: string;
   let englishChapterId: string;
   let skillId: string;
+  let nurseryId: string;
 
   beforeAll(async () => {
     await resetDatabase();
@@ -53,6 +54,7 @@ describe.skipIf(!dbUp)('chapters', () => {
       .post(`${BASE}/publication/books`)
       .set(auth(publisher))
       .send({ code: 'NUR_EVS', name: 'EVS Book', classLevelId: nursery.id });
+    nurseryId = nursery.id;
     evsId = evs.body.id as string;
 
     const english = await api
@@ -99,7 +101,7 @@ describe.skipIf(!dbUp)('chapters', () => {
         title: 'Count the leaves',
         type: 'COUNTING',
         skillId,
-        bookId: evsId,
+        bookIds: [evsId],
         chapterId: englishChapterId,
         content: COUNTING,
       });
@@ -133,7 +135,7 @@ describe.skipIf(!dbUp)('chapters', () => {
         title: 'Count the leaves',
         type: 'COUNTING',
         skillId,
-        bookId: evsId,
+        bookIds: [evsId],
         chapterId: evsChapterId,
         content: COUNTING,
       });
@@ -337,5 +339,90 @@ describe.skipIf(!dbUp)('chapters', () => {
       .set(auth(publisher))
       .send({ chapterIds: [...all.map((row) => row.id).slice(1), evsChapterId] });
     expect(foreign.status).toBe(400);
+  });
+  it('puts one page in several books without copying it', async () => {
+    // The same "trace the letter A" belongs in the phonics book and in English.
+    // Writing it twice meant two rows to fix and two piles of attempts for what
+    // a child experienced as one page.
+    const shared = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({
+        title: 'Trace the letter A',
+        type: 'TRACING',
+        skillId,
+        bookIds: [evsId, englishId],
+      });
+
+    expect(shared.status).toBe(201);
+    expect(shared.body.books.map((book: { id: string }) => book.id).sort()).toEqual(
+      [evsId, englishId].sort(),
+    );
+
+    // And it is found under either book.
+    for (const bookId of [evsId, englishId]) {
+      const inBook = await api
+        .get(`${BASE}/publication/activities`)
+        .set(auth(publisher))
+        .query({ bookId });
+      expect(
+        inBook.body.items.some((row: { id: string }) => row.id === shared.body.id),
+      ).toBe(true);
+    }
+  });
+
+  it('refuses a chapter for a page that lives in more than one book', async () => {
+    // A chapter belongs to one book, so it cannot say where a shared page sits.
+    const shared = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({ title: 'Shared page', type: 'FLASHCARD', skillId, bookIds: [evsId, englishId] });
+
+    const filed = await api
+      .patch(`${BASE}/publication/activities/${shared.body.id}`)
+      .set(auth(publisher))
+      .send({ chapterId: evsChapterId });
+
+    expect(filed.status).toBe(400);
+  });
+
+  it('puts an every-book page in a book it was never linked to', async () => {
+    const everywhere = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({ title: 'Warm up', type: 'FLASHCARD', skillId, allBooks: true, bookIds: [] });
+
+    expect(everywhere.body.allBooks).toBe(true);
+    expect(everywhere.body.books).toHaveLength(0);
+
+    // A book written afterwards has it too, which is the whole point.
+    const later = await api
+      .post(`${BASE}/publication/books`)
+      .set(auth(publisher))
+      .send({ name: 'Written later', classLevelId: nurseryId });
+
+    const inLater = await api
+      .get(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .query({ bookId: later.body.id });
+
+    expect(
+      inLater.body.items.some((row: { id: string }) => row.id === everywhere.body.id),
+    ).toBe(true);
+  });
+
+  it('takes a page out of a book when the list no longer names it', async () => {
+    const page = await api
+      .post(`${BASE}/publication/activities`)
+      .set(auth(publisher))
+      .send({ title: 'Moved page', type: 'FLASHCARD', skillId, bookIds: [evsId, englishId] });
+
+    const moved = await api
+      .patch(`${BASE}/publication/activities/${page.body.id}`)
+      .set(auth(publisher))
+      .send({ bookIds: [englishId] });
+
+    expect(moved.status).toBe(200);
+    expect(moved.body.books.map((book: { id: string }) => book.id)).toEqual([englishId]);
   });
 });

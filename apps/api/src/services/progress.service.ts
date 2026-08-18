@@ -346,15 +346,28 @@ export async function listActivities(options?: {
     where: {
       isActive: true,
       ...(options?.classLevelId ? { classLevelId: options.classLevelId } : {}),
+      /**
+       * What this child may be offered.
+       *
+       * A page reaches them if it is in the book they opened, or in one of the
+       * books their school bought, or is one of the pages that belong in every
+       * book. A page in no book at all still reaches everybody: that is what
+       * the seeded catalogue is, and hiding it would empty the app.
+       */
       ...(options?.bookId
-        ? { bookId: options.bookId }
-        : bookIds.length > 0
-          ? { OR: [{ bookId: { in: bookIds } }, { bookId: null }] }
-          : { bookId: null }),
+        ? { OR: [{ books: { some: { bookId: options.bookId } } }, { allBooks: true }] }
+        : {
+            OR: [
+              ...(bookIds.length > 0 ? [{ books: { some: { bookId: { in: bookIds } } } }] : []),
+              { allBooks: true },
+              { books: { none: {} } },
+            ],
+          }),
     },
     include: {
       skill: { select: { id: true, code: true, name: true } },
-      book: { select: { id: true, name: true } },
+      books: { include: { book: { select: { id: true, name: true } } } },
+      chapter: { select: { id: true, name: true } },
     },
     orderBy: [{ code: 'asc' }],
   });
@@ -369,12 +382,28 @@ export async function listActivities(options?: {
   const locked = options?.studentId ? await lockedBookIdsFor(options.studentId) : new Set<string>();
 
   return Promise.all(
-    rows.map(async (row) => ({
+    rows.map(async (row) => {
+      /**
+       * The book to report this page under.
+       *
+       * When a book was asked for, it is that one — the child opened it, and a
+       * page shared with two other books should not announce itself as one of
+       * theirs. Otherwise the first it is linked to, which for the great
+       * majority is the only one.
+       */
+      const book =
+        row.books.find((link) => link.bookId === options?.bookId)?.book ??
+        row.books[0]?.book ??
+        null;
+
+      return {
       ...row,
-      isLocked: row.bookId !== null && locked.has(row.bookId),
+      book,
+      isLocked: book !== null && locked.has(book.id),
       contentJson:
         (await composeContent({ id: row.id, type: row.type })) ??
         upconvertStoredContent(row.contentJson),
-    })),
+      };
+    }),
   );
 }

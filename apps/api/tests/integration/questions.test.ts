@@ -67,7 +67,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
         title: 'Circle the correct letter',
         type: 'MATCHING',
         skillId: skill.id,
-        bookId,
+        bookIds: [bookId],
         classLevelId: nursery.id,
         content: {
           kind: 'MATCHING',
@@ -206,7 +206,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
         title: 'Trace and write',
         type: 'TRACING',
         skillId: skill.id,
-        bookId,
+        bookIds: [bookId],
         classLevelId: nursery.id,
         content: {
           kind: 'TRACING',
@@ -276,7 +276,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
         title: 'Tap all the animals',
         type: 'MULTIPLE_CHOICE',
         skillId,
-        bookId,
+        bookIds: [bookId],
       });
     expect(activity.status).toBe(201);
 
@@ -313,7 +313,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
     const activity = await api
       .post(`${BASE}/publication/activities`)
       .set(auth(publisher))
-      .send({ title: 'Pick the letter', type: 'SINGLE_CHOICE', skillId, bookId });
+      .send({ title: 'Pick the letter', type: 'SINGLE_CHOICE', skillId, bookIds: [bookId] });
 
     const question = await api
       .post(`${BASE}/publication/activities/${activity.body.id}/questions`)
@@ -336,7 +336,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
     const activity = await api
       .post(`${BASE}/publication/activities`)
       .set(auth(publisher))
-      .send({ title: 'Drag the apple', type: 'DRAG_DROP', skillId, bookId });
+      .send({ title: 'Drag the apple', type: 'DRAG_DROP', skillId, bookIds: [bookId] });
 
     await api
       .post(`${BASE}/publication/activities/${activity.body.id}/questions`)
@@ -368,7 +368,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
     const activity = await api
       .post(`${BASE}/publication/activities`)
       .set(auth(publisher))
-      .send({ title: 'Colour the fruit', type: 'COLOURING', skillId, bookId });
+      .send({ title: 'Colour the fruit', type: 'COLOURING', skillId, bookIds: [bookId] });
 
     expect(activity.status).toBe(201);
     // Nothing to play yet, and the app is told so rather than shown an empty page.

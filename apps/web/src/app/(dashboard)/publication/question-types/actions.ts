@@ -48,8 +48,10 @@ export async function createActivityAction(
   if (error) return { error };
 
   const classLevelId = String(formData.get('classLevelId') ?? '').trim();
-  const bookId = String(formData.get('bookId') ?? '').trim();
-  const chapterId = String(formData.get('chapterId') ?? '').trim();
+  // getAll: a page can be in several books, and a checkbox that is off sends
+  // nothing at all, so the list is exactly what was ticked.
+  const bookIds = formData.getAll('bookIds').map(String).filter(Boolean);
+  const allBooks = formData.get('allBooks') === 'true';
 
   try {
     await apiFetch('/publication/activities', {
@@ -61,8 +63,9 @@ export async function createActivityAction(
         type: String(formData.get('type') ?? ''),
         skillId: String(formData.get('skillId') ?? ''),
         classLevelId: classLevelId === '' ? null : classLevelId,
-        bookId: bookId === '' ? null : bookId,
-        chapterId: chapterId === '' ? null : chapterId,
+        // Every book, or the ones ticked. Never both.
+        allBooks,
+        bookIds: allBooks ? [] : bookIds,
         content,
       },
     });
@@ -89,11 +92,16 @@ export async function updateActivityAction(
   const classLevelId = String(formData.get('classLevelId') ?? '').trim();
   body.classLevelId = classLevelId === '' ? null : classLevelId;
 
-  const bookId = String(formData.get('bookId') ?? '').trim();
-  body.bookId = bookId === '' ? null : bookId;
+  const allBooks = formData.get('allBooks') === 'true';
+  body.allBooks = allBooks;
+  body.bookIds = allBooks ? [] : formData.getAll('bookIds').map(String).filter(Boolean);
 
-  const chapterId = String(formData.get('chapterId') ?? '').trim();
-  body.chapterId = chapterId === '' ? null : chapterId;
+  // Only offered when the page is in exactly one book, so an absent field
+  // means "not applicable" rather than "clear it".
+  if (formData.has('chapterId')) {
+    const chapterId = String(formData.get('chapterId') ?? '').trim();
+    body.chapterId = chapterId === '' ? null : chapterId;
+  }
 
   if (raw !== '') {
     const { content, error } = readContent(raw);

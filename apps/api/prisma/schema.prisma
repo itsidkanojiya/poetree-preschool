@@ -1504,7 +1504,7 @@ model Book {
 
   classLevel ClassLevel          @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
   cover      FileObject?         @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
-  activities LearningActivity[]
+  activities ActivityBook[]
   chapters   Chapter[]
   schools    SchoolBook[]
   views      BookAnimationView[]
@@ -1589,12 +1589,18 @@ model LearningActivity {
   type         ActivityType
   skillId      String
   classLevelId String?
-  /// The book this question type is a page of.
-  bookId       String?
-  /// And the chapter within it. Kept alongside `bookId` rather than derived
-  /// from it because entitlement filters on the book on every catalogue read;
-  /// the two are checked against each other on write.
+  /// The chapter it is filed under, when it is filed under one.
+  ///
+  /// A chapter belongs to exactly one book, so this only means anything for a
+  /// page that lives in a single book. A page shared across books sits outside
+  /// the contents pages of all of them.
   chapterId    String?
+  /// Every book, including ones added later.
+  ///
+  /// A standing rule rather than a list ticked once: a warm-up page that
+  /// belongs in everything should still belong in the book written next March,
+  /// without somebody remembering to come back and add it.
+  allBooks     Boolean      @default(false)
   /// The activity definition the app renders — letters to trace, pairs to
   /// match. Shape varies by type, which is why it is JSON rather than columns.
   contentJson  Json?
@@ -1603,7 +1609,7 @@ model LearningActivity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  book       Book?              @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  books      ActivityBook[]
   skill      Skill              @relation(fields: [skillId], references: [id], onDelete: Restrict)
   classLevel ClassLevel?        @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
   attempts   ActivityAttempt[]
@@ -1612,10 +1618,31 @@ model LearningActivity {
   chapter    Chapter?           @relation(fields: [chapterId], references: [id])
 
   @@index([skillId])
-  @@index([bookId])
   @@index([chapterId])
   @@index([classLevelId, isActive])
   @@map("learning_activities")
+}
+
+/// Which books a question type is a page of.
+///
+/// Was a single column on the activity. A page is often the same in three
+/// books — the same "trace the letter A" belongs in Nursery English and in the
+/// phonics book — and copying it three times meant three rows to fix when the
+/// wording changed, and three separate sets of attempts for what a child
+/// experienced as one page.
+model ActivityBook {
+  activityId String
+  bookId     String
+  sortOrder  Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  activity LearningActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  book     Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, bookId])
+  @@index([bookId])
+  @@map("activity_books")
 }
 
 /// One go at an activity. The source of truth for everything below it.

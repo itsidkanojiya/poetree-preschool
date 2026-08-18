@@ -154,13 +154,17 @@ export async function listAllQuestions(query: {
    * two separate ones would silently replace each other.
    */
   const activity: Prisma.LearningActivityWhereInput = {
-    ...(query.bookId ? { bookId: query.bookId } : {}),
+    ...(query.bookId
+      ? { OR: [{ books: { some: { bookId: query.bookId } } }, { allBooks: true }] }
+      : {}),
     ...(query.chapterId ? { chapterId: query.chapterId } : {}),
     ...(query.type ? { type: query.type as never } : {}),
     // By the standard the *book* is for, not the activity's own level: a
     // standard is something a book belongs to, and that is how somebody
     // filtering by "Nursery" is thinking.
-    ...(query.classLevelId ? { book: { classLevelId: query.classLevelId } } : {}),
+    ...(query.classLevelId
+      ? { books: { some: { book: { classLevelId: query.classLevelId } } } }
+      : {}),
   };
 
   const where: Prisma.ActivityQuestionWhereInput = {
@@ -180,7 +184,7 @@ export async function listAllQuestions(query: {
             id: true,
             title: true,
             type: true,
-            book: { select: { id: true, name: true } },
+            books: { include: { book: { select: { id: true, name: true } } } },
             chapter: { select: { id: true, name: true } },
           },
         },
@@ -196,7 +200,8 @@ export async function listAllQuestions(query: {
     items: rows.map((row) => ({
       ...toRow(row, row.activity.type),
       activity: { id: row.activity.id, title: row.activity.title, type: row.activity.type },
-      book: row.activity.book,
+      // The first book it is a page of, which for most is the only one.
+      book: row.activity.books[0]?.book ?? null,
       chapter: row.activity.chapter,
     })),
     total,
@@ -224,7 +229,7 @@ export async function getQuestion(questionId: string): Promise<QuestionWithConte
           id: true,
           title: true,
           type: true,
-          book: { select: { id: true, name: true } },
+          books: { include: { book: { select: { id: true, name: true } } } },
           chapter: { select: { id: true, name: true } },
         },
       },
@@ -235,7 +240,7 @@ export async function getQuestion(questionId: string): Promise<QuestionWithConte
   return {
     ...toRow(row, row.activity.type),
     activity: { id: row.activity.id, title: row.activity.title, type: row.activity.type },
-    book: row.activity.book,
+    book: row.activity.books[0]?.book ?? null,
     chapter: row.activity.chapter,
   };
 }

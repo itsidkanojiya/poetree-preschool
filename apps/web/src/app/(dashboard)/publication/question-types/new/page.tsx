@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { ChapterOption } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
@@ -27,11 +26,12 @@ interface BookOption {
 }
 
 export default async function NewActivityPage() {
-  const [skills, classLevels, books, chapters] = await Promise.all([
+  // No chapters: a chapter belongs to one book, so it means nothing for a page
+  // that can be in several. It is set on the book's own contents page.
+  const [skills, classLevels, books] = await Promise.all([
     apiFetch<Skill[]>('/publication/skills'),
     apiFetch<ClassLevel[]>('/publication/class-levels'),
     apiFetch<BookOption[]>('/publication/books'),
-    apiFetch<ChapterOption[]>('/publication/chapters'),
   ]);
 
   return (
@@ -51,12 +51,7 @@ export default async function NewActivityPage() {
       />
       <div className="max-w-3xl">
         <Card>
-          <NewActivityForm
-            skills={skills}
-            classLevels={classLevels}
-            books={books}
-            chapters={chapters}
-          />
+          <NewActivityForm skills={skills} classLevels={classLevels} books={books} />
         </Card>
       </div>
     </>

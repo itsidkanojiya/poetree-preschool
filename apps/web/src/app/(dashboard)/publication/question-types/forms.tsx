@@ -46,44 +46,93 @@ interface ChapterOption {
  * to the other field, and a chapter from the wrong book is refused on save
  * with a message that says so.
  */
-function PlacementFields({
+/**
+ * Which books this page is in.
+ *
+ * A single dropdown, because a page belonged to one book. The same "trace the
+ * letter A" is a page of the phonics book and of Nursery English, and the only
+ * way to say so was to write it twice — two rows to fix when the wording
+ * changed, and a child's practice split across two of them.
+ *
+ * Chapters are not here. A chapter belongs to one book, so it cannot mean
+ * anything for a page in three; it is set on the book's own contents page,
+ * where the book is known.
+ */
+function BookPicker({
   books,
-  chapters,
-  book,
-  chapter,
+  selected,
+  everyBook,
 }: {
   books: BookOption[];
-  chapters: ChapterOption[];
-  book?: string | null;
-  chapter?: string | null;
+  selected?: string[];
+  everyBook?: boolean;
 }) {
-  return (
-    <FieldSet>
-      <Field
-        label="Book"
-        hint="A question type with no book reaches nobody — schools are given books."
-      >
-        <Select name="bookId" defaultValue={book ?? ''}>
-          <option value="">Not in a book yet</option>
-          {books.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.classLevel.name} · {option.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
+  const [all, setAll] = useState(everyBook ?? false);
+  const chosen = new Set(selected ?? []);
 
-      <Field label="Chapter" hint="Optional. Must belong to the book above.">
-        <Select name="chapterId" defaultValue={chapter ?? ''}>
-          <option value="">Not in a chapter</option>
-          {chapters.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.bookName} · {option.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-    </FieldSet>
+  // Grouped by standard, which is how a publisher thinks about their shelf.
+  const byLevel = new Map<string, BookOption[]>();
+  for (const book of books) {
+    const key = book.classLevel.name;
+    byLevel.set(key, [...(byLevel.get(key) ?? []), book]);
+  }
+
+  return (
+    <Field
+      label="Books"
+      hint="A question type in no book reaches nobody — schools are given books, not loose pages."
+    >
+      <label className="mb-3 flex items-start gap-2.5 rounded-xl bg-navy-50/60 p-3 text-sm text-navy-950 ring-1 ring-navy-950/[0.06]">
+        <input
+          type="checkbox"
+          name="allBooks"
+          value="true"
+          checked={all}
+          onChange={(event) => setAll(event.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-navy-300 text-navy-900"
+        />
+        <span>
+          <span className="font-medium">Every book</span>
+          <span className="mt-0.5 block text-xs text-slate-600">
+            Including books added later. A warm-up page that belongs everywhere stays in the book
+            written next March without anybody coming back for it.
+          </span>
+        </span>
+      </label>
+
+      {!all && (
+        <div className="space-y-3">
+          {books.length === 0 ? (
+            <p className="text-sm text-slate-500">No books yet. Add one first.</p>
+          ) : (
+            [...byLevel.entries()].map(([level, group]) => (
+              <div key={level}>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  {level}
+                </p>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {group.map((book) => (
+                    <label
+                      key={book.id}
+                      className="flex items-center gap-2.5 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        name="bookIds"
+                        value={book.id}
+                        defaultChecked={chosen.has(book.id)}
+                        className="h-4 w-4 rounded border-navy-300 text-navy-900"
+                      />
+                      {book.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </Field>
   );
 }
 
@@ -91,12 +140,10 @@ export function NewActivityForm({
   skills,
   classLevels,
   books,
-  chapters,
 }: {
   skills: Option[];
   classLevels: Option[];
   books: BookOption[];
-  chapters: ChapterOption[];
 }) {
   const [state, formAction] = useActionState<ActivityState, FormData>(createActivityAction, {});
   const [type, setType] = useState<string>('SINGLE_CHOICE');
@@ -143,7 +190,7 @@ export function NewActivityForm({
         </Field>
       </FieldSet>
 
-      <PlacementFields books={books} chapters={chapters} />
+      <BookPicker books={books} />
 
       <Field label="Class level" hint="Leave blank to offer it to every level.">
         <Select name="classLevelId" defaultValue="">
@@ -220,12 +267,29 @@ export function EditActivityForm({
         </Field>
       </FieldSet>
 
-      <PlacementFields
+      <BookPicker
         books={books}
-        chapters={chapters}
-        book={activity.book?.id}
-        chapter={activity.chapter?.id}
+        selected={activity.books.map((book) => book.id)}
+        everyBook={activity.allBooks}
       />
+
+      {/* Filing into a chapter needs a book to file it in, and a chapter
+          belongs to one book. Said here rather than silently dropping the
+          field, because the contents page is where somebody looks for it. */}
+      {activity.books.length === 1 && (
+        <Field label="Chapter" hint="Where it sits in that book's contents page.">
+          <Select name="chapterId" defaultValue={activity.chapter?.id ?? ''}>
+            <option value="">Not in a chapter</option>
+            {chapters
+              .filter((option) => option.bookId === activity.books[0]!.id)
+              .map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+      )}
 
       <RawContentField value={draft} onChange={setDraft} />
 

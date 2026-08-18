@@ -85,7 +85,7 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
           title: `Count with ${code}`,
           type: 'COUNTING',
           skillId: skill.id,
-          bookId,
+          bookIds: [bookId],
           classLevelId: nursery.id,
           content: COUNTING,
         });

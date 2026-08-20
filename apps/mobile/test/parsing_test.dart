@@ -393,18 +393,19 @@ void _shelfTests() {
     expect(book.hasAnimation, isFalse);
   });
 
-  test('a book is locked only when there is a film to watch', () {
+  test('a book shows a badge only when a film inside is unwatched', () {
+    // The film belongs to a chapter now; the shelf only says there is one
+    // waiting somewhere inside.
     final locked = ShelfBook.fromJson({
       'id': 'bk_3',
       'name': 'Numbers',
-      'animation': {'videoId': 'dQw4w9WgXcQ'},
+      'filmsToWatch': 2,
       'isUnlocked': false,
     });
     expect(locked.hasAnimation, isTrue);
     expect(locked.isUnlocked, isFalse);
 
-    // No animation at all: nothing was ever withheld, so the shelf must not
-    // draw a play badge on it.
+    // Nothing left to watch: nothing is being withheld, so no badge.
     final open = ShelfBook.fromJson({'id': 'bk_4', 'name': 'Rhymes'});
     expect(open.hasAnimation, isFalse);
     expect(open.isUnlocked, isTrue);

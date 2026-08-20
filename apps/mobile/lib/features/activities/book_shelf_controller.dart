@@ -12,13 +12,12 @@ class ShelfBook {
     required this.name,
     required this.levelName,
     required this.isUnlocked,
+    required this.filmsToWatch,
     this.coverPath,
-    this.videoId,
   });
 
   factory ShelfBook.fromJson(Map<String, dynamic> json) {
     final cover = json['coverUrl'] as String?;
-    final animation = json['animation'] as Map<String, dynamic>?;
     final level = json['classLevel'] as Map<String, dynamic>?;
 
     return ShelfBook(
@@ -31,7 +30,7 @@ class ShelfBook {
       coverPath: cover == null || cover.isEmpty
           ? null
           : cover.replaceFirst('/api/v1', ''),
-      videoId: animation?['videoId'] as String?,
+      filmsToWatch: (json['filmsToWatch'] as num?)?.toInt() ?? 0,
       isUnlocked: json['isUnlocked'] as bool? ?? true,
     );
   }
@@ -44,12 +43,15 @@ class ShelfBook {
   /// with the book's name instead, rather than a broken square.
   final String? coverPath;
 
-  /// The film that opens this book. Null when it has none, in which case the
-  /// book was never locked.
-  final String? videoId;
   final bool isUnlocked;
 
-  bool get hasAnimation => videoId != null;
+  /// Films inside this book that are still to watch.
+  ///
+  /// The badge is about the book — "there is something to watch in here" — and
+  /// the watching itself happens chapter by chapter once they are inside.
+  final int filmsToWatch;
+
+  bool get hasAnimation => filmsToWatch > 0;
 }
 
 /// The books this child's school has bought.

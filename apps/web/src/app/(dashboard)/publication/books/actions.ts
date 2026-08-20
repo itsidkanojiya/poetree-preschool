@@ -28,7 +28,6 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
         // No code: the API derives one from the standard and the name.
         name: String(formData.get('name') ?? '').trim(),
         classLevelId: String(formData.get('classLevelId') ?? ''),
-        animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
         coverFileId,
       },
     });
@@ -36,10 +35,45 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
     return { error: errorMessage(error, 'Could not add the book.') };
   }
 
+  /**
+   * The chapters typed alongside the book, in the order they were typed.
+   *
+   * Sequentially rather than in parallel: sortOrder is assigned by the API from
+   * what is already there, so two at once would race for the same position.
+   * There are three or four of these, not three hundred.
+   */
+  const names = formData.getAll('chapterName').map(String);
+  const numbers = formData.getAll('chapterNumber').map(String);
+  const films = formData.getAll('chapterAnimation').map(String);
+
+  for (const [index, name] of names.entries()) {
+    if (name.trim() === '') continue;
+
+    const number = Number(numbers[index] ?? '');
+    const film = (films[index] ?? '').trim();
+
+    try {
+      await apiFetch(`/publication/books/${created.id}/chapters`, {
+        method: 'POST',
+        redirectOnAuthFailure: false,
+        body: {
+          name: name.trim(),
+          number: Number.isFinite(number) && numbers[index] !== '' ? number : null,
+          animationUrl: film === '' ? null : film,
+        },
+      });
+    } catch (error) {
+      // The book exists; say which chapter did not, rather than losing both.
+      return {
+        error: `The book was added, but “${name.trim()}” was not: ${errorMessage(error, 'unknown reason')}`,
+      };
+    }
+  }
+
   revalidatePath('/publication/books');
-  // Straight to the book, which is where its chapters are written — and where
-  // the surprising half of the rule is visible: a new book is switched off at
-  // every school until somebody sells it.
+  // Straight to the book, which is where the rest of its chapters are written —
+  // and where the surprising half of the rule is visible: a new book is
+  // switched off at every school until somebody sells it.
   redirect(`/publication/books/${created.id}`);
 }
 
@@ -54,7 +88,6 @@ export async function renameBookAction(
       redirectOnAuthFailure: false,
       body: {
         name: String(formData.get('name') ?? '').trim(),
-        animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
       },
     });
   } catch (error) {

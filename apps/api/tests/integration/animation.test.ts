@@ -19,13 +19,15 @@ const COUNTING = {
   ],
 };
 
-describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
+describe.skipIf(!dbUp)('watch the film, then the chapter opens', () => {
   let baseline: Baseline;
   let school: TestSchool;
   let publisher: Session;
   let parent: Session;
   let skillId: string;
   let lockedBookId: string;
+  let lockedChapterId: string;
+  let openChapterId: string;
   let openBookId: string;
   let lockedActivityId: string;
   let openActivityId: string;
@@ -49,21 +51,28 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
     const withFilm = await api
       .post(`${BASE}/publication/books`)
       .set(auth(publisher))
-      .send({
-        code: 'NUR_EVS',
-        name: 'EVS Book',
-        classLevelId: nursery.id,
-        animationUrl: 'https://youtu.be/dQw4w9WgXcQ?t=5',
-      });
+      .send({ code: 'NUR_EVS', name: 'EVS Book', classLevelId: nursery.id });
     lockedBookId = withFilm.body.id as string;
+
+    const filmed = await api
+      .post(`${BASE}/publication/books/${lockedBookId}/chapters`)
+      .set(auth(publisher))
+      .send({ name: 'Leaves', animationUrl: 'https://youtu.be/dQw4w9WgXcQ?t=5' });
+    lockedChapterId = filmed.body.id as string;
     // Stored as pasted, served with the id a player needs.
-    expect(withFilm.body.animation.videoId).toBe('dQw4w9WgXcQ');
+    expect(filmed.body.animation.videoId).toBe('dQw4w9WgXcQ');
 
     const without = await api
       .post(`${BASE}/publication/books`)
       .set(auth(publisher))
       .send({ code: 'NUR_ENG', name: 'English Book', classLevelId: nursery.id });
     openBookId = without.body.id as string;
+
+    const unfilmed = await api
+      .post(`${BASE}/publication/books/${openBookId}/chapters`)
+      .set(auth(publisher))
+      .send({ name: 'Letters' });
+    openChapterId = unfilmed.body.id as string;
 
     await api
       .put(`${BASE}/publication/schools/${school.id}/books`)
@@ -75,9 +84,9 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
         ],
       });
 
-    for (const [code, bookId] of [
-      ['COUNT_LEAVES', lockedBookId],
-      ['COUNT_LETTERS', openBookId],
+    for (const [code, bookId, chapterId] of [
+      ['COUNT_LEAVES', lockedBookId, lockedChapterId],
+      ['COUNT_LETTERS', openBookId, openChapterId],
     ] as const) {
       const activity = await api
         .post(`${BASE}/publication/activities`)
@@ -88,6 +97,7 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
           type: 'COUNTING',
           skillId: skill.id,
           bookIds: [bookId],
+          chapterId,
           classLevelId: nursery.id,
           content: COUNTING,
         });
@@ -102,21 +112,16 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
 
   it('refuses a link that is not a YouTube video', async () => {
     const bad = await api
-      .post(`${BASE}/publication/books`)
+      .post(`${BASE}/publication/books/${lockedBookId}/chapters`)
       .set(auth(publisher))
-      .send({
-        code: 'NUR_BAD',
-        name: 'Broken',
-        classLevelId: (await prismaUnscoped.classLevel.findFirstOrThrow()).id,
-        animationUrl: 'https://vimeo.com/12345678',
-      });
+      .send({ name: 'Broken', animationUrl: 'https://vimeo.com/12345678' });
 
-    // A book whose animation will not play is a book whose activities never
-    // open, and nobody would find out until a child sat in front of it.
+    // A chapter whose film will not play is a chapter whose pages never open,
+    // and nobody would find out until a child sat in front of it.
     expect(bad.status).toBe(400);
   });
 
-  it('locks a book with a film and leaves one without it open', async () => {
+  it('says which books have a film waiting inside them', async () => {
     const shelf = await api
       .get(`${BASE}/catalogue/children/${school.studentId}/books`)
       .set(auth(parent));
@@ -126,10 +131,22 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
     const open = shelf.body.find((b: { id: string }) => b.id === openBookId);
 
     expect(locked.isUnlocked).toBe(false);
-    expect(locked.animation.videoId).toBe('dQw4w9WgXcQ');
-    // A book with no film does not lock itself — most of the catalogue has none.
+    expect(locked.filmsToWatch).toBe(1);
+    // A book whose chapters have no film does not lock itself — most of the
+    // catalogue has none.
     expect(open.isUnlocked).toBe(true);
-    expect(open.animation).toBeNull();
+    expect(open.filmsToWatch).toBe(0);
+  });
+
+  it('gives the app each chapter with its film', async () => {
+    const chapters = await api
+      .get(`${BASE}/catalogue/children/${school.studentId}/books/${lockedBookId}/chapters`)
+      .set(auth(parent));
+
+    expect(chapters.status).toBe(200);
+    const chapter = chapters.body.find((c: { id: string }) => c.id === lockedChapterId);
+    expect(chapter.animation.videoId).toBe('dQw4w9WgXcQ');
+    expect(chapter.isUnlocked).toBe(false);
   });
 
   it('still lists the locked activity rather than hiding it', async () => {
@@ -150,7 +167,7 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
 
   it('opens the book once the child has watched it', async () => {
     const watched = await api
-      .post(`${BASE}/catalogue/books/${lockedBookId}/watched`)
+      .post(`${BASE}/catalogue/chapters/${lockedChapterId}/watched`)
       .set(auth(parent))
       .send({ studentId: school.studentId });
 
@@ -167,14 +184,14 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
 
   it('stays open, and records the watch only once', async () => {
     await api
-      .post(`${BASE}/catalogue/books/${lockedBookId}/watched`)
+      .post(`${BASE}/catalogue/chapters/${lockedChapterId}/watched`)
       .set(auth(parent))
       .send({ studentId: school.studentId });
 
     // Watched is watched. A child replaying it has not watched it twice, and a
     // flaky connection retrying must not write a second row.
-    const rows = await prismaUnscoped.bookAnimationView.count({
-      where: { studentId: school.studentId, bookId: lockedBookId },
+    const rows = await prismaUnscoped.chapterAnimationView.count({
+      where: { studentId: school.studentId, chapterId: lockedChapterId },
     });
     expect(rows).toBe(1);
   });
@@ -191,33 +208,30 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
     });
 
     const response = await api
-      .post(`${BASE}/catalogue/books/${lockedBookId}/watched`)
+      .post(`${BASE}/catalogue/chapters/${lockedChapterId}/watched`)
       .set(auth(parent))
       .send({ studentId: other.id });
 
     // Same school, same book — every filter passes except the guardian link.
     expect(response.status).toBe(404);
   });
-  it('locks an every-book page behind the film of the book it was opened from', async () => {
-    // A page that belongs in every book has no link row to read a book from, so
-    // it arrived saying it was in no book — and a page in no book is never
-    // locked. It would have been the one way past the film.
+  it('leaves an every-book page open, because it is in no chapter', async () => {
+    /**
+     * Films gate chapters now, not books.
+     *
+     * A page that belongs in every book belongs to no chapter of any of them,
+     * so nothing stands in front of it — which is the right answer for a
+     * warm-up page that belongs everywhere, and a change from when the film
+     * belonged to the book and gated everything inside it.
+     */
     const everywhere = await api
       .post(`${BASE}/publication/activities`)
       .set(auth(publisher))
-      .send({
-        title: 'Warm up',
-        type: 'FLASHCARD',
-        skillId,
-        allBooks: true,
-        bookIds: [],
-      });
+      .send({ title: 'Warm up', type: 'FLASHCARD', skillId, allBooks: true, bookIds: [] });
     expect(everywhere.status).toBe(201);
 
-    // An earlier test in this file watches the film, so put the book back to
-    // locked — the state this is about.
-    await prismaUnscoped.bookAnimationView.deleteMany({
-      where: { studentId: school.studentId, bookId: lockedBookId },
+    await prismaUnscoped.chapterAnimationView.deleteMany({
+      where: { studentId: school.studentId, chapterId: lockedChapterId },
     });
 
     const offered = await api
@@ -228,6 +242,10 @@ describe.skipIf(!dbUp)('watch the animation, then the book opens', () => {
     const row = offered.body.find((item: { id: string }) => item.id === everywhere.body.id);
     expect(row).toBeDefined();
     expect(row.book.id).toBe(lockedBookId);
-    expect(row.isLocked).toBe(true);
+    expect(row.isLocked).toBe(false);
+
+    // While the page that IS in the filmed chapter stays shut.
+    const gated = offered.body.find((item: { id: string }) => item.id === lockedActivityId);
+    expect(gated.isLocked).toBe(true);
   });
 });

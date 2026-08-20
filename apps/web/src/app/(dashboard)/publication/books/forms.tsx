@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import type { BookSummary, SchoolBookRow, StandardSummary } from '@poetree/shared';
 import {
   Field,
@@ -21,6 +21,73 @@ import {
   setSchoolBooksAction,
   type BookState,
 } from './actions';
+
+/**
+ * Chapters, named while the book is being made.
+ *
+ * A book with no contents page is a shelf of loose sheets, and adding them
+ * afterwards meant saving, finding the book again, and typing into a different
+ * screen. Three empty rows because that is roughly what a preschool workbook
+ * has; blank ones are ignored, and more can be added on the book's own page.
+ *
+ * Each row takes its own film. The film belongs to the chapter — a chapter is
+ * what a book is divided into, and one video standing in for everything between
+ * two covers was never how a workbook is taught.
+ */
+function ChapterRows() {
+  const [rows, setRows] = useState(3);
+
+  return (
+    <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-navy-950/[0.06]">
+      <p className="text-sm font-medium text-navy-950">Chapters</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        Optional, and easy to change later. A film plays before that chapter&apos;s pages open.
+      </p>
+
+      <div className="mt-3 space-y-2">
+        {Array.from({ length: rows }, (_, index) => (
+          <div key={index} className="flex flex-wrap items-center gap-2">
+            <span className="w-14">
+              <Input
+                name="chapterNumber"
+                type="number"
+                min={0}
+                max={999}
+                placeholder="No."
+                className="px-2 py-1.5 text-center text-sm"
+                aria-label={`Number of chapter ${index + 1}`}
+              />
+            </span>
+            <span className="w-52">
+              <Input
+                name="chapterName"
+                placeholder={index === 0 ? 'Letters A to E' : 'Chapter name'}
+                className="py-1.5 text-sm"
+                aria-label={`Name of chapter ${index + 1}`}
+              />
+            </span>
+            <span className="min-w-[12rem] flex-1">
+              <Input
+                name="chapterAnimation"
+                placeholder="Film — https://youtu.be/… (optional)"
+                className="py-1.5 text-sm"
+                aria-label={`Film for chapter ${index + 1}`}
+              />
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setRows((count) => count + 1)}
+        className="mt-3 rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+      >
+        One more chapter
+      </button>
+    </div>
+  );
+}
 
 export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
   const [state, formAction] = useActionState<BookState, FormData>(createBookAction, {});
@@ -53,12 +120,7 @@ export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
         </Field>
       </FieldSet>
 
-      <Field
-        label="Animation"
-        hint="A YouTube link. The child watches this once and the book's activities open. Leave blank and they are open from the start."
-      >
-        <Input name="animationUrl" placeholder="https://youtu.be/…" />
-      </Field>
+      <ChapterRows />
 
       <Field
         label="Cover"
@@ -98,17 +160,6 @@ export function BookDetailsForm({ book }: { book: BookSummary }) {
           <Input value={book.classLevel.name} disabled readOnly />
         </Field>
       </FieldSet>
-
-      <Field
-        label="Animation"
-        hint="A YouTube link. The child watches it once and the book opens. Leave it blank and the book is open from the start."
-      >
-        <Input
-          name="animationUrl"
-          defaultValue={book.animation?.url ?? ''}
-          placeholder="https://youtu.be/…"
-        />
-      </Field>
 
       <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
     </form>

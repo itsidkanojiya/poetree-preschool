@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { idSchema } from './common.js';
+import { youTubeUrlSchema, type BookAnimation } from './animation.js';
 
 /**
  * A chapter — a section of a book.
@@ -11,6 +12,14 @@ import { idSchema } from './common.js';
 
 export const createChapterSchema = z.object({
   name: z.string().trim().min(1).max(160),
+  /**
+   * The film a child watches before this chapter's pages open.
+   *
+   * On the chapter rather than the book: a chapter is what a book is divided
+   * into, and one video standing in for everything between two covers was
+   * never how a workbook is taught.
+   */
+  animationUrl: youTubeUrlSchema.nullish(),
   /**
    * What is printed on the page, which is not the order it sits in: a book can
    * open with "Chapter 0: Getting ready", and some have none at all.
@@ -42,6 +51,8 @@ export interface ChapterSummary {
   bookId: string;
   name: string;
   number: number | null;
+  /** Null when there is no film, in which case the chapter is open from the start. */
+  animation: BookAnimation | null;
   sortOrder: number;
   isActive: boolean;
   /** Question types filed under it. */

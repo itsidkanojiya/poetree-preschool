@@ -293,7 +293,7 @@ model School {
   publication              Publication               @relation(fields: [publicationId], references: [id], onDelete: Restrict)
   logoFile                 FileObject?               @relation("SchoolLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
   books                    SchoolBook[]
-  animationViews           BookAnimationView[]
+  animationViews           ChapterAnimationView[]
   users                    User[]
   teacherProfiles          TeacherProfile[]
   parentProfiles           ParentProfile[]
@@ -576,7 +576,7 @@ model Student {
   attendanceRecords   AttendanceRecord[]
   homeworkSubmissions HomeworkSubmission[]
   activityAttempts    ActivityAttempt[]
-  animationViews      BookAnimationView[]
+  animationViews      ChapterAnimationView[]
   skillProgress       StudentSkillProgress[]
   feeConcessions      FeeConcession[]
   feeInvoices         FeeInvoice[]
@@ -1493,10 +1493,6 @@ model Book {
   classLevelId String
   sortOrder    Int     @default(0)
   coverFileId  String? @db.VarChar(191)
-  /// The animation a child watches before this book's activities open. A
-  /// YouTube link, because these are minutes of video and this box has two
-  /// cores and no CDN.
-  animationUrl String? @db.VarChar(500)
   isActive     Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -1507,7 +1503,6 @@ model Book {
   activities ActivityBook[]
   chapters   Chapter[]
   schools    SchoolBook[]
-  views      BookAnimationView[]
 
   @@index([classLevelId, sortOrder])
   @@map("books")
@@ -1546,20 +1541,21 @@ model SchoolBook {
 /// Written once, the first time they reach the end. Watched is watched: a
 /// four-year-old coming back to finish the questions should not have to sit
 /// through the video again, and a parent would skip it for them anyway.
-model BookAnimationView {
+/// That a child has watched a chapter's film, which is what opens its pages.
+model ChapterAnimationView {
   id        String   @id @default(cuid())
   schoolId  String
   studentId String
-  bookId    String
+  chapterId String
   watchedAt DateTime @default(now())
 
   school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  book    Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, bookId])
+  @@unique([studentId, chapterId])
   @@index([schoolId, studentId])
-  @@map("book_animation_views")
+  @@map("chapter_animation_views")
 }
 
 model Chapter {
@@ -1570,13 +1566,20 @@ model Chapter {
   /// "Chapter 0: Getting ready".
   number    Int?
   sortOrder Int     @default(0)
+  /// The film a child watches before this chapter's pages open.
+  ///
+  /// A chapter is what a book is actually divided into — "we're on chapter
+  /// three" — so it is the unit a film introduces. One film for a whole book
+  /// meant a single video standing in for everything between two covers.
+  animationUrl String? @db.VarChar(500)
   isActive  Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  book       Book               @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book       Book                   @relation(fields: [bookId], references: [id], onDelete: Cascade)
   activities LearningActivity[]
+  views      ChapterAnimationView[]
 
   @@index([bookId, sortOrder])
   @@map("chapters")

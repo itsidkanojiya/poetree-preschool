@@ -4,7 +4,7 @@ import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds } from './scope.service.js';
 import { closeHomeworkForActivity } from './homework.service.js';
 import { composeContent, upconvertStoredContent } from './question.service.js';
-import { lockedBookIdsFor } from './book.service.js';
+import { lockedChapterIdsFor } from './book.service.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -373,13 +373,13 @@ export async function listActivities(options?: {
   });
 
   /**
-   * Which books this child still has to watch.
+   * Which chapters this child still has to watch.
    *
-   * Locked activities are returned rather than hidden. A book that vanished
-   * until a video had been watched would look like a book with nothing in it,
-   * and the child would never find the video that opens it.
+   * Locked pages are returned rather than hidden. A chapter that vanished until
+   * a video had been watched would look like a chapter with nothing in it, and
+   * the child would never find the film that opens it.
    */
-  const locked = options?.studentId ? await lockedBookIdsFor(options.studentId) : new Set<string>();
+  const locked = options?.studentId ? await lockedChapterIdsFor(options.studentId) : new Set<string>();
 
   /**
    * The book the child opened, for pages that belong to every book.
@@ -415,7 +415,7 @@ export async function listActivities(options?: {
       return {
       ...row,
       book,
-      isLocked: book !== null && locked.has(book.id),
+      isLocked: row.chapterId !== null && locked.has(row.chapterId),
       contentJson:
         (await composeContent({ id: row.id, type: row.type })) ??
         upconvertStoredContent(row.contentJson),

@@ -33,24 +33,29 @@ class ActivityListView extends GetView<ActivityListController> {
       body: Obx(() {
         final playable = controller.playable;
 
-        // Book first, then the chapter within it — the two things printed on
-        // the cover and the contents page, which is what a family recognises.
-        final byBook = <String, List<ActivityDefinition>>{};
+        // By chapter, which is what a book is divided into and what a film
+        // now introduces. The id travels with the heading so the film can sit
+        // above exactly the pages it opens.
+        final groups =
+            <({String id, String title}), List<ActivityDefinition>>{};
         for (final activity in playable) {
           final book = activity.bookName.isNotEmpty
               ? activity.bookName
               : activity.skillName;
+
           // Inside one book the app bar already says which book it is, so the
           // heading is the chapter alone. Across the whole shelf it has to
           // carry both or the chapters run together.
-          final heading = controller.bookId != null
+          final title = controller.bookId != null
               ? (activity.chapterName.isEmpty
                     ? 'In this book'
                     : activity.chapterName)
               : (activity.chapterName.isEmpty
                     ? book
                     : '$book · ${activity.chapterName}');
-          byBook.putIfAbsent(heading, () => []).add(activity);
+
+          final key = (id: activity.chapterId, title: title);
+          groups.putIfAbsent(key, () => []).add(activity);
         }
 
         return AsyncView(
@@ -64,25 +69,27 @@ class ActivityListView extends GetView<ActivityListController> {
           builder: (context) => ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              // The film first, which is the order the book is meant to be
-              // used in. Before this it was only met by tapping something
-              // locked, which is a strange way to be introduced to it.
-              if (controller.pendingAnimation != null)
-                _WatchFirstCard(
-                  title: controller.pendingAnimation!.bookName,
-                  onPlay: () =>
-                      controller.playAnimation(context, controller.bookId!),
-                ),
-              for (final entry in byBook.entries) ...[
+              for (final entry in groups.entries) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
                   child: Text(
-                    entry.key,
+                    entry.key.title,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
                   ),
                 ),
+
+                // The chapter's film, above the pages it opens — which is the
+                // order the chapter is meant to be used in. Before this it was
+                // only met by tapping something locked, which is a strange way
+                // to be introduced to it.
+                if (controller.animations[entry.key.id] != null)
+                  _WatchFirstCard(
+                    title: controller.animations[entry.key.id]!.chapterName,
+                    onPlay: () =>
+                        controller.playAnimation(context, entry.key.id),
+                  ),
                 ...entry.value.map(
                   (activity) => Card(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -190,7 +197,7 @@ class _WatchFirstCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'The film for $title. Everything below opens after it.',
+                        'The film for $title. The pages below open after it.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colors.onPrimaryContainer,
                         ),

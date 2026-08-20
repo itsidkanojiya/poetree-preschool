@@ -48,7 +48,6 @@ function toSummary(row: BookRow, enabledSchools: number): BookSummary {
     sortOrder: row.sortOrder,
     isActive: row.isActive,
     coverUrl: row.coverFileId ? `/api/v1/catalogue/assets/${row.coverFileId}` : null,
-    animation: toAnimation(row.animationUrl),
     activityCount: row._count.activities,
     schoolCount: enabledSchools,
   };
@@ -121,7 +120,6 @@ export async function createBook(
       classLevelId: input.classLevelId,
       sortOrder: input.sortOrder ?? (last?.sortOrder ?? 0) + 1,
       coverFileId: input.coverFileId ?? null,
-      animationUrl: input.animationUrl ?? null,
       isActive: input.isActive ?? true,
     },
     include: bookInclude,
@@ -171,7 +169,6 @@ export async function updateBook(
       classLevelId: input.classLevelId,
       sortOrder: input.sortOrder,
       coverFileId: input.coverFileId,
-      animationUrl: input.animationUrl,
       isActive: input.isActive,
     },
   });
@@ -378,38 +375,102 @@ export async function booksForChild(studentId: string): Promise<BookForChild[]> 
       include: { classLevel: { select: { id: true, name: true } } },
       orderBy: [{ classLevel: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     }),
-    prismaUnscoped.bookAnimationView.findMany({
+    prismaUnscoped.chapterAnimationView.findMany({
       where: { studentId },
-      select: { bookId: true },
+      select: { chapterId: true },
     }),
   ]);
 
-  const seen = new Set(watched.map((row) => row.bookId));
+  const seen = new Set(watched.map((row) => row.chapterId));
+
+  /**
+   * The films inside each book, so the shelf can say a book has one waiting.
+   *
+   * The badge is about the book — "there is something to watch in here" — while
+   * the watching itself happens per chapter, once the child is inside.
+   */
+  const chapters = await prismaUnscoped.chapter.findMany({
+    where: {
+      bookId: { in: books.map((book) => book.id) },
+      isActive: true,
+      animationUrl: { not: null },
+    },
+    select: { id: true, bookId: true },
+  });
+
+  const filmsByBook = new Map<string, string[]>();
+  for (const chapter of chapters) {
+    filmsByBook.set(chapter.bookId, [...(filmsByBook.get(chapter.bookId) ?? []), chapter.id]);
+  }
 
   return books.map((book) => {
-    const animation = toAnimation(book.animationUrl);
+    const films = filmsByBook.get(book.id) ?? [];
     return {
       id: book.id,
       name: book.name,
       classLevel: book.classLevel,
       coverUrl: book.coverFileId ? `/api/v1/catalogue/assets/${book.coverFileId}` : null,
-      animation,
-      isUnlocked: animation === null || seen.has(book.id),
+      /** How many films inside are still to watch. Zero means nothing waiting. */
+      filmsToWatch: films.filter((id) => !seen.has(id)).length,
+      isUnlocked: films.every((id) => seen.has(id)),
     };
   });
 }
 
 /**
- * Records that this child has watched a book's animation.
+ * Records that this child has watched a chapter's film.
  *
  * Idempotent: watched is watched, and a child who replays it has not watched it
  * twice. The upsert also means a flaky connection retrying the call cannot
  * produce two rows.
  */
 export async function recordAnimationWatched(
-  bookId: string,
+  chapterId: string,
   studentId: string,
 ): Promise<{ isUnlocked: true }> {
+  await assertCanReadStudent(studentId);
+  const schoolId = requireSchoolId();
+
+  const chapter = await prismaUnscoped.chapter.findUnique({
+    where: { id: chapterId },
+    select: { bookId: true },
+  });
+  if (!chapter) throw ApiError.notFound('Chapter not found');
+
+  const entitled = await prismaUnscoped.schoolBook.findUnique({
+    where: { schoolId_bookId: { schoolId, bookId: chapter.bookId } },
+    select: { enabled: true },
+  });
+  // A school that does not have the book cannot record its children against it.
+  if (entitled?.enabled !== true) throw ApiError.notFound('Chapter not found');
+
+  await prismaUnscoped.chapterAnimationView.upsert({
+    where: { studentId_chapterId: { studentId, chapterId } },
+    create: { schoolId, studentId, chapterId },
+    update: {},
+  });
+
+  return { isUnlocked: true };
+}
+
+/**
+ * The chapters of one book, as the child sees them.
+ *
+ * Each carries its film and whether this child has watched it, which is what
+ * the app needs to put the film above the pages it opens.
+ */
+export async function chaptersForChild(
+  studentId: string,
+  bookId: string,
+): Promise<
+  Array<{
+    id: string;
+    name: string;
+    number: number | null;
+    animation: { videoId: string; url: string } | null;
+    isUnlocked: boolean;
+  }>
+> {
   await assertCanReadStudent(studentId);
   const schoolId = requireSchoolId();
 
@@ -417,33 +478,51 @@ export async function recordAnimationWatched(
     where: { schoolId_bookId: { schoolId, bookId } },
     select: { enabled: true },
   });
-  // A school that does not have the book cannot record its children against it.
-  if (entitled?.enabled !== true) throw ApiError.notFound('Book not found');
+  // Not an error worth explaining: a book they were not given simply has
+  // nothing in it for them.
+  if (entitled?.enabled !== true) return [];
 
-  await prismaUnscoped.bookAnimationView.upsert({
-    where: { studentId_bookId: { studentId, bookId } },
-    create: { schoolId, studentId, bookId },
-    update: {},
-  });
-
-  return { isUnlocked: true };
-}
-
-/** The books this child has still to watch, for locking their activities. */
-export async function lockedBookIdsFor(studentId: string): Promise<Set<string>> {
-  const schoolId = requireSchoolId();
-
-  const [withAnimation, watched] = await Promise.all([
-    prismaUnscoped.book.findMany({
-      where: { isActive: true, animationUrl: { not: null } },
-      select: { id: true },
+  const [chapters, watched] = await Promise.all([
+    prismaUnscoped.chapter.findMany({
+      where: { bookId, isActive: true },
+      select: { id: true, name: true, number: true, animationUrl: true },
+      orderBy: { sortOrder: 'asc' },
     }),
-    prismaUnscoped.bookAnimationView.findMany({
-      where: { studentId, schoolId },
-      select: { bookId: true },
+    prismaUnscoped.chapterAnimationView.findMany({
+      where: { studentId },
+      select: { chapterId: true },
     }),
   ]);
 
-  const seen = new Set(watched.map((row) => row.bookId));
-  return new Set(withAnimation.map((book) => book.id).filter((id) => !seen.has(id)));
+  const seen = new Set(watched.map((row) => row.chapterId));
+
+  return chapters.map((chapter) => {
+    const animation = toAnimation(chapter.animationUrl);
+    return {
+      id: chapter.id,
+      name: chapter.name,
+      number: chapter.number,
+      animation,
+      isUnlocked: animation === null || seen.has(chapter.id),
+    };
+  });
+}
+
+/** The chapters this child has still to watch, for locking their pages. */
+export async function lockedChapterIdsFor(studentId: string): Promise<Set<string>> {
+  const schoolId = requireSchoolId();
+
+  const [withFilm, watched] = await Promise.all([
+    prismaUnscoped.chapter.findMany({
+      where: { isActive: true, animationUrl: { not: null } },
+      select: { id: true },
+    }),
+    prismaUnscoped.chapterAnimationView.findMany({
+      where: { studentId, schoolId },
+      select: { chapterId: true },
+    }),
+  ]);
+
+  const seen = new Set(watched.map((row) => row.chapterId));
+  return new Set(withFilm.map((chapter) => chapter.id).filter((id) => !seen.has(id)));
 }

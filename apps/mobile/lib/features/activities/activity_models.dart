@@ -13,6 +13,7 @@ class ActivityDefinition {
     required this.skillName,
     required this.bookName,
     required this.chapterName,
+    required this.chapterId,
     required this.bookId,
     required this.isLocked,
     this.content,
@@ -30,6 +31,7 @@ class ActivityDefinition {
       skillName: skill?['name'] as String? ?? '',
       bookName: book?['name'] as String? ?? '',
       chapterName: chapter?['name'] as String? ?? '',
+      chapterId: chapter?['id'] as String? ?? '',
       bookId: book?['id'] as String? ?? '',
       isLocked: json['isLocked'] as bool? ?? false,
       content: ActivityContent.tryParse(
@@ -49,6 +51,9 @@ class ActivityDefinition {
 
   /// And the chapter within it, when the publisher has filed it.
   final String chapterName;
+
+  /// The chapter whose film gates this page. Empty when it is in none.
+  final String chapterId;
 
   final String bookId;
 

@@ -32,34 +32,30 @@ class ActivityListController extends GetxController {
   List<ActivityDefinition> get playable =>
       activities.where((a) => a.isPlayable).toList();
 
-  /// The books this child has still to watch, keyed by book id.
-  final animations = <String, ({String videoId, String bookName})>{}.obs;
-
-  /// The film standing between this child and the book they have opened.
+  /// The chapters of this book with a film still to watch, keyed by chapter id.
   ///
-  /// Null when the book has none, when they have watched it, or when this list
-  /// is the whole shelf rather than one book.
-  ({String videoId, String bookName})? get pendingAnimation =>
-      bookId == null ? null : animations[bookId];
+  /// A film belongs to a chapter, not to a whole book: one video standing in
+  /// for everything between two covers was never how a workbook is taught.
+  final animations = <String, ({String videoId, String chapterName})>{}.obs;
 
-  /// Tapping a locked activity: the film that opens its book.
+  /// Tapping a locked page: the film that opens its chapter.
   Future<void> openAnimation(
     BuildContext context,
     ActivityDefinition activity,
-  ) => playAnimation(context, activity.bookId);
+  ) => playAnimation(context, activity.chapterId);
 
-  /// Opens the film that unlocks a book, then reloads on the way back so the
-  /// whole book opens at once rather than the one activity they tapped.
-  Future<void> playAnimation(BuildContext context, String forBookId) async {
-    final animation = animations[forBookId];
+  /// Opens the film that unlocks a chapter, then reloads on the way back so the
+  /// whole chapter opens at once rather than the one page they tapped.
+  Future<void> playAnimation(BuildContext context, String forChapterId) async {
+    final animation = animations[forChapterId];
     if (animation == null || studentId == null) return;
 
     final watched = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AnimationView(
           videoId: animation.videoId,
-          bookId: forBookId,
-          bookName: animation.bookName,
+          chapterId: forChapterId,
+          chapterName: animation.chapterName,
           studentId: studentId!,
         ),
       ),
@@ -75,24 +71,29 @@ class ActivityListController extends GetxController {
   }
 
   Future<void> _loadAnimations() async {
+    if (bookId == null) {
+      animations.clear();
+      return;
+    }
+
     try {
-      final shelf = await api.get<List<dynamic>>(
-        '/catalogue/children/$studentId/books',
+      final chapters = await api.get<List<dynamic>>(
+        '/catalogue/children/$studentId/books/$bookId/chapters',
       );
       animations.value = {
-        for (final book in shelf.whereType<Map<String, dynamic>>())
-          if ((book['animation'] as Map<String, dynamic>?) != null &&
-              book['isUnlocked'] != true)
-            book['id'] as String: (
+        for (final chapter in chapters.whereType<Map<String, dynamic>>())
+          if ((chapter['animation'] as Map<String, dynamic>?) != null &&
+              chapter['isUnlocked'] != true)
+            chapter['id'] as String: (
               videoId:
-                  (book['animation'] as Map<String, dynamic>)['videoId']
+                  (chapter['animation'] as Map<String, dynamic>)['videoId']
                       as String,
-              bookName: book['name'] as String? ?? 'Your book',
+              chapterName: chapter['name'] as String? ?? 'This chapter',
             ),
       };
     } on DioException {
-      // The shelf is decoration for the lock screen; failing to load it must
-      // not take the activity list down with it.
+      // The films are decoration for the lock screen; failing to load them must
+      // not take the page list down with it.
       animations.clear();
     }
   }

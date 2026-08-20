@@ -27,6 +27,7 @@ export async function createChapterAction(
       body: {
         name: String(formData.get('name') ?? '').trim(),
         number: optionalNumber(formData, 'number'),
+        animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
       },
     });
   } catch (error) {
@@ -50,6 +51,7 @@ export async function renameChapterAction(
       body: {
         name: String(formData.get('name') ?? '').trim(),
         number: optionalNumber(formData, 'number'),
+        animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
       },
     });
   } catch (error) {

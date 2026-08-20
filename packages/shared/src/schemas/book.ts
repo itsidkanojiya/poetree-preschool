@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { idSchema } from './common.js';
-import { youTubeUrlSchema, type BookAnimation } from './animation.js';
 
 /**
  * A book — the thing Poetree actually sells.
@@ -28,8 +27,6 @@ export const createBookSchema = z.object({
   classLevelId: idSchema,
   sortOrder: z.number().int().min(0).max(999).optional(),
   coverFileId: idSchema.nullish(),
-  /** The animation a child watches before this book's activities open. */
-  animationUrl: youTubeUrlSchema.nullish(),
   isActive: z.boolean().optional(),
 });
 export type CreateBookInput = z.infer<typeof createBookSchema>;
@@ -46,11 +43,6 @@ export interface BookSummary {
   sortOrder: number;
   isActive: boolean;
   coverUrl: string | null;
-  /**
-   * Null when no animation has been set, in which case the book's activities
-   * are open from the start — a book with no video does not lock itself.
-   */
-  animation: BookAnimation | null;
   /** How many question types are filed under it. */
   activityCount: number;
   /** How many schools have it switched on. */
@@ -81,11 +73,15 @@ export interface BookForChild {
   name: string;
   classLevel: { id: string; name: string };
   coverUrl: string | null;
-  animation: BookAnimation | null;
   /**
-   * False while this child still has the animation to watch. A book with no
-   * animation is always unlocked.
+   * Films inside this book that this child has still to watch.
+   *
+   * The shelf says "there is something to watch in here"; the watching happens
+   * chapter by chapter once they are inside, because a chapter is what a book
+   * is actually divided into.
    */
+  filmsToWatch: number;
+  /** False while any film inside is still unwatched. */
   isUnlocked: boolean;
 }
 

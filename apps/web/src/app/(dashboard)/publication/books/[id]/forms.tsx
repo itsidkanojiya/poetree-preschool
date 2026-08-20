@@ -48,6 +48,14 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
             aria-label="Chapter name"
           />
         </span>
+        <span className="min-w-[13rem] flex-1">
+          <Input
+            name="animationUrl"
+            placeholder="Film — https://youtu.be/… (optional)"
+            className="py-1.5 text-sm"
+            aria-label="Film for this chapter"
+          />
+        </span>
         <SubmitButton pendingLabel="Adding…">Add chapter</SubmitButton>
       </div>
 
@@ -84,6 +92,17 @@ export function ChapterRow({ chapter }: { chapter: ChapterSummary }) {
           defaultValue={chapter.name}
           className="py-1.5 text-sm"
           aria-label={`Name of ${chapter.name}`}
+        />
+      </span>
+      {/* The film that opens this chapter. Beside the name because it is part
+          of what the chapter is, not a separate screen to remember. */}
+      <span className="min-w-[13rem] flex-1">
+        <Input
+          name="animationUrl"
+          defaultValue={chapter.animation?.url ?? ''}
+          placeholder="Film — https://youtu.be/… (optional)"
+          className="py-1.5 text-sm"
+          aria-label={`Film for ${chapter.name}`}
         />
       </span>
       <button

@@ -51,15 +51,25 @@ catalogueRouter.get(
   }),
 );
 
+/** The chapters of one book, each with its film and whether it is watched. */
+catalogueRouter.get(
+  '/children/:id/books/:bookId/chapters',
+  requirePermission('progress:read'),
+  asyncHandler(async (req, res) => {
+    const { id, bookId } = req.params as { id: string; bookId: string };
+    res.json(await books.chaptersForChild(id, bookId));
+  }),
+);
+
 /**
- * The child reached the end of a book's animation.
+ * The child reached the end of a chapter's film.
  *
  * `progress:record` rather than `progress:read`: this unlocks content, so it is
  * the same permission as recording an attempt, and a parent may only do it for
  * their own children.
  */
 catalogueRouter.post(
-  '/books/:id/watched',
+  '/chapters/:id/watched',
   requirePermission('progress:record'),
   validate({ params: idParamSchema, body: watchedBodySchema }),
   asyncHandler(async (req, res) => {

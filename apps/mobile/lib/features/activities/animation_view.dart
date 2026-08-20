@@ -15,15 +15,15 @@ import '../../core/api/api_service.dart';
 class AnimationView extends StatefulWidget {
   const AnimationView({
     required this.videoId,
-    required this.bookId,
-    required this.bookName,
+    required this.chapterId,
+    required this.chapterName,
     required this.studentId,
     super.key,
   });
 
   final String videoId;
-  final String bookId;
-  final String bookName;
+  final String chapterId;
+  final String chapterName;
   final String studentId;
 
   @override
@@ -71,7 +71,7 @@ class _AnimationViewState extends State<AnimationView> {
 
     try {
       await api.post<dynamic>(
-        '/catalogue/books/${widget.bookId}/watched',
+        '/catalogue/chapters/${widget.chapterId}/watched',
         body: {'studentId': widget.studentId},
       );
       if (!mounted) return;
@@ -102,7 +102,7 @@ class _AnimationViewState extends State<AnimationView> {
     return YoutubePlayerScaffold(
       controller: _controller,
       builder: (context, player) => Scaffold(
-        appBar: AppBar(title: Text(widget.bookName)),
+        appBar: AppBar(title: Text(widget.chapterName)),
         body: Column(
           children: [
             player,

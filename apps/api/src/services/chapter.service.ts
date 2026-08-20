@@ -6,6 +6,7 @@ import type {
 } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
+import { youTubeVideoId } from '@poetree/shared';
 import { writeAuditLog } from './audit.service.js';
 
 /**
@@ -16,6 +17,13 @@ import { writeAuditLog } from './audit.service.js';
  * the Super Admin.
  */
 
+/** The link as pasted, plus the id a player actually needs. */
+function toAnimation(url: string | null) {
+  if (!url) return null;
+  const videoId = youTubeVideoId(url);
+  return videoId ? { videoId, url } : null;
+}
+
 function toSummary(row: {
   id: string;
   bookId: string;
@@ -23,6 +31,7 @@ function toSummary(row: {
   number: number | null;
   sortOrder: number;
   isActive: boolean;
+  animationUrl: string | null;
   activities: Array<{ _count: { questions: number } }>;
 }): ChapterSummary {
   return {
@@ -30,6 +39,7 @@ function toSummary(row: {
     bookId: row.bookId,
     name: row.name,
     number: row.number,
+    animation: toAnimation(row.animationUrl),
     sortOrder: row.sortOrder,
     isActive: row.isActive,
     activityCount: row.activities.length,
@@ -91,6 +101,7 @@ export async function createChapter(
       bookId,
       name: input.name,
       number: input.number ?? null,
+      animationUrl: input.animationUrl ?? null,
       sortOrder: input.sortOrder ?? (last?.sortOrder ?? 0) + 1,
     },
     include: chapterInclude,
@@ -125,6 +136,7 @@ export async function updateChapter(
       name: input.name,
       number: input.number,
       sortOrder: input.sortOrder,
+      animationUrl: input.animationUrl,
       isActive: input.isActive,
     },
     include: chapterInclude,

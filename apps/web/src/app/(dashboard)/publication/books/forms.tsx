@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/form';
 import { LiveSwitch } from '@/components/ui/live-switch';
 import { Notice } from '@/components/ui/layout';
+import { Toast } from '@/components/ui/toast';
 import {
   createBookAction,
   renameBookAction,
@@ -150,7 +151,9 @@ export function BookDetailsForm({ book }: { book: BookSummary }) {
   return (
     <form action={formAction} className="space-y-5">
       <FormError message={state.error} />
-      <FormSuccess message={state.success} />
+      {/* A toast rather than a panel: saving should not shove the form down
+          the page as its reward. */}
+      <Toast message={state.success} />
 
       <FieldSet>
         <Field label="Book" required hint="As it reads on the cover.">
@@ -210,7 +213,7 @@ export function BookCoverForm({ book }: { book: BookSummary }) {
   return (
     <form action={formAction} className="space-y-4">
       <FormError message={state.error} />
-      <FormSuccess message={state.success} />
+      <Toast message={state.success} />
 
       <div className="flex items-start gap-4">
         {/* Drawn at the size and shape the shelf draws it, so what you are

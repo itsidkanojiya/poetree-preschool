@@ -2,12 +2,12 @@
 
 import { useActionState } from 'react';
 import type { ChapterSummary } from '@poetree/shared';
-import { FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
+import { FormError, Input, SubmitButton } from '@/components/ui/form';
+import { Toast } from '@/components/ui/toast';
 import { ConfirmButton } from '@/components/ui/confirm-button';
 import {
   createChapterAction,
   deleteChapterAction,
-  renameChapterAction,
   type ChapterState,
 } from './actions';
 
@@ -60,20 +60,33 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
       </div>
 
       <FormError message={state.error} />
-      <FormSuccess message={state.success} />
+      <Toast message={state.success} />
     </form>
   );
 }
 
-/** Renaming and renumbering in place — what is actually done often. */
-export function ChapterRow({ chapter }: { chapter: ChapterSummary }) {
-  const [state, formAction] = useActionState<ChapterState, FormData>(
-    renameChapterAction.bind(null, chapter.bookId, chapter.id),
-    {},
-  );
+/**
+ * One chapter's fields, inside the list's single form.
+ *
+ * This used to be a form of its own with its own Save, so correcting three
+ * chapter names meant three clicks and three reloads. The fields are named as
+ * arrays and carry their id, so the whole contents page is saved at once.
+ *
+ * `before` is what the row looked like when the page was drawn — the action
+ * compares against it and sends only what actually changed.
+ */
+export function ChapterFields({ chapter }: { chapter: ChapterSummary }) {
+  const film = chapter.animation?.url ?? '';
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="chapterId" value={chapter.id} />
+      <input
+        type="hidden"
+        name="before"
+        value={`${chapter.number ?? ''}|${chapter.name}|${film}`}
+      />
+
       {/* Width lives on a wrapper, not on the input: Input's own base class is
           w-full, so a w-16 appended after it does not reliably win — which is
           how a compact row ended up as three stretched boxes stacked. */}
@@ -99,20 +112,13 @@ export function ChapterRow({ chapter }: { chapter: ChapterSummary }) {
       <span className="min-w-[13rem] flex-1">
         <Input
           name="animationUrl"
-          defaultValue={chapter.animation?.url ?? ''}
+          defaultValue={film}
           placeholder="Film — https://youtu.be/… (optional)"
           className="py-1.5 text-sm"
           aria-label={`Film for ${chapter.name}`}
         />
       </span>
-      <button
-        type="submit"
-        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-      >
-        Save
-      </button>
-      {state.error && <span className="text-xs text-rose-600">{state.error}</span>}
-    </form>
+    </div>
   );
 }
 

@@ -121,7 +121,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
       </h2>
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card title="Name and film">
+        <Card title="The book">
           <BookDetailsForm book={book} />
         </Card>
 

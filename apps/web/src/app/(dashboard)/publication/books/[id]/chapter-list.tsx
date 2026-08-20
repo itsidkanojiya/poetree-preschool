@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useActionState, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import type { ChapterSummary } from '@poetree/shared';
 import { Pill } from '@/components/ui/layout';
 import { IconGrip } from '@/components/icons';
-import { reorderChaptersAction } from './actions';
-import { ChapterRow, DeleteChapterButton } from './forms';
+import { reorderChaptersAction, saveChaptersAction, type ChapterState } from './actions';
+import { ChapterFields, DeleteChapterButton } from './forms';
+import { SubmitButton } from '@/components/ui/form';
+import { Toast } from '@/components/ui/toast';
 
 export interface ChapterPage {
   id: string;
@@ -41,6 +43,10 @@ export function ChapterList({
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [state, formAction] = useActionState<ChapterState, FormData>(
+    saveChaptersAction.bind(null, bookId),
+    {},
+  );
 
   // The server is the authority. When a save lands — or somebody renames a
   // chapter and the page revalidates — take what it says.
@@ -67,7 +73,11 @@ export function ChapterList({
   };
 
   return (
-    <ul className={`mb-4 ${pending ? 'opacity-60' : ''}`}>
+    <form action={formAction}>
+      <Toast message={state.success} />
+      <Toast message={state.error} tone="bad" />
+
+      <ul className={pending ? 'opacity-60' : ''}>
       {order.map((chapter) => {
         const inside = pages.filter((page) => page.chapterId === chapter.id);
 
@@ -103,7 +113,7 @@ export function ChapterList({
                 <IconGrip size={16} />
               </span>
 
-              <ChapterRow chapter={chapter} />
+              <ChapterFields chapter={chapter} />
 
               <span className="ml-auto flex items-center gap-2">
                 {chapter.questionCount === 0 ? (
@@ -139,6 +149,16 @@ export function ChapterList({
           </li>
         );
       })}
-    </ul>
+      </ul>
+
+      {/* One Save for the whole contents page. Remove stays per row, because
+          removing one chapter is not part of saving the others. */}
+      <div className="mt-4 flex items-center gap-3 border-t border-navy-950/[0.06] pt-4">
+        <SubmitButton pendingLabel="Saving…">Save chapters</SubmitButton>
+        <span className="text-xs text-slate-500">
+          Names, numbers and films together. Dragging saves on its own.
+        </span>
+      </div>
+    </form>
   );
 }

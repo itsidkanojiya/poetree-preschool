@@ -28,17 +28,6 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
   return (
     <form action={formAction} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="w-14">
-          <Input
-            name="number"
-            type="number"
-            min={0}
-            max={999}
-            placeholder="No."
-            className="px-2 py-1.5 text-center text-sm"
-            aria-label="Chapter number"
-          />
-        </span>
         <span className="w-56">
           <Input
             name="name"
@@ -75,29 +64,35 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
  * `before` is what the row looked like when the page was drawn — the action
  * compares against it and sends only what actually changed.
  */
-export function ChapterFields({ chapter }: { chapter: ChapterSummary }) {
+export function ChapterFields({
+  chapter,
+  position,
+}: {
+  chapter: ChapterSummary;
+  /**
+   * Where the row sits right now, which is what the badge shows.
+   *
+   * Taken from the list rather than from the stored number so the contents page
+   * renumbers itself the moment a chapter is dragged, instead of waiting for
+   * the save to come back — the wait is exactly when it reads 1, 3, 2.
+   */
+  position: number;
+}) {
   const film = chapter.animation?.url ?? '';
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="chapterId" value={chapter.id} />
-      <input
-        type="hidden"
-        name="before"
-        value={`${chapter.number ?? ''}|${chapter.name}|${film}`}
-      />
+      <input type="hidden" name="before" value={`${chapter.name}|${film}`} />
 
-      {/* Width lives on a wrapper, not on the input: Input's own base class is
-          w-full, so a w-16 appended after it does not reliably win — which is
-          how a compact row ended up as three stretched boxes stacked. */}
-      <span className="w-14">
-        <Input
-          name="number"
-          type="number"
-          defaultValue={chapter.number ?? ''}
-          className="px-2 py-1.5 text-center text-sm"
-          aria-label={`Number of ${chapter.name}`}
-        />
+      {/* The number is where the chapter sits, so it is shown rather than
+          typed. Asking for both the position and the number is asking the same
+          question twice, which is how a contents page ends up reading 1, 3, 2. */}
+      <span
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-navy-50 text-sm font-semibold text-navy-900"
+        aria-label={`Chapter ${position}`}
+      >
+        {position}
       </span>
       <span className="w-56">
         <Input

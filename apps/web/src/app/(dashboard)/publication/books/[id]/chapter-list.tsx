@@ -78,7 +78,7 @@ export function ChapterList({
       <Toast message={state.error} tone="bad" />
 
       <ul className={pending ? 'opacity-60' : ''}>
-      {order.map((chapter) => {
+      {order.map((chapter, position) => {
         const inside = pages.filter((page) => page.chapterId === chapter.id);
 
         return (
@@ -113,7 +113,7 @@ export function ChapterList({
                 <IconGrip size={16} />
               </span>
 
-              <ChapterFields chapter={chapter} />
+              <ChapterFields chapter={chapter} position={position + 1} />
 
               <span className="ml-auto flex items-center gap-2">
                 {chapter.questionCount === 0 ? (

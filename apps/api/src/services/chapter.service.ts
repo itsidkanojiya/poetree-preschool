@@ -96,13 +96,18 @@ export async function createChapter(
     select: { sortOrder: true },
   });
 
+  const position = (last?.sortOrder ?? 0) + 1;
+
   const row = await prismaUnscoped.chapter.create({
     data: {
       bookId,
       name: input.name,
-      number: input.number ?? null,
+      // Chapters are numbered by where they are. Nobody types "4" for the
+      // fourth chapter — they put it fourth, and that is the same statement
+      // made twice.
+      number: input.number ?? position,
       animationUrl: input.animationUrl ?? null,
-      sortOrder: input.sortOrder ?? (last?.sortOrder ?? 0) + 1,
+      sortOrder: input.sortOrder ?? position,
     },
     include: chapterInclude,
   });
@@ -162,10 +167,10 @@ export async function updateChapter(
  * strays, none missing. A partial list would leave the unnamed ones with stale
  * positions, which is how a contents page ends up with two chapter threes.
  *
- * `sortOrder` moves for everything. `number` is what is *printed* on the page,
- * and only chapters that already had one get renumbered: a book that opens with
- * an unnumbered "Getting ready" should not sprout a number for it because
- * somebody dragged the chapter below it.
+ * Both the order and the printed number follow the list. A chapter is numbered
+ * by where it is: nobody types "4" for the fourth chapter, they put it fourth,
+ * and asking for both is asking the same question twice — which is how a
+ * contents page ends up reading 1, 3, 2.
  */
 export async function reorderChapters(
   bookId: string,
@@ -187,21 +192,13 @@ export async function reorderChapters(
     throw ApiError.badRequest('That is not this book’s list of chapters');
   }
 
-  const numbered = new Map(existing.map((row) => [row.id, row.number !== null]));
-  let printed = 0;
-
   await prismaUnscoped.$transaction(
-    chapterIds.map((id, index) => {
-      if (numbered.get(id)) printed += 1;
-
-      return prismaUnscoped.chapter.update({
+    chapterIds.map((id, index) =>
+      prismaUnscoped.chapter.update({
         where: { id },
-        data: {
-          sortOrder: index + 1,
-          ...(numbered.get(id) ? { number: printed } : {}),
-        },
-      });
-    }),
+        data: { sortOrder: index + 1, number: index + 1 },
+      }),
+    ),
   );
 
   await writeAuditLog({

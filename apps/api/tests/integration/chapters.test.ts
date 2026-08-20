@@ -272,25 +272,29 @@ describe.skipIf(!dbUp)('chapters', () => {
     });
     const byId = new Map(moved.map((row) => [row.id, row]));
 
-    // The one that moved to the front is now printed as chapter 1.
+    // Numbering follows the order, so the one dragged to the front is 1.
     expect(byId.get(made[2]!)?.number).toBe(1);
     expect(byId.get(made[0]!)?.number).toBe(2);
     expect(byId.get(made[1]!)?.number).toBe(3);
     expect(byId.get(made[2]!)?.sortOrder).toBe(1);
   });
 
-  it('leaves an unnumbered chapter unnumbered when the list moves', async () => {
-    // A book opening with "Getting ready" should not sprout a number for it
-    // because somebody dragged the chapter below it.
+  it('numbers a chapter by where it sits, not by what was typed', async () => {
+    /**
+     * The number follows the order, for every chapter.
+     *
+     * It used to be left alone unless it had one already, so a contents page
+     * could sit there reading 1, 3, 2 after a drag — the position and the
+     * printed number saying different things about the same book. Nobody types
+     * "4" for the fourth chapter; they put it fourth.
+     */
     const intro = await api
       .post(`${BASE}/publication/books/${evsId}/chapters`)
       .set(auth(publisher))
       .send({ name: 'Getting ready' });
 
-    const first = await api
-      .post(`${BASE}/publication/books/${evsId}/chapters`)
-      .set(auth(publisher))
-      .send({ name: 'Numbered one', number: 1 });
+    // Numbered on the way in, without being asked for one.
+    expect(intro.body.number).toBeGreaterThan(0);
 
     const existing = await prismaUnscoped.chapter.findMany({
       where: { bookId: evsId },
@@ -298,12 +302,10 @@ describe.skipIf(!dbUp)('chapters', () => {
       select: { id: true },
     });
 
+    // Put the newest chapter first and everything else after it.
     const order = [
-      first.body.id as string,
       intro.body.id as string,
-      ...existing
-        .map((row) => row.id)
-        .filter((id) => id !== intro.body.id && id !== first.body.id),
+      ...existing.map((row) => row.id).filter((id) => id !== intro.body.id),
     ];
 
     const response = await api
@@ -312,12 +314,15 @@ describe.skipIf(!dbUp)('chapters', () => {
       .send({ chapterIds: order });
     expect(response.status).toBe(200);
 
-    const after = await prismaUnscoped.chapter.findUnique({
-      where: { id: intro.body.id as string },
-      select: { number: true, sortOrder: true },
+    const after = await prismaUnscoped.chapter.findMany({
+      where: { bookId: evsId },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true, number: true, sortOrder: true },
     });
-    expect(after?.number).toBeNull();
-    expect(after?.sortOrder).toBe(2);
+
+    // 1, 2, 3 … with no gaps and nothing out of step.
+    expect(after.map((row) => row.number)).toEqual(after.map((_, index) => index + 1));
+    expect(after[0]!.id).toBe(intro.body.id);
   });
 
   it('refuses an order that is not this book’s chapters', async () => {

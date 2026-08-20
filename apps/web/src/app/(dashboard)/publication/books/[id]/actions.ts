@@ -32,7 +32,6 @@ export async function saveChaptersAction(
 ): Promise<ChapterState> {
   const ids = formData.getAll('chapterId').map(String);
   const names = formData.getAll('name').map(String);
-  const numbers = formData.getAll('number').map(String);
   const films = formData.getAll('animationUrl').map(String);
   const before = formData.getAll('before').map(String);
 
@@ -40,12 +39,12 @@ export async function saveChaptersAction(
 
   for (const [index, id] of ids.entries()) {
     const name = (names[index] ?? '').trim();
-    const number = (numbers[index] ?? '').trim();
     const film = (films[index] ?? '').trim();
 
     // What the row looked like when the page was drawn, carried in a hidden
     // field: comparing against it is what makes "only the changed ones" real.
-    if (`${number}|${name}|${film}` === before[index]) continue;
+    // The number is not in it — that follows the order, and dragging saves it.
+    if (`${name}|${film}` === before[index]) continue;
 
     if (name === '') {
       return { error: 'A chapter needs a name. Use Remove to take one out.' };
@@ -55,11 +54,7 @@ export async function saveChaptersAction(
       await apiFetch(`/publication/chapters/${id}`, {
         method: 'PATCH',
         redirectOnAuthFailure: false,
-        body: {
-          name,
-          number: number === '' ? null : Number(number),
-          animationUrl: film === '' ? null : film,
-        },
+        body: { name, animationUrl: film === '' ? null : film },
       });
       saved += 1;
     } catch (error) {
@@ -84,7 +79,6 @@ export async function createChapterAction(
       redirectOnAuthFailure: false,
       body: {
         name: String(formData.get('name') ?? '').trim(),
-        number: optionalNumber(formData, 'number'),
         animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
       },
     });

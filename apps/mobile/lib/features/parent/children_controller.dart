@@ -65,10 +65,17 @@ class ChildrenController extends GetxController {
   final tab = 0.obs;
 
   static const homeTab = 0;
-  static const attendanceTab = 1;
-  static const homeworkTab = 2;
-  static const feesTab = 3;
-  static const noticesTab = 4;
+
+  /// The books, which is the one thing here a child does rather than a parent
+  /// reads — so it gets a place of its own rather than a card on the home page.
+  static const learnTab = 1;
+  static const attendanceTab = 2;
+  static const homeworkTab = 3;
+
+  /// Everything a parent looks up rather than checks: fees, notices, the
+  /// timetable, signing out. Money does not belong on the bottom bar of an app
+  /// a four-year-old is handed.
+  static const profileTab = 4;
 
   Child? get selected {
     if (children.isEmpty) return null;

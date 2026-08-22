@@ -18,28 +18,88 @@ class BookShelfView extends GetView<BookShelfController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Books')),
-      body: Obx(
-        () => AsyncView(
-          isLoading: controller.isLoading.value,
-          error: controller.error.value,
-          isEmpty: controller.books.isEmpty,
-          onRetry: controller.load,
-          emptyTitle: 'No books yet',
-          emptyMessage:
-              'Your school’s books will appear here once they are switched on.',
-          builder: (context) => GridView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              // Taller than square: a book is a book shape, and a cover
-              // squeezed into a square reads as a photograph of one.
-              childAspectRatio: 0.66,
-            ),
-            itemCount: controller.books.length,
-            itemBuilder: (context, index) =>
-                _BookTile(book: controller.books[index]),
+      body: const _Shelf(),
+    );
+  }
+}
+
+/// The shelf inside the parent's own shell, where it has a bottom bar of its
+/// own and must not bring a second app bar with it.
+///
+/// The controller is created here rather than by a route binding, because a tab
+/// is not navigated to — and it is replaced when the chosen child changes, so
+/// two children never share one shelf.
+class BookShelfEmbedded extends StatefulWidget {
+  const BookShelfEmbedded({
+    super.key,
+    required this.studentId,
+    required this.childName,
+  });
+
+  final String studentId;
+  final String childName;
+
+  @override
+  State<BookShelfEmbedded> createState() => _BookShelfEmbeddedState();
+}
+
+class _BookShelfEmbeddedState extends State<BookShelfEmbedded> {
+  late final String _tag = 'shelf-${widget.studentId}';
+
+  @override
+  void initState() {
+    super.initState();
+    Get.put<BookShelfController>(
+      BookShelfController(
+        studentId: widget.studentId,
+        childName: widget.childName,
+      ),
+      tag: _tag,
+    );
+  }
+
+  @override
+  void dispose() {
+    Get.delete<BookShelfController>(tag: _tag);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _Shelf(tag: _tag);
+}
+
+class _Shelf extends StatelessWidget {
+  const _Shelf({this.tag});
+
+  final String? tag;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<BookShelfController>(tag: tag);
+
+    return Obx(
+      () => AsyncView(
+        isLoading: controller.isLoading.value,
+        error: controller.error.value,
+        isEmpty: controller.books.isEmpty,
+        onRetry: controller.load,
+        emptyTitle: 'No books yet',
+        emptyMessage:
+            'Your school’s books will appear here once they are switched on.',
+        builder: (context) => GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            // Taller than square: a book is a book shape, and a cover
+            // squeezed into a square reads as a photograph of one.
+            childAspectRatio: 0.66,
+          ),
+          itemCount: controller.books.length,
+          itemBuilder: (context, index) => _BookTile(
+            book: controller.books[index],
+            studentId: controller.studentId,
           ),
         ),
       ),
@@ -48,9 +108,10 @@ class BookShelfView extends GetView<BookShelfController> {
 }
 
 class _BookTile extends StatelessWidget {
-  const _BookTile({required this.book});
+  const _BookTile({required this.book, required this.studentId});
 
   final ShelfBook book;
+  final String? studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +124,9 @@ class _BookTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => Get.toNamed<void>(
-          AppRoutes.activities,
+          AppRoutes.chapters,
           arguments: {
-            'studentId': Get.find<BookShelfController>().studentId,
+            'studentId': studentId,
             'bookId': book.id,
             'bookName': book.name,
           },

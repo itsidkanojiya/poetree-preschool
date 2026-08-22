@@ -10,6 +10,7 @@ import '../notifications/inbox_view.dart';
 import 'child_controller.dart';
 import 'homework_detail_view.dart';
 import 'children_controller.dart';
+import '../activities/book_shelf_view.dart';
 
 final _money = NumberFormat.currency(
   locale: 'en_IN',
@@ -106,12 +107,12 @@ class ParentHomeView extends StatelessWidget {
                     child: child,
                     children: children,
                   ),
+                  ChildrenController.learnTab => _LearnTab(children: children),
                   ChildrenController.attendanceTab => _AttendanceTab(
                     child: child,
                   ),
                   ChildrenController.homeworkTab => _HomeworkTab(child: child),
-                  ChildrenController.feesTab => _FeesTab(child: child),
-                  _ => _NoticesTab(child: child),
+                  _ => _ProfileTab(child: child, children: children),
                 },
               ),
             ),
@@ -129,6 +130,11 @@ class ParentHomeView extends StatelessWidget {
               label: 'Home',
             ),
             NavigationDestination(
+              icon: Icon(Icons.auto_stories_outlined),
+              selectedIcon: Icon(Icons.auto_stories),
+              label: 'Learn',
+            ),
+            NavigationDestination(
               icon: Icon(Icons.event_available_outlined),
               selectedIcon: Icon(Icons.event_available),
               label: 'Attendance',
@@ -139,18 +145,187 @@ class ParentHomeView extends StatelessWidget {
               label: 'Homework',
             ),
             NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long),
-              label: 'Fees',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.campaign_outlined),
-              selectedIcon: Icon(Icons.campaign),
-              label: 'Notices',
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The books, in a tab of their own.
+///
+/// This was a card on the home page, behind everything a parent reads first.
+/// It is the only thing in the app a child does, so it gets a place on the bar
+/// — and the shelf is the same one either way, which is why this is a shelf and
+/// not a copy of it.
+class _LearnTab extends StatelessWidget {
+  const _LearnTab({required this.children});
+
+  final ChildrenController children;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = children.selected;
+    if (selected == null) {
+      return const Center(child: Text('Choose a child first.'));
+    }
+
+    // Rebuilt when the chosen child changes, so the shelf is always theirs:
+    // two children at one school can be in different years with different books.
+    return BookShelfEmbedded(
+      key: ValueKey(selected.id),
+      studentId: selected.id,
+      childName: selected.firstName,
+    );
+  }
+}
+
+/// Everything a parent looks up rather than checks.
+///
+/// Fees used to sit on the bottom bar between attendance and notices, which put
+/// money one thumb away at all times in an app that is handed to a four-year-old
+/// to play in. It lives here with the rest of the office business.
+class _ProfileTab extends StatelessWidget {
+  const _ProfileTab({required this.child, required this.children});
+
+  final ChildController child;
+  final ChildrenController children;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Get.find<AuthController>();
+    final selected = children.selected;
+    final due = child.ledger.value?.outstandingInPaise ?? 0;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+      children: [
+        if (selected != null)
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  InitialsAvatar(
+                    name: selected.fullName,
+                    radius: 26,
+                    photoPath: selected.photoPath,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selected.fullName,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if (selected.classroomLabel != null)
+                          Text(
+                            selected.classroomLabel!,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        const SizedBox(height: 16),
+
+        _ActionTile(
+          icon: Icons.receipt_long_rounded,
+          tone: due > 0 ? AppTheme.coral : AppTheme.leaf,
+          toneSoft: due > 0 ? AppTheme.coralSoft : AppTheme.leafSoft,
+          title: 'Fees',
+          subtitle: due > 0
+              ? '${_rupees(due)} due — please settle with the office'
+              : 'Nothing outstanding',
+          onTap: () => Get.to<void>(() => _FeesPage(child: child)),
+        ),
+        const SizedBox(height: 10),
+        _ActionTile(
+          icon: Icons.campaign_rounded,
+          tone: AppTheme.apricot,
+          toneSoft: AppTheme.apricotSoft,
+          title: 'Notices',
+          subtitle: 'Announcements from the school',
+          onTap: () => Get.to<void>(() => _NoticesPage(child: child)),
+        ),
+
+        if (selected?.classroomId != null) ...[
+          const SizedBox(height: 10),
+          _ActionTile(
+            icon: Icons.schedule_rounded,
+            tone: AppTheme.sky,
+            toneSoft: AppTheme.skySoft,
+            title: 'Timetable',
+            subtitle:
+                'The week for ${selected!.classroomLabel ?? 'this class'}',
+            onTap: () => Get.toNamed<void>(
+              AppRoutes.timetable,
+              arguments: {'classroomId': selected.classroomId},
+            ),
+          ),
+          const SizedBox(height: 10),
+          _ActionTile(
+            icon: Icons.dynamic_feed_rounded,
+            tone: AppTheme.sky,
+            toneSoft: AppTheme.skySoft,
+            title: 'Class stream',
+            subtitle: 'Announcements and materials from the class',
+            onTap: () => Get.toNamed<void>(
+              AppRoutes.stream,
+              arguments: {'classroomId': selected.classroomId},
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: auth.signOut,
+          icon: const Icon(Icons.logout),
+          label: const Text('Sign out'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Fees on their own page, reached from Profile.
+class _FeesPage extends StatelessWidget {
+  const _FeesPage({required this.child});
+
+  final ChildController child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Fees')),
+      body: Obx(() => _FeesTab(child: child)),
+    );
+  }
+}
+
+/// Notices on their own page, reached from Profile.
+class _NoticesPage extends StatelessWidget {
+  const _NoticesPage({required this.child});
+
+  final ChildController child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notices')),
+      body: Obx(() => _NoticesTab(child: child)),
     );
   }
 }
@@ -329,13 +504,9 @@ class _Overview extends StatelessWidget {
         if (selected != null)
           _PlayCard(
             firstName: selected.firstName,
-            onTap: () => Get.toNamed<void>(
-              AppRoutes.books,
-              arguments: {
-                'studentId': selected.id,
-                'childName': selected.firstName,
-              },
-            ),
+            // The books have a tab of their own now; the card is the shortcut
+            // from the page a parent lands on, not the only way in.
+            onTap: () => children.tab.value = ChildrenController.learnTab,
           ),
 
         if (selected?.classroomId != null) ...[

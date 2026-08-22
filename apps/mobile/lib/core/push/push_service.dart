@@ -124,8 +124,9 @@ class PushService extends GetxService {
       'AttendanceSession' ||
       'AttendanceRecord' => ChildrenController.attendanceTab,
       'Homework' || 'HomeworkSubmission' => ChildrenController.homeworkTab,
-      'Payment' || 'FeeInvoice' => ChildrenController.feesTab,
-      'Notice' => ChildrenController.noticesTab,
+      // Both live under Profile now: money and announcements are things a
+      // parent looks up, not things the bottom bar should keep offering.
+      'Payment' || 'FeeInvoice' || 'Notice' => ChildrenController.profileTab,
       _ => ChildrenController.homeTab,
     };
 

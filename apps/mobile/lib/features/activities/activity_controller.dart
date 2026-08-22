@@ -11,13 +11,21 @@ import 'animation_view.dart';
 
 /// The catalogue of activities a child can be offered.
 class ActivityListController extends GetxController {
-  ActivityListController({required this.studentId, this.bookId, this.bookName});
+  ActivityListController({
+    required this.studentId,
+    this.bookId,
+    this.bookName,
+    this.chapterId,
+  });
 
   final String? studentId;
 
   /// Set when this list is one book rather than everything the school has.
   final String? bookId;
   final String? bookName;
+
+  /// Set when it is one chapter of that book, which is how a child arrives.
+  final String? chapterId;
 
   final activities = <ActivityDefinition>[].obs;
   final isLoading = true.obs;
@@ -29,8 +37,13 @@ class ActivityListController extends GetxController {
   /// Locked ones stay in the list: a book that disappeared until its film had
   /// been watched would look like a book with nothing in it, and nobody would
   /// find the film that opens it.
-  List<ActivityDefinition> get playable =>
-      activities.where((a) => a.isPlayable).toList();
+  List<ActivityDefinition> get playable => activities
+      .where((a) => a.isPlayable)
+      // Filtered here rather than by the API: the same request answers the
+      // chapter list's counts, and one round trip is worth more to a phone on
+      // a school's wifi than a shorter response body.
+      .where((a) => chapterId == null || a.chapterId == chapterId)
+      .toList();
 
   /// The chapters of this book with a film still to watch, keyed by chapter id.
   ///

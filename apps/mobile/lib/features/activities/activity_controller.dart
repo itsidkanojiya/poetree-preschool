@@ -45,11 +45,18 @@ class ActivityListController extends GetxController {
       .where((a) => chapterId == null || a.chapterId == chapterId)
       .toList();
 
-  /// The chapters of this book with a film still to watch, keyed by chapter id.
+  /// Every chapter of this book that has a film, keyed by chapter id.
   ///
-  /// A film belongs to a chapter, not to a whole book: one video standing in
-  /// for everything between two covers was never how a workbook is taught.
-  final animations = <String, ({String videoId, String chapterName})>{}.obs;
+  /// Watched ones are kept, not dropped. A child who liked a film wants it
+  /// again, and a parent sitting down with them a week later has no other way
+  /// back to it — dropping it the moment it unlocked meant the only way to see
+  /// it twice was to never have seen it once.
+  final films =
+      <String, ({String videoId, String chapterName, bool isUnlocked})>{}.obs;
+
+  /// The film for the chapter being looked at, if it has one.
+  ({String videoId, String chapterName, bool isUnlocked})? get film =>
+      chapterId == null ? null : films[chapterId];
 
   /// Tapping a locked page: the film that opens its chapter.
   Future<void> openAnimation(
@@ -60,7 +67,7 @@ class ActivityListController extends GetxController {
   /// Opens the film that unlocks a chapter, then reloads on the way back so the
   /// whole chapter opens at once rather than the one page they tapped.
   Future<void> playAnimation(BuildContext context, String forChapterId) async {
-    final animation = animations[forChapterId];
+    final animation = films[forChapterId];
     if (animation == null || studentId == null) return;
 
     final watched = await Navigator.of(context).push<bool>(
@@ -85,7 +92,7 @@ class ActivityListController extends GetxController {
 
   Future<void> _loadAnimations() async {
     if (bookId == null) {
-      animations.clear();
+      films.clear();
       return;
     }
 
@@ -93,21 +100,20 @@ class ActivityListController extends GetxController {
       final chapters = await api.get<List<dynamic>>(
         '/catalogue/children/$studentId/books/$bookId/chapters',
       );
-      animations.value = {
+      films.value = {
         for (final chapter in chapters.whereType<Map<String, dynamic>>())
-          if ((chapter['animation'] as Map<String, dynamic>?) != null &&
-              chapter['isUnlocked'] != true)
+          if ((chapter['animation'] as Map<String, dynamic>?) != null)
             chapter['id'] as String: (
               videoId:
                   (chapter['animation'] as Map<String, dynamic>)['videoId']
                       as String,
               chapterName: chapter['name'] as String? ?? 'This chapter',
+              isUnlocked: chapter['isUnlocked'] == true,
             ),
       };
     } on DioException {
-      // The films are decoration for the lock screen; failing to load them must
-      // not take the page list down with it.
-      animations.clear();
+      // A film that will not load must not take the page list down with it.
+      films.clear();
     }
   }
 

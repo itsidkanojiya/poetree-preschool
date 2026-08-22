@@ -58,10 +58,16 @@ class ActivityListView extends GetView<ActivityListController> {
           groups.putIfAbsent(key, () => []).add(activity);
         }
 
+        final film = controller.film;
+
         return AsyncView(
           isLoading: controller.isLoading.value,
           error: controller.error.value,
-          isEmpty: playable.isEmpty,
+          // A chapter with a film and nothing written yet is not empty: the
+          // film is the point of arriving here, and treating it as empty is
+          // what left a child looking at "nothing to play" with a video sitting
+          // one field away in the database.
+          isEmpty: playable.isEmpty && film == null,
           onRetry: controller.load,
           emptyTitle: 'Nothing to play yet',
           emptyMessage:
@@ -69,6 +75,28 @@ class ActivityListView extends GetView<ActivityListController> {
           builder: (context) => ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
+              // The film for this chapter, above everything it opens — which is
+              // the order the chapter is meant to be used in.
+              if (film != null) ...[
+                _FilmCard(
+                  title: film.chapterName,
+                  watched: film.isUnlocked,
+                  onPlay: () =>
+                      controller.playAnimation(context, controller.chapterId!),
+                ),
+                if (playable.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                    child: Text(
+                      film.isUnlocked
+                          ? 'Nothing to do in this chapter yet.'
+                          : 'The things to do appear here once the film has been watched.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                  ),
+              ],
               for (final entry in groups.entries) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
@@ -80,13 +108,14 @@ class ActivityListView extends GetView<ActivityListController> {
                   ),
                 ),
 
-                // The chapter's film, above the pages it opens — which is the
-                // order the chapter is meant to be used in. Before this it was
-                // only met by tapping something locked, which is a strange way
-                // to be introduced to it.
-                if (controller.animations[entry.key.id] != null)
-                  _WatchFirstCard(
-                    title: controller.animations[entry.key.id]!.chapterName,
+                // Across a whole book, each chapter's film sits above its own
+                // pages. Inside one chapter the film is already at the top of
+                // the screen, so it is not drawn twice.
+                if (controller.chapterId == null &&
+                    controller.films[entry.key.id] != null)
+                  _FilmCard(
+                    title: controller.films[entry.key.id]!.chapterName,
+                    watched: controller.films[entry.key.id]!.isUnlocked,
                     onPlay: () =>
                         controller.playAnimation(context, entry.key.id),
                   ),
@@ -147,11 +176,20 @@ class ActivityListView extends GetView<ActivityListController> {
   }
 }
 
-/// The film that opens a book, at the top of it.
-class _WatchFirstCard extends StatelessWidget {
-  const _WatchFirstCard({required this.title, required this.onPlay});
+/// The film that opens a chapter.
+///
+/// Two states, not one. Before it is watched it is an instruction — this comes
+/// first, and the pages open after it. Afterwards it stays, quieter, because a
+/// child who liked it wants it again and there is no other way back to it.
+class _FilmCard extends StatelessWidget {
+  const _FilmCard({
+    required this.title,
+    required this.watched,
+    required this.onPlay,
+  });
 
   final String title;
+  final bool watched;
   final VoidCallback onPlay;
 
   @override
@@ -162,7 +200,9 @@ class _WatchFirstCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Material(
-        color: colors.primaryContainer,
+        color: watched
+            ? colors.surfaceContainerHighest
+            : colors.primaryContainer,
         borderRadius: BorderRadius.circular(22),
         child: InkWell(
           borderRadius: BorderRadius.circular(22),
@@ -175,13 +215,17 @@ class _WatchFirstCard extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: colors.onPrimaryContainer.withValues(alpha: 0.12),
+                    color: watched
+                        ? colors.onSurfaceVariant.withValues(alpha: 0.12)
+                        : colors.onPrimaryContainer.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
-                    Icons.play_arrow_rounded,
+                    watched ? Icons.replay_rounded : Icons.play_arrow_rounded,
                     size: 28,
-                    color: colors.onPrimaryContainer,
+                    color: watched
+                        ? colors.onSurfaceVariant
+                        : colors.onPrimaryContainer,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -190,16 +234,22 @@ class _WatchFirstCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Watch this first',
+                        watched ? 'Watch it again' : 'Watch this first',
                         style: theme.textTheme.titleMedium?.copyWith(
-                          color: colors.onPrimaryContainer,
+                          color: watched
+                              ? colors.onSurface
+                              : colors.onPrimaryContainer,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       Text(
-                        'The film for $title. The pages below open after it.',
+                        watched
+                            ? 'The film for $title.'
+                            : 'The film for $title. Everything below opens after it.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onPrimaryContainer,
+                          color: watched
+                              ? colors.onSurfaceVariant
+                              : colors.onPrimaryContainer,
                         ),
                       ),
                     ],

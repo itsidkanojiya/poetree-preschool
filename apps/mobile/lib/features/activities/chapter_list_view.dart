@@ -138,9 +138,16 @@ class _ChapterCard extends StatelessWidget {
                       Text(
                         locked
                             ? 'Watch the film to open this'
-                            : chapter.pageCount == 0
-                            ? 'Nothing to do here yet'
-                            : '${chapter.pageCount} to do',
+                            : [
+                                // A chapter that has been opened still says it
+                                // has a film: a child who liked it wants it
+                                // again, and this is the way back to it.
+                                if (chapter.hasFilm) 'Film',
+                                if (chapter.pageCount > 0)
+                                  '${chapter.pageCount} to do'
+                                else
+                                  'Nothing to do here yet',
+                              ].join(' · '),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: locked
                               ? colors.onPrimaryContainer

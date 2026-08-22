@@ -53,6 +53,9 @@ dependencies:
   # flutter_inappwebview, whose Android module still calls
   # getDefaultProguardFile('proguard-android.txt') — removed in AGP 9, so the
   # app would not build at all. This one sits on Flutter's own webview.
+  # Already here through the player; named so the fallback that opens a film
+  # in YouTube cannot break the day the player stops depending on it.
+  url_launcher: ^6.3.1
   youtube_player_iframe: ^5.2.0
 
   # Push. Each school's build needs its own android/app/google-services.json —

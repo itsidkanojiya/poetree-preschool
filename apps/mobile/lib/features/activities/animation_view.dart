@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../../core/api/api_service.dart';
@@ -33,8 +34,10 @@ class AnimationView extends StatefulWidget {
 class _AnimationViewState extends State<AnimationView> {
   late final YoutubePlayerController _controller;
   StreamSubscription<YoutubePlayerValue>? _states;
+  Timer? _startupWatch;
   bool _finished = false;
   bool _saving = false;
+  bool _stuck = false;
   String? _error;
 
   @override
@@ -54,12 +57,44 @@ class _AnimationViewState extends State<AnimationView> {
     );
 
     _states = _controller.stream.listen((value) {
-      if (_finished || !mounted) return;
+      if (!mounted) return;
+
+      // Anything the player reports as an error, and anything that never gets
+      // as far as being ready. A four-year-old cannot tell the difference
+      // between a film that is loading and one that will never arrive.
+      if (value.error != YoutubeError.none) {
+        setState(() => _stuck = true);
+      } else if (value.playerState != PlayerState.unknown) {
+        _startupWatch?.cancel();
+        if (_stuck) setState(() => _stuck = false);
+      }
+
+      if (_finished) return;
       if (value.playerState == PlayerState.ended) {
         _finished = true;
         unawaited(_unlock());
       }
     });
+
+    /// Nothing at all after ten seconds counts as stuck.
+    ///
+    /// The player can fail without ever reporting an error — a WebView that
+    /// cannot run YouTube's own script leaves a black rectangle and says
+    /// nothing. That is a dead end: the chapter never opens, and there is
+    /// nothing on screen to try.
+    _startupWatch = Timer(const Duration(seconds: 10), () {
+      if (mounted && !_finished) setState(() => _stuck = true);
+    });
+  }
+
+  /// Opens the film in YouTube, for a device whose WebView will not play it.
+  Future<void> _openOutside() async {
+    final url = Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        setState(() => _error = 'Could not open YouTube on this device.');
+      }
+    }
   }
 
   /// Tells the school this child has watched it, then lets them through.
@@ -90,6 +125,7 @@ class _AnimationViewState extends State<AnimationView> {
 
   @override
   void dispose() {
+    _startupWatch?.cancel();
     unawaited(_states?.cancel());
     _controller.close();
     super.dispose();
@@ -117,6 +153,39 @@ class _AnimationViewState extends State<AnimationView> {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium,
                   ),
+
+                  // A film that will not play must not be a dead end. Some
+                  // devices cannot run YouTube's player inside an app at all,
+                  // and without this the chapter simply never opens for them.
+                  if (_stuck && !_finished) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'This film is not playing here.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Some phones cannot play YouTube inside an app. Open it in '
+                      'YouTube, watch it together, then come back and tap below.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () => unawaited(_openOutside()),
+                      icon: const Icon(Icons.open_in_new_rounded),
+                      label: const Text('Open in YouTube'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      // Deliberately an adult's decision, and only offered when
+                      // the player has already failed — the gate exists so a
+                      // child meets the film, not to punish a phone.
+                      onPressed: _saving ? null : () => unawaited(_unlock()),
+                      child: const Text('We have watched it'),
+                    ),
+                  ],
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(

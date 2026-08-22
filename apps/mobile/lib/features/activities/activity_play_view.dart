@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/kid_icons.dart';
 import '../../core/widgets/authed_image.dart';
 import 'activity_controller.dart';
 import 'activity_models.dart';
@@ -605,9 +607,42 @@ class _Finished extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('🎉', style: TextStyle(fontSize: 84)),
-          const SizedBox(height: 16),
-          Text('All done!', style: Theme.of(context).textTheme.headlineSmall),
+          // Stars, not a party emoji rendered at whatever size the phone's
+          // font happens to draw it. Three of them, the middle one bigger,
+          // because a child reads "well done" from the shape before the words.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              KidIcon(
+                KidGlyph.star,
+                size: 44,
+                color: AppTheme.apricot,
+                tint: AppTheme.apricotSoft,
+              ),
+              const SizedBox(width: 10),
+              KidIcon(
+                KidGlyph.star,
+                size: 72,
+                color: AppTheme.apricot,
+                tint: AppTheme.apricotSoft,
+              ),
+              const SizedBox(width: 10),
+              KidIcon(
+                KidGlyph.star,
+                size: 44,
+                color: AppTheme.apricot,
+                tint: AppTheme.apricotSoft,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'All done!',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 8),
 
           // Shown to the adult, and phrased as an achievement rather than a

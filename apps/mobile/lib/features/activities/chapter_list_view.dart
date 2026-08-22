@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/routes/app_pages.dart';
+import '../../core/theme/kid_icons.dart';
+import '../../core/theme/play_palette.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/squish.dart';
 import 'chapter_list_controller.dart';
 
 /// A book's contents page, as a child sees it.
@@ -31,9 +34,10 @@ class ChapterListView extends GetView<ChapterListController> {
           builder: (context) => ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
-              for (final chapter in controller.chapters)
+              for (final (index, chapter) in controller.chapters.indexed)
                 _ChapterCard(
                   chapter: chapter,
+                  position: index + 1,
                   onTap: () => Get.toNamed<void>(
                     AppRoutes.activities,
                     arguments: {
@@ -49,6 +53,7 @@ class ChapterListView extends GetView<ChapterListController> {
               // they would exist and never be openable by anybody.
               if (controller.loosePages.value > 0)
                 _ChapterCard(
+                  position: controller.chapters.length + 1,
                   chapter: ShelfChapter(
                     id: '',
                     name: 'Everything else',
@@ -74,95 +79,102 @@ class ChapterListView extends GetView<ChapterListController> {
 }
 
 class _ChapterCard extends StatelessWidget {
-  const _ChapterCard({required this.chapter, required this.onTap});
+  const _ChapterCard({
+    required this.chapter,
+    required this.position,
+    required this.onTap,
+  });
 
   final ShelfChapter chapter;
+
+  /// Where it sits in the contents page.
+  ///
+  /// Shown instead of the stored number, which is null for every chapter
+  /// written before numbering became automatic — those were rendering as a
+  /// bullet, which tells a child nothing about which one comes first.
+  final int position;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final tone = toneFor(chapter.name);
     final locked = chapter.hasFilm && !chapter.isUnlocked;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: locked ? colors.primaryContainer : colors.surface,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: locked
-                        ? colors.onPrimaryContainer.withValues(alpha: 0.12)
-                        : colors.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: locked
-                      // A play badge, not a padlock: the child is being offered
-                      // something, not refused.
-                      ? Icon(
-                          Icons.play_arrow_rounded,
-                          size: 28,
-                          color: colors.onPrimaryContainer,
-                        )
-                      : Text(
-                          chapter.number?.toString() ?? '•',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Squish(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: tone.wash,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: tone.deep.withValues(alpha: 0.14),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // The chapter's number, or a film badge when the film comes
+              // first. Big enough to be the thing a child aims at.
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        chapter.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: locked ? colors.onPrimaryContainer : null,
+                alignment: Alignment.center,
+                child: locked
+                    ? KidIcon(KidGlyph.film, size: 30, color: tone.ink)
+                    : Text(
+                        '${chapter.number ?? position}',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: tone.deep,
                         ),
                       ),
-                      Text(
-                        locked
-                            ? 'Watch the film to open this'
-                            : [
-                                // A chapter that has been opened still says it
-                                // has a film: a child who liked it wants it
-                                // again, and this is the way back to it.
-                                if (chapter.hasFilm) 'Film',
-                                if (chapter.pageCount > 0)
-                                  '${chapter.pageCount} to do'
-                                else
-                                  'Nothing to do here yet',
-                              ].join(' · '),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: locked
-                              ? colors.onPrimaryContainer
-                              : colors.outline,
-                        ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chapter.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: tone.deep,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      locked
+                          ? 'Watch the film to open this'
+                          : [
+                              // A chapter that has been opened still says it
+                              // has a film: a child who liked it wants it
+                              // again, and this is the way back to it.
+                              if (chapter.hasFilm) 'Film',
+                              if (chapter.pageCount > 0)
+                                '${chapter.pageCount} to do'
+                              else
+                                'Nothing to do here yet',
+                            ].join(' · '),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: tone.ink,
+                      ),
+                    ),
+                  ],
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: locked ? colors.onPrimaryContainer : colors.outline,
-                ),
-              ],
-            ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: tone.ink),
+            ],
           ),
         ),
       ),

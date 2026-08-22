@@ -2,20 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/routes/app_pages.dart';
+import '../../core/theme/kid_icons.dart';
+import '../../core/theme/play_palette.dart';
+import '../../core/widgets/squish.dart';
 import '../../core/widgets/async_view.dart';
 import 'activity_controller.dart';
 import 'activity_models.dart';
-
-IconData _iconFor(String type) => switch (type) {
-  'TRACING' => Icons.gesture,
-  'MATCHING' => Icons.extension_outlined,
-  'COUNTING' => Icons.pin_outlined,
-  'SORTING' => Icons.category_outlined,
-  'COLOURING' => Icons.palette_outlined,
-  'FLASHCARD' => Icons.style_outlined,
-  'RHYME' => Icons.music_note_outlined,
-  _ => Icons.auto_stories_outlined,
-};
 
 /// What a child can play, grouped by the book it comes from.
 ///
@@ -98,15 +90,19 @@ class ActivityListView extends GetView<ActivityListController> {
                   ),
               ],
               for (final entry in groups.entries) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
-                  child: Text(
-                    entry.key.title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
+                // Only when several chapters are on screen at once. Inside one
+                // chapter the app bar already says which it is, and a heading
+                // repeating it is a line of furniture.
+                if (controller.chapterId == null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+                    child: Text(
+                      entry.key.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
                     ),
                   ),
-                ),
 
                 // Across a whole book, each chapter's film sits above its own
                 // pages. Inside one chapter the film is already at the top of
@@ -120,51 +116,17 @@ class ActivityListView extends GetView<ActivityListController> {
                         controller.playAnimation(context, entry.key.id),
                   ),
                 ...entry.value.map(
-                  (activity) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: activity.isLocked
-                            ? Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest
-                            : Theme.of(context).colorScheme.primaryContainer,
-                        child: Icon(
-                          activity.isLocked
-                              ? Icons.play_circle_outline_rounded
-                              : _iconFor(activity.type),
-                          color: activity.isLocked
-                              ? Theme.of(context).colorScheme.outline
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      title: Text(activity.title),
-                      subtitle: Text(
-                        activity.isLocked
-                            // Not "locked": a four-year-old is being told what
-                            // to do next, not refused.
-                            ? 'Watch the film first'
-                            : activity.content!.isScored
-                            ? '${activity.content!.itemCount} questions'
-                            : '${activity.content!.itemCount} cards to look at',
-                      ),
-                      trailing: Icon(
-                        activity.isLocked
-                            ? Icons.movie_outlined
-                            : Icons.play_arrow_rounded,
-                      ),
-                      onTap: () => activity.isLocked
-                          ? controller.openAnimation(context, activity)
-                          : Get.toNamed<void>(
-                              AppRoutes.activityPlay,
-                              arguments: {
-                                'activity': activity,
-                                'studentId': controller.studentId,
-                              },
-                            ),
-                    ),
+                  (activity) => _PageTile(
+                    activity: activity,
+                    onTap: () => activity.isLocked
+                        ? controller.openAnimation(context, activity)
+                        : Get.toNamed<void>(
+                            AppRoutes.activityPlay,
+                            arguments: {
+                              'activity': activity,
+                              'studentId': controller.studentId,
+                            },
+                          ),
                   ),
                 ),
               ],
@@ -257,6 +219,101 @@ class _FilmCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One thing to do, drawn to be aimed at.
+///
+/// This was a ListTile with a 24px Material icon in a grey circle — the same
+/// row a settings screen uses, at the size an adult reads. What the page is
+/// matters more than what it is called here: a child who cannot read the title
+/// can still tell tracing from counting by the picture, so the picture leads
+/// and it is drawn rather than borrowed.
+class _PageTile extends StatelessWidget {
+  const _PageTile({required this.activity, required this.onTap});
+
+  final ActivityDefinition activity;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final tone = toneFor(activity.title);
+    final locked = activity.isLocked;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Squish(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: locked ? colors.surfaceContainerHighest : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: locked
+                ? null
+                : [
+                    BoxShadow(
+                      color: tone.deep.withValues(alpha: 0.10),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: locked ? colors.surface : tone.wash,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                alignment: Alignment.center,
+                child: KidIcon(
+                  locked ? KidGlyph.film : glyphForActivity(activity.type),
+                  size: 30,
+                  color: locked ? colors.outline : tone.ink,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: locked ? colors.outline : null,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      locked
+                          // Not "locked": a four-year-old is being told what to
+                          // do next, not refused.
+                          ? 'Watch the film first'
+                          : activity.content!.isScored
+                          ? '${activity.content!.itemCount} questions'
+                          : '${activity.content!.itemCount} cards to look at',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: locked ? colors.outline : tone.deep,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: locked ? colors.outline : tone.ink,
+              ),
+            ],
           ),
         ),
       ),

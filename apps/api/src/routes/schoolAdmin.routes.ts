@@ -7,6 +7,7 @@ import {
   createClassroomSchema,
   createParentSchema,
   createStudentSchema,
+  createSubjectSchema,
   createTeacherSchema,
   idParamSchema,
   idSchema,
@@ -15,6 +16,7 @@ import {
   updateClassroomSchema,
   updateParentSchema,
   updateStudentSchema,
+  updateSubjectSchema,
   updateTeacherSchema,
 } from '@poetree/shared';
 import type {
@@ -23,23 +25,26 @@ import type {
   CreateClassroomInput,
   CreateParentInput,
   CreateStudentInput,
+  CreateSubjectInput,
   CreateTeacherInput,
   ListStudentsQuery,
   ListUsersQuery,
   UpdateClassroomInput,
   UpdateParentInput,
   UpdateStudentInput,
+  UpdateSubjectInput,
   UpdateTeacherInput,
 } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
-import { prisma, prismaUnscoped } from '../db/prisma.js';
+import { prisma } from '../db/prisma.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
 import * as passwordService from '../services/password.service.js';
 import * as studentService from '../services/student.service.js';
 import * as classroomService from '../services/classroom.service.js';
+import * as subjectService from '../services/subject.service.js';
 import * as documentService from '../services/studentDocument.service.js';
 
 /**
@@ -277,25 +282,48 @@ schoolAdminRouter.get(
 /**
  * Activity areas for the timetable and homework.
  *
- * Two sources deliberately: the school's own subjects through the scoped
- * client, plus publication defaults which carry a NULL schoolId and so are
- * invisible to it. Every school inherits the defaults without owning a copy.
+ * The school's own, plus publication defaults which carry a NULL schoolId and
+ * so are invisible to the scoped client. Every school inherits the defaults
+ * without owning a copy.
  */
 schoolAdminRouter.get(
   '/subjects',
   asyncHandler(async (_req, res) => {
-    const [own, defaults] = await Promise.all([
-      prisma.subject.findMany({
-        where: { isActive: true },
-        select: { id: true, code: true, name: true, sortOrder: true },
-      }),
-      prismaUnscoped.subject.findMany({
-        where: { schoolId: null, isActive: true },
-        select: { id: true, code: true, name: true, sortOrder: true },
-      }),
-    ]);
+    res.json(await subjectService.listSubjects());
+  }),
+);
 
-    res.json([...own, ...defaults].sort((a, b) => a.sortOrder - b.sortOrder));
+schoolAdminRouter.post(
+  '/subjects',
+  validate({ body: createSubjectSchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(await subjectService.createSubject(body<CreateSubjectInput>(req), req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.patch(
+  '/subjects/:id',
+  validate({ params: idParamSchema, body: updateSubjectSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await subjectService.updateSubject(
+        params<{ id: string }>(req).id,
+        body<UpdateSubjectInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** Retired, never deleted: a delete would empty every period it was on. */
+schoolAdminRouter.post(
+  '/subjects/:id/retire',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await subjectService.retireSubject(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );
 

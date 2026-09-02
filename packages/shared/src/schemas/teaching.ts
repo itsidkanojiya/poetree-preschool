@@ -231,3 +231,41 @@ export interface NoticeSummary {
   /** Admin view: how many recipients have opened it. */
   readCount?: number;
 }
+
+/**
+ * An activity area on the timetable — Circle time, Letters, Numbers, Play.
+ *
+ * Owned by the school. Every school runs its day slightly differently and the
+ * word on the grid is the word their own staff use, so this is theirs to write
+ * rather than a list handed down. Publication defaults are still merged in on
+ * read, so a shared list can be added later without changing anything here.
+ *
+ * No code field: it is derived from the name, like every other code in this
+ * product. Nobody running a preschool office should have to invent CIRCLE_TIME.
+ */
+export const createSubjectSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  /** Where it sits in a list of subjects. Appended when not given. */
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+export type CreateSubjectInput = z.infer<typeof createSubjectSchema>;
+
+export const updateSubjectSchema = createSubjectSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
+export type UpdateSubjectInput = z.infer<typeof updateSubjectSchema>;
+
+export interface SubjectSummary {
+  id: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  /**
+   * False for the publication's own defaults, which a school may use but not
+   * edit. Without this the portal would offer an Edit that always fails.
+   */
+  isOwn: boolean;
+  /** Periods across every class that would lose their subject if this went. */
+  timetableCount: number;
+}

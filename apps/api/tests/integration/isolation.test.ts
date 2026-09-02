@@ -277,4 +277,72 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
       'beta',
     ]);
   });
+  it('keeps one school’s subjects out of another’s timetable pickers', async () => {
+    // Subjects are the school's own words for its day. Alpha calling a period
+    // "Circle time" is not a fact about Beta, and a leak here would put one
+    // school's vocabulary into another's timetable.
+    const made = await api
+      .post(`${BASE}/subjects`)
+      .set(auth(adminA))
+      .send({ name: 'Circle time' });
+
+    expect(made.status).toBe(201);
+    expect(made.body.isOwn).toBe(true);
+    // Derived, not typed: nobody running an office should invent CIRCLE_TIME.
+    expect(made.body.code).toBe('CIRCLE_TIME');
+
+    const mine = await api.get(`${BASE}/subjects`).set(auth(adminA));
+    expect(mine.body.map((row: { name: string }) => row.name)).toContain('Circle time');
+
+    const theirs = await api.get(`${BASE}/subjects`).set(auth(adminB));
+    expect(theirs.body.map((row: { name: string }) => row.name)).not.toContain('Circle time');
+
+    // And the neighbour cannot rename it. 404 rather than 403: a refusal that
+    // confirms the row exists is itself a leak.
+    const meddled = await api
+      .patch(`${BASE}/subjects/${made.body.id}`)
+      .set(auth(adminB))
+      .send({ name: 'Renamed by the wrong school' });
+    expect(meddled.status).toBe(404);
+  });
+
+  it('lets two schools use the same word for their own subject', async () => {
+    // Codes are unique per school, not globally: both may have CIRCLE_TIME,
+    // which is the point of these belonging to the school.
+    const alpha = await api.get(`${BASE}/subjects`).set(auth(adminA));
+    const beta = await api
+      .post(`${BASE}/subjects`)
+      .set(auth(adminB))
+      .send({ name: 'Circle time' });
+
+    expect(beta.status).toBe(201);
+    expect(beta.body.code).toBe('CIRCLE_TIME');
+    expect(beta.body.id).not.toBe(
+      alpha.body.find((row: { name: string }) => row.name === 'Circle time')?.id,
+    );
+  });
+
+  it('retires a subject instead of emptying the periods it is on', async () => {
+    // TimetableEntry.subjectId is SetNull, so a delete would blank every period
+    // it was used in — a week losing its subjects, found by a parent.
+    const subject = await api
+      .post(`${BASE}/subjects`)
+      .set(auth(adminA))
+      .send({ name: 'Story time' });
+
+    const gone = await api
+      .post(`${BASE}/subjects/${subject.body.id}/retire`)
+      .set(auth(adminA));
+    expect(gone.status).toBe(204);
+
+    const listed = await api.get(`${BASE}/subjects`).set(auth(adminA));
+    expect(listed.body.map((row: { id: string }) => row.id)).not.toContain(subject.body.id);
+
+    // Still there, just not offered.
+    const row = await prismaUnscoped.subject.findUnique({
+      where: { id: subject.body.id as string },
+      select: { isActive: true },
+    });
+    expect(row?.isActive).toBe(false);
+  });
 });

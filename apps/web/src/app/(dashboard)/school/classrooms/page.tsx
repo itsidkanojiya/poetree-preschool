@@ -5,6 +5,7 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import { IconPlus } from '@/components/icons';
+import { ClassSetupTabs } from './tabs';
 
 export default async function ClassroomsPage() {
   const [classrooms, academicYears] = await Promise.all([
@@ -29,6 +30,8 @@ export default async function ClassroomsPage() {
           </div>
         }
       />
+
+      <ClassSetupTabs current="classrooms" />
 
       <Card className="mb-6" title="Classrooms">
         {classrooms.length === 0 ? (

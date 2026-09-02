@@ -1,8 +1,10 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
 import { Notice } from '@/components/ui/layout';
+import { Toast } from '@/components/ui/toast';
+import { IconGrip } from '@/components/icons';
 import { createPeriodAction, saveTimetableAction, type TimetableState } from './actions';
 
 const DAYS = [
@@ -35,12 +37,32 @@ interface Option {
   name: string;
 }
 
+interface Cell {
+  subjectId: string;
+  teacherId: string;
+  roomId: string;
+}
+
+const EMPTY: Cell = { subjectId: '', teacherId: '', roomId: '' };
+
+const isEmpty = (cell: Cell) => !cell.subjectId && !cell.teacherId && !cell.roomId;
+
 /**
  * The weekly grid: days across, periods down.
  *
  * Each cell is three selects rather than a modal. Filling a week is already
  * thirty decisions; making each one cost a dialog would guarantee nobody ever
  * completes it.
+ *
+ * A lesson can also be dragged from one slot to another, which is how a week is
+ * actually rearranged — "move Tuesday's letters to Thursday" was six select
+ * changes and a good chance of leaving the old slot half-cleared. Dragging onto
+ * an occupied slot swaps the two, because that is nearly always what moving a
+ * lesson in a full week means.
+ *
+ * Everything stays local until Save. The week is one thing, and a grid that
+ * wrote each change as it happened would leave a half-rearranged timetable live
+ * in front of parents while somebody was still thinking.
  */
 export function TimetableGrid({
   classroomId,
@@ -62,6 +84,27 @@ export function TimetableGrid({
     {},
   );
 
+  const saved = useMemo(() => {
+    const map: Record<string, Cell> = {};
+    for (const entry of entries) {
+      map[`${entry.dayOfWeek}:${entry.periodId}`] = {
+        subjectId: entry.subject?.id ?? '',
+        teacherId: entry.teacher?.id ?? '',
+        roomId: entry.room?.id ?? '',
+      };
+    }
+    return map;
+  }, [entries]);
+
+  const [cells, setCells] = useState<Record<string, Cell>>(saved);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+
+  // What the server last told us is the truth. A save revalidates the page and
+  // new entries arrive as props; without this the grid would keep showing the
+  // state it had before the save, including anything the server refused.
+  useEffect(() => setCells(saved), [saved]);
+
   if (periods.length === 0) {
     return (
       <Notice tone="info" title="Define the school day first">
@@ -70,14 +113,40 @@ export function TimetableGrid({
     );
   }
 
-  const byCell = new Map(entries.map((e) => [`${e.dayOfWeek}:${e.periodId}`, e]));
+  const at = (key: string): Cell => cells[key] ?? EMPTY;
 
-  const cellSelect = 'w-full rounded-md border-0 bg-white px-1.5 py-1 text-xs ring-1 ring-inset ring-navy-950/10 focus:ring-2 focus:ring-inset focus:ring-navy-600';
+  const set = (key: string, next: Cell) =>
+    setCells((prev) => ({ ...prev, [key]: next }));
+
+  const move = (fromKey: string, toKey: string) => {
+    if (fromKey === toKey) return;
+    setCells((prev) => ({
+      ...prev,
+      [toKey]: prev[fromKey] ?? EMPTY,
+      // A swap rather than a copy: the lesson that was there has to go
+      // somewhere, and silently dropping it is how a week loses a period
+      // nobody notices until Monday.
+      [fromKey]: prev[toKey] ?? EMPTY,
+    }));
+  };
+
+  const changed = Object.keys({ ...saved, ...cells }).some((key) => {
+    const a = saved[key] ?? EMPTY;
+    const b = cells[key] ?? EMPTY;
+    return (
+      a.subjectId !== b.subjectId ||
+      a.teacherId !== b.teacherId ||
+      a.roomId !== b.roomId
+    );
+  });
+
+  const cellSelect =
+    'w-full rounded-md border-0 bg-white px-1.5 py-1 text-xs ring-1 ring-inset ring-navy-950/10 focus:ring-2 focus:ring-inset focus:ring-navy-600';
 
   return (
     <form action={formAction} className="space-y-4">
       <FormError message={state.error} />
-      <FormSuccess message={state.success} />
+      <Toast message={state.success} />
 
       <div className="-mx-5 overflow-x-auto px-5">
         <table className="w-full min-w-[900px] border-separate border-spacing-1 text-left">
@@ -118,15 +187,71 @@ export function TimetableGrid({
                     );
                   }
 
-                  const cell = byCell.get(`${day.value}:${period.id}`);
-                  const prefix = `cell:${day.value}:${period.id}`;
+                  const key = `${day.value}:${period.id}`;
+                  const cell = at(key);
+                  const prefix = `cell:${key}`;
+                  const filled = !isEmpty(cell);
+                  const isTarget = over === key && dragging !== null && dragging !== key;
 
                   return (
-                    <td key={day.value} className="rounded-lg bg-white p-1.5 align-top ring-1 ring-navy-950/[0.06]">
+                    <td
+                      key={day.value}
+                      onDragOver={(event) => {
+                        // Without this the drop is never allowed to happen.
+                        event.preventDefault();
+                        setOver(key);
+                      }}
+                      onDragLeave={() => setOver((current) => (current === key ? null : current))}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (dragging) move(dragging, key);
+                        setDragging(null);
+                        setOver(null);
+                      }}
+                      className={`rounded-lg p-1.5 align-top ring-1 transition-colors ${
+                        isTarget
+                          ? 'bg-navy-50 ring-2 ring-navy-400'
+                          : 'bg-white ring-navy-950/[0.06]'
+                      } ${dragging === key ? 'opacity-40' : ''}`}
+                    >
+                      <div className="mb-1 flex h-4 items-center justify-between">
+                        {filled ? (
+                          <span
+                            draggable
+                            onDragStart={() => setDragging(key)}
+                            onDragEnd={() => {
+                              setDragging(null);
+                              setOver(null);
+                            }}
+                            title="Drag to another day or period"
+                            className="cursor-grab text-slate-300 transition-colors hover:text-slate-500 active:cursor-grabbing"
+                          >
+                            <IconGrip size={14} />
+                          </span>
+                        ) : (
+                          <span />
+                        )}
+
+                        {filled && (
+                          <button
+                            type="button"
+                            onClick={() => set(key, EMPTY)}
+                            title="Clear this slot"
+                            aria-label={`Clear ${day.label}, ${period.name}`}
+                            className="rounded px-1 text-xs font-semibold text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
                       <div className="space-y-1">
                         <select
                           name={`${prefix}:subject`}
-                          defaultValue={cell?.subject?.id ?? ''}
+                          value={cell.subjectId}
+                          onChange={(event) =>
+                            set(key, { ...cell, subjectId: event.target.value })
+                          }
                           className={cellSelect}
                           aria-label={`Subject, ${day.label}, ${period.name}`}
                         >
@@ -140,7 +265,10 @@ export function TimetableGrid({
 
                         <select
                           name={`${prefix}:teacher`}
-                          defaultValue={cell?.teacher?.id ?? ''}
+                          value={cell.teacherId}
+                          onChange={(event) =>
+                            set(key, { ...cell, teacherId: event.target.value })
+                          }
                           className={cellSelect}
                           aria-label={`Teacher, ${day.label}, ${period.name}`}
                         >
@@ -155,7 +283,10 @@ export function TimetableGrid({
                         {rooms.length > 0 && (
                           <select
                             name={`${prefix}:room`}
-                            defaultValue={cell?.room?.id ?? ''}
+                            value={cell.roomId}
+                            onChange={(event) =>
+                              set(key, { ...cell, roomId: event.target.value })
+                            }
                             className={cellSelect}
                             aria-label={`Room, ${day.label}, ${period.name}`}
                           >
@@ -178,11 +309,29 @@ export function TimetableGrid({
       </div>
 
       <p className="text-xs text-slate-500">
-        A teacher or room already booked elsewhere in the same period is refused on save, naming the
-        class it clashes with.
+        Drag a lesson by its handle to move it to another day or period; dropping it on a full slot
+        swaps the two. ✕ clears a slot. A teacher or room already booked elsewhere in the same
+        period is refused on save, naming the class it clashes with.
       </p>
 
-      <SubmitButton pendingLabel="Saving…">Save timetable</SubmitButton>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton pendingLabel="Saving…">Save timetable</SubmitButton>
+
+        {changed && (
+          <>
+            <button
+              type="button"
+              onClick={() => setCells(saved)}
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+            >
+              Undo changes
+            </button>
+            {/* Said plainly, because the grid looks saved either way and a week
+                rearranged and then abandoned is a week nobody teaches. */}
+            <span className="text-xs font-medium text-amber-700">Not saved yet</span>
+          </>
+        )}
+      </div>
     </form>
   );
 }

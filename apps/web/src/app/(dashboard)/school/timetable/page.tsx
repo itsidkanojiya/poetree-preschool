@@ -6,7 +6,7 @@ import type {
   TeacherSummary,
 } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, EmptyState, PageHeader } from '@/components/ui/layout';
+import { Card, EmptyState, Notice, PageHeader } from '@/components/ui/layout';
 import { NewPeriodForm, TimetableGrid } from './grid';
 
 interface Period {
@@ -101,8 +101,31 @@ export default async function TimetablePage({
           >
             Manage classes
           </Link>
+          <Link
+            href="/school/classrooms/subjects"
+            className="px-2 py-2.5 text-sm font-medium text-slate-500 hover:text-navy-900"
+          >
+            Subjects
+          </Link>
         </form>
       </Card>
+
+      {/* The grid looks finished and does nothing, which is the worst state a
+          screen can be in. Every picker is empty because the school owns no
+          subjects yet, and nothing on the page said so — you could drag and
+          clear all day and never move anything, because there is nothing to
+          move. */}
+      {subjects.length === 0 && (
+        <div className="mb-5">
+          <Notice tone="warning" title="No subjects to put on the grid yet">
+            A timetable is filled from your school’s own subjects, and this school has none.{' '}
+            <Link href="/school/classrooms/subjects" className="font-semibold underline">
+              Add them first
+            </Link>{' '}
+            — then a slot can be filled, dragged to another day, and cleared.
+          </Notice>
+        </div>
+      )}
 
       <Card
         title={`${selected.classLevel.name} — ${selected.section}`}

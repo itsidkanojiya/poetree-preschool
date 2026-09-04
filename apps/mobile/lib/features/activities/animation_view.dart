@@ -72,6 +72,12 @@ class _AnimationViewState extends State<AnimationView> {
         showControls: true,
         strictRelatedVideos: true,
         enableCaption: false,
+        // The package defaults this to `https://www.youtube.com`, which tells
+        // YouTube the film is being embedded on YouTube itself. That is not
+        // true, and an origin YouTube cannot make sense of is one of the
+        // things it refuses an embed over. Ours is a domain we actually own
+        // and already serve the portal from.
+        origin: 'https://school.poetreepublications.com',
       ),
       key: youtubePlayerKey(widget.videoId),
     );
@@ -80,14 +86,26 @@ class _AnimationViewState extends State<AnimationView> {
     _states = _controller.stream.listen((value) {
       if (!mounted) return;
 
-      // Anything the player reports as an error, and anything that never gets
-      // as far as being ready. A four-year-old cannot tell the difference
-      // between a film that is loading and one that will never arrive.
-      if (value.error != YoutubeError.none) {
-        setState(() => _stuck = true);
-      } else if (value.playerState != PlayerState.unknown) {
+      /// Only pictures on the screen count as the film having arrived.
+      ///
+      /// Being "ready" does not: the player reports itself ready and then
+      /// shows YouTube's own "This video is unavailable" card, which is a
+      /// failure that looks like a success from here. Treating ready as
+      /// arrival cancelled the watchdog and took the way out away again,
+      /// leaving a child on an error card with no way past it.
+      final arrived =
+          value.playerState == PlayerState.playing ||
+          value.playerState == PlayerState.buffering;
+
+      if (arrived) {
         _startupWatch?.cancel();
         if (_stuck) setState(() => _stuck = false);
+      } else if (value.error != YoutubeError.none) {
+        // Sticky. A film that has failed stays failed until one actually
+        // plays — a later harmless event must not quietly withdraw the offer
+        // of a way out.
+        _startupWatch?.cancel();
+        if (!_stuck) setState(() => _stuck = true);
       }
 
       if (_finished) return;
@@ -187,8 +205,9 @@ class _AnimationViewState extends State<AnimationView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Some phones cannot play YouTube inside an app. Open it in '
-                      'YouTube, watch it together, then come back and tap below.',
+                      'Some films cannot be played inside an app, and some '
+                      'phones cannot play them at all. Open it in YouTube, '
+                      'watch it together, then come back and tap below.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall,
                     ),

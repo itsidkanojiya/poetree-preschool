@@ -3,11 +3,13 @@ import type {
   AcademicYearSummary,
   ClassroomSummary,
   Paginated,
+  SubjectSummary,
   TeacherSummary,
 } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, Notice, PageHeader } from '@/components/ui/layout';
 import { NewPeriodForm, TimetableGrid } from './grid';
+import { SubjectList } from './subjects';
 
 interface Period {
   id: string;
@@ -25,11 +27,6 @@ interface Entry {
   room: { id: string; name: string } | null;
 }
 
-interface Subject {
-  id: string;
-  name: string;
-}
-
 export default async function TimetablePage({
   searchParams,
 }: {
@@ -41,7 +38,7 @@ export default async function TimetablePage({
     apiFetch<ClassroomSummary[]>('/classrooms'),
     apiFetch<AcademicYearSummary[]>('/academic-years'),
     apiFetch<Paginated<TeacherSummary>>('/teachers', { query: { pageSize: 100 } }),
-    apiFetch<Subject[]>('/subjects'),
+    apiFetch<SubjectSummary[]>('/subjects'),
   ]);
 
   if (classrooms.length === 0) {
@@ -101,12 +98,7 @@ export default async function TimetablePage({
           >
             Manage classes
           </Link>
-          <Link
-            href="/school/classrooms/subjects"
-            className="px-2 py-2.5 text-sm font-medium text-slate-500 hover:text-navy-900"
-          >
-            Subjects
-          </Link>
+
         </form>
       </Card>
 
@@ -118,11 +110,8 @@ export default async function TimetablePage({
       {subjects.length === 0 && (
         <div className="mb-5">
           <Notice tone="warning" title="No subjects to put on the grid yet">
-            A timetable is filled from your school’s own subjects, and this school has none.{' '}
-            <Link href="/school/classrooms/subjects" className="font-semibold underline">
-              Add them first
-            </Link>{' '}
-            — then a slot can be filled, dragged to another day, and cleared.
+            A timetable is filled from your school’s own subjects, and this school has none. Add
+            them under the grid — then a slot can be filled, dragged to another day, and cleared.
           </Notice>
         </div>
       )}
@@ -141,16 +130,27 @@ export default async function TimetablePage({
         />
       </Card>
 
-      {currentYear && (
-        <div className="mt-5 max-w-3xl">
+      {/* The two lists the grid above is built from, under the thing they
+          build. Subjects were a screen away under Classrooms, which is how the
+          timetable came to offer a picker with nothing in it and no hint of
+          where the something came from. */}
+      <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+        <Card
+          title="Subjects"
+          description="Your school’s own words for what a period is about. Every class picks from this one list."
+        >
+          <SubjectList subjects={subjects} />
+        </Card>
+
+        {currentYear && (
           <Card
             title="The school day"
             description="Periods are shared by every class in the year."
           >
             <NewPeriodForm academicYearId={currentYear.id} />
           </Card>
-        </div>
-      )}
+        )}
+      </div>
     </>
   );
 }

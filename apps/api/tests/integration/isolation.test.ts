@@ -287,7 +287,10 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
       .send({ name: 'Circle time' });
 
     expect(made.status).toBe(201);
-    expect(made.body.isOwn).toBe(true);
+    // Nothing is on a timetable yet, and the counts say so rather than being
+    // absent — the Remove dialog reads them to say how much a removal costs.
+    expect(made.body.timetableCount).toBe(0);
+    expect(made.body.classroomCount).toBe(0);
     // Derived, not typed: nobody running an office should invent CIRCLE_TIME.
     expect(made.body.code).toBe('CIRCLE_TIME');
 
@@ -344,5 +347,70 @@ describe.skipIf(!dbUp)('cross-tenant isolation', () => {
       select: { isActive: true },
     });
     expect(row?.isActive).toBe(false);
+  });
+  it('counts a subject across every class that uses it', async () => {
+    // A subject belongs to the school, not to a class: the same Letters runs in
+    // Nursery and in Junior KG. The counts are what the Remove dialog reads to
+    // say what a removal costs, so "12 periods in 3 classes" has to be true.
+    const subject = await api
+      .post(`${BASE}/subjects`)
+      .set(auth(adminA))
+      .send({ name: 'Letters' });
+    const subjectId = subject.body.id as string;
+
+    const period = await prismaUnscoped.timetablePeriod.create({
+      data: {
+        schoolId: schoolA.id,
+        academicYearId: schoolA.academicYearId,
+        name: 'First',
+        startTime: '09:00',
+        endTime: '09:40',
+        sortOrder: 1,
+      },
+    });
+
+    // A second class in the same school, so the subject reaches two grids.
+    const secondClass = await prismaUnscoped.classroom.create({
+      data: {
+        schoolId: schoolA.id,
+        academicYearId: schoolA.academicYearId,
+        classLevelId: (
+          await prismaUnscoped.classroom.findUniqueOrThrow({
+            where: { id: schoolA.classroomId },
+            select: { classLevelId: true },
+          })
+        ).classLevelId,
+        section: 'B',
+      },
+    });
+
+    // Two periods in one class, one in the other: three periods, two classes.
+    await prismaUnscoped.timetableEntry.createMany({
+      data: [
+        { schoolId: schoolA.id, academicYearId: schoolA.academicYearId, classroomId: schoolA.classroomId, periodId: period.id, dayOfWeek: 1, subjectId },
+        { schoolId: schoolA.id, academicYearId: schoolA.academicYearId, classroomId: schoolA.classroomId, periodId: period.id, dayOfWeek: 2, subjectId },
+        { schoolId: schoolA.id, academicYearId: schoolA.academicYearId, classroomId: secondClass.id, periodId: period.id, dayOfWeek: 1, subjectId },
+      ],
+    });
+
+    const listed = await api.get(`${BASE}/subjects`).set(auth(adminA));
+    const letters = listed.body.find((row: { id: string }) => row.id === subjectId);
+
+    expect(letters.timetableCount).toBe(3);
+    expect(letters.classroomCount).toBe(2);
+  });
+
+  it('offers a school nothing but its own subjects', async () => {
+    // There is no shared catalogue list to fall back on, and deliberately not:
+    // one preschool's "Circle time" is another's "Assembly". A school that has
+    // written nothing gets an empty list, which is what the timetable now says
+    // out loud rather than showing a picker of somebody else's words.
+    const fresh = await seedSchool(baseline, 'gamma', 'Gamma Preschool');
+    const admin = await login(fresh.adminEmail);
+
+    const listed = await api.get(`${BASE}/subjects`).set(auth(admin));
+
+    expect(listed.status).toBe(200);
+    expect(listed.body).toEqual([]);
   });
 });

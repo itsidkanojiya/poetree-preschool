@@ -6,49 +6,55 @@ import { slugCode, uniqueCode } from '../lib/code.js';
 import { writeAuditLog } from './audit.service.js';
 
 /**
- * The activity areas a school puts on its timetable.
+ * The subjects this school puts on its timetable.
  *
- * Two sources, deliberately: the school's own, through the scoped client, plus
- * publication defaults which carry a NULL schoolId and are invisible to it.
- * Every school inherits the defaults without owning a copy — and there are none
- * today, which is why a school with no subjects of its own had a timetable it
- * could not fill.
+ * The school's own, and only its own. There was a merge here that also returned
+ * publication-owned rows shared with every school, and it was wrong for what
+ * these are: one preschool's "Circle time" is another's "Assembly", and a
+ * shared list either imposes one school's words on the rest or fills the picker
+ * with thirty names nobody uses. A subject is the school's own word for what a
+ * period is about, so the school writes all of them.
  *
- * Only its own are editable. A default belongs to the publisher, and offering a
- * school an Edit that always fails is worse than not offering one.
+ * They belong to the school rather than to a class, because the same subject
+ * runs in several classes — Letters is on the Nursery grid and the Junior KG
+ * grid, and it is the same subject. Both counts are returned so it is clear
+ * which subjects are actually in use, and where, before anybody removes one.
  */
 export async function listSubjects(): Promise<SubjectSummary[]> {
   const schoolId = requireSchoolId();
 
-  const [own, defaults] = await Promise.all([
-    prisma.subject.findMany({
-      where: { isActive: true },
-      select: { id: true, code: true, name: true, sortOrder: true, isActive: true },
-      orderBy: { sortOrder: 'asc' },
-    }),
-    prismaUnscoped.subject.findMany({
-      where: { schoolId: null, isActive: true },
-      select: { id: true, code: true, name: true, sortOrder: true, isActive: true },
-      orderBy: { sortOrder: 'asc' },
-    }),
-  ]);
-
-  // How many periods would lose their subject, counted for the school asking
-  // rather than across every school that shares a default.
-  const counts = await prismaUnscoped.timetableEntry.groupBy({
-    by: ['subjectId'],
-    where: {
-      schoolId,
-      subjectId: { in: [...own, ...defaults].map((row) => row.id) },
-    },
-    _count: { _all: true },
+  const own = await prisma.subject.findMany({
+    where: { isActive: true },
+    select: { id: true, code: true, name: true, sortOrder: true, isActive: true },
+    orderBy: { sortOrder: 'asc' },
   });
-  const used = new Map(counts.map((row) => [row.subjectId, row._count._all]));
 
-  return [
-    ...own.map((row) => ({ ...row, isOwn: true, timetableCount: used.get(row.id) ?? 0 })),
-    ...defaults.map((row) => ({ ...row, isOwn: false, timetableCount: used.get(row.id) ?? 0 })),
-  ].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  if (own.length === 0) return [];
+
+  const entries = await prismaUnscoped.timetableEntry.findMany({
+    where: { schoolId, subjectId: { in: own.map((row) => row.id) } },
+    select: { subjectId: true, classroomId: true },
+  });
+
+  const periods = new Map<string, number>();
+  const classrooms = new Map<string, Set<string>>();
+
+  for (const entry of entries) {
+    const id = entry.subjectId;
+    if (id === null) continue;
+
+    periods.set(id, (periods.get(id) ?? 0) + 1);
+
+    const seen = classrooms.get(id) ?? new Set<string>();
+    seen.add(entry.classroomId);
+    classrooms.set(id, seen);
+  }
+
+  return own.map((row) => ({
+    ...row,
+    timetableCount: periods.get(row.id) ?? 0,
+    classroomCount: classrooms.get(row.id)?.size ?? 0,
+  }));
 }
 
 export async function createSubject(
@@ -91,7 +97,7 @@ export async function createSubject(
     after: { name: row.name },
   });
 
-  return { ...row, isOwn: true, timetableCount: 0 };
+  return { ...row, timetableCount: 0, classroomCount: 0 };
 }
 
 export async function updateSubject(
@@ -101,8 +107,9 @@ export async function updateSubject(
 ): Promise<SubjectSummary> {
   const schoolId = requireSchoolId();
 
-  // Scoped: a publication default is not visible here, so a school editing one
-  // gets "not found" rather than editing everybody's.
+  // Scoped, so a subject belonging to the school next door is simply not here
+  // and the answer is "not found" rather than a 403 that would confirm it
+  // exists.
   const existing = await prisma.subject.findUnique({
     where: { id },
     select: { id: true, name: true },
@@ -125,11 +132,16 @@ export async function updateSubject(
     after: { fields: Object.keys(input) },
   });
 
-  const count = await prismaUnscoped.timetableEntry.count({
+  const entries = await prismaUnscoped.timetableEntry.findMany({
     where: { schoolId, subjectId: id },
+    select: { classroomId: true },
   });
 
-  return { ...row, isOwn: true, timetableCount: count };
+  return {
+    ...row,
+    timetableCount: entries.length,
+    classroomCount: new Set(entries.map((entry) => entry.classroomId)).size,
+  };
 }
 
 /**

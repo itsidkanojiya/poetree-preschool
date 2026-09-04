@@ -261,11 +261,15 @@ export interface SubjectSummary {
   name: string;
   sortOrder: number;
   isActive: boolean;
-  /**
-   * False for the publication's own defaults, which a school may use but not
-   * edit. Without this the portal would offer an Edit that always fails.
-   */
-  isOwn: boolean;
   /** Periods across every class that would lose their subject if this went. */
   timetableCount: number;
+  /**
+   * How many different classes have it on their grid.
+   *
+   * A subject belongs to the school, not to a class: Letters runs in Nursery
+   * and in Junior KG and is the same subject in both. "On 3 classes" is what
+   * says whether removing one is a small thing or a large one — twelve periods
+   * spread over three classes is three timetables to redo.
+   */
+  classroomCount: number;
 }

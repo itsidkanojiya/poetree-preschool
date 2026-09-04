@@ -7,6 +7,24 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../../core/api/api_service.dart';
 
+/// A player channel name that JavaScript can actually parse.
+///
+/// `YoutubePlayerController.fromVideoId` uses the video id itself as the
+/// player's key, and the package pastes that key **unquoted** into its own
+/// player script: `Youtube<key>.postMessage(message)`.
+///
+/// YouTube ids may contain a hyphen, and ours does. `a-3kJzYn_Bo` produced
+/// `Youtubea-3kJzYn_Bo.postMessage(...)`, which JavaScript reads as
+/// `Youtubea - 3kJzYn_Bo` — and `3kJzYn_Bo`, a digit followed by letters, is
+/// not a token at all. The whole script then fails to parse, so nothing in it
+/// runs: no player, no events, no error the app can see. Just a black
+/// rectangle, which is exactly what a family reported.
+///
+/// Stripping what an identifier cannot hold fixes it. The name only has to be
+/// unique among players on screen, and there is never more than one.
+String youtubePlayerKey(String videoId) =>
+    videoId.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '');
+
 /// The animation a child watches before a book's activities open.
 ///
 /// Played inside the app rather than handed to YouTube. Two reasons, and the
@@ -43,9 +61,10 @@ class _AnimationViewState extends State<AnimationView> {
   @override
   void initState() {
     super.initState();
-    _controller = YoutubePlayerController.fromVideoId(
-      videoId: widget.videoId,
-      autoPlay: true,
+    // Built by hand rather than through `fromVideoId`, which is the only way to
+    // choose the key — see [youtubePlayerKey]. The video is then loaded exactly
+    // as that factory would with autoPlay on.
+    _controller = YoutubePlayerController(
       params: const YoutubePlayerParams(
         // No related videos at the end, and nothing to tap through to: the
         // viewer is between two and six.
@@ -54,7 +73,9 @@ class _AnimationViewState extends State<AnimationView> {
         strictRelatedVideos: true,
         enableCaption: false,
       ),
+      key: youtubePlayerKey(widget.videoId),
     );
+    unawaited(_controller.loadVideoById(videoId: widget.videoId));
 
     _states = _controller.stream.listen((value) {
       if (!mounted) return;

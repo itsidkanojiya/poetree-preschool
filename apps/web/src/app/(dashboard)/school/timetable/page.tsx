@@ -110,8 +110,15 @@ export default async function TimetablePage({
       {subjects.length === 0 && (
         <div className="mb-5">
           <Notice tone="warning" title="No subjects to put on the grid yet">
-            A timetable is filled from your school’s own subjects, and this school has none. Add
-            them under the grid — then a slot can be filled, dragged to another day, and cleared.
+            A timetable is filled from your school’s own subjects, and this school has none.{' '}
+            {/* An anchor rather than a sentence pointing downwards: the card is
+                below the fold on a laptop, so "under the grid" was a direction
+                to somewhere you could not see. */}
+            <a href="#subjects" className="font-semibold underline">
+              Add your first ones
+            </a>{' '}
+            — then a slot can be filled, dragged to another day, and cleared with the ✕ that
+            appears on it.
           </Notice>
         </div>
       )}
@@ -135,12 +142,14 @@ export default async function TimetablePage({
           timetable came to offer a picker with nothing in it and no hint of
           where the something came from. */}
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
-        <Card
-          title="Subjects"
-          description="Your school’s own words for what a period is about. Every class picks from this one list."
-        >
-          <SubjectList subjects={subjects} />
-        </Card>
+        <div id="subjects" className="scroll-mt-6">
+          <Card
+            title="Subjects"
+            description="Your school’s own words for what a period is about. Every class picks from this one list."
+          >
+            <SubjectList subjects={subjects} />
+          </Card>
+        </div>
 
         {currentYear && (
           <Card

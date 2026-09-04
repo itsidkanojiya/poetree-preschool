@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import type { ChapterSummary } from '@poetree/shared';
 import { FormError, Input, SubmitButton } from '@/components/ui/form';
 import { Toast } from '@/components/ui/toast';
@@ -28,6 +28,7 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
   return (
     <form action={formAction} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
+        <ChapterCoverPicker chapterName="the new chapter" />
         <span className="w-56">
           <Input
             name="name"
@@ -51,6 +52,93 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
       <FormError message={state.error} />
       <Toast message={state.success} />
     </form>
+  );
+}
+
+/**
+ * The chapter's picture: choose it by clicking the thing it will replace.
+ *
+ * A file input on every row of a twelve-chapter contents page is twelve grey
+ * "Choose file" buttons and no idea which chapters already have artwork. The
+ * thumbnail is the control instead — it shows what is there, and clicking it
+ * asks for a new one.
+ *
+ * Nothing uploads here. The picture goes up with the one Save at the bottom,
+ * like every other field on this page, which is why the preview matters: it is
+ * the only thing that says a picture was chosen at all.
+ */
+function ChapterCoverPicker({
+  chapterId,
+  chapterName,
+  coverUrl,
+}: {
+  /** Empty on the "add a chapter" row, which has no id and nothing to clear. */
+  chapterId?: string;
+  chapterName: string;
+  coverUrl?: string | null;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  // Object URLs are held by the browser until they are handed back.
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview);
+  }, [preview]);
+
+  const stored = coverUrl?.split('/').pop();
+  const showing = preview ?? (stored ? `/attachments?kind=catalogue&id=${stored}` : null);
+
+  return (
+    <span className="relative shrink-0">
+      <label
+        className={`grid h-11 w-9 cursor-pointer place-items-center overflow-hidden rounded-md ring-1 ring-navy-950/10 transition-opacity hover:opacity-80 ${
+          showing ? '' : 'border border-dashed border-slate-300 bg-slate-50'
+        } ${removing ? 'opacity-30' : ''}`}
+        title={showing ? `Change the picture for ${chapterName}` : `Add a picture for ${chapterName}`}
+      >
+        {showing ? (
+          /* A plain img: one small picture from our own API, and next/image
+             would want a loader configured for the host. */
+          <img src={showing} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-base leading-none text-slate-400">+</span>
+        )}
+        <input
+          type="file"
+          name="cover"
+          accept="image/png,image/jpeg,image/webp"
+          className="sr-only"
+          aria-label={`Picture for ${chapterName}`}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            setPreview(file ? URL.createObjectURL(file) : null);
+            // Choosing a new one is not also asking to take the old one off.
+            if (file) setRemoving(false);
+          }}
+        />
+      </label>
+
+      {/* Only when there is something to take off, and not while a replacement
+          is already waiting to be saved. */}
+      {chapterId && stored && !preview && (
+        <label
+          className={`absolute -right-1.5 -top-1.5 grid h-4 w-4 cursor-pointer place-items-center rounded-full bg-white text-[9px] font-bold leading-none ring-1 transition-colors ${
+            removing ? 'text-rose-600 ring-rose-300' : 'text-slate-400 ring-navy-950/10 hover:text-rose-600'
+          }`}
+          title={removing ? 'Will be taken off when you save' : 'Take this picture off'}
+        >
+          <input
+            type="checkbox"
+            name="removeCover"
+            value={chapterId}
+            className="sr-only"
+            onChange={(event) => setRemoving(event.target.checked)}
+          />
+          <span aria-hidden>✕</span>
+          <span className="sr-only">Take the picture off {chapterName}</span>
+        </label>
+      )}
+    </span>
   );
 }
 
@@ -94,6 +182,15 @@ export function ChapterFields({
       >
         {position}
       </span>
+
+      {/* Optional, and shown as what it is. A chapter with no picture keeps its
+          own colour in the app, so an unillustrated book is not a broken one. */}
+      <ChapterCoverPicker
+        chapterId={chapter.id}
+        chapterName={chapter.name}
+        coverUrl={chapter.coverUrl}
+      />
+
       <span className="w-56">
         <Input
           name="name"

@@ -7,6 +7,7 @@ import type {
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { youTubeVideoId } from '@poetree/shared';
+import { assertCatalogueAssets } from './question.service.js';
 import { writeAuditLog } from './audit.service.js';
 
 /**
@@ -32,6 +33,7 @@ function toSummary(row: {
   sortOrder: number;
   isActive: boolean;
   animationUrl: string | null;
+  coverFileId: string | null;
   activities: Array<{ _count: { questions: number } }>;
 }): ChapterSummary {
   return {
@@ -40,6 +42,9 @@ function toSummary(row: {
     name: row.name,
     number: row.number,
     animation: toAnimation(row.animationUrl),
+    // The same address the book's cover uses, so one proxy and one cache serve
+    // both.
+    coverUrl: row.coverFileId ? `/api/v1/catalogue/assets/${row.coverFileId}` : null,
     sortOrder: row.sortOrder,
     isActive: row.isActive,
     activityCount: row.activities.length,
@@ -90,6 +95,11 @@ export async function createChapter(
   const book = await prismaUnscoped.book.findUnique({ where: { id: bookId }, select: { id: true } });
   if (!book) throw ApiError.notFound('Book not found');
 
+  // The same rule the book's cover follows: a school's own file — a child's
+  // photograph — must never end up inside content served to every school that
+  // bought the book.
+  await assertCatalogueAssets([input.coverFileId]);
+
   const last = await prismaUnscoped.chapter.findFirst({
     where: { bookId },
     orderBy: { sortOrder: 'desc' },
@@ -107,6 +117,7 @@ export async function createChapter(
       // made twice.
       number: input.number ?? position,
       animationUrl: input.animationUrl ?? null,
+      coverFileId: input.coverFileId ?? null,
       sortOrder: input.sortOrder ?? position,
     },
     include: chapterInclude,
@@ -135,6 +146,8 @@ export async function updateChapter(
   });
   if (!existing) throw ApiError.notFound('Chapter not found');
 
+  await assertCatalogueAssets([input.coverFileId]);
+
   const row = await prismaUnscoped.chapter.update({
     where: { id },
     data: {
@@ -142,6 +155,7 @@ export async function updateChapter(
       number: input.number,
       sortOrder: input.sortOrder,
       animationUrl: input.animationUrl,
+      coverFileId: input.coverFileId,
       isActive: input.isActive,
     },
     include: chapterInclude,

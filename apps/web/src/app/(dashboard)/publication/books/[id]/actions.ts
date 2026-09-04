@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
+import { uploadCatalogueAsset } from '@/lib/catalogue-assets';
 
 export interface ChapterState {
   error?: string;
@@ -35,26 +36,55 @@ export async function saveChaptersAction(
   const films = formData.getAll('animationUrl').map(String);
   const before = formData.getAll('before').map(String);
 
+  // One file input per row, always rendered, so this array lines up with the
+  // ids above even when most rows are empty.
+  const covers = formData.getAll('cover');
+  // Ticked boxes only, so this carries ids rather than positions.
+  const clearing = new Set(formData.getAll('removeCover').map(String));
+
   let saved = 0;
 
   for (const [index, id] of ids.entries()) {
     const name = (names[index] ?? '').trim();
     const film = (films[index] ?? '').trim();
 
+    const chosen = covers[index];
+    const picture = chosen instanceof File && chosen.size > 0 ? chosen : null;
+    const removingPicture = clearing.has(id);
+
     // What the row looked like when the page was drawn, carried in a hidden
     // field: comparing against it is what makes "only the changed ones" real.
     // The number is not in it — that follows the order, and dragging saves it.
-    if (`${name}|${film}` === before[index]) continue;
+    // A picture is not in it either, because a File has no place in a string;
+    // the two flags above say whether this row's picture is part of the save.
+    if (`${name}|${film}` === before[index] && !picture && !removingPicture) continue;
 
     if (name === '') {
       return { error: 'A chapter needs a name. Use Remove to take one out.' };
     }
 
     try {
+      /**
+       * Left out entirely when nobody touched the picture.
+       *
+       * `PATCH` is partial, so an absent key means "as it was" — sending null
+       * for every row would quietly strip the covers off eleven chapters
+       * because somebody renamed the twelfth.
+       */
+      const coverFileId = picture
+        ? await uploadCatalogueAsset(picture)
+        : removingPicture
+          ? null
+          : undefined;
+
       await apiFetch(`/publication/chapters/${id}`, {
         method: 'PATCH',
         redirectOnAuthFailure: false,
-        body: { name, animationUrl: film === '' ? null : film },
+        body: {
+          name,
+          animationUrl: film === '' ? null : film,
+          ...(coverFileId === undefined ? {} : { coverFileId }),
+        },
       });
       saved += 1;
     } catch (error) {
@@ -73,13 +103,19 @@ export async function createChapterAction(
   _prev: ChapterState,
   formData: FormData,
 ): Promise<ChapterState> {
+  const picture = formData.get('cover');
+
   try {
+    const coverFileId =
+      picture instanceof File && picture.size > 0 ? await uploadCatalogueAsset(picture) : null;
+
     await apiFetch(`/publication/books/${bookId}/chapters`, {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: {
         name: String(formData.get('name') ?? '').trim(),
         animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
+        coverFileId,
       },
     });
   } catch (error) {

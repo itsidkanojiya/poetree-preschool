@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/models/attached_file.dart';
 import 'package:poetree_school/features/activities/book_shelf_controller.dart';
+import 'package:poetree_school/features/activities/chapter_list_controller.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
 import 'package:poetree_school/features/teacher/homework_controller.dart';
@@ -409,5 +410,35 @@ void _shelfTests() {
     final open = ShelfBook.fromJson({'id': 'bk_4', 'name': 'Rhymes'});
     expect(open.hasAnimation, isFalse);
     expect(open.isUnlocked, isTrue);
+  });
+
+  test('a chapter picture is trimmed the same way a cover is', () {
+    final chapter = ShelfChapter.fromJson({
+      'id': 'ch_1',
+      'name': 'Living things',
+      'number': 1,
+      'coverUrl': '/api/v1/catalogue/assets/f_9',
+      'isUnlocked': true,
+    });
+
+    expect(chapter.coverPath, '/catalogue/assets/f_9');
+    expect(chapter.hasFilm, isFalse);
+  });
+
+  test('a chapter with no picture parses to null, not an empty path', () {
+    // Most chapters have none, so this is the ordinary case rather than the
+    // edge one: an empty string would reach AuthedImage and draw a broken
+    // square where the chapter's number belongs.
+    final blank = ShelfChapter.fromJson({
+      'id': 'ch_2',
+      'name': 'Letters A to E',
+      'coverUrl': '',
+      'isUnlocked': true,
+    });
+    expect(blank.coverPath, isNull);
+
+    final absent = ShelfChapter.fromJson({'id': 'ch_3', 'name': 'Numbers'});
+    expect(absent.coverPath, isNull);
+    expect(absent.number, isNull);
   });
 }

@@ -14,16 +14,23 @@ class ShelfChapter {
     required this.isUnlocked,
     required this.pageCount,
     this.videoId,
+    this.coverPath,
   });
 
   factory ShelfChapter.fromJson(Map<String, dynamic> json) {
     final animation = json['animation'] as Map<String, dynamic>?;
+    final cover = json['coverUrl'] as String?;
 
     return ShelfChapter(
       id: json['id'] as String,
       name: json['name'] as String? ?? 'Chapter',
       number: (json['number'] as num?)?.toInt(),
       videoId: animation?['videoId'] as String?,
+      // Our base URL already ends in /api/v1 — the same trim the shelf's covers
+      // need, and the one that would otherwise 404 every picture here.
+      coverPath: cover == null || cover.isEmpty
+          ? null
+          : cover.replaceFirst('/api/v1', ''),
       isUnlocked: json['isUnlocked'] as bool? ?? true,
       pageCount: 0,
     );
@@ -36,6 +43,12 @@ class ShelfChapter {
   /// The film that opens this chapter. Null when it has none, in which case
   /// the chapter was never locked.
   final String? videoId;
+
+  /// The chapter's picture, and usually null — most chapters have none. The
+  /// contents page draws its number in the chapter's own colour instead, so a
+  /// book where only some chapters were illustrated still reads as one list.
+  final String? coverPath;
+
   final bool isUnlocked;
 
   /// How many pages a child will find inside. Counted from the activity list

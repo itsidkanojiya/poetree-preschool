@@ -468,6 +468,8 @@ export async function chaptersForChild(
     name: string;
     number: number | null;
     animation: { videoId: string; url: string } | null;
+    /** The chapter's picture, or null — most chapters have none. */
+    coverUrl: string | null;
     isUnlocked: boolean;
   }>
 > {
@@ -485,7 +487,7 @@ export async function chaptersForChild(
   const [chapters, watched] = await Promise.all([
     prismaUnscoped.chapter.findMany({
       where: { bookId, isActive: true },
-      select: { id: true, name: true, number: true, animationUrl: true },
+      select: { id: true, name: true, number: true, animationUrl: true, coverFileId: true },
       orderBy: { sortOrder: 'asc' },
     }),
     prismaUnscoped.chapterAnimationView.findMany({
@@ -503,6 +505,7 @@ export async function chaptersForChild(
       name: chapter.name,
       number: chapter.number,
       animation,
+      coverUrl: chapter.coverFileId ? `/api/v1/catalogue/assets/${chapter.coverFileId}` : null,
       isUnlocked: animation === null || seen.has(chapter.id),
     };
   });

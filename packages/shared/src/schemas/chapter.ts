@@ -21,6 +21,14 @@ export const createChapterSchema = z.object({
    */
   animationUrl: youTubeUrlSchema.nullish(),
   /**
+   * An optional picture for the chapter, shown on the contents page in the app.
+   *
+   * Optional because a book of twelve chapters is twelve pictures to draw, and
+   * a chapter without one still has to look like something — the app falls back
+   * to its own colour.
+   */
+  coverFileId: idSchema.nullish(),
+  /**
    * What is printed on the page, which is not the order it sits in: a book can
    * open with "Chapter 0: Getting ready", and some have none at all.
    */
@@ -53,6 +61,8 @@ export interface ChapterSummary {
   number: number | null;
   /** Null when there is no film, in which case the chapter is open from the start. */
   animation: BookAnimation | null;
+  /** The chapter's picture, or null — most chapters have none. */
+  coverUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   /** Question types filed under it. */

@@ -12,6 +12,11 @@ import { disconnectPrisma, prismaUnscoped } from '../../src/db/prisma.js';
 
 const dbUp = await isDatabaseReachable();
 
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 const COUNTING = {
   kind: 'COUNTING',
   items: [
@@ -429,5 +434,88 @@ describe.skipIf(!dbUp)('chapters', () => {
 
     expect(moved.status).toBe(200);
     expect(moved.body.books.map((book: { id: string }) => book.id)).toEqual([englishId]);
+  });
+  it('carries a chapter’s picture through to the contents page a child sees', async () => {
+    // The same trip the book cover makes, one level down: a contents page of
+    // numbered rectangles is unreadable to a child who cannot read, which is
+    // every child this is for.
+    const artwork = await api
+      .post(`${BASE}/publication/assets`)
+      .set(auth(publisher))
+      .attach('file', TINY_PNG, 'living-things.png');
+    expect(artwork.status).toBe(201);
+
+    const patched = await api
+      .patch(`${BASE}/publication/chapters/${evsChapterId}`)
+      .set(auth(publisher))
+      .send({ coverFileId: artwork.body.id });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.coverUrl).toContain(artwork.body.id);
+
+    await api
+      .put(`${BASE}/publication/schools/${school.id}/books`)
+      .set(auth(publisher))
+      .send({ books: [{ bookId: evsId, enabled: true }] });
+
+    const parent = await login(school.parentPhone);
+    const contents = await api
+      .get(`${BASE}/catalogue/children/${school.studentId}/books/${evsId}/chapters`)
+      .set(auth(parent));
+
+    expect(contents.status).toBe(200);
+    const chapter = contents.body.find((row: { id: string }) => row.id === evsChapterId);
+    expect(chapter.coverUrl).toContain(`/catalogue/assets/${artwork.body.id}`);
+  });
+
+  it('leaves the other chapters’ pictures alone when one is saved', async () => {
+    // The portal saves the whole contents page at once, so the danger is a
+    // rename sending a null cover for every row it touched — eleven chapters
+    // quietly losing their artwork because somebody fixed a typo in the
+    // twelfth. An absent key has to mean "as it was".
+    const renamed = await api
+      .patch(`${BASE}/publication/chapters/${evsChapterId}`)
+      .set(auth(publisher))
+      .send({ name: 'Living things around us' });
+
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.name).toBe('Living things around us');
+    expect(renamed.body.coverUrl).not.toBeNull();
+  });
+
+  it('takes a picture off when the cover is explicitly cleared', async () => {
+    const cleared = await api
+      .patch(`${BASE}/publication/chapters/${evsChapterId}`)
+      .set(auth(publisher))
+      .send({ coverFileId: null });
+
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.coverUrl).toBeNull();
+  });
+
+  it('refuses a school’s own file as a chapter picture', async () => {
+    // The mirror of the book cover rule. A school's file is tenant-scoped, and
+    // hanging one off a chapter would serve one school's bytes to every other
+    // school that bought the book — through a route that deliberately asks no
+    // questions about tenancy.
+    const admin = await login(school.adminEmail);
+    const theirs = await api
+      .post(`${BASE}/files`)
+      .set(auth(admin))
+      .attach('file', TINY_PNG, 'ours.png');
+    expect(theirs.status).toBe(201);
+
+    const rejected = await api
+      .patch(`${BASE}/publication/chapters/${englishChapterId}`)
+      .set(auth(publisher))
+      .send({ coverFileId: theirs.body.id });
+
+    expect(rejected.status).toBe(400);
+
+    const chapter = await prismaUnscoped.chapter.findUniqueOrThrow({
+      where: { id: englishChapterId },
+      select: { coverFileId: true },
+    });
+    expect(chapter.coverFileId).toBeNull();
   });
 });

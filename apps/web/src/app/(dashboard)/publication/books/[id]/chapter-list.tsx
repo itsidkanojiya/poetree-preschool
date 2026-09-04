@@ -156,7 +156,7 @@ export function ChapterList({
       <div className="mt-4 flex items-center gap-3 border-t border-navy-950/[0.06] pt-4">
         <SubmitButton pendingLabel="Saving…">Save chapters</SubmitButton>
         <span className="text-xs text-slate-500">
-          Names, numbers and films together. Dragging saves on its own.
+          Names, films and pictures together. Dragging saves the order on its own.
         </span>
       </div>
     </form>

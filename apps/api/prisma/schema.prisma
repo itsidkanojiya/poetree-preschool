@@ -1572,12 +1572,20 @@ model Chapter {
   /// three" — so it is the unit a film introduces. One film for a whole book
   /// meant a single video standing in for everything between two covers.
   animationUrl String? @db.VarChar(500)
+  /// Optional picture for the chapter, drawn on the contents page in the app.
+  ///
+  /// Optional on purpose: a book of twelve chapters is twelve pictures to draw,
+  /// and a chapter without one still has to look like something. The app falls
+  /// back to the chapter's own colour, so a half-illustrated book is not a
+  /// half-broken one.
+  coverFileId  String? @db.VarChar(191)
   isActive  Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   book       Book                   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  cover      FileObject?            @relation("ChapterCover", fields: [coverFileId], references: [id], onDelete: SetNull)
   activities LearningActivity[]
   views      ChapterAnimationView[]
 
@@ -1814,6 +1822,7 @@ model FileObject {
   school                   School?                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   brandedSchools           School[]                  @relation("SchoolLogo")
   bookCovers               Book[]                    @relation("BookCover")
+  chapterCovers            Chapter[]                 @relation("ChapterCover")
   questionPrompts          ActivityQuestion[]        @relation("QuestionPrompt")
   optionImages             QuestionOption[]          @relation("OptionImage")
   studentPhotos            Student[]                 @relation("StudentPhoto")

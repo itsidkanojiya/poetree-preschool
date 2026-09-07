@@ -72,12 +72,17 @@ class _AnimationViewState extends State<AnimationView> {
         showControls: true,
         strictRelatedVideos: true,
         enableCaption: false,
-        // The package defaults this to `https://www.youtube.com`, which tells
-        // YouTube the film is being embedded on YouTube itself. That is not
-        // true, and an origin YouTube cannot make sense of is one of the
-        // things it refuses an embed over. Ours is a domain we actually own
-        // and already serve the portal from.
-        origin: 'https://school.poetreepublications.com',
+        // Do NOT set `origin` here, however reasonable it looks.
+        //
+        // The package feeds that one value to three different things, and the
+        // third is `host` — the domain the YouTube API loads the player itself
+        // from. Setting it to our own domain made the player fetch
+        // school.poetreepublications.com/embed/<id>, which is the portal, which
+        // redirects to the sign-in page. Families got our login form where the
+        // film should be.
+        //
+        // It was set to try to talk YouTube out of refusing the embed. It is
+        // not worth a second attempt through this door.
       ),
       key: youtubePlayerKey(widget.videoId),
     );

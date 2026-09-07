@@ -545,25 +545,36 @@ class _TracingStepState extends State<_TracingStep> {
           ),
 
           const SizedBox(height: 12),
-          Row(
-            children: [
-              TextButton(
-                onPressed: () => setState(_drawn.clear),
-                child: const Text('Start again'),
-              ),
-              const Spacer(),
-              FilledButton(
-                onPressed: () {
-                  // Any real attempt counts. A three-year-old's line will never
-                  // sit on the path, and scoring the shape of it would measure
-                  // fine motor control rather than letter recognition.
-                  widget.controller.answer(_drawn.length > 12 ? 1 : 0, 1);
-                  setState(_drawn.clear);
-                  widget.controller.next();
-                },
-                child: Text(widget.controller.isLast ? 'Finish' : 'Next'),
-              ),
-            ],
+
+          // Stacked, not side by side, and for a reason worth writing down.
+          //
+          // These two were a Row with a Spacer between them, and the theme
+          // gives every FilledButton `minimumSize: Size.fromHeight(54)` —
+          // which is `Size(infinity, 54)`, an infinite MINIMUM WIDTH. That is
+          // what makes buttons full-width everywhere else, and inside a Row it
+          // pushed Next clean off the screen. A child traced the number and
+          // then sat there: the drawing worked, the way on was invisible.
+          //
+          // Full width also happens to be the right shape for the only button
+          // on the page that goes forward, at the age this is for.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(_drawn.clear),
+              child: const Text('Start again'),
+            ),
+          ),
+          const SizedBox(height: 4),
+          FilledButton(
+            onPressed: () {
+              // Any real attempt counts. A three-year-old's line will never
+              // sit on the path, and scoring the shape of it would measure
+              // fine motor control rather than letter recognition.
+              widget.controller.answer(_drawn.length > 12 ? 1 : 0, 1);
+              setState(_drawn.clear);
+              widget.controller.next();
+            },
+            child: Text(widget.controller.isLast ? 'Finish' : 'Next'),
           ),
         ],
       ),

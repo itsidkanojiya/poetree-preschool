@@ -234,7 +234,10 @@ class _Row extends StatelessWidget {
     final enabled = controller.editable.value;
 
     return Material(
-      color: Colors.white,
+      // The theme's card, not a fixed white one: every label on this row takes
+      // its colour from the theme, so a hardcoded white surface turned the
+      // whole register into white-on-white in dark mode.
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),

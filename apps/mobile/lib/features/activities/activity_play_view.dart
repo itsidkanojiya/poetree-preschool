@@ -570,13 +570,16 @@ class _TracingStepState extends State<_TracingStep> {
                   child: Container(
                     width: size.width,
                     height: size.height,
+                    // Paper, and paper is white in both themes — a child is
+                    // writing on it. Which means every colour on it has to be
+                    // fixed too: taking the ink from the theme would give a
+                    // pale line on white paper in dark mode, and the guide
+                    // would follow the theme away from being visible.
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: done
-                            ? AppTheme.leaf
-                            : theme.colorScheme.outlineVariant,
+                        color: done ? AppTheme.leaf : _paperEdge,
                         width: done ? 2 : 1,
                       ),
                     ),
@@ -584,10 +587,8 @@ class _TracingStepState extends State<_TracingStep> {
                       painter: _TracePainter(
                         item: item,
                         drawn: _drawn,
-                        guideColour: theme.colorScheme.outlineVariant,
-                        inkColour: done
-                            ? AppTheme.leaf
-                            : theme.colorScheme.primary,
+                        guideColour: _guideInk,
+                        inkColour: done ? AppTheme.leaf : AppTheme.apricot,
                       ),
                     ),
                   ),
@@ -650,6 +651,13 @@ class _TracingStepState extends State<_TracingStep> {
     );
   }
 }
+
+/// The tracing paper's own colours, fixed in both themes.
+///
+/// The sheet is white because a child is writing on it, so what is drawn on it
+/// cannot come from a theme that assumes a dark ground.
+const _guideInk = Color(0xFF2B3242);
+const _paperEdge = Color(0x1F000000);
 
 /// The numbers in this activity, in order, with the shut ones shut.
 ///

@@ -252,7 +252,17 @@ class _PageTile extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: locked ? colors.surfaceContainerHighest : Colors.white,
+            // The activity's own colour, not the theme's paper.
+            //
+            // This card was hardcoded white while its title took `onSurface`
+            // from the theme — which is near-white in dark mode, so the titles
+            // vanished into the card. Mixing a fixed colour with a theme one on
+            // the same surface is the whole bug.
+            //
+            // A pastel wash with its own dark ink is readable whatever the
+            // theme, because neither half depends on it — the same pairing the
+            // shelf and the chapter list already use.
+            color: locked ? colors.surfaceContainerHighest : tone.wash,
             borderRadius: BorderRadius.circular(22),
             boxShadow: locked
                 ? null
@@ -271,7 +281,9 @@ class _PageTile extends StatelessWidget {
                 width: 54,
                 height: 54,
                 decoration: BoxDecoration(
-                  color: locked ? colors.surface : tone.wash,
+                  color: locked
+                      ? colors.surface
+                      : Colors.white.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 alignment: Alignment.center,
@@ -290,7 +302,8 @@ class _PageTile extends StatelessWidget {
                       activity.title,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: locked ? colors.outline : null,
+                        // Stated, never inherited — see the card colour above.
+                        color: locked ? colors.outline : tone.deep,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -303,7 +316,7 @@ class _PageTile extends StatelessWidget {
                           ? '${activity.content!.itemCount} questions'
                           : '${activity.content!.itemCount} cards to look at',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: locked ? colors.outline : tone.deep,
+                        color: locked ? colors.outline : tone.ink,
                       ),
                     ),
                   ],

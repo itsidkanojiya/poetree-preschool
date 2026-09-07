@@ -118,6 +118,37 @@ void main() {
     expect(result.passes, isTrue);
   });
 
+  test('a four missing its stem does not pass', () {
+    // Exactly what a child drew on a real phone and was told "that looks like
+    // it": the diagonal and the crossbar traced neatly, the long stem down the
+    // right never touched. Averaged over the whole shape that cleared the bar,
+    // which is why coverage is now the worst stroke rather than the mean.
+    const four = [
+      [(x: 0.62, y: 0.12), (x: 0.28, y: 0.62)],
+      [(x: 0.28, y: 0.62), (x: 0.78, y: 0.62)],
+      [(x: 0.62, y: 0.12), (x: 0.62, y: 0.9)],
+    ];
+
+    final diagonalAndBar = <Offset>[
+      for (var t = 0.0; t <= 1.0; t += 0.02)
+        Offset(
+          (0.62 + (0.28 - 0.62) * t) * size.width,
+          (0.12 + (0.62 - 0.12) * t) * size.height,
+        ),
+      for (var t = 0.0; t <= 1.0; t += 0.02)
+        Offset((0.28 + 0.5 * t) * size.width, 0.62 * size.height),
+    ];
+
+    final result = checkTrace(
+      strokes: four,
+      drawn: diagonalAndBar,
+      size: size,
+    );
+
+    expect(result.passes, isFalse);
+    expect(result.hint, contains('whole line'));
+  });
+
   test('a two-stroke shape needs both strokes', () {
     // The numeral four, roughly: a diagonal and a crossbar. Drawing only the
     // crossbar is half the shape and must not pass.

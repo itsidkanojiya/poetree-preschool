@@ -22,14 +22,21 @@ import 'dart:ui';
 class TraceCheck {
   const TraceCheck({required this.coverage, required this.accuracy});
 
-  /// Fraction of the guide the child went over, 0–1.
+  /// How much of the *least* covered stroke the child went over, 0–1.
+  ///
+  /// The minimum across strokes rather than the average over all of them. A
+  /// four is a diagonal, a crossbar and a long stem: cover two of those
+  /// perfectly and skip the stem and the average is still high enough to pass,
+  /// which is exactly what happened — a four with no stem was told it looked
+  /// like a four. A shape is all of its strokes.
   final double coverage;
 
   /// Fraction of the child's line that was on the guide, 0–1.
   final double accuracy;
 
-  /// Generous on purpose — see the class comment.
-  static const minCoverage = 0.62;
+  /// Generous on purpose — see the class comment. Coverage is per stroke, so
+  /// this is "you drew most of every part", not "most of the whole".
+  static const minCoverage = 0.7;
   static const minAccuracy = 0.55;
 
   bool get passes => coverage >= minCoverage && accuracy >= minAccuracy;
@@ -64,13 +71,19 @@ TraceCheck checkTrace({
     return const TraceCheck(coverage: 0, accuracy: 0);
   }
 
-  final guide = _samplePixels(strokes, size);
-  if (guide.isEmpty) {
+  final perStroke = [
+    for (final stroke in strokes)
+      if (stroke.length >= 2) _samplePixels([stroke], size),
+  ]..removeWhere((points) => points.isEmpty);
+
+  if (perStroke.isEmpty) {
     // Nothing to measure against. An item with no strokes is a content fault,
     // and refusing every attempt would trap a child on it forever — so let it
     // through rather than lock the page.
     return const TraceCheck(coverage: 1, accuracy: 1);
   }
+
+  final guide = [for (final stroke in perStroke) ...stroke];
 
   /// How far off the line still counts as on it.
   ///
@@ -79,9 +92,16 @@ TraceCheck checkTrace({
   /// same on a small phone and a tablet, with a floor for very narrow screens.
   final tolerance = math.max(size.shortestSide * 0.075, 28.0);
 
-  var covered = 0;
-  for (final point in guide) {
-    if (_nearAny(point, drawn, tolerance)) covered += 1;
+  // The worst-covered stroke decides it: skipping one part of a shape is
+  // skipping the shape.
+  var weakest = 1.0;
+  for (final stroke in perStroke) {
+    var covered = 0;
+    for (final point in stroke) {
+      if (_nearAny(point, drawn, tolerance)) covered += 1;
+    }
+    final fraction = covered / stroke.length;
+    if (fraction < weakest) weakest = fraction;
   }
 
   var on = 0;
@@ -89,10 +109,7 @@ TraceCheck checkTrace({
     if (_nearAny(point, guide, tolerance)) on += 1;
   }
 
-  return TraceCheck(
-    coverage: covered / guide.length,
-    accuracy: on / drawn.length,
-  );
+  return TraceCheck(coverage: weakest, accuracy: on / drawn.length);
 }
 
 bool _nearAny(Offset point, List<Offset> others, double tolerance) {

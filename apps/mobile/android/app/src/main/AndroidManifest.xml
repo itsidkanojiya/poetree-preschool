@@ -41,5 +41,18 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- The speech engine, which reads each activity aloud to children who
+             cannot read it themselves.
+
+             Required from Android 11: package visibility rules mean an app
+             cannot see a service it has not declared an interest in, so
+             without this the device's text-to-speech engine is invisible, no
+             engine is found, and every attempt to speak succeeds silently.
+             Nothing throws — the app is simply mute, which is exactly how it
+             was reported: "I click on the speaker and nothing works." -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
     </queries>
 </manifest>

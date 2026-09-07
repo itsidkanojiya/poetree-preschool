@@ -43,20 +43,47 @@ class SpeechService extends GetxService {
       isOn.value = true;
     }
 
+    // Each setting on its own, and none of them fatal.
+    //
+    // These were one try block that set a "ready" flag at the end, so a single
+    // unsupported option — a device without the Indian English voice, say —
+    // left the app permanently mute. Configuration is a preference; speaking
+    // is the feature. It tries to speak whatever happened above.
+    await _configure();
+    _ready = true;
+
+    return this;
+  }
+
+  Future<void> _configure() async {
+    /// Indian English first, since that is who this is for, then whatever
+    /// English the phone does have. A voice with the wrong accent is better
+    /// than no voice.
+    for (final language in const ['en-IN', 'en-GB', 'en-US', 'en']) {
+      try {
+        final available = await _tts.isLanguageAvailable(language);
+        if (available == true) {
+          await _tts.setLanguage(language);
+          break;
+        }
+      } on Exception {
+        // Try the next one.
+      }
+    }
+
     try {
-      await _tts.setLanguage('en-IN');
       // Slower than an adult would speak. A three-year-old is still working out
       // where one word ends and the next starts.
       await _tts.setSpeechRate(0.42);
-      await _tts.setPitch(1.05);
-      await _tts.awaitSpeakCompletion(true);
-      _ready = true;
     } on Exception {
-      // No engine, or one that will not configure. The app goes on quietly.
-      _ready = false;
+      // The default rate still says the words.
     }
 
-    return this;
+    try {
+      await _tts.setPitch(1.05);
+    } on Exception {
+      // Cosmetic.
+    }
   }
 
   Future<void> setOn(bool on) async {
@@ -78,9 +105,13 @@ class SpeechService extends GetxService {
 
     try {
       await _tts.stop();
+      // Deliberately not awaiting completion: `awaitSpeakCompletion` makes this
+      // return only when the sentence has finished, so a speaker button would
+      // hold its callback open for the length of the sentence, and an engine
+      // that never reports completion would hold it forever.
       await _tts.speak(text);
     } on Exception {
-      // A engine that fails mid-sentence is not worth a broken screen.
+      // An engine that fails mid-sentence is not worth a broken screen.
     }
   }
 

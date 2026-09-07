@@ -98,6 +98,84 @@ void main() {
     await tester.pump();
     expect(find.text('tab 2'), findsOneWidget);
   });
+
+  testWidgets('a widget RETURNED by an Obx does not inherit its subscription', (
+    tester,
+  ) async {
+    // The activity player in miniature. The closure watched `isFinished` and
+    // returned the step; the step read `chosen` in its own build, which runs
+    // outside the closure. Tapping an answer changed `chosen` and the screen
+    // did not move — the tick appeared only after leaving the page and coming
+    // back, because that rebuilds everything.
+    final finished = false.obs;
+    final chosen = 0.obs;
+
+    await tester.pumpWidget(
+      host(
+        Obx(() {
+          // ignore: unnecessary_statements — stands for the isFinished read
+          // that kept GetX satisfied while nothing else was watched.
+          finished.value;
+          return _Step(value: chosen);
+        }),
+      ),
+    );
+    expect(find.text('chosen 0'), findsOneWidget);
+
+    chosen.value = 1;
+    await tester.pump();
+
+    // This is "I selected the MCQ but I did not get the answer".
+    expect(find.text('chosen 0'), findsOneWidget);
+    expect(find.text('chosen 1'), findsNothing);
+  });
+
+  testWidgets('a widget that subscribes in its own build does', (tester) async {
+    final finished = false.obs;
+    final chosen = 0.obs;
+
+    await tester.pumpWidget(
+      host(
+        Obx(() {
+          // ignore: unnecessary_statements
+          finished.value;
+          return _SubscribedStep(value: chosen);
+        }),
+      ),
+    );
+    expect(find.text('chosen 0'), findsOneWidget);
+
+    chosen.value = 1;
+    await tester.pump();
+    expect(find.text('chosen 1'), findsOneWidget);
+  });
+}
+
+/// Stands in for a step of the activity player: a widget that reads the
+/// controller in its own build, which the framework runs later.
+class _Step extends StatelessWidget {
+  const _Step({required this.value});
+
+  final RxInt value;
+
+  @override
+  Widget build(BuildContext context) => Text('chosen ${value.value}');
+}
+
+/// The same step, subscribing to what it reads.
+///
+/// The body is called synchronously inside the closure, so every observable it
+/// touches is tracked. Returning a widget is what breaks it; calling a function
+/// is not.
+class _SubscribedStep extends StatelessWidget {
+  const _SubscribedStep({required this.value});
+
+  final RxInt value;
+
+  @override
+  Widget build(BuildContext context) => Obx(() => _body());
+
+  Widget _body() => Text('chosen ${value.value}');
 }
 
 /// Stands in for AsyncView: a widget that takes a builder and invokes it during

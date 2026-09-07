@@ -70,8 +70,20 @@ class _ChoiceStep extends StatelessWidget {
   final ActivityPlayController controller;
   final ChoiceContent content;
 
+  /// Subscribed here, not by the player's own [Obx].
+  ///
+  /// That one reads `isFinished` and then *returns* this widget, and a widget
+  /// it returns is built later, outside its reactive scope — so tapping an
+  /// answer changed `chosen` and nothing repainted. The tick came back only
+  /// after leaving the page and coming back, which rebuilds everything.
+  ///
+  /// `_body` is called synchronously inside this closure, so every observable
+  /// it reads is tracked. Returning a widget is what breaks it; calling a
+  /// function is not.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final item = content.items[controller.index.value];
     final chosen = controller.chosen.value;
 
@@ -162,8 +174,11 @@ class _MultiChoiceStep extends StatelessWidget {
   final ActivityPlayController controller;
   final MultiChoiceContent content;
 
+  /// See [_ChoiceStep.build] — same reason, same fix.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final item = content.items[controller.index.value];
     final done = controller.chosen.value != null;
     final picked = controller.picked;
@@ -280,8 +295,11 @@ class _DragStep extends StatelessWidget {
   final ActivityPlayController controller;
   final ChoiceContent content;
 
+  /// See [_ChoiceStep.build] — same reason, same fix.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final item = content.items[controller.index.value];
     final chosen = controller.chosen.value;
     final colors = Theme.of(context).colorScheme;
@@ -409,8 +427,13 @@ class _CardStep extends StatelessWidget {
   final ActivityPlayController controller;
   final CardContent content;
 
+  /// See [_ChoiceStep.build] — same reason, same fix. A flashcard has no answer
+  /// to reveal, but turning to the next card is a change to `index` and was
+  /// just as invisible.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final item = content.items[controller.index.value];
 
     return Padding(
@@ -464,8 +487,13 @@ class _TracingStep extends StatefulWidget {
 class _TracingStepState extends State<_TracingStep> {
   final _drawn = <Offset>[];
 
+  /// See [_ChoiceStep.build] — same reason, same fix. `setState` keeps driving
+  /// the finger-drawing, which is this widget's own state and not the
+  /// controller's; the two rebuild paths sit happily on top of each other.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final item = widget.content.items[widget.controller.index.value];
     final answered = widget.controller.chosen.value != null;
 
@@ -598,8 +626,13 @@ class _Finished extends StatelessWidget {
 
   final ActivityPlayController controller;
 
+  /// See [_ChoiceStep.build] — same reason, same fix. The score and the
+  /// "we could not tell the school" line are both observables, and the retry
+  /// button clearing that line changed nothing on screen.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final scored = controller.isScored;
 
     return Padding(

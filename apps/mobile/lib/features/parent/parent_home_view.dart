@@ -310,7 +310,7 @@ class _FeesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Fees')),
-      body: Obx(() => _FeesTab(child: child)),
+      body: _FeesTab(child: child),
     );
   }
 }
@@ -325,7 +325,7 @@ class _NoticesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Notices')),
-      body: Obx(() => _NoticesTab(child: child)),
+      body: _NoticesTab(child: child),
     );
   }
 }
@@ -1679,8 +1679,16 @@ class _FeesTab extends StatelessWidget {
 
   final ChildController child;
 
+  /// Subscribed here, where the observable is actually read.
+  ///
+  /// This was wrapped in an `Obx` by its caller, and that closure read nothing
+  /// at all — it returned this widget, whose build runs later and outside the
+  /// closure's reactive scope. So the page never repainted when the ledger
+  /// arrived, and GetX had nothing to listen to.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     final ledger = child.ledger.value;
 
     if (ledger == null || ledger.invoices.isEmpty) {
@@ -1785,8 +1793,11 @@ class _NoticesTab extends StatelessWidget {
 
   final ChildController child;
 
+  /// See [_FeesTab.build] — same reason, same fix.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     if (child.notices.isEmpty) {
       return ListView(
         children: const [

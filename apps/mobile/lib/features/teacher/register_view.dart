@@ -331,8 +331,15 @@ class _SaveBar extends StatelessWidget {
 
   final RegisterController controller;
 
+  /// Subscribed here, not by the `Obx` that returns this widget.
+  ///
+  /// That one tracks whether the bar should exist at all; `isSaving` is read
+  /// inside this build, which runs outside its scope — so the button never
+  /// went disabled while a save was in flight and could be pressed twice.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _body(context));
+
+  Widget _body(BuildContext context) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/audio/speech_service.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
@@ -322,12 +323,49 @@ class _SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Get.find<ThemeController>();
+    final voice = Get.isRegistered<SpeechService>()
+        ? Get.find<SpeechService>()
+        : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          if (voice != null) ...[
+            Text('Sound', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'The app reads each activity out loud, for children who cannot '
+              'read it themselves.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Obx(
+              () => Card(
+                margin: EdgeInsets.zero,
+                child: SwitchListTile(
+                  value: voice.isOn.value,
+                  onChanged: (on) => voice.setOn(on),
+                  secondary: Icon(
+                    voice.isOn.value
+                        ? Icons.volume_up_rounded
+                        : Icons.volume_off_rounded,
+                  ),
+                  title: const Text('Read activities aloud'),
+                  subtitle: Text(
+                    voice.isOn.value
+                        // Said plainly: a room of twenty phones all saying
+                        // "well done" at once is a real place.
+                        ? 'Turn this off in a classroom'
+                        : 'The app stays silent',
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
           Text(
             'Appearance',
             style: Theme.of(context).textTheme.titleSmall,

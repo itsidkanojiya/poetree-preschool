@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/audio/speech_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/kid_icons.dart';
 import '../../core/widgets/authed_image.dart';
@@ -488,6 +491,29 @@ class _TracingStep extends StatefulWidget {
 class _TracingStepState extends State<_TracingStep> {
   final _drawn = <Offset>[];
 
+  SpeechService? get _voice =>
+      Get.isRegistered<SpeechService>() ? Get.find<SpeechService>() : null;
+
+  /// Which number was last spoken, so arriving at it says it once.
+  ///
+  /// The build runs on every finger movement; without this the app would say
+  /// "trace the number one" over and over while a child was drawing it.
+  int? _announced;
+
+  @override
+  void dispose() {
+    // A child who leaves mid-sentence should not be followed out of the page.
+    unawaited(_voice?.stop());
+    super.dispose();
+  }
+
+  /// Reads the instruction, which names the number in its first three words.
+  void _announce(int item, String say) {
+    if (_announced == item) return;
+    _announced = item;
+    unawaited(_voice?.say(say));
+  }
+
   /// The last judgement, or null while the finger is still down.
   ///
   /// Held rather than recomputed on every frame: measuring a few hundred
@@ -508,7 +534,15 @@ class _TracingStepState extends State<_TracingStep> {
     );
 
     setState(() => _check = result);
-    if (result.passes) widget.controller.traceAccepted();
+
+    if (result.passes) {
+      widget.controller.traceAccepted();
+      unawaited(_voice?.wellDone());
+    } else {
+      // The same words on the screen, said out loud — a child who cannot read
+      // the hint is exactly the child who needs it.
+      unawaited(_voice?.say(result.hint));
+    }
   }
 
   void _restart() {
@@ -531,6 +565,12 @@ class _TracingStepState extends State<_TracingStep> {
     final theme = Theme.of(context);
     final check = _check;
 
+    // After this frame, not during it: speaking from inside build would fire
+    // while the widget tree is still being assembled.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _announce(controller.index.value, item.say),
+    );
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Column(
@@ -541,12 +581,25 @@ class _TracingStepState extends State<_TracingStep> {
           _TraceStrip(controller: controller, onPick: _restart),
           const SizedBox(height: 14),
 
-          Text(
-            item.say,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.say,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              // Heard again on demand. A child asks for the same thing five
+              // times, and leaving the page to get it is not an answer.
+              IconButton(
+                onPressed: () => unawaited(_voice?.say(item.say)),
+                icon: const Icon(Icons.volume_up_rounded),
+                tooltip: 'Say it again',
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           Expanded(
             child: LayoutBuilder(

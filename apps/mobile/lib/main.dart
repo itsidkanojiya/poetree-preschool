@@ -6,6 +6,7 @@ import 'core/config/branding.dart';
 import 'core/offline/outbox.dart';
 import 'core/push/push_service.dart';
 import 'core/routes/app_pages.dart';
+import 'core/audio/speech_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/auth/auth_controller.dart';
@@ -34,6 +35,12 @@ Future<void> main() async {
   // Same reason: the saved theme is read before anything is drawn, so a
   // family who chose dark never sees a flash of light on every launch.
   await Get.putAsync<ThemeController>(() => ThemeController().init(),
+      permanent: true);
+
+  // The voice, for children who cannot read. Registered whether or not the
+  // device has a speech engine — without one it is a no-op, and the app is the
+  // same app minus the sound.
+  await Get.putAsync<SpeechService>(() => SpeechService().init(),
       permanent: true);
 
   // Resolve the session before the first frame, so a signed-in parent never

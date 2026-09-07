@@ -72,17 +72,29 @@ class _AnimationViewState extends State<AnimationView> {
         showControls: true,
         strictRelatedVideos: true,
         enableCaption: false,
-        // Do NOT set `origin` here, however reasonable it looks.
-        //
-        // The package feeds that one value to three different things, and the
-        // third is `host` — the domain the YouTube API loads the player itself
-        // from. Setting it to our own domain made the player fetch
-        // school.poetreepublications.com/embed/<id>, which is the portal, which
-        // redirects to the sign-in page. Families got our login form where the
-        // film should be.
-        //
-        // It was set to try to talk YouTube out of refusing the embed. It is
-        // not worth a second attempt through this door.
+        /*
+         * Null, and not a domain. This one field feeds three different things
+         * in the package, and only null gets all three right.
+         *
+         *   host        = origin ?? 'https://www.youtube.com'
+         *   baseUrl     = origin
+         *   playerVars  = {origin, widget_referrer} — omitted when null
+         *
+         * The package default is 'https://www.youtube.com', which loads our
+         * player page *as* youtube.com and then tells YouTube it is embedded on
+         * youtube.com. It is not, and two videos from unrelated channels — both
+         * of which YouTube's own oEmbed hands out an embed iframe for — were
+         * refused with "This video is unavailable".
+         *
+         * Setting it to our own domain is worse: `host` follows it, so the
+         * player went looking for the film at school.poetreepublications.com
+         * and families got the portal's sign-in form.
+         *
+         * Null leaves `host` on youtube.com, where the player belongs, claims
+         * no origin at all, and loads the page as about:blank — which is what
+         * an app embedding a player actually is.
+         */
+        origin: null,
       ),
       key: youtubePlayerKey(widget.videoId),
     );

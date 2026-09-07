@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
 import '../notifications/inbox_view.dart';
@@ -289,6 +290,16 @@ class _ProfileTab extends StatelessWidget {
           ),
         ],
 
+        const SizedBox(height: 10),
+        _ActionTile(
+          icon: Icons.settings_rounded,
+          tone: AppTheme.sky,
+          toneSoft: AppTheme.skySoft,
+          title: 'Settings',
+          subtitle: 'How the app looks',
+          onTap: () => Get.to<void>(() => const _SettingsPage()),
+        ),
+
         const SizedBox(height: 24),
         OutlinedButton.icon(
           onPressed: auth.signOut,
@@ -296,6 +307,86 @@ class _ProfileTab extends StatelessWidget {
           label: const Text('Sign out'),
         ),
       ],
+    );
+  }
+}
+
+/// Settings, which is the theme and nothing else so far.
+///
+/// A page rather than a switch buried in Profile: there will be more than one
+/// setting eventually, and a family looking for "how do I stop it being black"
+/// looks for Settings.
+class _SettingsPage extends StatelessWidget {
+  const _SettingsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Get.find<ThemeController>();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        children: [
+          Text(
+            'Appearance',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'The app opens light. Choose dark if you prefer it, or let your '
+            'phone decide.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+
+          // Obx here rather than around a returned widget: the tiles read
+          // `mode`, so this is where the subscription has to be.
+          Obx(
+            () => Card(
+              margin: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  // Tap the row, not a small circle beside it. Radio's own
+                  // tile wants a RadioGroup ancestor in this Flutter version,
+                  // and a tick on the chosen row says the same thing with a
+                  // target a thumb can actually hit.
+                  for (final option in ThemeMode.values)
+                    ListTile(
+                      onTap: () => theme.choose(option),
+                      leading: Icon(
+                        switch (option) {
+                          ThemeMode.light => Icons.light_mode_rounded,
+                          ThemeMode.dark => Icons.dark_mode_rounded,
+                          ThemeMode.system => Icons.phone_android_rounded,
+                        },
+                        color: theme.mode.value == option
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      title: Text(switch (option) {
+                        ThemeMode.light => 'Light',
+                        ThemeMode.dark => 'Dark',
+                        ThemeMode.system => 'Match my phone',
+                      }),
+                      subtitle: Text(switch (option) {
+                        ThemeMode.light => 'Warm paper, the way it was drawn',
+                        ThemeMode.dark => 'Easier at bedtime',
+                        ThemeMode.system => 'Follows your phone’s setting',
+                      }),
+                      trailing: theme.mode.value == option
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : null,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -418,31 +509,11 @@ class _Overview extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
       children: [
         // The child, not the app. Their name is the largest thing on screen.
-        Row(
-          children: [
-            InitialsAvatar(name: selected?.fullName ?? '', radius: 26),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    selected?.fullName ?? '',
-                    style: theme.textTheme.headlineMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    selected?.classroomLabel ?? 'Not in a class yet',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ],
+        _GreetingHeader(
+          name: selected?.fullName ?? '',
+          classroom: selected?.classroomLabel ?? 'Not in a class yet',
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 18),
 
         if (pinned != null) ...[
           _PinnedNotice(
@@ -635,6 +706,98 @@ class _PinnedNotice extends StatelessWidget {
 }
 
 /// One figure with what it is made of underneath it.
+/// The top of the home page: who this is, and the time of day.
+///
+/// Was an avatar beside a name on bare paper — correct and completely flat, the
+/// same weight as the rows under it. A page about a four-year-old should open
+/// with some warmth, so this is a soft band of the school's own colour with the
+/// child's name the largest thing on it, and a greeting that changes through
+/// the day so the app feels like it noticed you arrived.
+class _GreetingHeader extends StatelessWidget {
+  const _GreetingHeader({required this.name, required this.classroom});
+
+  final String name;
+  final String classroom;
+
+  static String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primaryContainer,
+            Color.alphaBlend(
+              AppTheme.apricotSoft.withValues(alpha: 0.7),
+              scheme.surface,
+            ),
+          ],
+        ),
+      ),
+      child: Row(
+        children: [
+          InitialsAvatar(name: name, radius: 28),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$_greeting!',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  name,
+                  style: theme.textTheme.headlineMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                // A pill rather than plain text: it is a label on the child,
+                // not another line of the sentence above it.
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surface.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    classroom,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.label,

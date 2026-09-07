@@ -7,6 +7,7 @@ import 'core/offline/outbox.dart';
 import 'core/push/push_service.dart';
 import 'core/routes/app_pages.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'features/auth/auth_controller.dart';
 
 Future<void> main() async {
@@ -30,6 +31,11 @@ Future<void> main() async {
   // cached copy returns immediately and the network refresh follows.
   await BrandingService().load();
 
+  // Same reason: the saved theme is read before anything is drawn, so a
+  // family who chose dark never sees a flash of light on every launch.
+  await Get.putAsync<ThemeController>(() => ThemeController().init(),
+      permanent: true);
+
   // Resolve the session before the first frame, so a signed-in parent never
   // sees the login screen flash past on a cold start.
   final startRoute = await Get.find<AuthController>().resolveStartRoute();
@@ -44,17 +50,23 @@ class PoetreeSchoolApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: BrandingService.current.name,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      // Parents check this at bedtime as often as at the school gate, and the
-      // app had no dark mode at all — it simply rendered light on a phone set
-      // to dark.
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
-      initialRoute: initialRoute,
-      getPages: appPages,
+    final theme = Get.find<ThemeController>();
+
+    // Obx around the whole app so choosing a theme in Settings takes effect on
+    // the tap rather than on the next launch.
+    return Obx(
+      () => GetMaterialApp(
+        title: BrandingService.current.name,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        // Light unless the family said otherwise — never the phone's setting by
+        // default. A parent with a dark phone was being handed a near-black app
+        // for their four-year-old, which nobody chose.
+        themeMode: theme.mode.value,
+        initialRoute: initialRoute,
+        getPages: appPages,
+      ),
     );
   }
 }

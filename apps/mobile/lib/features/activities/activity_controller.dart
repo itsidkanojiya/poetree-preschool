@@ -198,6 +198,40 @@ class ActivityPlayController extends GetxController {
   /// never a mistake and can always be taken back.
   final picked = <int>{}.obs;
 
+  /// Which tracing items have actually been traced well enough to count.
+  ///
+  /// Tracing is the one activity where the items are a sequence rather than a
+  /// set: you learn to write one before two. So they unlock in order, and the
+  /// only way to unlock the next is to draw the current one properly —
+  /// separate from `correct`, which is the score, because a child may come
+  /// back to a number they have already done.
+  final traced = <int>{}.obs;
+
+  /// A number is open if it is the first, or the one before it is done.
+  bool isUnlocked(int item) => item == 0 || traced.contains(item - 1);
+
+  /// Records that this number was traced well enough, and unlocks the next.
+  void traceAccepted() {
+    if (traced.add(index.value)) correct.value += 1;
+    // Held so the page can show it is done and offer the way on. Tracing has
+    // no wrong answer to reveal — an attempt that misses simply is not
+    // accepted — so this only ever becomes true.
+    chosen.value = 0;
+    wasCorrect.value = true;
+  }
+
+  /// Jumps to a number the child has unlocked. Refuses the rest.
+  void goTo(int item) {
+    if (item < 0 || item >= total || !isUnlocked(item)) return;
+
+    index.value = item;
+    // Re-tracing a finished number starts it clean rather than showing it
+    // already ticked, which would be a page with nothing to do on it.
+    chosen.value = null;
+    wasCorrect.value = null;
+    picked.clear();
+  }
+
   void toggle(int option) {
     if (chosen.value != null) return;
     if (picked.contains(option)) {

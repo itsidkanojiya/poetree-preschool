@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/kid_icons.dart';
 import '../../core/widgets/authed_image.dart';
 import 'activity_controller.dart';
+import 'trace_check.dart';
 import 'activity_models.dart';
 
 /// A child doing one activity.
@@ -487,6 +488,36 @@ class _TracingStep extends StatefulWidget {
 class _TracingStepState extends State<_TracingStep> {
   final _drawn = <Offset>[];
 
+  /// The last judgement, or null while the finger is still down.
+  ///
+  /// Held rather than recomputed on every frame: measuring a few hundred
+  /// points against a few hundred more, sixty times a second, for no reason.
+  /// It is worked out once, when the finger lifts.
+  TraceCheck? _check;
+
+  /// The canvas, so a lifted finger can be measured against a guide drawn at
+  /// the same size the child saw.
+  Size _canvas = Size.zero;
+
+  void _judge() {
+    final item = widget.content.items[widget.controller.index.value];
+    final result = checkTrace(
+      strokes: item.strokes,
+      drawn: _drawn,
+      size: _canvas,
+    );
+
+    setState(() => _check = result);
+    if (result.passes) widget.controller.traceAccepted();
+  }
+
+  void _restart() {
+    setState(() {
+      _drawn.clear();
+      _check = null;
+    });
+  }
+
   /// See [_ChoiceStep.build] — same reason, same fix. `setState` keeps driving
   /// the finger-drawing, which is this widget's own state and not the
   /// controller's; the two rebuild paths sit happily on top of each other.
@@ -494,29 +525,47 @@ class _TracingStepState extends State<_TracingStep> {
   Widget build(BuildContext context) => Obx(() => _body(context));
 
   Widget _body(BuildContext context) {
-    final item = widget.content.items[widget.controller.index.value];
-    final answered = widget.controller.chosen.value != null;
+    final controller = widget.controller;
+    final item = widget.content.items[controller.index.value];
+    final done = controller.chosen.value != null;
+    final theme = Theme.of(context);
+    final check = _check;
 
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Column(
         children: [
+          // Which number this is, and which are still shut. A sequence, not a
+          // set: you learn to write one before two, so they open in order and
+          // the strip says how far along the child is.
+          _TraceStrip(controller: controller, onPick: _restart),
+          const SizedBox(height: 14),
+
           Text(
             item.say,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
+            style: theme.textTheme.titleMedium,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
+                _canvas = size;
 
                 return GestureDetector(
+                  // Judged when the finger lifts, not while it is down: a line
+                  // half drawn is not a wrong answer, it is an unfinished one.
                   onPanUpdate: (details) {
-                    if (answered) return;
-                    setState(() => _drawn.add(details.localPosition));
+                    if (done) return;
+                    setState(() {
+                      _drawn.add(details.localPosition);
+                      _check = null;
+                    });
+                  },
+                  onPanEnd: (_) {
+                    if (!done) _judge();
                   },
                   child: Container(
                     width: size.width,
@@ -525,17 +574,20 @@ class _TracingStepState extends State<_TracingStep> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
+                        color: done
+                            ? AppTheme.leaf
+                            : theme.colorScheme.outlineVariant,
+                        width: done ? 2 : 1,
                       ),
                     ),
                     child: CustomPaint(
                       painter: _TracePainter(
                         item: item,
                         drawn: _drawn,
-                        guideColour: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant,
-                        inkColour: Theme.of(context).colorScheme.primary,
+                        guideColour: theme.colorScheme.outlineVariant,
+                        inkColour: done
+                            ? AppTheme.leaf
+                            : theme.colorScheme.primary,
                       ),
                     ),
                   ),
@@ -544,39 +596,139 @@ class _TracingStepState extends State<_TracingStep> {
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Stacked, not side by side, and for a reason worth writing down.
-          //
-          // These two were a Row with a Spacer between them, and the theme
-          // gives every FilledButton `minimumSize: Size.fromHeight(54)` —
-          // which is `Size(infinity, 54)`, an infinite MINIMUM WIDTH. That is
-          // what makes buttons full-width everywhere else, and inside a Row it
-          // pushed Next clean off the screen. A child traced the number and
-          // then sat there: the drawing worked, the way on was invisible.
-          //
-          // Full width also happens to be the right shape for the only button
-          // on the page that goes forward, at the age this is for.
+          // One line that says what just happened. Never blank while there is
+          // something to say, and never a red failure: a child who missed is
+          // asked to go again, not marked wrong.
+          SizedBox(
+            height: 24,
+            child: Center(
+              child: Text(
+                done
+                    ? 'That looks like it! Well done.'
+                    : check == null
+                    ? 'Trace over the grey line with your finger.'
+                    : check.hint,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: done ? AppTheme.leaf : theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
-              onPressed: () => setState(_drawn.clear),
+              onPressed: _drawn.isEmpty ? null : _restart,
               child: const Text('Start again'),
             ),
           ),
           const SizedBox(height: 4),
+
+          // Stacked rather than beside "Start again": the theme gives every
+          // FilledButton an infinite minimum width, so one in a Row is pushed
+          // off the screen — which is how the way on went missing before.
+          //
+          // Disabled until the shape is actually traced. That is the whole
+          // point: a page you could leave by tapping Next taught nothing about
+          // writing a one.
           FilledButton(
-            onPressed: () {
-              // Any real attempt counts. A three-year-old's line will never
-              // sit on the path, and scoring the shape of it would measure
-              // fine motor control rather than letter recognition.
-              widget.controller.answer(_drawn.length > 12 ? 1 : 0, 1);
-              setState(_drawn.clear);
-              widget.controller.next();
-            },
-            child: Text(widget.controller.isLast ? 'Finish' : 'Next'),
+            onPressed: done
+                ? () {
+                    _restart();
+                    controller.next();
+                  }
+                : null,
+            child: Text(controller.isLast ? 'Finish' : 'Next'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The numbers in this activity, in order, with the shut ones shut.
+///
+/// A child sees where they are and what is coming. Tapping one they have
+/// already done goes back to it — practice is the point — and tapping a locked
+/// one does nothing, because the number before it has not been written yet.
+class _TraceStrip extends StatelessWidget {
+  const _TraceStrip({required this.controller, required this.onPick});
+
+  final ActivityPlayController controller;
+
+  /// Clears the canvas, so moving between numbers never leaves the last line
+  /// drawn on the new one.
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: controller.total,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, item) {
+          final isDone = controller.traced.contains(item);
+          final isHere = controller.index.value == item;
+          final isOpen = controller.isUnlocked(item);
+
+          final background = isHere
+              ? theme.colorScheme.primary
+              : isDone
+              ? AppTheme.leafSoft
+              : isOpen
+              ? theme.colorScheme.surface
+              : theme.colorScheme.surfaceContainerHighest;
+
+          final foreground = isHere
+              ? theme.colorScheme.onPrimary
+              : isDone
+              ? AppTheme.leaf
+              : isOpen
+              ? theme.colorScheme.onSurface
+              : theme.colorScheme.onSurfaceVariant;
+
+          return GestureDetector(
+            onTap: isOpen
+                ? () {
+                    controller.goTo(item);
+                    onPick();
+                  }
+                : null,
+            child: Container(
+              width: 42,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isHere
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.outlineVariant,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: isOpen
+                  ? Text(
+                      '${item + 1}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: foreground,
+                      ),
+                    )
+                  // A padlock, because a locked number showing its own digit
+                  // reads as available and greyed out for no reason.
+                  : Icon(Icons.lock_rounded, size: 17, color: foreground),
+            ),
+          );
+        },
       ),
     );
   }

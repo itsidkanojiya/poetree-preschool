@@ -9,61 +9,8 @@ painter's straight segments read as curves.
 """
 
 import json
-import math
 
-STEP = 6.0  # degrees between points on an arc
-
-
-def arc(cx, cy, rx, ry, a0, a1):
-    """Points along an ellipse from a0 to a1 degrees.
-
-    Screen coordinates, so y grows downward: 180 deg is the left of the shape,
-    270 deg the top, 0/360 the right, 90 deg the bottom.
-    """
-    out = []
-    steps = max(2, int(abs(a1 - a0) / STEP))
-    for i in range(steps + 1):
-        a = math.radians(a0 + (a1 - a0) * i / steps)
-        out.append((cx + rx * math.cos(a), cy + ry * math.sin(a)))
-    return out
-
-
-def line(p0, p1, n=10):
-    """A straight run, sampled so no segment is long enough to shortcut."""
-    return [
-        (p0[0] + (p1[0] - p0[0]) * i / n, p0[1] + (p1[1] - p0[1]) * i / n)
-        for i in range(n + 1)
-    ]
-
-
-def curve(p0, c, p1, n=16):
-    """A quadratic bend from p0 to p1 pulled toward c."""
-    out = []
-    for i in range(n + 1):
-        t = i / n
-        u = 1 - t
-        out.append(
-            (
-                u * u * p0[0] + 2 * u * t * c[0] + t * t * p1[0],
-                u * u * p0[1] + 2 * u * t * c[1] + t * t * p1[1],
-            )
-        )
-    return out
-
-
-def join(*parts):
-    """Concatenate runs, dropping the duplicated joint points."""
-    out = []
-    for part in parts:
-        if out and abs(out[-1][0] - part[0][0]) < 1e-9 and abs(out[-1][1] - part[0][1]) < 1e-9:
-            out.extend(part[1:])
-        else:
-            out.extend(part)
-    return out
-
-
-def stroke(points):
-    return [{"x": round(x, 4), "y": round(y, 4)} for x, y in points]
+from strokes_lib import arc, curve, join, line, stroke
 
 
 # --- the numerals ------------------------------------------------------------
@@ -149,16 +96,23 @@ ITEMS = [
     ("10", "Trace the number ten. A one, then a round oh.", ten()),
 ]
 
-content = {
-    "kind": "TRACING",
-    "items": [{"say": say, "glyph": glyph, "strokes": strokes} for glyph, say, strokes in ITEMS],
-}
+def zero():
+    """Not in the activity, but the app needs a nought like any other glyph."""
+    return [stroke(arc(0.5, 0.5, 0.19, 0.37, 270, 630))]
 
-out = json.dumps(content, separators=(",", ":"))
-with open("numerals.json", "w", encoding="utf-8") as f:
-    f.write(out)
 
-print("items:", len(content["items"]))
-for glyph, _, strokes in ITEMS:
-    print(f"  {glyph}: {len(strokes)} stroke(s), {sum(len(s) for s in strokes)} points")
-print("bytes:", len(out))
+def build():
+    items = [
+        {"glyph": glyph, "say": say, "strokes": strokes} for glyph, say, strokes in ITEMS
+    ]
+    items.insert(0, {"glyph": "0", "say": "Trace the number nought. All the way round.", "strokes": zero()})
+    return items
+
+
+if __name__ == "__main__":
+    content = {"kind": "TRACING", "items": [i for i in build() if i["glyph"] != "0"]}
+    out = json.dumps(content, separators=(",", ":"))
+    with open("numerals.json", "w", encoding="utf-8") as f:
+        f.write(out)
+    print("items:", len(content["items"]))
+    print("bytes:", len(out))

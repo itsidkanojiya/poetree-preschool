@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import type { QuestionRow } from '@poetree/shared';
 import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
 import { ConfirmButton } from '@/components/ui/confirm-button';
-import { StrokeEditor } from './stroke-editor';
+import { Notice } from '@/components/ui/layout';
 import {
   addQuestionAction,
   deleteQuestionAction,
@@ -135,7 +135,7 @@ export function AddQuestionForm({
           label={tracing ? 'The letter or number' : 'or an emoji'}
           hint={
             tracing
-              ? 'Shown faintly under your strokes, and to the child as they trace.'
+              ? 'The one thing a tracing question needs — the path comes with it.'
               : 'Shown large, above the choices.'
           }
         >
@@ -144,12 +144,7 @@ export function AddQuestionForm({
       </div>
 
       {tracing ? (
-        <Field
-          label="The path to trace"
-          hint="Draw over the letter, one stroke at a time, in the order a child should make them."
-        >
-          <StrokeEditor name="strokes" />
-        </Field>
+        <TracePathNote />
       ) : (
         scored && (
           <div>
@@ -174,6 +169,23 @@ export function AddQuestionForm({
         {count === 0 ? 'Add the first question' : 'Add another question'}
       </SubmitButton>
     </form>
+  );
+}
+
+/**
+ * What used to be a drawing canvas.
+ *
+ * Authors drew each path by hand, one question at a time, which is how the
+ * shipped letters came to be straight-line skeletons — a B with no bumps, a
+ * two shaped like a Z. An "a" is the same "a" in every book and every school,
+ * so it is built in and there is nothing here to get wrong.
+ */
+function TracePathNote() {
+  return (
+    <Notice tone="info" title="The path is built in">
+      A child traces the standard shape for the letter or number above, in the
+      order it is written. Nothing to draw.
+    </Notice>
   );
 }
 
@@ -209,13 +221,7 @@ export function EditQuestionForm({
       </Field>
 
       {tracing ? (
-        <Field label="The path to trace">
-          <StrokeEditor
-            name="strokes"
-            guide={question.promptGlyph ?? undefined}
-            initial={question.strokes ?? undefined}
-          />
-        </Field>
+        <TracePathNote />
       ) : (
         scored && (
           <div className="grid gap-3 sm:grid-cols-2">

@@ -10,6 +10,7 @@ import {
   type UpdateQuestionInput,
 } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
+import { strokesForGlyph } from '../content/glyphStrokes.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 
@@ -37,8 +38,20 @@ export function assetUrl(fileId: string | null): string | null {
 
 type Strokes = Array<Array<{ x: number; y: number }>>;
 
+/**
+ * The path a child traces for this question.
+ *
+ * The built-in shape for the letter or number comes first, and a hand-drawn one
+ * is only a fallback. An "a" is the same "a" in every activity, every book and
+ * every school — there is nothing for an author to decide, and every path drawn
+ * by hand was another chance to draw a B without its bumps, which is what the
+ * shipped content did.
+ *
+ * The fallback is not dead weight: a school writing a Hindi or Gujarati letter
+ * has no built-in shape, and their own path is the only path there is.
+ */
 function strokesOf(row: QuestionWithOptions): Strokes | null {
-  return (row.strokesJson as Strokes | null) ?? null;
+  return strokesForGlyph(row.promptGlyph) ?? (row.strokesJson as Strokes | null) ?? null;
 }
 
 /**
@@ -51,8 +64,13 @@ export function problemWith(row: QuestionWithOptions, type: string): string | nu
   const scored = isScored(type as ActivityContent['kind']);
 
   if (type === 'TRACING') {
+    // A letter or number is enough on its own now — the path comes with it.
     const strokes = strokesOf(row);
-    if (!strokes || strokes.length === 0) return 'No strokes to trace yet';
+    if (!strokes || strokes.length === 0) {
+      return row.promptGlyph
+        ? `There is no built-in path for “${row.promptGlyph}”`
+        : 'Choose the letter or number to trace';
+    }
     return null;
   }
 

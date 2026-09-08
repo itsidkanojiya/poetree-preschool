@@ -34,3 +34,6 @@ deploy-artifact/
 **/firebase-service-account.json
 **/*firebase-adminsdk*.json
 **/serviceAccountKey.json
+# Python bytecode from the content generators in scripts/content.
+__pycache__/
+*.pyc

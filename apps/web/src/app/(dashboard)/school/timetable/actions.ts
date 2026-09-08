@@ -87,3 +87,49 @@ export async function createPeriodAction(
   revalidatePath('/school/timetable');
   return { success: 'Period added.' };
 }
+
+/**
+ * Corrects a period that was typed wrong.
+ *
+ * The school day was write-only: a period added with the wrong time stayed
+ * wrong on every class's grid for the year, because there was nothing to press.
+ */
+export async function updatePeriodAction(
+  periodId: string,
+  _prev: TimetableState,
+  formData: FormData,
+): Promise<TimetableState> {
+  const name = String(formData.get('name') ?? '').trim();
+  if (name === '') return { error: 'A period needs a name.' };
+
+  try {
+    await apiFetch(`/timetable/periods/${periodId}`, {
+      method: 'PATCH',
+      redirectOnAuthFailure: false,
+      body: {
+        name,
+        startTime: String(formData.get('startTime') ?? ''),
+        endTime: String(formData.get('endTime') ?? ''),
+        sortOrder: Number(formData.get('sortOrder') ?? 0),
+        isBreak: formData.get('isBreak') === 'on',
+      },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the period.') };
+  }
+
+  revalidatePath('/school/timetable');
+  return { success: 'Saved. Every class’s grid follows the school day.' };
+}
+
+/**
+ * Removes a period, and the lessons in it.
+ *
+ * A real delete: the entry's periodId cascades, so every class loses whatever
+ * was in that row. There is no gentler version — a period nobody teaches is a
+ * blank line across the whole week.
+ */
+export async function deletePeriodAction(periodId: string): Promise<void> {
+  await apiFetch(`/timetable/periods/${periodId}`, { method: 'DELETE' });
+  revalidatePath('/school/timetable');
+}

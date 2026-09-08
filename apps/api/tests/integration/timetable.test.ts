@@ -125,4 +125,72 @@ describe.skipIf(!dbUp)('a week that is only as full as it needs to be', () => {
     expect(emptied.status).toBe(200);
     expect(emptied.body.entries).toEqual([]);
   });
+  it('counts what each period is carrying, for the delete dialog', async () => {
+    await api
+      .put(`${BASE}/timetable/classrooms/${school.classroomId}`)
+      .set(auth(admin))
+      .send({ slots: [{ dayOfWeek: 3, periodId, subjectId: mathsId }] });
+
+    const listed = await api.get(`${BASE}/timetable/periods`).set(auth(admin));
+    const first = listed.body.find((row: { id: string }) => row.id === periodId);
+
+    expect(first.lessonCount).toBe(1);
+  });
+
+  it('corrects a period that was typed wrong', async () => {
+    // The school day used to be write-only: a period added with the wrong time
+    // stayed wrong on every class's grid for the year.
+    const fixed = await api
+      .patch(`${BASE}/timetable/periods/${periodId}`)
+      .set(auth(admin))
+      .send({ name: 'Circle time', startTime: '09:10' });
+
+    expect(fixed.status).toBe(200);
+    expect(fixed.body.name).toBe('Circle time');
+    expect(fixed.body.startTime).toBe('09:10');
+    // Untouched fields stay as they were.
+    expect(fixed.body.endTime).toBe('09:40');
+  });
+
+  it('removes a period and the lessons in it', async () => {
+    // TimetableEntry.periodId cascades, so this takes the row out of every
+    // class. There is no softer version: a period nobody teaches is a blank
+    // line across the whole week.
+    const gone = await api
+      .delete(`${BASE}/timetable/periods/${periodId}`)
+      .set(auth(admin));
+
+    expect(gone.status).toBe(200);
+    expect(gone.body.lessonCount).toBe(1);
+
+    const listed = await api.get(`${BASE}/timetable/periods`).set(auth(admin));
+    expect(listed.body.map((row: { id: string }) => row.id)).not.toContain(periodId);
+
+    const orphans = await prismaUnscoped.timetableEntry.count({ where: { periodId } });
+    expect(orphans).toBe(0);
+  });
+
+  it('will not let a school touch another school’s period', async () => {
+    const neighbour = await seedSchool(baseline, 'delta', 'Delta Preschool');
+    const theirAdmin = await login(neighbour.adminEmail);
+
+    const mine = await api
+      .post(`${BASE}/timetable/periods`)
+      .set(auth(admin))
+      .send({
+        academicYearId: school.academicYearId,
+        name: 'Ours',
+        startTime: '11:00',
+        endTime: '11:30',
+        sortOrder: 9,
+      });
+
+    // 404 rather than 403: a refusal that confirms the row exists is itself a
+    // leak about the school next door.
+    const refused = await api
+      .delete(`${BASE}/timetable/periods/${mine.body.id}`)
+      .set(auth(theirAdmin));
+
+    expect(refused.status).toBe(404);
+  });
 });

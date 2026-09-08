@@ -10,6 +10,7 @@ import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, Notice, PageHeader } from '@/components/ui/layout';
 import { NewPeriodForm, TimetableGrid } from './grid';
 import { SubjectList } from './subjects';
+import { PeriodList, type Period as PeriodRow } from './periods';
 
 interface Period {
   id: string;
@@ -34,11 +35,15 @@ export default async function TimetablePage({
 }) {
   const { classroomId } = await searchParams;
 
-  const [classrooms, years, teachers, subjects] = await Promise.all([
+  const [classrooms, years, teachers, subjects, allPeriods] = await Promise.all([
     apiFetch<ClassroomSummary[]>('/classrooms'),
     apiFetch<AcademicYearSummary[]>('/academic-years'),
     apiFetch<Paginated<TeacherSummary>>('/teachers', { query: { pageSize: 100 } }),
     apiFetch<SubjectSummary[]>('/subjects'),
+    // The grid's own periods come back without a sort order or a count of what
+    // is scheduled in them; this endpoint carries both, which is what the list
+    // below needs to say what a delete would cost.
+    apiFetch<Array<PeriodRow & { academicYearId: string }>>('/timetable/periods'),
   ]);
 
   if (classrooms.length === 0) {
@@ -156,7 +161,14 @@ export default async function TimetablePage({
             title="The school day"
             description="Periods are shared by every class in the year."
           >
-            <NewPeriodForm academicYearId={currentYear.id} />
+            <PeriodList
+              periods={allPeriods.filter(
+                (period) => period.academicYearId === currentYear.id,
+              )}
+            />
+            <div className="mt-4 border-t border-navy-950/[0.06] pt-4">
+              <NewPeriodForm academicYearId={currentYear.id} />
+            </div>
           </Card>
         )}
       </div>

@@ -216,6 +216,22 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
         },
       });
 
+    // A letter is all a tracing question needs: the path is built in, the same
+    // "A" in every book and every school, so there is nothing to draw.
+    const letter = await api
+      .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
+      .set(auth(publisher))
+      .send({ say: 'Trace the letter B', promptGlyph: 'B' });
+
+    expect(letter.status).toBe(201);
+    expect(letter.body.problem).toBeNull();
+    // Three strokes, because a B is a stem and two bumps. The shipped content
+    // had it as a stem and two straight diagonals.
+    expect(letter.body.strokes).toHaveLength(3);
+
+    // A path sent by hand for a letter we know is ignored in favour of the
+    // built-in one. Ten schools drawing ten different A's is the thing this
+    // exists to stop.
     const drawn = await api
       .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
       .set(auth(publisher))
@@ -227,24 +243,38 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
             { x: 0.5, y: 0.1 },
             { x: 0.2, y: 0.9 },
           ],
-          [
-            { x: 0.5, y: 0.1 },
-            { x: 0.8, y: 0.9 },
-          ],
         ],
       });
 
     expect(drawn.status).toBe(201);
-    expect(drawn.body.strokes).toHaveLength(2);
-    expect(drawn.body.problem).toBeNull();
+    expect(drawn.body.strokes).toHaveLength(3);
 
-    // A letter with no path is a blank square a child is asked to trace.
-    const undrawn = await api
+    // A script we have no shape for keeps whatever was drawn for it. Taking
+    // that away would remove the feature rather than the mistake.
+    const hindi = await api
       .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
       .set(auth(publisher))
-      .send({ say: 'Trace the letter B', promptGlyph: 'B' });
+      .send({
+        say: 'Trace this letter',
+        promptGlyph: 'अ',
+        strokes: [
+          [
+            { x: 0.3, y: 0.2 },
+            { x: 0.7, y: 0.8 },
+          ],
+        ],
+      });
 
-    expect(undrawn.body.problem).toBe('No strokes to trace yet');
+    expect(hindi.body.strokes).toHaveLength(1);
+    expect(hindi.body.problem).toBeNull();
+
+    // And one with neither is a blank square a child is asked to trace.
+    const empty = await api
+      .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
+      .set(auth(publisher))
+      .send({ say: 'Trace something' });
+
+    expect(empty.body.problem).toBe('Choose the letter or number to trace');
   });
 
   it('keeps a school out of the question editor', async () => {

@@ -44,19 +44,24 @@ dependencies:
   # both — most take the picture there and then, some already have.
   image_picker: ^1.1.2
 
-  # The animation a child watches before a book opens. Played inside the app,
-  # not handed to the YouTube app: this is the only way to know the video
+  # The animation a child watches before a chapter opens. Played inside the app,
+  # not handed to the YouTube app: this is the only way to know the film
   # actually finished rather than a four-year-old tapping away from it, and it
   # keeps them out of YouTube's recommendations.
   #
-  # The iframe player rather than youtube_player_flutter: that one pulls in
-  # flutter_inappwebview, whose Android module still calls
-  # getDefaultProguardFile('proguard-android.txt') — removed in AGP 9, so the
-  # app would not build at all. This one sits on Flutter's own webview.
-  # Already here through the player; named so the fallback that opens a film
-  # in YouTube cannot break the day the player stops depending on it.
+  # The WebView directly, rather than youtube_player_iframe. That package builds
+  # a page of our own around YouTube's JavaScript player, and feeds one `origin`
+  # value to three things that need different ones — the page's base URL, the
+  # origin declared to the player, and the host the player is loaded from. Every
+  # combination was refused with a different code, on videos YouTube's own
+  # oEmbed service was handing out embed iframes for. Loading YouTube's embed
+  # page itself removes the negotiation instead of trying to win it, and being
+  # same-origin with that page is what lets us watch the real video element.
+  webview_flutter: ^4.14.0
+  webview_flutter_android: ^4.14.0
+
+  # The way out when a film will not play here at all.
   url_launcher: ^6.3.1
-  youtube_player_iframe: ^5.2.0
 
   # The app talks to children who cannot read. Every prompt in the content
   # already carries a `say` sentence written to be read aloud by the adult

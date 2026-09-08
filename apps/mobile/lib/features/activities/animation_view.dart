@@ -3,34 +3,67 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../core/api/api_service.dart';
 
-/// A player channel name that JavaScript can actually parse.
-///
-/// `YoutubePlayerController.fromVideoId` uses the video id itself as the
-/// player's key, and the package pastes that key **unquoted** into its own
-/// player script: `Youtube<key>.postMessage(message)`.
-///
-/// YouTube ids may contain a hyphen, and ours does. `a-3kJzYn_Bo` produced
-/// `Youtubea-3kJzYn_Bo.postMessage(...)`, which JavaScript reads as
-/// `Youtubea - 3kJzYn_Bo` — and `3kJzYn_Bo`, a digit followed by letters, is
-/// not a token at all. The whole script then fails to parse, so nothing in it
-/// runs: no player, no events, no error the app can see. Just a black
-/// rectangle, which is exactly what a family reported.
-///
-/// Stripping what an identifier cannot hold fixes it. The name only has to be
-/// unique among players on screen, and there is never more than one.
-String youtubePlayerKey(String videoId) =>
-    videoId.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '');
+/// What the WebView tells us about itself.
+const _channel = 'PoetreeFilm';
 
-/// The animation a child watches before a book's activities open.
+/// Watches the real video element on YouTube's own embed page.
 ///
-/// Played inside the app rather than handed to YouTube. Two reasons, and the
-/// second is the important one: this is the only way to know the video actually
-/// reached the end rather than a four-year-old tapping away from it, and it
-/// keeps them out of YouTube's recommendations and comments.
+/// This is only possible because the page is loaded directly rather than put
+/// inside an iframe of our own: our script and the player are the same origin,
+/// so the `<video>` element is simply there to be read. Through an iframe it
+/// would be unreachable, which is what the JavaScript player API exists to work
+/// around — and that API is what could never be made to work here.
+///
+/// Polled rather than purely event-driven because the element does not exist
+/// when the page first loads, and a listener attached to nothing is silent
+/// forever.
+const _watcher = '''
+(function () {
+  var reported = false;
+  function tell(what) { $_channel.postMessage(what); }
+
+  setInterval(function () {
+    var video = document.querySelector('video');
+    if (!video) return;
+
+    if (!video.dataset.poetreeWatched) {
+      video.dataset.poetreeWatched = '1';
+      video.addEventListener('ended', function () {
+        if (!reported) { reported = true; tell('ended'); }
+      });
+    }
+
+    if (!video.paused && video.currentTime > 0) tell('playing');
+
+    // A film the child scrubbed to the end of, or one whose 'ended' event the
+    // page swallowed: within a second of the end counts as watched.
+    if (!reported && video.duration > 0 && video.duration - video.currentTime < 1) {
+      reported = true;
+      tell('ended');
+    }
+  }, 700);
+})();
+''';
+
+/// The animation a child watches before a chapter's activities open.
+///
+/// Played inside the app rather than handed to YouTube: this is the only way to
+/// know the film actually reached the end rather than a four-year-old tapping
+/// away from it, and it keeps them out of YouTube's recommendations.
+///
+/// It loads YouTube's own embed page straight into a WebView. It used to build
+/// a page of our own around YouTube's JavaScript player, and that could not be
+/// made to work: the player wants an origin, the package that wrapped it fed
+/// the same value to the origin, the page's base URL and the host it loads the
+/// player from, and no single value is right for all three. Every combination
+/// was refused, each with a different code, on videos YouTube's own oEmbed
+/// service was happily handing out embed iframes for. Loading the page itself
+/// removes the negotiation rather than winning it.
 class AnimationView extends StatefulWidget {
   const AnimationView({
     required this.videoId,
@@ -50,100 +83,83 @@ class AnimationView extends StatefulWidget {
 }
 
 class _AnimationViewState extends State<AnimationView> {
-  late final YoutubePlayerController _controller;
-  StreamSubscription<YoutubePlayerValue>? _states;
+  late final WebViewController _web;
   Timer? _startupWatch;
   bool _finished = false;
   bool _saving = false;
   bool _stuck = false;
+  bool _playing = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    // Built by hand rather than through `fromVideoId`, which is the only way to
-    // choose the key — see [youtubePlayerKey]. The video is then loaded exactly
-    // as that factory would with autoPlay on.
-    _controller = YoutubePlayerController(
-      params: const YoutubePlayerParams(
-        // No related videos at the end, and nothing to tap through to: the
-        // viewer is between two and six.
-        showFullscreenButton: true,
-        showControls: true,
-        strictRelatedVideos: true,
-        enableCaption: false,
-        /*
-         * Null, and not a domain. This one field feeds three different things
-         * in the package, and only null gets all three right.
-         *
-         *   host        = origin ?? 'https://www.youtube.com'
-         *   baseUrl     = origin
-         *   playerVars  = {origin, widget_referrer} — omitted when null
-         *
-         * The package default is 'https://www.youtube.com', which loads our
-         * player page *as* youtube.com and then tells YouTube it is embedded on
-         * youtube.com. It is not, and two videos from unrelated channels — both
-         * of which YouTube's own oEmbed hands out an embed iframe for — were
-         * refused with "This video is unavailable".
-         *
-         * Setting it to our own domain is worse: `host` follows it, so the
-         * player went looking for the film at school.poetreepublications.com
-         * and families got the portal's sign-in form.
-         *
-         * Null leaves `host` on youtube.com, where the player belongs, claims
-         * no origin at all, and loads the page as about:blank — which is what
-         * an app embedding a player actually is.
-         */
-        origin: null,
-      ),
-      key: youtubePlayerKey(widget.videoId),
-    );
-    unawaited(_controller.loadVideoById(videoId: widget.videoId));
 
-    _states = _controller.stream.listen((value) {
-      if (!mounted) return;
+    _web = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // A plain WebView identifies itself as one, and YouTube serves it
+      // something other than the player it serves a phone browser.
+      ..setUserAgent(
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      )
+      ..setBackgroundColor(Colors.black)
+      ..addJavaScriptChannel(_channel, onMessageReceived: _fromPage)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) => unawaited(_web.runJavaScript(_watcher)),
+          onWebResourceError: (error) {
+            // Only the page itself failing counts. An advert or a font that
+            // did not load is not a film that will not play.
+            if (error.isForMainFrame ?? false) {
+              if (mounted) setState(() => _stuck = true);
+            }
+          },
+        ),
+      )
+      ..loadRequest(
+        Uri.parse(
+          'https://www.youtube.com/embed/${widget.videoId}'
+          '?autoplay=1&playsinline=1&rel=0&modestbranding=1',
+        ),
+      );
 
-      /// Only pictures on the screen count as the film having arrived.
-      ///
-      /// Being "ready" does not: the player reports itself ready and then
-      /// shows YouTube's own "This video is unavailable" card, which is a
-      /// failure that looks like a success from here. Treating ready as
-      /// arrival cancelled the watchdog and took the way out away again,
-      /// leaving a child on an error card with no way past it.
-      final arrived =
-          value.playerState == PlayerState.playing ||
-          value.playerState == PlayerState.buffering;
+    // Autoplay without a tap, which is the point at this age.
+    final platform = _web.platform;
+    if (platform is AndroidWebViewController) {
+      platform.setMediaPlaybackRequiresUserGesture(false);
+    }
 
-      if (arrived) {
-        _startupWatch?.cancel();
-        if (_stuck) setState(() => _stuck = false);
-      } else if (value.error != YoutubeError.none) {
-        // Sticky. A film that has failed stays failed until one actually
-        // plays — a later harmless event must not quietly withdraw the offer
-        // of a way out.
-        _startupWatch?.cancel();
-        if (!_stuck) setState(() => _stuck = true);
-      }
-
-      if (_finished) return;
-      if (value.playerState == PlayerState.ended) {
-        _finished = true;
-        unawaited(_unlock());
-      }
-    });
-
-    /// Nothing at all after ten seconds counts as stuck.
+    /// Nothing playing after twelve seconds counts as stuck.
     ///
-    /// The player can fail without ever reporting an error — a WebView that
-    /// cannot run YouTube's own script leaves a black rectangle and says
-    /// nothing. That is a dead end: the chapter never opens, and there is
-    /// nothing on screen to try.
-    _startupWatch = Timer(const Duration(seconds: 10), () {
-      if (mounted && !_finished) setState(() => _stuck = true);
+    /// A film can fail without any error the app can see: YouTube draws its own
+    /// "video unavailable" card inside the page and everything below reports
+    /// success. That is a dead end — the chapter never opens and there is
+    /// nothing on screen to try — so this offers the way out instead.
+    _startupWatch = Timer(const Duration(seconds: 12), () {
+      if (mounted && !_playing && !_finished) setState(() => _stuck = true);
     });
   }
 
-  /// Opens the film in YouTube, for a device whose WebView will not play it.
+  void _fromPage(JavaScriptMessage message) {
+    if (!mounted) return;
+
+    if (message.message == 'playing' && !_playing) {
+      _startupWatch?.cancel();
+      setState(() {
+        _playing = true;
+        _stuck = false;
+      });
+      return;
+    }
+
+    if (message.message == 'ended' && !_finished) {
+      _finished = true;
+      unawaited(_unlock());
+    }
+  }
+
+  /// Opens the film in YouTube, for a device that will not play it here.
   Future<void> _openOutside() async {
     final url = Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -166,7 +182,7 @@ class _AnimationViewState extends State<AnimationView> {
         body: {'studentId': widget.studentId},
       );
       if (!mounted) return;
-      // `true` tells the shelf behind us to reload: the book is open now.
+      // `true` tells the chapter behind us to reload: it is open now.
       Navigator.of(context).pop(true);
     } on DioException {
       if (!mounted) return;
@@ -182,8 +198,6 @@ class _AnimationViewState extends State<AnimationView> {
   @override
   void dispose() {
     _startupWatch?.cancel();
-    unawaited(_states?.cancel());
-    _controller.close();
     super.dispose();
   }
 
@@ -191,14 +205,19 @@ class _AnimationViewState extends State<AnimationView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return YoutubePlayerScaffold(
-      controller: _controller,
-      builder: (context, player) => Scaffold(
-        appBar: AppBar(title: Text(widget.chapterName)),
-        body: Column(
-          children: [
-            player,
-            Padding(
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.chapterName)),
+      body: Column(
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: ColoredBox(
+              color: Colors.black,
+              child: WebViewWidget(controller: _web),
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
@@ -211,8 +230,8 @@ class _AnimationViewState extends State<AnimationView> {
                   ),
 
                   // A film that will not play must not be a dead end. Some
-                  // devices cannot run YouTube's player inside an app at all,
-                  // and without this the chapter simply never opens for them.
+                  // phones cannot play YouTube inside an app at all, and
+                  // without this the chapter simply never opens for them.
                   if (_stuck && !_finished) ...[
                     const SizedBox(height: 16),
                     Text(
@@ -222,9 +241,8 @@ class _AnimationViewState extends State<AnimationView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Some films cannot be played inside an app, and some '
-                      'phones cannot play them at all. Open it in YouTube, '
-                      'watch it together, then come back and tap below.',
+                      'Open it in YouTube, watch it together, then come back '
+                      'and tap below.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall,
                     ),
@@ -237,12 +255,13 @@ class _AnimationViewState extends State<AnimationView> {
                     const SizedBox(height: 8),
                     TextButton(
                       // Deliberately an adult's decision, and only offered when
-                      // the player has already failed — the gate exists so a
+                      // the film has already failed — the gate exists so a
                       // child meets the film, not to punish a phone.
                       onPressed: _saving ? null : () => unawaited(_unlock()),
                       child: const Text('We have watched it'),
                     ),
                   ],
+
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -259,6 +278,7 @@ class _AnimationViewState extends State<AnimationView> {
                       child: const Text('Try again'),
                     ),
                   ],
+
                   if (_saving) ...[
                     const SizedBox(height: 16),
                     const CircularProgressIndicator(),
@@ -266,8 +286,8 @@ class _AnimationViewState extends State<AnimationView> {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

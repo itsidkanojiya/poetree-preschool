@@ -28,6 +28,14 @@ const _watcher = '''
   function tell(what) { $_channel.postMessage(what); }
 
   setInterval(function () {
+    // YouTube's own refusal card, reported the moment it is drawn. It is a
+    // definite answer, and waiting out a timer for a definite answer is twelve
+    // seconds of a child looking at nothing.
+    if (document.querySelector('.ytp-error, .ytp-error-content-wrap')) {
+      tell('refused');
+      return;
+    }
+
     var video = document.querySelector('video');
     if (!video) return;
 
@@ -89,6 +97,7 @@ class _AnimationViewState extends State<AnimationView> {
   bool _saving = false;
   bool _stuck = false;
   bool _playing = false;
+  bool _triedWatchPage = false;
   String? _error;
 
   @override
@@ -122,6 +131,11 @@ class _AnimationViewState extends State<AnimationView> {
           'https://www.youtube.com/embed/${widget.videoId}'
           '?autoplay=1&playsinline=1&rel=0&modestbranding=1',
         ),
+        // The embed page is built to sit inside another page, and refuses with
+        // error 153 when it cannot see where it was embedded from. Opened at
+        // the top of a WebView there is no parent, and so no referrer at all —
+        // which is exactly that case. So we say where it came from.
+        headers: const {'Referer': 'https://school.poetreepublications.com/'},
       );
 
     // Autoplay without a tap, which is the point at this age.
@@ -133,16 +147,54 @@ class _AnimationViewState extends State<AnimationView> {
     /// Nothing playing after twelve seconds counts as stuck.
     ///
     /// A film can fail without any error the app can see: YouTube draws its own
-    /// "video unavailable" card inside the page and everything below reports
-    /// success. That is a dead end — the chapter never opens and there is
-    /// nothing on screen to try — so this offers the way out instead.
+    /// card inside the page and everything below reports success. That is a
+    /// dead end — the chapter never opens and there is nothing on screen to
+    /// try — so this makes the second attempt, and only then offers the way
+    /// out.
+    _startupWatch = Timer(const Duration(seconds: 12), () {
+      if (!mounted || _playing || _finished) return;
+      // Silence is not a definite answer, so it gets the second attempt too.
+      if (_triedWatchPage) {
+        setState(() => _stuck = true);
+      } else {
+        _tryWatchPage();
+      }
+    });
+  }
+
+  /// Loads the ordinary watch page, which has no embedding rules to satisfy.
+  ///
+  /// The second attempt, and only ever the second: it plays inside YouTube's
+  /// own furniture — a title, a channel, a related rail — which is everything
+  /// the embed was chosen to avoid. A film that plays with clutter beats a film
+  /// that does not play.
+  void _tryWatchPage() {
+    _triedWatchPage = true;
+    _startupWatch?.cancel();
     _startupWatch = Timer(const Duration(seconds: 12), () {
       if (mounted && !_playing && !_finished) setState(() => _stuck = true);
     });
+
+    unawaited(
+      _web.loadRequest(
+        Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}'),
+      ),
+    );
   }
 
   void _fromPage(JavaScriptMessage message) {
     if (!mounted) return;
+
+    if (message.message == 'refused') {
+      // The embed was turned down. Try the page anybody can open before
+      // telling a family their film will not play.
+      if (!_triedWatchPage) {
+        _tryWatchPage();
+      } else if (!_stuck) {
+        setState(() => _stuck = true);
+      }
+      return;
+    }
 
     if (message.message == 'playing' && !_playing) {
       _startupWatch?.cancel();

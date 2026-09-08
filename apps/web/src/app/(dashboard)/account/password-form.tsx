@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, FormError, Input, SubmitButton } from '@/components/ui/form';
+import { Field, FormError, PasswordInput, SubmitButton } from '@/components/ui/form';
 import { Notice } from '@/components/ui/layout';
 import { changePasswordAction, type PasswordState } from './actions';
 
@@ -18,7 +18,7 @@ export function PasswordForm() {
       </Notice>
 
       <Field label="Current password" required>
-        <Input name="currentPassword" type="password" autoComplete="current-password" required />
+        <PasswordInput name="currentPassword" autoComplete="current-password" required />
       </Field>
 
       <Field
@@ -26,11 +26,11 @@ export function PasswordForm() {
         required
         hint="At least 8 characters, with a letter and a number."
       >
-        <Input name="newPassword" type="password" autoComplete="new-password" required minLength={8} />
+        <PasswordInput name="newPassword" autoComplete="new-password" required minLength={8} />
       </Field>
 
       <Field label="Confirm new password" required>
-        <Input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} />
+        <PasswordInput name="confirmPassword" autoComplete="new-password" required minLength={8} />
       </Field>
 
       <SubmitButton pendingLabel="Changing…">Change password</SubmitButton>

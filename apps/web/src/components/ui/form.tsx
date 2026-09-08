@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
+import { useState } from 'react';
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -8,7 +9,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
-import { IconAlert, IconCheck } from '@/components/icons';
+import { IconAlert, IconCheck, IconEye, IconEyeOff } from '@/components/icons';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'gold';
 
@@ -98,6 +99,44 @@ const CONTROL =
 
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${CONTROL} ${className}`} {...props} />;
+}
+
+/**
+ * A password box you can look at.
+ *
+ * Typing a password blind onto a phone keyboard, on a form that answers a wrong
+ * one with "check your details", is how somebody ends up locked out by a typo
+ * they could have seen. Every password field in this portal uses this.
+ *
+ * The button is a real button, so it never submits the form it sits in, and it
+ * is skipped in the tab order — someone tabbing from the field wants Sign in,
+ * not the eye.
+ */
+export function PasswordInput({
+  className = '',
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [shown, setShown] = useState(false);
+
+  return (
+    <span className="relative block">
+      <input
+        {...props}
+        type={shown ? 'text' : 'password'}
+        className={`${CONTROL} pr-12 ${className}`}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setShown((was) => !was)}
+        aria-label={shown ? 'Hide password' : 'Show password'}
+        aria-pressed={shown}
+        className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-slate-400 transition-colors hover:text-navy-900"
+      >
+        {shown ? <IconEyeOff size={17} /> : <IconEye size={17} />}
+      </button>
+    </span>
+  );
 }
 
 export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {

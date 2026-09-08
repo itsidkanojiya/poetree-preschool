@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/config/branding.dart';
+import '../../core/widgets/password_field.dart';
 import 'auth_controller.dart';
 
 /// Sign-in.
@@ -116,13 +117,12 @@ class LoginView extends GetView<AuthController> {
                     ),
                     const SizedBox(height: 16),
 
-                    TextFormField(
+                    PasswordField(
                       controller: password,
-                      obscureText: true,
+                      label: 'Password',
                       autofillHints: const [AutofillHints.password],
                       textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => submit(),
-                      decoration: const InputDecoration(labelText: 'Password'),
+                      onSubmitted: (_) => submit(),
                       validator: (value) => (value == null || value.isEmpty)
                           ? 'Enter your password'
                           : null,

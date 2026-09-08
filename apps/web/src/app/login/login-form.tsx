@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, FormError, Input, SubmitButton } from '@/components/ui/form';
+import { Field, FormError, Input, PasswordInput, SubmitButton } from '@/components/ui/form';
 import { Notice } from '@/components/ui/layout';
 import { loginAction, type LoginState } from './actions';
 
@@ -31,7 +31,7 @@ export function LoginForm({ notice }: { notice?: string }) {
       </Field>
 
       <Field label="Password" required>
-        <Input name="password" type="password" autoComplete="current-password" required />
+        <PasswordInput name="password" autoComplete="current-password" required />
       </Field>
 
       <SubmitButton className="w-full" pendingLabel="Signing in…">

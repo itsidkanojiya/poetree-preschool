@@ -194,3 +194,21 @@ export const IconGrip = (p: IconProps) => (
     <circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none" />
   </Svg>
 );
+
+/** Show what is typed in a password box. */
+export const IconEye = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="3.2" />
+  </Svg>
+);
+
+/** Hide it again. The same eye, struck through. */
+export const IconEyeOff = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-3 3.9" />
+    <path d="M6.4 7.6A17.3 17.3 0 0 0 2.5 12S6 18.5 12 18.5a9.7 9.7 0 0 0 3.6-.7" />
+    <path d="M10 10a3.2 3.2 0 0 0 4.3 4.3" />
+    <path d="m4 4 16 16" />
+  </Svg>
+);

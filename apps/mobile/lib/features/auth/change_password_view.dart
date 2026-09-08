@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/widgets/password_field.dart';
 import 'auth_controller.dart';
 
 /// Choosing a password to replace the one the school office set.
@@ -105,30 +106,23 @@ class _ChangePasswordViewState extends State<ChangePasswordView> {
           ),
           const SizedBox(height: 24),
 
-          TextField(
+          PasswordField(
             controller: _current,
-            obscureText: true,
+            label: 'The password the school gave you',
             autofillHints: const [AutofillHints.password],
-            decoration: const InputDecoration(
-              labelText: 'The password the school gave you',
-            ),
           ),
           const SizedBox(height: 14),
-          TextField(
+          PasswordField(
             controller: _next,
-            obscureText: true,
+            label: 'Your new password',
+            helperText: 'At least 8 characters, with a letter and a number',
             autofillHints: const [AutofillHints.newPassword],
-            decoration: const InputDecoration(
-              labelText: 'Your new password',
-              helperText: 'At least 8 characters, with a letter and a number',
-            ),
           ),
           const SizedBox(height: 14),
-          TextField(
+          PasswordField(
             controller: _again,
-            obscureText: true,
+            label: 'Type it once more',
             onSubmitted: (_) => _busy ? null : _save(),
-            decoration: const InputDecoration(labelText: 'Type it once more'),
           ),
 
           if (_error != null) ...[

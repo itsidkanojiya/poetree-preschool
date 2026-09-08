@@ -123,6 +123,76 @@ export async function resetPassword(
 }
 
 /**
+ * The office setting somebody's password to a chosen one.
+ *
+ * The sibling of [resetPassword], and the difference is only where the password
+ * comes from: the admin types it and tells the person, instead of the API
+ * inventing one. Same rules about who may do it to whom, same 404 for an
+ * account at another school, same refusal to do it to yourself.
+ *
+ * `mustChangePassword` is deliberately NOT set. That was the school's decision:
+ * the password the office sets is the password, so it can be looked up by
+ * asking the office, and staff are not made to invent one at the gate. The cost
+ * is real and worth writing down — the office knows a teacher's live password,
+ * so an action recorded as that teacher is no longer proof it was them. Use
+ * [resetPassword] where that matters.
+ *
+ * Sessions still end. A password changed while an old phone is still signed in
+ * is decorative, and that is true whoever chose the password.
+ */
+export async function setPassword(
+  targetUserId: string,
+  newPassword: string,
+  actorUserId: string,
+): Promise<{ userId: string; name: string }> {
+  const context = getRequestContext();
+  if (!context) throw ApiError.unauthenticated();
+
+  const target = await prismaUnscoped.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, name: true, role: true, schoolId: true, deletedAt: true },
+  });
+
+  const foreign = context.role !== 'PUBLICATION_ADMIN' && target?.schoolId !== context.schoolId;
+  if (!target || target.deletedAt || foreign) {
+    throw ApiError.notFound('User not found');
+  }
+
+  const allowed = MAY_RESET[context.role] ?? [];
+  if (!allowed.includes(target.role as Role)) {
+    throw ApiError.forbidden(`You cannot change the password of a ${target.role.toLowerCase()}`);
+  }
+
+  if (target.id === actorUserId) {
+    throw ApiError.badRequest('Change your own password from your account page');
+  }
+
+  await prismaUnscoped.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: target.id },
+      data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false },
+    });
+
+    await tx.refreshToken.updateMany({
+      where: { userId: target.id, revokedAt: null },
+      data: { revokedAt: new Date(), revokedBy: 'PASSWORD_RESET' },
+    });
+  });
+
+  await writeAuditLog({
+    action: 'PASSWORD_RESET',
+    entity: 'User',
+    entityId: target.id,
+    schoolId: target.schoolId,
+    actorUserId,
+    // Never the password itself, and not even its length.
+    after: { role: target.role, setByOffice: true },
+  });
+
+  return { userId: target.id, name: target.name };
+}
+
+/**
  * Changing your own password, which is also how a temporary one is cleared.
  *
  * Returns a fresh token pair. Without that, ending the other sessions would

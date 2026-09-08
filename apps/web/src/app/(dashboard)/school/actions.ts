@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { PasswordResetResponse } from '@poetree/shared';
 import { apiFetch, errorMessage } from '@/lib/api';
 
 export interface ActionState {
@@ -11,33 +10,36 @@ export interface ActionState {
 
 export interface ResetState {
   error?: string;
-  reset?: PasswordResetResponse;
+  done?: true;
 }
 
 /**
- * Sets a new password for a teacher or a parent who cannot get in.
+ * Sets a teacher's or parent's password to the one the office typed.
  *
- * The reply is handed straight back to the page and never written anywhere
- * else: not to the log, not to a cookie, not into the revalidated cache.
+ * Nothing about the password is returned, logged or cached — the office
+ * already knows it, because they chose it, and there is no reason for it to
+ * exist anywhere else. The reply is only that it worked.
  */
-export async function resetPasswordAction(
+export async function changePasswordAction(
   _prev: ResetState,
   formData: FormData,
 ): Promise<ResetState> {
   const kind = String(formData.get('kind') ?? '');
   const userId = String(formData.get('userId') ?? '');
+  const newPassword = String(formData.get('newPassword') ?? '');
 
   if (kind !== 'parents' && kind !== 'teachers') return { error: 'Unknown user.' };
   if (!userId) return { error: 'Unknown user.' };
 
   try {
-    const reset = await apiFetch<PasswordResetResponse>(`/${kind}/${userId}/reset-password`, {
+    await apiFetch(`/${kind}/${userId}/change-password`, {
       method: 'POST',
       redirectOnAuthFailure: false,
+      body: { newPassword },
     });
-    return { reset };
+    return { done: true };
   } catch (error) {
-    return { error: errorMessage(error, 'Could not reset the password.') };
+    return { error: errorMessage(error, 'Could not change the password.') };
   }
 }
 

@@ -152,6 +152,75 @@ describe.skipIf(!dbUp)('password reset', () => {
     expect(entry).not.toBeNull();
     expect(entry!.actorUserId).toBe(adminA.userId);
   });
+  it('sets the password the office typed, and leaves it set', async () => {
+    // The school chose this over a generated one: the office types it, tells
+    // the teacher, and it stays until somebody changes it. No forced change at
+    // the next sign-in — which is the trade, and is why the audit log records
+    // that the office set it.
+    const chosen = 'Sunrise@2026';
+
+    const changed = await api
+      .post(`${BASE}/teachers/${schoolA.teacherId}/change-password`)
+      .set(auth(adminA))
+      .send({ newPassword: chosen });
+
+    expect(changed.status).toBe(200);
+
+    const signedIn = await api
+      .post(`${BASE}/auth/login`)
+      .send({ identifier: schoolA.teacherEmail, password: chosen });
+
+    expect(signedIn.status).toBe(200);
+    // Nothing stands between them and the app, unlike a reset.
+    expect(signedIn.body.user.mustChangePassword).not.toBe(true);
+  });
+
+  it('signs the old devices out even though the office chose it', async () => {
+    // A password changed while a lost phone is still signed in is decorative.
+    //
+    // Set a known one first: earlier tests in this file have already reset this
+    // parent, so the seeded password is long gone and signing in with it would
+    // fail for a reason that has nothing to do with what is being tested.
+    const parentId = await parentUserId(schoolA);
+    await api
+      .post(`${BASE}/parents/${parentId}/change-password`)
+      .set(auth(adminA))
+      .send({ newPassword: 'Rainbow@11' });
+
+    const before = await login(schoolA.parentPhone, 'Rainbow@11');
+
+    await api
+      .post(`${BASE}/parents/${parentId}/change-password`)
+      .set(auth(adminA))
+      .send({ newPassword: 'Rainbow@77' });
+
+    const stale = await api
+      .post(`${BASE}/auth/refresh`)
+      .send({ refreshToken: before.refreshToken });
+
+    expect(stale.status).toBe(401);
+  });
+
+  it('refuses a password too weak to be worth setting', async () => {
+    const weak = await api
+      .post(`${BASE}/teachers/${schoolA.teacherId}/change-password`)
+      .set(auth(adminA))
+      .send({ newPassword: 'abc' });
+
+    expect(weak.status).toBe(400);
+  });
+
+  it('will not let one school change another school’s password', async () => {
+    // 404 rather than 403: the other answer would confirm the account exists.
+    const neighbour = await login(schoolB.adminEmail);
+
+    const refused = await api
+      .post(`${BASE}/teachers/${schoolA.teacherId}/change-password`)
+      .set(auth(neighbour))
+      .send({ newPassword: 'Neighbour@11' });
+
+    expect(refused.status).toBe(404);
+  });
 });
 
 async function parentUserId(school: TestSchool): Promise<string> {

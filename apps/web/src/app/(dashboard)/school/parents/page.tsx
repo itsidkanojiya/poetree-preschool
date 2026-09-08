@@ -4,7 +4,7 @@ import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layo
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import Link from 'next/link';
 import { IconPlus } from '@/components/icons';
-import { ResetPasswordButton } from '../reset-password';
+import { ChangePasswordButton } from '../change-password';
 
 const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
@@ -72,7 +72,7 @@ export default async function ParentsPage({
                       </Pill>
                     </TCell>
                     <TCell>
-                      <ResetPasswordButton
+                      <ChangePasswordButton
                         kind="parents"
                         userId={parent.userId}
                         name={parent.name}

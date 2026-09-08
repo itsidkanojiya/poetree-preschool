@@ -5,7 +5,7 @@ import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui
 import { formatDate } from '@/lib/format';
 import Link from 'next/link';
 import { IconPlus } from '@/components/icons';
-import { ResetPasswordButton } from '../reset-password';
+import { ChangePasswordButton } from '../change-password';
 
 export default async function TeachersPage({
   searchParams,
@@ -67,7 +67,7 @@ export default async function TeachersPage({
                       </Pill>
                     </TCell>
                     <TCell>
-                      <ResetPasswordButton
+                      <ChangePasswordButton
                         kind="teachers"
                         userId={teacher.userId}
                         name={teacher.name}

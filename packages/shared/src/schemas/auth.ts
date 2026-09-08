@@ -102,3 +102,12 @@ export interface RefreshTokenPayload {
   jti: string;
   tokenType: 'refresh';
 }
+
+/**
+ * The office setting somebody else's password to one it has chosen.
+ *
+ * Only the new password: there is no current one to prove, because the person
+ * whose password it is cannot remember it — that is why the office is doing it.
+ */
+export const setPasswordSchema = z.object({ newPassword: passwordSchema });
+export type SetPasswordInput = z.infer<typeof setPasswordSchema>;

@@ -17,6 +17,7 @@ import {
   updateParentSchema,
   updateStudentSchema,
   updateSubjectSchema,
+  setPasswordSchema,
   updateTeacherSchema,
 } from '@poetree/shared';
 import type {
@@ -34,6 +35,7 @@ import type {
   UpdateStudentInput,
   UpdateSubjectInput,
   UpdateTeacherInput,
+  SetPasswordInput,
 } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -131,6 +133,21 @@ schoolAdminRouter.post(
   }),
 );
 
+/**
+ * Sets a teacher's password to one the office chose.
+ *
+ * The password is what the office typed and it stays that way — nothing forces
+ * a change at the next sign-in. See `setPassword` for what that costs.
+ */
+schoolAdminRouter.post(
+  '/teachers/:id/change-password',
+  validate({ params: idParamSchema, body: setPasswordSchema }),
+  asyncHandler(async (req, res) => {
+    const { newPassword } = body<SetPasswordInput>(req);
+    res.json(await passwordService.setPassword(idOf(req), newPassword, req.auth!.userId));
+  }),
+);
+
 /* -------------------------------------------------------------------------- */
 /* Parents                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -171,6 +188,16 @@ schoolAdminRouter.patch(
 );
 
 /** The same for a family, which is where nearly all of these will come from. */
+/** The same for a parent, and deliberately the same rules. */
+schoolAdminRouter.post(
+  '/parents/:id/change-password',
+  validate({ params: idParamSchema, body: setPasswordSchema }),
+  asyncHandler(async (req, res) => {
+    const { newPassword } = body<SetPasswordInput>(req);
+    res.json(await passwordService.setPassword(idOf(req), newPassword, req.auth!.userId));
+  }),
+);
+
 schoolAdminRouter.post(
   '/parents/:id/reset-password',
   validate({ params: idParamSchema }),

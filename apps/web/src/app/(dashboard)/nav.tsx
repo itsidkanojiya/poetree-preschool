@@ -56,6 +56,8 @@ const SCHOOL_NAV: NavGroup[] = [
       { href: '/school/teachers', label: 'Teachers', icon: <IconTeacher size={18} /> },
       { href: '/school/parents', label: 'Parents', icon: <IconParents size={18} /> },
       { href: '/school/students', label: 'Students', icon: <IconStudent size={18} /> },
+      // Families waiting to be let in. Beside the people it will turn into.
+      { href: '/school/registrations', label: 'Registrations', icon: <IconInbox size={18} /> },
     ],
   },
   {
@@ -73,7 +75,11 @@ const SCHOOL_NAV: NavGroup[] = [
   },
   {
     heading: 'Office',
-    items: [{ href: '/school/reports', label: 'Reports', icon: <IconChart size={18} /> }],
+    items: [
+      { href: '/school/reports', label: 'Reports', icon: <IconChart size={18} /> },
+      // The school's own record, and what it prints on an ID card.
+      { href: '/school/settings', label: 'Settings', icon: <IconSchool size={18} /> },
+    ],
   },
 ];
 

@@ -15,6 +15,9 @@ import { ACCESS_COOKIE } from '@/lib/auth-cookies';
 const DOCUMENTS: Record<string, (id: string) => string> = {
   receipt: (id) => `/fees/payments/${id}/receipt`,
   'fee-card': (id) => `/fees/students/${id}/fee-card`,
+  'id-card': (id) => `/students/${id}/id-card`,
+  // A whole class at once, which is how a school issues them in September.
+  'id-cards': (id) => `/classrooms/${id}/id-cards`,
 };
 
 /** cuid, which is what every id in this system is. */

@@ -46,6 +46,7 @@ export default async function ClassroomsPage() {
                 'Class teacher',
                 { label: 'Students', numeric: true },
                 { label: 'Capacity', numeric: true },
+                '',
               ]}
             />
             <tbody>
@@ -65,6 +66,20 @@ export default async function ClassroomsPage() {
                   </TCell>
                   <TCell numeric>{classroom.studentCount}</TCell>
                   <TCell numeric>{classroom.capacity ?? '—'}</TCell>
+                  <TCell>
+                    {/* Eighty cards in one file, which is how a year starts.
+                        Nothing to press for an empty class. */}
+                    {classroom.studentCount > 0 && (
+                      <a
+                        href={`/school/documents?kind=id-cards&id=${classroom.id}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+                      >
+                        ID cards
+                      </a>
+                    )}
+                  </TCell>
                 </TRow>
               ))}
             </tbody>

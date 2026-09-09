@@ -82,15 +82,28 @@ export default async function StudentDetailPage({
         title={student.fullName}
         description={`${student.admissionNo}${student.classroom ? ` · ${student.classroom.label}` : ' · not enrolled in a class'}`}
         action={
-          student.classroom && (
-            <Link
-              href={`/school/progress?classroomId=${student.classroom.id}&studentId=${student.id}`}
+          <span className="flex flex-wrap items-center gap-2">
+            {/* Opens in a tab rather than downloading: an office looks at a
+                card before deciding to print it, and a forced download makes
+                that two steps and a file in Downloads nobody wanted. */}
+            <a
+              href={`/school/documents?kind=id-card&id=${student.id}`}
+              target="_blank"
+              rel="noopener"
               className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 transition-colors hover:bg-navy-50"
             >
-              <IconChart size={16} />
-              Progress
-            </Link>
-          )
+              ID card
+            </a>
+            {student.classroom && (
+              <Link
+                href={`/school/progress?classroomId=${student.classroom.id}&studentId=${student.id}`}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 transition-colors hover:bg-navy-50"
+              >
+                <IconChart size={16} />
+                Progress
+              </Link>
+            )}
+          </span>
         }
       />
 

@@ -1,7 +1,11 @@
 import { Router, type Request } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { submitRegistrationSchema, type SubmitRegistrationInput } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { params, validate } from '../middleware/validate.js';
+import { body, params, validate } from '../middleware/validate.js';
+import { env } from '../config/env.js';
+import * as registrationService from '../services/registration.service.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { sendStoredFile } from '../lib/sendStoredFile.js';
@@ -14,9 +18,21 @@ import { sendStoredFile } from '../lib/sendStoredFile.js';
  * school's name, colour and logo are readable by anyone who knows the school
  * code. That is not a leak: the same three things are painted on the gate.
  *
- * Nothing else may ever be added here. Not the school's phone number, not its
+ * Nothing else may ever be READ here. Not the school's phone number, not its
  * address, not how many children it has. If a field would embarrass the school
  * on a stranger's screen, it belongs behind the token like everything else.
+ *
+ * There is now one write. A parent registering themselves has no account yet,
+ * so the request cannot carry a token, and a successful reply says only that
+ * the request was received.
+ *
+ * Its refusals do say more than that, and deliberately: a wrong admission
+ * number is told it is wrong, and a phone that already has an account is told
+ * to sign in instead. Both are real disclosures — somebody working through
+ * guessed admission numbers learns which exist. The alternative is a parent who
+ * mistyped one digit having no way to find out, and they are the far more
+ * likely caller. The rate limiter below is what makes that trade payable;
+ * see submitRegistration for the reasoning in full.
  */
 export const publicRouter = Router();
 
@@ -101,5 +117,43 @@ publicRouter.get(
     res.setHeader('Cache-Control', 'public, max-age=86400');
 
     sendStoredFile(req, res, file, { code });
+  }),
+);
+
+/**
+ * A family's own request to join their school.
+ *
+ * Its own limiter, because the one in auth.routes.ts is keyed on a sign-in
+ * identifier this route does not have. Keyed on the address alone and
+ * deliberately tight: a whole preschool shares one Wi-Fi at the gate, but they
+ * register once each, not once a minute, so a low ceiling costs a real family
+ * nothing and costs somebody working through guessed admission numbers a great
+ * deal.
+ */
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 12,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many registration attempts. Try again in an hour.',
+    },
+  },
+});
+
+publicRouter.post(
+  '/schools/:code/registrations',
+  registrationLimiter,
+  validate({ params: codeParamSchema, body: submitRegistrationSchema }),
+  asyncHandler(async (req: Request, res) => {
+    const { code } = params<{ code: string }>(req);
+    const input = body<SubmitRegistrationInput>(req);
+
+    // 202: the school has it, and nothing has happened yet. A 201 would say an
+    // account was created, which is exactly what did not happen.
+    res.status(202).json(await registrationService.submitRegistration(code, input));
   }),
 );

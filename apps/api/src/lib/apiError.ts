@@ -73,6 +73,21 @@ export class ApiError extends Error {
     return new ApiError(422, ERROR_CODES.PLAN_LIMIT_EXCEEDED, message, details);
   }
 
+  /**
+   * A parent registered themselves and the school has not decided yet.
+   *
+   * 403 rather than 401: the credentials are not the problem, and a client that
+   * treats this as "wrong password" would tell the family to try again forever.
+   */
+  static registrationPending(message: string, details?: unknown): ApiError {
+    return new ApiError(403, ERROR_CODES.REGISTRATION_PENDING, message, details);
+  }
+
+  /** The school looked at the registration and turned it down. */
+  static registrationRejected(message: string, details?: unknown): ApiError {
+    return new ApiError(403, ERROR_CODES.REGISTRATION_REJECTED, message, details);
+  }
+
   static tenantContextMissing(message: string): ApiError {
     return new ApiError(500, ERROR_CODES.TENANT_CONTEXT_MISSING, message);
   }

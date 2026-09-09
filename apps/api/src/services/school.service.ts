@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { requireSchoolId } from '../context/requestContext.js';
 import type {
   AssignSubscriptionInput,
   CreateSchoolAdminInput,
@@ -10,6 +11,8 @@ import type {
   SchoolSummary,
   SuspendSchoolInput,
   UpdateSchoolInput,
+  SchoolProfile,
+  UpdateSchoolProfileInput,
 } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
@@ -635,4 +638,121 @@ export async function setSchoolValidity(
   });
 
   return toSummary(school);
+}
+
+/* -------------------------------------------------------------------------- */
+/* The school's own settings                                                  */
+/* -------------------------------------------------------------------------- */
+
+const profileSelect = {
+  id: true,
+  name: true,
+  code: true,
+  email: true,
+  phone: true,
+  addressLine1: true,
+  addressLine2: true,
+  city: true,
+  state: true,
+  postalCode: true,
+  principalName: true,
+  primaryColor: true,
+  logoUrl: true,
+  logoFileId: true,
+  idCardSize: true,
+  idCardShowBloodGroup: true,
+  idCardShowGuardianPhone: true,
+  idCardShowAddress: true,
+} as const;
+
+function toProfile(row: {
+  [K in keyof typeof profileSelect]: unknown;
+}): SchoolProfile {
+  const school = row as unknown as Prisma.SchoolGetPayload<{ select: typeof profileSelect }>;
+
+  return {
+    id: school.id,
+    name: school.name,
+    code: school.code,
+    email: school.email,
+    phone: school.phone,
+    addressLine1: school.addressLine1,
+    addressLine2: school.addressLine2,
+    city: school.city,
+    state: school.state,
+    postalCode: school.postalCode,
+    principalName: school.principalName,
+    primaryColor: school.primaryColor,
+    // The uploaded logo wins over a hosted URL, as everywhere else.
+    logoUrl: school.logoFileId ? `/api/v1/files/${school.logoFileId}` : school.logoUrl,
+    idCardSize: school.idCardSize,
+    idCardShowBloodGroup: school.idCardShowBloodGroup,
+    idCardShowGuardianPhone: school.idCardShowGuardianPhone,
+    idCardShowAddress: school.idCardShowAddress,
+  };
+}
+
+/**
+ * The school reading its own record.
+ *
+ * `School` carries no `schoolId` — it *is* the school — so it is not a tenant
+ * model and the scoped client does not filter it. The id comes from the token
+ * through requireSchoolId(), never from the request, which is what keeps one
+ * school out of another's settings.
+ */
+export async function getOwnSchoolProfile(): Promise<SchoolProfile> {
+  const schoolId = requireSchoolId();
+
+  const school = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: profileSelect,
+  });
+  if (!school) throw ApiError.notFound('School not found');
+
+  return toProfile(school);
+}
+
+/**
+ * The school changing what it prints on things.
+ *
+ * Narrower than the publisher's update by design: no code, no status, no
+ * validity. See updateSchoolProfileSchema for why each one is missing.
+ */
+export async function updateOwnSchoolProfile(
+  input: UpdateSchoolProfileInput,
+  actorUserId: string,
+): Promise<SchoolProfile> {
+  const schoolId = requireSchoolId();
+
+  const current = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true, code: true, name: true },
+  });
+  if (!current) throw ApiError.notFound('School not found');
+
+  const data: Prisma.SchoolUpdateInput = { ...input };
+  // The slug is derived from the name, so renaming has to carry it along.
+  if (input.name) data.slug = slugify(input.name, current.code);
+
+  const updated = await prismaUnscoped.school.update({
+    where: { id: schoolId },
+    data,
+    select: profileSelect,
+  });
+
+  await writeAuditLog({
+    action: 'SCHOOL_UPDATED',
+    entity: 'School',
+    entityId: schoolId,
+    schoolId,
+    actorUserId,
+    before: { name: current.name },
+    after: { fields: Object.keys(input) },
+  });
+
+  // A rename changes what the app shows on its sign-in screen, and branding is
+  // cached per school.
+  invalidateSchoolAccess(schoolId);
+
+  return toProfile(updated);
 }

@@ -15,6 +15,16 @@ export const ERROR_CODES = {
   SCHOOL_SUSPENDED: 'SCHOOL_SUSPENDED',
   /** Role is valid but has no portal login surface in this phase (TEACHER / PARENT). */
   PORTAL_ACCESS_DENIED: 'PORTAL_ACCESS_DENIED',
+  /**
+   * A parent registered themselves and the school has not decided yet.
+   *
+   * Its own code rather than a bare 401, because "we have never heard of you"
+   * and "we have your request and are looking at it" are different things to a
+   * family, and only the client can say them differently.
+   */
+  REGISTRATION_PENDING: 'REGISTRATION_PENDING',
+  /** The school looked at the registration and turned it down. */
+  REGISTRATION_REJECTED: 'REGISTRATION_REJECTED',
   NOT_FOUND: 'NOT_FOUND',
   CONFLICT: 'CONFLICT',
   PLAN_LIMIT_EXCEEDED: 'PLAN_LIMIT_EXCEEDED',

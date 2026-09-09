@@ -14,6 +14,7 @@ import {
 import { env } from '../config/env.js';
 import { assertSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLogSafe } from './audit.service.js';
+import { registrationAwaiting } from './registration.service.js';
 
 const userWithSchool = {
   include: {
@@ -119,6 +120,32 @@ export async function login(
     // Spend the same time as a real comparison so a missing account is not
     // distinguishable by response timing.
     await burnPasswordComparison();
+
+    // Before calling it a bad login: this may be a family who registered
+    // themselves and is waiting on the school. "Invalid password" reads as
+    // their own mistake and sends them round the same loop for a week.
+    //
+    // This does tell whoever typed the number that a registration exists for
+    // it. It is the family's own submission and the requirement is that they
+    // be told — but it is a disclosure, and the rate limiter above is what
+    // keeps it from being a way to test numbers in bulk.
+    const waiting = await registrationAwaiting(identifier, input.schoolCode);
+    if (waiting?.status === 'PENDING') {
+      throw ApiError.registrationPending(
+        'Your account is currently under verification by the school. ' +
+          'You will be able to access the application once your registration is approved.',
+        { schoolName: waiting.schoolName },
+      );
+    }
+    if (waiting?.status === 'REJECTED') {
+      throw ApiError.registrationRejected(
+        waiting.reason
+          ? `Your registration was not approved: ${waiting.reason}`
+          : 'Your registration was not approved. Please contact the school office.',
+        { schoolName: waiting.schoolName },
+      );
+    }
+
     writeAuditLogSafe({
       action: 'LOGIN_FAILED',
       entity: 'User',

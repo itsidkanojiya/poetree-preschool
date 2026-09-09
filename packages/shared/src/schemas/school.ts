@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SCHOOL_STATUSES } from '../enums.js';
+import { ID_CARD_SIZE_CODES, SCHOOL_STATUSES, type IdCardSize } from '../enums.js';
 import {
   emailSchema,
   hexColorSchema,
@@ -42,6 +42,59 @@ export type UpdateSchoolInput = z.infer<typeof updateSchoolSchema>;
  */
 export const setSchoolValiditySchema = z.object({ validUntil: z.coerce.date().nullable() });
 export type SetSchoolValidityInput = z.infer<typeof setSchoolValiditySchema>;
+
+/**
+ * What a school may change about itself.
+ *
+ * `updateSchoolSchema` is the publisher's form. This is the school's own, and
+ * the difference is the point: no `code` (the mobile build is keyed on it and
+ * changing it would orphan every installed app), no `status`, no `validUntil` —
+ * a school cannot grant itself another year.
+ *
+ * Everything left is what the school prints on things: the name and address on
+ * a letterhead, the logo on an ID card, and the card settings themselves.
+ */
+export const updateSchoolProfileSchema = z.object({
+  name: nameSchema.optional(),
+  email: emailSchema.optional(),
+  phone: phoneSchema.optional(),
+  addressLine1: z.string().trim().max(200).optional(),
+  addressLine2: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  postalCode: z.string().trim().max(20).optional(),
+  principalName: z.string().trim().max(120).optional(),
+  primaryColor: hexColorSchema.optional(),
+
+  idCardSize: z.enum(ID_CARD_SIZE_CODES).optional(),
+  idCardShowBloodGroup: z.boolean().optional(),
+  idCardShowGuardianPhone: z.boolean().optional(),
+  idCardShowAddress: z.boolean().optional(),
+});
+export type UpdateSchoolProfileInput = z.infer<typeof updateSchoolProfileSchema>;
+
+/** The school as it sees itself, including what it prints. */
+export interface SchoolProfile {
+  id: string;
+  name: string;
+  /** Shown but never editable here — the app build depends on it. */
+  code: string;
+  email: string | null;
+  phone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  principalName: string | null;
+  primaryColor: string | null;
+  logoUrl: string | null;
+
+  idCardSize: IdCardSize;
+  idCardShowBloodGroup: boolean;
+  idCardShowGuardianPhone: boolean;
+  idCardShowAddress: boolean;
+}
 
 /** Null clears it. */
 export const setSchoolLogoSchema = z.object({ fileId: idSchema.nullable() });

@@ -40,6 +40,30 @@ export type StudentStatus = (typeof STUDENT_STATUSES)[number];
 export const GUARDIAN_RELATIONS = ['FATHER', 'MOTHER', 'GUARDIAN', 'OTHER'] as const;
 export type GuardianRelation = (typeof GUARDIAN_RELATIONS)[number];
 
+export const REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
+export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
+
+export const ID_CARD_SIZE_CODES = ['CR80', 'LARGE', 'HALF_A5', 'A6'] as const;
+export type IdCardSize = (typeof ID_CARD_SIZE_CODES)[number];
+
+/**
+ * The sizes a school can print its ID cards at, in millimetres.
+ *
+ * A fixed list rather than free dimensions: a layout that reads well on a
+ * credit-card blank looks wrong at twice the width, and each of these has been
+ * drawn and looked at. Millimetres because that is what a card printer, a
+ * lanyard pouch and a print shop all speak.
+ */
+export const ID_CARD_SIZES: Readonly<
+  Record<IdCardSize, { label: string; widthMm: number; heightMm: number }>
+> = {
+  /** The standard plastic blank every card printer takes. */
+  CR80: { label: 'Standard card', widthMm: 85.6, heightMm: 54 },
+  LARGE: { label: 'Large card', widthMm: 105, heightMm: 74 },
+  HALF_A5: { label: 'Half A5', widthMm: 148, heightMm: 105 },
+  A6: { label: 'A6 (portrait)', widthMm: 105, heightMm: 148 },
+};
+
 /**
  * The standards a new installation starts with.
  *
@@ -202,5 +226,12 @@ export const AUDIT_ACTIONS = [
   'PASSWORD_RESET',
   'LOGIN_SUCCEEDED',
   'LOGIN_FAILED',
+  // A family asking the school for access, and what the school decided. Three
+  // events rather than one: "who let this person in, and when" is exactly the
+  // question asked months later, and a rejection is worth keeping too — a
+  // family told no will ring the office about it.
+  'REGISTRATION_SUBMITTED',
+  'REGISTRATION_APPROVED',
+  'REGISTRATION_REJECTED',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

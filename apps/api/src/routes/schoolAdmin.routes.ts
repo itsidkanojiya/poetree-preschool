@@ -17,6 +17,10 @@ import {
   updateParentSchema,
   updateStudentSchema,
   updateSubjectSchema,
+  listRegistrationsQuerySchema,
+  setSchoolLogoSchema,
+  updateSchoolProfileSchema,
+  rejectRegistrationSchema,
   setPasswordSchema,
   updateTeacherSchema,
 } from '@poetree/shared';
@@ -35,8 +39,13 @@ import type {
   UpdateStudentInput,
   UpdateSubjectInput,
   UpdateTeacherInput,
+  ListRegistrationsQuery,
+  SetSchoolLogoInput,
+  UpdateSchoolProfileInput,
+  RejectRegistrationInput,
   SetPasswordInput,
 } from '@poetree/shared';
+import { requireSchoolId } from '../context/requestContext.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
@@ -44,6 +53,8 @@ import { prisma } from '../db/prisma.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
 import * as passwordService from '../services/password.service.js';
+import * as registrationService from '../services/registration.service.js';
+import * as schoolService from '../services/school.service.js';
 import * as studentService from '../services/student.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as subjectService from '../services/subject.service.js';
@@ -401,5 +412,81 @@ schoolAdminRouter.patch(
   validate({ params: idParamSchema, body: updateClassroomSchema }),
   asyncHandler(async (req, res) => {
     res.json(await classroomService.updateClassroom(idOf(req), body<UpdateClassroomInput>(req)));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Parent registrations — families asking to be let in                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The queue, and the two decisions.
+ *
+ * No new permission: `parent:manage` already means "this person decides who the
+ * parents at this school are", and approving a registration is exactly that.
+ * The whole router is behind requireRole('SCHOOL_ADMIN') either way.
+ */
+schoolAdminRouter.get(
+  '/registrations',
+  validate({ query: listRegistrationsQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await registrationService.listRegistrations(query<ListRegistrationsQuery>(req)));
+  }),
+);
+
+schoolAdminRouter.post(
+  '/registrations/:id/approve',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await registrationService.approveRegistration(idOf(req), req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.post(
+  '/registrations/:id/reject',
+  validate({ params: idParamSchema, body: rejectRegistrationSchema }),
+  asyncHandler(async (req, res) => {
+    const { reason } = body<RejectRegistrationInput>(req);
+    res.json(await registrationService.rejectRegistration(idOf(req), reason, req.auth!.userId));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* The school's own settings                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A school reading and changing its own record.
+ *
+ * Until now only the publisher could touch any of this, which meant a school
+ * that moved premises had to email somebody to change its address. What it
+ * still cannot change is its code, its status or how long its access lasts —
+ * see updateSchoolProfileSchema.
+ */
+schoolAdminRouter.get(
+  '/school/profile',
+  asyncHandler(async (_req, res) => {
+    res.json(await schoolService.getOwnSchoolProfile());
+  }),
+);
+
+schoolAdminRouter.patch(
+  '/school/profile',
+  validate({ body: updateSchoolProfileSchema }),
+  asyncHandler(async (req, res) => {
+    const input = body<UpdateSchoolProfileInput>(req);
+    res.json(await schoolService.updateOwnSchoolProfile(input, req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.put(
+  '/school/logo',
+  validate({ body: setSchoolLogoSchema }),
+  asyncHandler(async (req, res) => {
+    const { fileId } = body<SetSchoolLogoInput>(req);
+    // The service takes the id as an argument because the publisher calls it
+    // too; here it can only ever be this school's own.
+    await schoolService.setSchoolLogo(requireSchoolId(), fileId, req.auth!.userId);
+    res.json(await schoolService.getOwnSchoolProfile());
   }),
 );

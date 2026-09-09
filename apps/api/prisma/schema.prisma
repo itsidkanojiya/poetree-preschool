@@ -12,11 +12,10 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
   /**
    * Where `prisma migrate dev` replays the migrations to work out a diff.
-   *
    * Named explicitly because the database user is deliberately least-privilege
    * and cannot create databases — without this, generating a migration fails
    * asking for a permission it should never be given. Only `migrate dev` reads
@@ -43,6 +42,33 @@ enum SchoolStatus {
   ACTIVE
   SUSPENDED
   EXPIRED
+}
+
+/// The sizes a school can print its ID cards at, in millimetres.
+///
+/// CR80 is the credit-card blank every card printer and lanyard pouch takes.
+/// The rest are the sizes Indian schools actually order. Kept as an enum rather
+/// than free dimensions because each one is drawn and looked at before it
+/// ships; a layout is not size-independent.
+enum IdCardSize {
+  /// 85.6 x 54 — the standard plastic card.
+  CR80
+  /// 105 x 74 — a larger card, easier for a small child to hold.
+  LARGE
+  /// 148 x 105 — half of A5, landscape.
+  HALF_A5
+  /// 105 x 148 — A6, portrait.
+  A6
+}
+
+/// Where a parent's own request to join sits.
+///
+/// A registration is not an account. It becomes one only when the school says
+/// so, which is the whole point of the workflow.
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum SubscriptionStatus {
@@ -287,6 +313,21 @@ model School {
   /// it, which needs nothing running at midnight to be correct.
   validUntil DateTime?
 
+  /// What size the school's printed ID cards are, from a fixed list.
+  ///
+  /// A list rather than free millimetres: a layout that reads well on a
+  /// credit-card blank looks wrong at twice the width, and every size here has
+  /// been drawn and looked at. See ID_CARD_SIZES in the shared package.
+  idCardSize IdCardSize @default(CR80)
+
+  /// What goes on the card besides the child, their school and their photo.
+  ///
+  /// Separate columns rather than a JSON blob so they are typed, queryable and
+  /// visible in a migration.
+  idCardShowBloodGroup    Boolean @default(true)
+  idCardShowGuardianPhone Boolean @default(true)
+  idCardShowAddress       Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -337,6 +378,7 @@ model School {
   deviceTokens             DeviceToken[]
   subscriptions            SchoolSubscription[]
   auditLogs                AuditLog[]
+  parentRegistrations      ParentRegistration[]
 
   @@index([publicationId])
   @@index([status])
@@ -482,6 +524,7 @@ model User {
   deviceTokens             DeviceToken[]
   suspendedSubscriptions   SchoolSubscription[] @relation("SubscriptionSuspender")
   reactivatedSubscriptions SchoolSubscription[] @relation("SubscriptionReactivator")
+  reviewedRegistrations    ParentRegistration[] @relation("RegistrationReviewer")
 
   @@unique([scopeKey, email], name: "user_scope_email")
   @@unique([scopeKey, phone], name: "user_scope_phone")
@@ -508,6 +551,74 @@ model TeacherProfile {
   @@unique([schoolId, employeeCode])
   @@index([schoolId])
   @@map("teacher_profiles")
+}
+
+/// A parent asking the school for access, before anyone has agreed.
+///
+/// Deliberately not a User with a pending status. `User` is unique on
+/// (scopeKey, phone), so a pending account would hold a phone number nobody had
+/// approved, and a half-real parent would appear in rosters, counts and every
+/// guardian picker in the portal. Nothing here is an account until the school
+/// says so, and until then it costs the school nothing.
+///
+/// It claims a child the school has already enrolled, matched on admission
+/// number. A parent registering does not create a pupil — the office does that,
+/// as it always has — so no plan seat is spent by a stranger and nobody can
+/// invent a student.
+///
+/// The password is stored as a hash from the moment it arrives. Approval copies
+/// the hash across; nothing here or anywhere else ever holds the plaintext.
+model ParentRegistration {
+  id       String @id @default(cuid())
+  schoolId String
+
+  /// The child being claimed, resolved from the admission number when the form
+  /// is submitted. Kept as a relation so a child who later leaves takes their
+  /// pending requests with them.
+  studentId   String
+  /// What the parent typed, kept alongside the resolved child so the office can
+  /// see the claim as it was made.
+  admissionNo String @db.VarChar(40)
+
+  /// The guardian themselves — this becomes the User on approval.
+  guardianName String           @db.VarChar(120)
+  relation     GuardianRelation @default(GUARDIAN)
+  phone        String           @db.VarChar(20)
+  email        String?          @db.VarChar(160)
+  passwordHash String           @db.VarChar(72)
+  address      String?          @db.VarChar(300)
+
+  /// Declared about the child, for the office to check against its own records.
+  /// Approval fills these onto the Student only where the school holds nothing.
+  studentName           String  @db.VarChar(120)
+  fatherName            String? @db.VarChar(120)
+  motherName            String? @db.VarChar(120)
+  bloodGroup            String? @db.VarChar(8)
+  emergencyContactName  String? @db.VarChar(120)
+  emergencyContactPhone String? @db.VarChar(20)
+
+  status          RegistrationStatus @default(PENDING)
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?            @db.VarChar(300)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school     School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User?   @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  /// The queue, and the duplicate checks, are both per school.
+  ///
+  /// No unique on (schoolId, phone): a mother and a father legitimately register
+  /// against the same child, and a family whose first request was rejected must
+  /// be able to send a corrected one. "Already waiting" is a service rule with a
+  /// sentence attached, not a constraint violation.
+  @@index([schoolId, status])
+  @@index([schoolId, admissionNo])
+  @@index([studentId])
+  @@map("parent_registrations")
 }
 
 model ParentProfile {
@@ -573,6 +684,7 @@ model Student {
   guardians           StudentGuardian[]
   enrolments          StudentEnrolment[]
   documents           StudentDocument[]
+  registrations       ParentRegistration[]
   attendanceRecords   AttendanceRecord[]
   homeworkSubmissions HomeworkSubmission[]
   activityAttempts    ActivityAttempt[]
@@ -1498,8 +1610,8 @@ model Book {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  classLevel ClassLevel          @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
-  cover      FileObject?         @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  classLevel ClassLevel     @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  cover      FileObject?    @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
   activities ActivityBook[]
   chapters   Chapter[]
   schools    SchoolBook[]
@@ -1559,13 +1671,13 @@ model ChapterAnimationView {
 }
 
 model Chapter {
-  id        String  @id @default(cuid())
-  bookId    String
-  name      String  @db.VarChar(160)
+  id           String  @id @default(cuid())
+  bookId       String
+  name         String  @db.VarChar(160)
   /// Printed on the page, and not the same as the order: a book can open with
   /// "Chapter 0: Getting ready".
-  number    Int?
-  sortOrder Int     @default(0)
+  number       Int?
+  sortOrder    Int     @default(0)
   /// The film a child watches before this chapter's pages open.
   ///
   /// A chapter is what a book is actually divided into — "we're on chapter
@@ -1579,7 +1691,7 @@ model Chapter {
   /// back to the chapter's own colour, so a half-illustrated book is not a
   /// half-broken one.
   coverFileId  String? @db.VarChar(191)
-  isActive  Boolean @default(true)
+  isActive     Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

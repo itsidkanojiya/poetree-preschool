@@ -25,6 +25,14 @@ export const TENANT_MODELS = new Set<string>([
   'StudentGuardian',
   'StudentEnrolment',
   'StudentDocument',
+  // A parent's own request to join, before the school has agreed to it.
+  //
+  // Listed here so the school's queue is filtered to its own requests like
+  // everything else. The public endpoint that WRITES one has no request context
+  // at all — an unauthenticated caller never reaches tenantContext — so it uses
+  // prismaUnscoped with a schoolId resolved from the school code in the path.
+  // That is the deliberate exception, not an oversight.
+  'ParentRegistration',
   // Academic structure
   'AcademicYear',
   'Classroom',

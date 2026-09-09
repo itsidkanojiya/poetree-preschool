@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { assertMayReadLedger } from './fee.service.js';
 import {
@@ -33,8 +34,21 @@ const METHOD_LABELS: Record<string, string> = {
   ONLINE: 'Online',
 };
 
-async function schoolLetterhead(): Promise<Letterhead> {
-  const school = await prisma.school.findFirstOrThrow({
+/**
+ * The school's own name and address, for the top of what it issues.
+ *
+ * Keyed on the id from the token. It used to be `findFirstOrThrow` with no
+ * `where` at all, and `School` is not a tenant model — it *is* the school, so
+ * it carries no `schoolId` for the extension to filter on. That query returned
+ * whichever row the database handed back first, so every school but one was
+ * printing somebody else's name, address and telephone number on its receipts.
+ *
+ * Nothing caught it because the only school with an address in the fixture was
+ * also the first one created.
+ */
+export async function schoolLetterhead(): Promise<Letterhead> {
+  const school = await prisma.school.findUniqueOrThrow({
+    where: { id: requireSchoolId() },
     select: {
       name: true,
       addressLine1: true,

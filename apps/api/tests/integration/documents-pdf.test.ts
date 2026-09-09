@@ -10,6 +10,8 @@ import {
 import { api, auth, BASE, login, type Session } from '../helpers/api.js';
 import { prismaUnscoped, disconnectPrisma } from '../../src/db/prisma.js';
 import { rupeesInWords } from '../../src/lib/pdf.js';
+import { runWithRequestContext } from '../../src/context/requestContext.js';
+import { schoolLetterhead } from '../../src/services/document.service.js';
 
 const dbUp = await isDatabaseReachable();
 
@@ -147,6 +149,30 @@ describe.skipIf(!dbUp)('printable documents', () => {
 
     expect(response.status).toBe(404);
   });
+
+  it('puts each school’s own name on its own paperwork', async () => {
+    // This was wrong, and quietly. `schoolLetterhead` fetched the school with
+    // findFirstOrThrow and no `where`, and School is not a tenant model — it IS
+    // the school, so it carries no schoolId for the extension to filter on. The
+    // query returned whichever row the database handed back first, so every
+    // school but one printed somebody else's name, address and telephone
+    // number on its receipts and fee cards.
+    //
+    // Nothing caught it because the only school with an address in the fixture
+    // was also the first one created. Two schools, two contexts, and the
+    // letterhead read directly is the cheapest way to keep it caught.
+    const forA = await runWithRequestContext(
+      { requestId: 'r-a', userId: adminA.userId, role: 'SCHOOL_ADMIN', schoolId: schoolA.id },
+      () => schoolLetterhead(),
+    );
+    const forB = await runWithRequestContext(
+      { requestId: 'r-b', userId: adminB.userId, role: 'SCHOOL_ADMIN', schoolId: schoolB.id },
+      () => schoolLetterhead(),
+    );
+
+    expect(forA.name).toBe('Alpha Preschool');
+    expect(forB.name).toBe('Beta Preschool');
+  });
 });
 
 describe('amounts in words', () => {
@@ -166,5 +192,4 @@ describe('amounts in words', () => {
   it('handles zero and a refund', () => {
     expect(rupeesInWords(0)).toBe('Zero Rupees only');
     expect(rupeesInWords(-50_000)).toBe('Five Hundred Rupees only');
-  });
-});
+  });});

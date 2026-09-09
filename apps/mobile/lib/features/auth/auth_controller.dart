@@ -58,6 +58,13 @@ class AuthController extends GetxController {
   final isBusy = false.obs;
   final errorMessage = RxnString();
 
+  /// Whether [errorMessage] is a status rather than a mistake.
+  ///
+  /// A family waiting on the school has typed everything correctly and has
+  /// nothing to try again. Shown in the sign-in screen's own colours instead of
+  /// the red that means "you got that wrong".
+  final isAwaitingSchool = false.obs;
+
   /// Restores a session on cold start. Returns the route to open.
   Future<String> resolveStartRoute() async {
     final token = await api.tokens.accessToken;
@@ -85,6 +92,7 @@ class AuthController extends GetxController {
   }) async {
     isBusy.value = true;
     errorMessage.value = null;
+    isAwaitingSchool.value = false;
 
     try {
       final data = await api.post<Map<String, dynamic>>(
@@ -117,6 +125,7 @@ class AuthController extends GetxController {
       await Get.offAllNamed<void>(_routeFor(signedIn));
     } on DioException catch (e) {
       errorMessage.value = _messageFor(e);
+      isAwaitingSchool.value = _isAboutRegistration(e);
     } finally {
       isBusy.value = false;
     }
@@ -167,6 +176,16 @@ class AuthController extends GetxController {
   static String _homeFor(AppUser user) =>
       user.isTeacher ? '/teacher' : '/parent';
 
+  /// True when the reply is about a registration rather than a sign-in.
+  static bool _isAboutRegistration(DioException e) {
+    final data = e.response?.data;
+    if (data is! Map || data['error'] is! Map) return false;
+
+    final code = (data['error'] as Map)['code']?.toString();
+    return code == ApiErrorCodes.registrationPending ||
+        code == ApiErrorCodes.registrationRejected;
+  }
+
   static String _messageFor(DioException e) {
     final data = e.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -181,6 +200,15 @@ class AuthController extends GetxController {
       }
       if (code == ApiErrorCodes.invalidCredentials) {
         return 'That email or phone and password do not match.';
+      }
+      // Neither of these is a failed sign-in. The family typed everything
+      // correctly and there is nothing to try again, so the screen says so in
+      // its own colour rather than in the red one that means "you got it
+      // wrong".
+      if (code == ApiErrorCodes.registrationPending ||
+          code == ApiErrorCodes.registrationRejected) {
+        return error['message']?.toString() ??
+            'Your registration is with the school.';
       }
       return error['message']?.toString() ?? 'Sign-in failed.';
     }

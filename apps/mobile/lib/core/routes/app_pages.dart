@@ -11,6 +11,8 @@ import '../../features/activities/activity_play_view.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/change_password_view.dart';
 import '../../features/auth/login_view.dart';
+import '../../features/auth/registration_controller.dart';
+import '../../features/auth/registration_view.dart';
 import '../../features/notifications/inbox_controller.dart';
 import '../../features/notifications/inbox_view.dart';
 import '../../features/parent/child_controller.dart';
@@ -82,6 +84,9 @@ class InboxBinding extends Bindings {
 class AppRoutes {
   static const login = '/login';
   static const changePassword = '/change-password';
+  /// A parent registering themselves. Not `register`, which is the
+  /// teacher's attendance register and got the name first.
+  static const registration = '/registration';
   static const parent = '/parent';
   static const teacher = '/teacher';
   static const register = '/teacher/register';
@@ -215,6 +220,15 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.changePassword,
     page: () => const ChangePasswordView(),
     binding: AuthBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.registration,
+    page: () => const RegistrationView(),
+    // Its own controller rather than AuthController's: registering is not
+    // signing in, and nothing here should be able to touch a session.
+    binding: BindingsBuilder(() {
+      Get.lazyPut<RegistrationController>(RegistrationController.new);
+    }),
   ),
   GetPage<void>(
     name: AppRoutes.parent,

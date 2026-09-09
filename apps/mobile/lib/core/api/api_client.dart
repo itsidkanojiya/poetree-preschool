@@ -14,6 +14,13 @@ class ApiErrorCodes {
   static const invalidRefreshToken = 'INVALID_REFRESH_TOKEN';
   static const portalAccessDenied = 'PORTAL_ACCESS_DENIED';
   static const wrongSchoolApp = 'WRONG_SCHOOL_APP';
+
+  /// Registered, and the school has not decided yet. Not a failed sign-in:
+  /// there is nothing for the family to retype.
+  static const registrationPending = 'REGISTRATION_PENDING';
+
+  /// The school looked at the registration and said no.
+  static const registrationRejected = 'REGISTRATION_REJECTED';
 }
 
 class ApiException implements Exception {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/config/branding.dart';
+import '../../core/routes/app_pages.dart';
 import '../../core/widgets/password_field.dart';
 import 'auth_controller.dart';
 
@@ -83,20 +84,46 @@ class LoginView extends GetView<AuthController> {
                     Obx(() {
                       final message = controller.errorMessage.value;
                       if (message == null) return const SizedBox.shrink();
+
+                      // A family waiting on the school has done nothing wrong,
+                      // so this is not painted as a mistake. Same box, calmer
+                      // colours, and an icon that reads as "in hand".
+                      final waiting = controller.isAwaitingSchool.value;
+                      final scheme = Theme.of(context).colorScheme;
+
                       return Container(
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.errorContainer,
+                          color: waiting
+                              ? scheme.secondaryContainer
+                              : scheme.errorContainer,
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Text(
-                          message,
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
-                          ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              waiting
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.error_outline_rounded,
+                              size: 20,
+                              color: waiting
+                                  ? scheme.onSecondaryContainer
+                                  : scheme.onErrorContainer,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                message,
+                                style: TextStyle(
+                                  color: waiting
+                                      ? scheme.onSecondaryContainer
+                                      : scheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }),
@@ -170,8 +197,26 @@ class LoginView extends GetView<AuthController> {
                       child: const Text('Forgotten your password?'),
                     ),
                     const SizedBox(height: 12),
+                    // This used to read "ask the school office if you do not
+                    // have a password yet", which was the only answer there
+                    // was. A family can start it themselves now.
+                    const Divider(height: 28),
                     Text(
-                      'Ask the school office if you do not have a password yet.',
+                      'New here?',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: () => Get.toNamed<void>(AppRoutes.registration),
+                      child: const Text('Register with the school'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Your child must already be enrolled. You will need their '
+                      'admission number.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,

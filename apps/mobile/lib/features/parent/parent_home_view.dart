@@ -12,6 +12,7 @@ import '../notifications/inbox_view.dart';
 import 'child_controller.dart';
 import 'homework_detail_view.dart';
 import 'children_controller.dart';
+import 'id_card_view.dart';
 import '../activities/book_shelf_view.dart';
 
 final _money = NumberFormat.currency(
@@ -287,6 +288,29 @@ class _ProfileTab extends StatelessWidget {
             onTap: () => Get.toNamed<void>(
               AppRoutes.stream,
               arguments: {'classroomId': selected.classroomId},
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 10),
+        if (selected != null) ...[
+          const SizedBox(height: 10),
+          _ActionTile(
+            icon: Icons.badge_rounded,
+            tone: AppTheme.leaf,
+            toneSoft: AppTheme.leafSoft,
+            title: 'ID card',
+            subtitle: '${selected.firstName}’s card, as the school prints it',
+            onTap: () => Get.to<void>(
+              () => const IdCardView(),
+              binding: BindingsBuilder(() {
+                Get.put<IdCardController>(
+                  IdCardController(
+                    studentId: selected.id,
+                    childName: selected.firstName,
+                  ),
+                );
+              }),
             ),
           ),
         ],

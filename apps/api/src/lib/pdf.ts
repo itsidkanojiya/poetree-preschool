@@ -125,10 +125,26 @@ export function rupeesInWords(paise: number): string {
   return `${rupeeWords} Rupees${paiseWords} only`;
 }
 
-export function createDocument(title: string): PDFKit.PDFDocument {
+/** Millimetres to PostScript points, which is what PDFKit measures in. */
+export const mm = (value: number): number => (value * 72) / 25.4;
+
+export interface PageShape {
+  /** A named size, or a width and height in points. */
+  size?: 'A4' | [number, number];
+  margin?: number;
+}
+
+/**
+ * A document, A4 by default.
+ *
+ * The options exist for ID cards, which are 85.6mm wide and would be absurd on
+ * a sheet of A4. Everything else — receipts, fee cards — passes nothing and is
+ * unchanged.
+ */
+export function createDocument(title: string, page: PageShape = {}): PDFKit.PDFDocument {
   const doc = new PDFDocument({
-    size: 'A4',
-    margin: 46,
+    size: page.size ?? 'A4',
+    margin: page.margin ?? 46,
     info: { Title: title, Producer: 'Poetree Preschool Platform' },
   });
 

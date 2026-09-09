@@ -55,6 +55,7 @@ import * as parentService from '../services/parent.service.js';
 import * as passwordService from '../services/password.service.js';
 import * as registrationService from '../services/registration.service.js';
 import * as schoolService from '../services/school.service.js';
+import * as idCards from '../services/idCard.service.js';
 import * as studentService from '../services/student.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as subjectService from '../services/subject.service.js';
@@ -488,5 +489,38 @@ schoolAdminRouter.put(
     // too; here it can only ever be this school's own.
     await schoolService.setSchoolLogo(requireSchoolId(), fileId, req.auth!.userId);
     res.json(await schoolService.getOwnSchoolProfile());
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* ID cards                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The card a child wears, at the size the school chose in its settings.
+ *
+ * On this router rather than beside the fee documents because issuing them is
+ * an office job, and the office is the only role that can reach it.
+ */
+schoolAdminRouter.get(
+  '/students/:id/id-card',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { buffer, filename } = await idCards.studentIdCard(idOf(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buffer);
+  }),
+);
+
+/** A whole class in one file, which is how a year actually starts. */
+schoolAdminRouter.get(
+  '/classrooms/:id/id-cards',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { buffer, filename } = await idCards.classroomIdCards(idOf(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buffer);
   }),
 );

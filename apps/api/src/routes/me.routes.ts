@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import { idParamSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { params, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
+import * as idCards from '../services/idCard.service.js';
 
 /**
  * "What is mine?" — the first call every client makes after signing in.
@@ -110,5 +113,23 @@ meRouter.get(
         };
       }),
     );
+  }),
+);
+
+/**
+ * The child's ID card, as data for the app to draw.
+ *
+ * The same fields the printed card carries, including the school's switches:
+ * if the office has turned the guardian's phone off the card, it is off the
+ * phone too, or the screen would say more than the thing in the child's bag.
+ *
+ * Guarded by assertCanReadStudent inside the service, so a parent reaches their
+ * own children and nobody else's.
+ */
+meRouter.get(
+  '/children/:id/id-card',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await idCards.studentIdCardData(params<{ id: string }>(req).id));
   }),
 );

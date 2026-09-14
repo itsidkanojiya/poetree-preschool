@@ -144,6 +144,77 @@ describe.skipIf(!dbUp)('student ID cards', () => {
     expect(isPdf(cards.body)).toBe(true);
   });
 
+  it('prints every layout, and a two-sided one as front then back', async () => {
+    // Page count is the part of a layout a machine can check, and the part
+    // that matters most: a class file that is one page off prints every child's
+    // back on the next child's front.
+    const pagesOf = (body: Buffer) =>
+      body.toString('latin1').match(/\/Type\s*\/Page(?![s\w])/g)?.length ?? 0;
+
+    const fetchPdf = (path: string) =>
+      api
+        .get(`${BASE}${path}`)
+        .set(auth(admin))
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+    const expectedSides = { CLASSIC: 1, BANNER: 1, FRONT_BACK: 2 } as const;
+
+    for (const layout of ['CLASSIC', 'BANNER', 'FRONT_BACK'] as const) {
+      await prismaUnscoped.school.update({
+        where: { id: school.id },
+        // Every switch on, so each layout has its fullest card to fit.
+        data: {
+          idCardLayout: layout,
+          idCardShowAddress: true,
+          idCardShowDateOfBirth: true,
+        },
+      });
+
+      const card = await fetchPdf(`/students/${school.studentId}/id-card`);
+      expect(card.status, layout).toBe(200);
+      expect(isPdf(card.body), layout).toBe(true);
+      expect(pagesOf(card.body), layout).toBe(expectedSides[layout]);
+
+      const children = await prismaUnscoped.studentEnrolment.count({
+        where: { classroomId: school.classroomId, status: 'ACTIVE' },
+      });
+      const cards = await fetchPdf(`/classrooms/${school.classroomId}/id-cards`);
+      expect(pagesOf(cards.body), layout).toBe(children * expectedSides[layout]);
+    }
+
+    await prismaUnscoped.school.update({
+      where: { id: school.id },
+      data: { idCardLayout: 'CLASSIC', idCardShowAddress: false, idCardShowDateOfBirth: false },
+    });
+  });
+
+  it('lets the office choose a layout, and refuses one that does not exist', async () => {
+    const saved = await api
+      .patch(`${BASE}/school/profile`)
+      .set(auth(admin))
+      .send({ idCardLayout: 'BANNER', idCardShowDateOfBirth: true });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.idCardLayout).toBe('BANNER');
+    expect(saved.body.idCardShowDateOfBirth).toBe(true);
+
+    const refused = await api
+      .patch(`${BASE}/school/profile`)
+      .set(auth(admin))
+      .send({ idCardLayout: 'HOLOGRAM' });
+    expect(refused.status).toBe(400);
+
+    await prismaUnscoped.school.update({
+      where: { id: school.id },
+      data: { idCardLayout: 'CLASSIC', idCardShowDateOfBirth: false },
+    });
+  });
+
   it('will not print another school’s child', async () => {
     // 404 rather than 403, like every other cross-tenant read.
     const refused = await api
@@ -169,6 +240,9 @@ describe.skipIf(!dbUp)('student ID cards', () => {
     expect(shown.body.name).toBeTruthy();
     expect(shown.body.admissionNo).toBeTruthy();
     expect(shown.body.bloodGroup).toBe('B+');
+    expect(shown.body.layout).toBe('CLASSIC');
+    // Off by default: a birthday is not on the card until the school says so.
+    expect(shown.body.dateOfBirth).toBeNull();
 
     // Turned off in settings, gone from the phone too — or the screen would say
     // more than the card in the child's bag.

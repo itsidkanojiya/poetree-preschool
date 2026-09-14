@@ -61,6 +61,17 @@ enum IdCardSize {
   A6
 }
 
+/// How an ID card is drawn. Independent of the size: every layout is drawn
+/// against the page it lands on. See ID_CARD_LAYOUTS in the shared package.
+enum IdCardLayout {
+  /// A colour band, the photograph beside the details.
+  CLASSIC
+  /// A bold header, a round photograph, the school's address along the foot.
+  BANNER
+  /// Two pages per child: the child on the front, contact details on the back.
+  FRONT_BACK
+}
+
 /// Where a parent's own request to join sits.
 ///
 /// A registration is not an account. It becomes one only when the school says
@@ -320,6 +331,10 @@ model School {
   /// been drawn and looked at. See ID_CARD_SIZES in the shared package.
   idCardSize IdCardSize @default(CR80)
 
+  /// How the card is drawn. CLASSIC is what every school printed before there
+  /// was a choice, so nobody's cards change underneath them.
+  idCardLayout IdCardLayout @default(CLASSIC)
+
   /// What goes on the card besides the child, their school and their photo.
   ///
   /// Separate columns rather than a JSON blob so they are typed, queryable and
@@ -327,6 +342,9 @@ model School {
   idCardShowBloodGroup    Boolean @default(true)
   idCardShowGuardianPhone Boolean @default(true)
   idCardShowAddress       Boolean @default(false)
+  /// Off by default, like the address: a birthday is half of what it takes to
+  /// pass as a child's parent on a phone call.
+  idCardShowDateOfBirth   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

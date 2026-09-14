@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { ID_CARD_SIZE_CODES, SCHOOL_STATUSES, type IdCardSize } from '../enums.js';
+import {
+  ID_CARD_LAYOUT_CODES,
+  ID_CARD_SIZE_CODES,
+  SCHOOL_STATUSES,
+  type IdCardLayout,
+  type IdCardSize,
+} from '../enums.js';
 import {
   emailSchema,
   hexColorSchema,
@@ -67,9 +73,11 @@ export const updateSchoolProfileSchema = z.object({
   primaryColor: hexColorSchema.optional(),
 
   idCardSize: z.enum(ID_CARD_SIZE_CODES).optional(),
+  idCardLayout: z.enum(ID_CARD_LAYOUT_CODES).optional(),
   idCardShowBloodGroup: z.boolean().optional(),
   idCardShowGuardianPhone: z.boolean().optional(),
   idCardShowAddress: z.boolean().optional(),
+  idCardShowDateOfBirth: z.boolean().optional(),
 });
 export type UpdateSchoolProfileInput = z.infer<typeof updateSchoolProfileSchema>;
 
@@ -91,9 +99,11 @@ export interface SchoolProfile {
   logoUrl: string | null;
 
   idCardSize: IdCardSize;
+  idCardLayout: IdCardLayout;
   idCardShowBloodGroup: boolean;
   idCardShowGuardianPhone: boolean;
   idCardShowAddress: boolean;
+  idCardShowDateOfBirth: boolean;
 }
 
 /** Null clears it. */

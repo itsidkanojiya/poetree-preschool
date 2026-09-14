@@ -660,9 +660,11 @@ const profileSelect = {
   logoUrl: true,
   logoFileId: true,
   idCardSize: true,
+  idCardLayout: true,
   idCardShowBloodGroup: true,
   idCardShowGuardianPhone: true,
   idCardShowAddress: true,
+  idCardShowDateOfBirth: true,
 } as const;
 
 function toProfile(row: {
@@ -686,9 +688,11 @@ function toProfile(row: {
     // The uploaded logo wins over a hosted URL, as everywhere else.
     logoUrl: school.logoFileId ? `/api/v1/files/${school.logoFileId}` : school.logoUrl,
     idCardSize: school.idCardSize,
+    idCardLayout: school.idCardLayout,
     idCardShowBloodGroup: school.idCardShowBloodGroup,
     idCardShowGuardianPhone: school.idCardShowGuardianPhone,
     idCardShowAddress: school.idCardShowAddress,
+    idCardShowDateOfBirth: school.idCardShowDateOfBirth,
   };
 }
 

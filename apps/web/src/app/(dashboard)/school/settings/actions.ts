@@ -63,10 +63,12 @@ export async function updateIdCardAction(
       redirectOnAuthFailure: false,
       body: {
         idCardSize: text(formData, 'idCardSize'),
+        idCardLayout: text(formData, 'idCardLayout'),
         // Checkboxes: absent means off, and every one is sent so unticking works.
         idCardShowBloodGroup: formData.get('idCardShowBloodGroup') === 'on',
         idCardShowGuardianPhone: formData.get('idCardShowGuardianPhone') === 'on',
         idCardShowAddress: formData.get('idCardShowAddress') === 'on',
+        idCardShowDateOfBirth: formData.get('idCardShowDateOfBirth') === 'on',
       },
     });
   } catch (error) {

@@ -64,6 +64,38 @@ export const ID_CARD_SIZES: Readonly<
   A6: { label: 'A6 (portrait)', widthMm: 105, heightMm: 148 },
 };
 
+export const ID_CARD_LAYOUT_CODES = ['CLASSIC', 'BANNER', 'FRONT_BACK'] as const;
+export type IdCardLayout = (typeof ID_CARD_LAYOUT_CODES)[number];
+
+/**
+ * How a card is drawn, independent of its size.
+ *
+ * Named after what a school recognises from the cards it already orders from a
+ * print shop, not after how they are built.
+ */
+export const ID_CARD_LAYOUTS: Readonly<
+  Record<IdCardLayout, { label: string; description: string; sides: 1 | 2 }>
+> = {
+  CLASSIC: {
+    label: 'Classic',
+    description:
+      'The school’s badge in a coloured header, a large photograph, and the details in a tidy grid.',
+    sides: 1,
+  },
+  BANNER: {
+    label: 'Banner',
+    description:
+      'A bold school header, a round photograph, and the school’s address along the foot.',
+    sides: 1,
+  },
+  FRONT_BACK: {
+    label: 'Front & back',
+    description:
+      'The child on the front with a signature line; contact details and “if found, return to” on the back.',
+    sides: 2,
+  },
+};
+
 /**
  * The standards a new installation starts with.
  *

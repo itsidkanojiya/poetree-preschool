@@ -1,10 +1,11 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, FieldSet, FormError, Input, SubmitButton } from '@/components/ui/form';
+import type { OrganisationSummary } from '@poetree/shared';
+import { Field, FieldSet, FormError, Input, Select, SubmitButton } from '@/components/ui/form';
 import { createSchoolAction, type ActionState } from '../actions';
 
-export function NewSchoolForm() {
+export function NewSchoolForm({ organisations }: { organisations: OrganisationSummary[] }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createSchoolAction, {});
 
   return (
@@ -16,16 +17,30 @@ export function NewSchoolForm() {
           <Input name="name" required placeholder="Sunrise Preschool" />
         </Field>
 
+        {organisations.length > 0 && (
+          <Field
+            label="Group"
+            hint="A branch of a group, or a school on its own. Branches are numbered under the group's code."
+          >
+            <Select name="organisationId" defaultValue="">
+              <option value="">Independent school</option>
+              {organisations.map((organisation) => (
+                <option key={organisation.id} value={organisation.id}>
+                  {organisation.name} ({organisation.code})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+
         <Field
           label="School code"
-          required
-          hint="Permanent. Lowercase letters and digits only — it becomes the school's app id in Phase 2."
+          hint="Left blank, it is generated from the name — sunrisepreschool, or sunrise01 for a branch. Permanent either way: it becomes the school's app id."
         >
           <Input
             name="code"
-            required
             pattern="[a-z][a-z0-9]{2,29}"
-            placeholder="sunrise"
+            placeholder="generated from the name"
             className="font-mono"
           />
         </Field>

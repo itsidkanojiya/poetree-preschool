@@ -1,13 +1,23 @@
 import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
-import { changePasswordSchema, loginSchema, refreshSchema } from '@poetree/shared';
+import {
+  changePasswordSchema,
+  loginSchema,
+  refreshSchema,
+  switchBranchSchema,
+} from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { body, validate } from '../middleware/validate.js';
 import { env } from '../config/env.js';
 import * as authService from '../services/auth.service.js';
 import * as passwordService from '../services/password.service.js';
-import type { ChangePasswordInput, LoginInput, RefreshInput } from '@poetree/shared';
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  RefreshInput,
+  SwitchBranchInput,
+} from '@poetree/shared';
 
 export const authRouter = Router();
 
@@ -130,8 +140,40 @@ authRouter.get(
   '/me',
   authenticate,
   asyncHandler(async (req, res) => {
-    const user = await authService.getAuthenticatedUser(req.auth!.userId);
+    // The token's school, not the user's own: a group administrator's row holds
+    // no school, and the answer here has to be the branch they are working in.
+    const user = await authService.getAuthenticatedUser(req.auth!.userId, req.auth!.schoolId);
     res.json({ user });
+  }),
+);
+
+/**
+ * The branches a group administrator may work in.
+ *
+ * On the auth router rather than under /me because it has to answer before a
+ * branch has been chosen, and everything below /me runs through the tenant
+ * middleware, which by then has no school to scope to.
+ */
+authRouter.get(
+  '/branches',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    res.json(await authService.branchesFor(req.auth!.userId, req.auth!.schoolId));
+  }),
+);
+
+/** Picking one. What comes back is an ordinary session, bound to that branch. */
+authRouter.post(
+  '/switch-branch',
+  authenticate,
+  validate({ body: switchBranchSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await authService.switchBranch(
+      req.auth!.userId,
+      body<SwitchBranchInput>(req).schoolId,
+      requestMeta(req),
+    );
+    res.json(result);
   }),
 );
 

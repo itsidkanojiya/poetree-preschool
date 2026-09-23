@@ -44,9 +44,13 @@ export function generateTemporaryPassword(): string {
 /** Who may reset whom. */
 const MAY_RESET: Record<string, readonly Role[]> = {
   SCHOOL_ADMIN: ['TEACHER', 'PARENT'],
+  // The same as a school admin: inside a branch they are one. Not SCHOOL_ADMIN
+  // itself — a group administrator who could reset their branch offices'
+  // passwords could take a branch over, and that is the publisher's call.
+  ORG_ADMIN: ['TEACHER', 'PARENT'],
   // The publication's own staff look after the school offices, and nobody else
   // can — a school admin who forgets their password has no colleague above them.
-  PUBLICATION_ADMIN: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT'],
+  PUBLICATION_ADMIN: ['ORG_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'PARENT'],
 };
 
 /**

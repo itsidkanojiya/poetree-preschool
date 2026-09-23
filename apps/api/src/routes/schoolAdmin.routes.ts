@@ -67,7 +67,9 @@ import * as documentService from '../services/studentDocument.service.js';
  */
 export const schoolAdminRouter = Router();
 
-schoolAdminRouter.use(requireRole('SCHOOL_ADMIN'));
+// A group administrator working inside a branch is doing a school admin's job
+// in it, with a token that names that one school like anybody else's.
+schoolAdminRouter.use(requireRole('SCHOOL_ADMIN', 'ORG_ADMIN'));
 
 const idOf = (req: Request) => params<{ id: string }>(req).id;
 

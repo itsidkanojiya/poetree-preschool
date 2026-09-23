@@ -8,13 +8,22 @@ import { API_BASE_URL } from '@/lib/api';
 
 export interface LoginState {
   error?: string;
+  /**
+   * The schools this login exists at.
+   *
+   * The API refuses to guess when the same email or phone is a person at two
+   * schools. Until now the portal sent no code and had nowhere to type one, so
+   * its message ("please include your school code") was a dead end.
+   */
+  schoolCodes?: string[];
 }
 
-const PORTAL_ROLES: Role[] = ['PUBLICATION_ADMIN', 'SCHOOL_ADMIN'];
+const PORTAL_ROLES: Role[] = ['PUBLICATION_ADMIN', 'ORG_ADMIN', 'SCHOOL_ADMIN'];
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const identifier = String(formData.get('identifier') ?? '').trim();
   const password = String(formData.get('password') ?? '');
+  const schoolCode = String(formData.get('schoolCode') ?? '').trim();
 
   if (!identifier || !password) {
     return { error: 'Enter your email or phone and your password.' };
@@ -26,7 +35,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ identifier, password, ...(schoolCode ? { schoolCode } : {}) }),
       cache: 'no-store',
     });
 
@@ -35,10 +44,23 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     if (!response.ok) {
       // SCHOOL_SUSPENDED arrives here when a school's plan is switched off — the
       // API refuses to issue tokens at all, so there is nothing to store.
+      const message = isApiErrorBody(payload)
+        ? payload.error.message
+        : 'Sign-in failed. Please try again.';
+
+      // The same login at two schools. Hand the codes back so the form can ask
+      // which one, rather than telling them to include something they have no
+      // field for.
+      const codes =
+        isApiErrorBody(payload) && response.status === 409
+          ? (payload.error.details as { schoolCodes?: unknown })?.schoolCodes
+          : undefined;
+
       return {
-        error: isApiErrorBody(payload)
-          ? payload.error.message
-          : 'Sign-in failed. Please try again.',
+        error: message,
+        ...(Array.isArray(codes) && codes.length > 0
+          ? { schoolCodes: codes.map(String) }
+          : {}),
       };
     }
 
@@ -55,7 +77,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   store.set(ACCESS_COOKIE, data.accessToken, cookieOptions);
   store.set(REFRESH_COOKIE, data.refreshToken, cookieOptions);
 
-  redirect(homePathFor(data.user.role));
+  redirect(homePathFor(data.user.role, data.user.schoolId));
 }
 
 export async function logoutAction(): Promise<void> {

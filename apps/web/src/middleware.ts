@@ -97,9 +97,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   // Role routing: each dashboard tree belongs to exactly one role.
+  // A group administrator who has picked a branch belongs in the school tree:
+  // their token names one school, exactly like a school admin's.
+  const inBranch = claims.role === 'ORG_ADMIN' && Boolean(claims.schoolId);
+
   const wrongTree =
     (pathname.startsWith('/publication') && claims.role !== 'PUBLICATION_ADMIN') ||
-    (pathname.startsWith('/school') && claims.role !== 'SCHOOL_ADMIN') ||
+    (pathname.startsWith('/organisation') && claims.role !== 'ORG_ADMIN') ||
+    (pathname.startsWith('/school') && claims.role !== 'SCHOOL_ADMIN' && !inBranch) ||
     (pathname.startsWith('/teacher') && claims.role !== 'TEACHER');
 
   if (pathname === '/' || wrongTree) {

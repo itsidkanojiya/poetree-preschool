@@ -44,10 +44,15 @@ export function needsRefresh(token: string | undefined, skewSeconds = 30): boole
   return claims.exp * 1000 - Date.now() < skewSeconds * 1000;
 }
 
-export function homePathFor(role: Role | undefined): string {
+export function homePathFor(role: Role | undefined, schoolId?: string | null): string {
   switch (role) {
     case 'PUBLICATION_ADMIN':
       return '/publication';
+    case 'ORG_ADMIN':
+      // A group administrator with a branch chosen is working in that branch,
+      // and everything they do there is the school dashboard. Without one there
+      // is nothing to show but the list of branches.
+      return schoolId ? '/school' : '/organisation';
     case 'SCHOOL_ADMIN':
       return '/school';
     case 'TEACHER':

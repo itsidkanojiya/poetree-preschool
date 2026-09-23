@@ -18,12 +18,13 @@ import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { hashPassword } from '../lib/password.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
-import { scopeKeyFor, slugify } from '../lib/scope.js';
+import { codeFromName, nextFreeCode, scopeKeyFor, slugify } from '../lib/scope.js';
 import { logger } from '../lib/logger.js';
 import { writeAuditLog } from './audit.service.js';
 import { seedEntitlementsForSchool } from './book.service.js';
 import { invalidateSchoolAccess } from './schoolAccess.service.js';
 import { revokeAllSessionsForSchool } from './auth.service.js';
+import { isCodeTaken, requireOrganisation } from './organisation.service.js';
 
 /**
  * Super Admin operations. Every function here uses `prismaUnscoped` by design —
@@ -121,40 +122,100 @@ export async function getSchool(schoolId: string): Promise<SchoolSummary> {
   return toSummary(school);
 }
 
+/**
+ * The code a new school gets when the Super Admin does not type one.
+ *
+ * A branch is numbered within its group — sunrise becomes sunrise01, sunrise02
+ * — because a group's app is built with the group's code and its branches have
+ * to sort under it recognisably. An independent school is named after itself.
+ *
+ * Only a suggestion: two admins creating a school at the same moment can both
+ * be told the same code is free, which is why the insert below retries on the
+ * unique constraint rather than trusting this.
+ */
+async function suggestCode(name: string, organisationCode: string | null): Promise<string> {
+  return organisationCode
+    ? nextFreeCode(organisationCode, isCodeTaken, { firstSuffix: 1, padTo: 2 })
+    : nextFreeCode(codeFromName(name), isCodeTaken);
+}
+
+/** MySQL's duplicate-key error, as Prisma reports it. */
+function isDuplicateKey(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
+}
+
+/**
+ * The insert, retried when the code it chose was taken in between choosing and
+ * inserting.
+ *
+ * Retried only when the code was generated: a code the Super Admin typed is
+ * theirs, and quietly creating "sunrise2" because "sunrise" had gone would be
+ * worse than telling them.
+ */
+async function createWithCode(
+  input: CreateSchoolInput,
+  publicationId: string,
+  organisationId: string | null,
+  nextCode: () => Promise<string>,
+): Promise<SchoolRow> {
+  const attempts = input.code ? 1 : 5;
+
+  for (let attempt = 1; ; attempt += 1) {
+    const code = await nextCode();
+
+    try {
+      return await prismaUnscoped.school.create({
+        data: {
+          publicationId,
+          organisationId,
+          name: input.name,
+          code,
+          slug: slugify(input.name, code),
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          addressLine1: input.addressLine1 ?? null,
+          addressLine2: input.addressLine2 ?? null,
+          city: input.city ?? null,
+          state: input.state ?? null,
+          postalCode: input.postalCode ?? null,
+          principalName: input.principalName ?? null,
+          logoUrl: input.logoUrl ?? null,
+          primaryColor: input.primaryColor ?? null,
+          status: 'TRIAL',
+        },
+        select: summarySelect,
+      });
+    } catch (error) {
+      if (!isDuplicateKey(error)) throw error;
+      if (attempt >= attempts) {
+        throw ApiError.conflict(`School code "${code}" is already taken`, { field: 'code' });
+      }
+    }
+  }
+}
+
 export async function createSchool(
   input: CreateSchoolInput,
   actorUserId: string,
 ): Promise<SchoolSummary> {
   const publicationId = await requirePublication();
 
-  const existing = await prismaUnscoped.school.findUnique({
-    where: { code: input.code },
-    select: { id: true },
-  });
-  if (existing) {
+  const organisation = input.organisationId
+    ? await requireOrganisation(input.organisationId)
+    : null;
+
+  // A typed code is checked and refused by name, because the person who typed
+  // it wants to know. A generated one is simply taken again if it has gone.
+  if (input.code && (await isCodeTaken(input.code))) {
     throw ApiError.conflict(`School code "${input.code}" is already taken`, { field: 'code' });
   }
 
-  const school = await prismaUnscoped.school.create({
-    data: {
-      publicationId,
-      name: input.name,
-      code: input.code,
-      slug: slugify(input.name, input.code),
-      email: input.email ?? null,
-      phone: input.phone ?? null,
-      addressLine1: input.addressLine1 ?? null,
-      addressLine2: input.addressLine2 ?? null,
-      city: input.city ?? null,
-      state: input.state ?? null,
-      postalCode: input.postalCode ?? null,
-      principalName: input.principalName ?? null,
-      logoUrl: input.logoUrl ?? null,
-      primaryColor: input.primaryColor ?? null,
-      status: 'TRIAL',
-    },
-    select: summarySelect,
-  });
+  const school = await createWithCode(
+    input,
+    publicationId,
+    organisation?.id ?? null,
+    async () => input.code ?? (await suggestCode(input.name, organisation?.code ?? null)),
+  );
 
   // Every book, switched on. The Super Admin has just sold them something and
   // an empty shelf on day one is the worse first impression; turning a book
@@ -167,7 +228,7 @@ export async function createSchool(
     entityId: school.id,
     schoolId: school.id,
     actorUserId,
-    metadata: { name: school.name, code: school.code },
+    metadata: { name: school.name, code: school.code, organisationId: organisation?.id ?? null },
   });
 
   return toSummary(school);
@@ -184,8 +245,18 @@ export async function updateSchool(
   });
   if (!current) throw ApiError.notFound('School not found');
 
-  const data: Prisma.SchoolUpdateInput = { ...input };
+  const { organisationId, ...fields } = input;
+  const data: Prisma.SchoolUpdateInput = { ...fields };
   if (input.name) data.slug = slugify(input.name, current.code);
+
+  // Moving a school into a group, or out of one. The code does not follow: it
+  // is immutable, and an installed app is built against it.
+  if (organisationId !== undefined) {
+    data.organisation =
+      organisationId === null
+        ? { disconnect: true }
+        : { connect: { id: (await requireOrganisation(organisationId)).id } };
+  }
 
   const school = await prismaUnscoped.school.update({
     where: { id: schoolId },

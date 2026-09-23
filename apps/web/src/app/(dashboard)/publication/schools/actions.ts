@@ -29,7 +29,10 @@ export async function createSchoolAction(
       redirectOnAuthFailure: false,
       body: {
         name: text(formData, 'name'),
+        // Absent rather than empty: the API generates one from the name, and
+        // an empty string would fail validation instead.
         code: text(formData, 'code'),
+        organisationId: text(formData, 'organisationId') ?? null,
         email: text(formData, 'email'),
         phone: text(formData, 'phone'),
         city: text(formData, 'city'),

@@ -4,6 +4,7 @@ export * from './permissions.js';
 export * from './schemas/common.js';
 export * from './schemas/auth.js';
 export * from './schemas/school.js';
+export * from './schemas/organisation.js';
 export * from './schemas/plan.js';
 export * from './schemas/roster.js';
 export * from './schemas/registration.js';

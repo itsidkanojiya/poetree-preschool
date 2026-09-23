@@ -26,6 +26,10 @@ datasource db {
 
 enum Role {
   PUBLICATION_ADMIN
+  /// A group's own administrator, above its branches. Holds no school until
+  /// they pick a branch, at which point their session is a SCHOOL_ADMIN
+  /// session for that branch — see Organisation.
+  ORG_ADMIN
   SCHOOL_ADMIN
   TEACHER
   PARENT
@@ -284,34 +288,72 @@ model Publication {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  schools School[]
+  schools       School[]
+  organisations Organisation[]
 
   @@map("publications")
 }
 
-model School {
-  id            String  @id @default(cuid())
+/// A customer that runs more than one school — "Sunrise Group", with a branch
+/// in Nikol and another in Naroda.
+///
+/// A branch IS a School row. Every operational table here carries `schoolId`
+/// and is filtered by one Prisma extension; a second `branchId` dimension would
+/// mean adding a column to forty-six tables and a second filter to get wrong.
+/// As a school row, a branch gets its own children, staff, fees, admission
+/// number series and ID card settings already isolated, for nothing.
+///
+/// Independent schools have no organisation: `School.organisationId` is null,
+/// which is the case this model must never make more complicated.
+model Organisation {
+  id            String @id @default(cuid())
   publicationId String
-  name          String  @db.VarChar(160)
+
+  name String @db.VarChar(160)
+  /// The group's code. A branch's own code is derived from it (sunrise → 
+  /// sunrise01, sunrise02), and the group's branded app is built with this one,
+  /// so one group ships one app rather than one per branch.
+  code String @unique @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  schools     School[]
+  /// ORG_ADMIN users. Everyone else belongs to a branch, not to the group.
+  users       User[]
+
+  @@index([publicationId])
+  @@map("organisations")
+}
+
+model School {
+  id             String  @id @default(cuid())
+  publicationId  String
+  /// The group this school is a branch of. NULL for an independent school,
+  /// which changes nothing about how it works — a branch and an independent
+  /// school are the same row with the same isolation.
+  organisationId String?
+  name           String  @db.VarChar(160)
   /// Immutable. Doubles as the Android application-id segment in Phase 2
   /// (com.poetree.<code>), so it is restricted to [a-z][a-z0-9]{2,29}.
-  code          String  @unique @db.VarChar(30)
-  slug          String  @unique @db.VarChar(60)
-  email         String? @db.VarChar(160)
-  phone         String? @db.VarChar(20)
-  addressLine1  String? @db.VarChar(200)
-  addressLine2  String? @db.VarChar(200)
-  city          String? @db.VarChar(100)
-  state         String? @db.VarChar(100)
-  postalCode    String? @db.VarChar(20)
-  principalName String? @db.VarChar(120)
+  code           String  @unique @db.VarChar(30)
+  slug           String  @unique @db.VarChar(60)
+  email          String? @db.VarChar(160)
+  phone          String? @db.VarChar(20)
+  addressLine1   String? @db.VarChar(200)
+  addressLine2   String? @db.VarChar(200)
+  city           String? @db.VarChar(100)
+  state          String? @db.VarChar(100)
+  postalCode     String? @db.VarChar(20)
+  principalName  String? @db.VarChar(120)
   /// A logo hosted elsewhere. Kept for schools that already had one.
-  logoUrl       String? @db.VarChar(500)
+  logoUrl        String? @db.VarChar(500)
   /// A logo uploaded through the portal. Preferred over logoUrl when both are
   /// set, and served publicly by school code — a sign-in screen has to be
   /// branded before anyone has signed in.
-  logoFileId    String? @db.VarChar(191)
-  primaryColor  String? @db.VarChar(7)
+  logoFileId     String? @db.VarChar(191)
+  primaryColor   String? @db.VarChar(7)
 
   /// The single switch that gates every user of this school. Only TRIAL and
   /// ACTIVE permit login; SUSPENDED and EXPIRED lock everyone out.
@@ -350,6 +392,9 @@ model School {
   updatedAt DateTime @updatedAt
 
   publication              Publication               @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  /// Restrict, not Cascade: deleting a group must never take its branches — and
+  /// their children's records — with it.
+  organisation             Organisation?             @relation(fields: [organisationId], references: [id], onDelete: Restrict)
   logoFile                 FileObject?               @relation("SchoolLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
   books                    SchoolBook[]
   animationViews           ChapterAnimationView[]
@@ -399,6 +444,7 @@ model School {
   parentRegistrations      ParentRegistration[]
 
   @@index([publicationId])
+  @@index([organisationId])
   @@index([status])
   @@map("schools")
 }
@@ -495,8 +541,13 @@ model ClassLevel {
 model User {
   id String @id @default(cuid())
 
-  /// NULL only for PUBLICATION_ADMIN, who sits above every school.
+  /// NULL only for PUBLICATION_ADMIN, who sits above every school, and for an
+  /// ORG_ADMIN who has not picked a branch yet.
   schoolId String?
+
+  /// Set only for ORG_ADMIN. Everyone else belongs to a school, and the school
+  /// belongs to the group.
+  organisationId String?
 
   /// schoolId with NULL collapsed to the literal 'PUBLICATION'. Exists purely so
   /// the uniqueness constraints below hold for Super Admins too — MySQL treats
@@ -522,6 +573,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   school                   School?              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  organisation             Organisation?        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   teacherProfile           TeacherProfile?
   parentProfile            ParentProfile?
   refreshTokens            RefreshToken[]
@@ -548,6 +600,7 @@ model User {
   @@unique([scopeKey, phone], name: "user_scope_phone")
   @@index([schoolId, role])
   @@index([schoolId, status])
+  @@index([organisationId])
   @@map("users")
 }
 
@@ -972,6 +1025,14 @@ model RefreshToken {
   replacedById String?
   userAgent    String?   @db.VarChar(300)
   ipAddress    String?   @db.VarChar(64)
+
+  /// The branch a group administrator was working in when this token was
+  /// issued. Null for everybody else, whose school comes from their own row.
+  ///
+  /// Stored on the session rather than re-derived at refresh time: a refresh
+  /// must not silently drop somebody back to "no branch chosen", because their
+  /// next request would then fail halfway through a task.
+  activeSchoolId String? @db.VarChar(191)
 
   createdAt DateTime @default(now())
 

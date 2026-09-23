@@ -20,8 +20,20 @@ import {
 
 export const createSchoolSchema = z.object({
   name: nameSchema,
-  /** Immutable once created — it becomes the Android application id in Phase 2. */
-  code: schoolCodeSchema,
+  /**
+   * Immutable once created — it becomes the Android application id in Phase 2.
+   *
+   * Optional on the way in: left out, the API generates one from the name (and
+   * from the organisation's code, for a branch). Typing it remains possible
+   * because this ends up on the Play Store, and the publisher may want the
+   * final say on what it is called.
+   */
+  code: schoolCodeSchema.optional(),
+  /**
+   * The group this school is a branch of, if it is one. Null for an
+   * independent school, which is most of them.
+   */
+  organisationId: idSchema.nullable().optional(),
   email: emailSchema.optional(),
   phone: phoneSchema.optional(),
   addressLine1: z.string().trim().max(200).optional(),

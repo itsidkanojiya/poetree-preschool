@@ -1,5 +1,11 @@
 import type { Prisma } from '@prisma/client';
-import type { AuthenticatedUser, LoginInput, LoginResponse, Role } from '@poetree/shared';
+import type {
+  AuthenticatedUser,
+  BranchSummary,
+  LoginInput,
+  LoginResponse,
+  Role,
+} from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { burnPasswordComparison, verifyPassword } from '../lib/password.js';
@@ -15,12 +21,16 @@ import { env } from '../config/env.js';
 import { assertSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLogSafe } from './audit.service.js';
 import { registrationAwaiting } from './registration.service.js';
+import { listBranches } from './organisation.service.js';
 
 const userWithSchool = {
   include: {
     school: {
       select: { id: true, name: true, code: true, logoUrl: true, primaryColor: true, status: true },
     },
+    // Only a group administrator has one. It is what tells a client to offer a
+    // branch switcher at all.
+    organisation: { select: { id: true, name: true, code: true } },
   },
 } satisfies Prisma.UserDefaultArgs;
 
@@ -38,29 +48,61 @@ export interface RequestMeta {
   userAgent?: string | null;
 }
 
-function toAuthenticatedUser(user: UserWithSchool): AuthenticatedUser {
+function toAuthenticatedUser(
+  user: UserWithSchool,
+  branch?: BranchSchool | null,
+): AuthenticatedUser {
+  // A group administrator's session belongs to the branch they picked, not to
+  // their own row — which holds no school at all.
+  const school = branch ?? user.school;
+
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     phone: user.phone,
     role: user.role as Role,
-    schoolId: user.schoolId,
+    schoolId: school?.id ?? user.schoolId,
     mustChangePassword: user.mustChangePassword,
-    school: user.school
+    organisation: user.organisation,
+    school: school
       ? {
-          id: user.school.id,
-          name: user.school.name,
-          code: user.school.code,
-          logoUrl: user.school.logoUrl,
-          primaryColor: user.school.primaryColor,
-          status: user.school.status,
+          id: school.id,
+          name: school.name,
+          code: school.code,
+          logoUrl: school.logoUrl,
+          primaryColor: school.primaryColor,
+          status: school.status,
         }
       : null,
   };
 }
 
-async function issueTokens(user: UserWithSchool, meta: RequestMeta) {
+/** The shape of a school wherever a session can be pointed at one. */
+type BranchSchool = NonNullable<UserWithSchool['school']>;
+
+const branchSelect = {
+  id: true,
+  name: true,
+  code: true,
+  logoUrl: true,
+  primaryColor: true,
+  status: true,
+} satisfies Prisma.SchoolSelect;
+
+/**
+ * A pair, and the session row behind the refresh half.
+ *
+ * `activeSchoolId` is the branch a group administrator is working in. It is
+ * stored on the session rather than worked out again at refresh time: a refresh
+ * that quietly dropped them back to "no branch chosen" would break the next
+ * request they made, halfway through whatever they were doing.
+ */
+async function issueTokens(
+  user: UserWithSchool,
+  meta: RequestMeta,
+  activeSchoolId: string | null = null,
+) {
   const tokenId = newTokenId();
   const refreshToken = signRefreshToken({ userId: user.id, tokenId });
 
@@ -72,6 +114,7 @@ async function issueTokens(user: UserWithSchool, meta: RequestMeta) {
       expiresAt: refreshTokenExpiry(),
       userAgent: meta.userAgent?.slice(0, 300) ?? null,
       ipAddress: meta.ipAddress?.slice(0, 64) ?? null,
+      activeSchoolId,
     },
   });
 
@@ -80,7 +123,7 @@ async function issueTokens(user: UserWithSchool, meta: RequestMeta) {
       mustChangePassword: user.mustChangePassword,
       userId: user.id,
       role: user.role as Role,
-      schoolId: user.schoolId,
+      schoolId: activeSchoolId ?? user.schoolId,
     }),
     refreshToken,
     expiresIn: env.ACCESS_TOKEN_TTL_SECONDS,
@@ -105,7 +148,16 @@ export async function login(
     : { phone: identifier };
 
   if (input.schoolCode) {
-    where.school = { code: input.schoolCode };
+    // One field, two kinds of code. A branded app is built per school when the
+    // customer is independent and per group when it is not, and it sends the
+    // code it was built with without knowing which kind that is.
+    //
+    // The second arm is the group's own administrator, who belongs to no school
+    // and would otherwise be excluded by their own group's code.
+    where.OR = [
+      { school: { OR: [{ code: input.schoolCode }, { organisation: { code: input.schoolCode } }] } },
+      { organisation: { code: input.schoolCode } },
+    ];
   }
 
   // The same email or phone may legitimately exist at more than one school, so
@@ -177,7 +229,11 @@ export async function login(
   if (matches.length > 1) {
     throw ApiError.conflict(
       'This login exists at more than one school. Please include your school code.',
-      { schoolCodes: matches.map((m) => m.school?.code).filter(Boolean) },
+      {
+        schoolCodes: matches
+          .map((m) => m.school?.code ?? m.organisation?.code)
+          .filter(Boolean),
+      },
     );
   }
 
@@ -280,12 +336,22 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     throw ApiError.forbidden('Your account is not active. Please contact your administrator.');
   }
 
-  // Re-checked here so a suspended school cannot extend a live session.
-  if (user.schoolId) {
-    await assertSchoolUsable(user.schoolId);
+  // The branch this session was working in, if it is a group administrator's.
+  const branch = stored.activeSchoolId
+    ? await prismaUnscoped.school.findUnique({
+        where: { id: stored.activeSchoolId },
+        select: branchSelect,
+      })
+    : null;
+
+  // Re-checked here so a suspended school cannot extend a live session — and
+  // for the branch, not the user's own row, when the two differ.
+  const schoolToCheck = branch?.id ?? user.schoolId;
+  if (schoolToCheck) {
+    await assertSchoolUsable(schoolToCheck);
   }
 
-  const tokens = await issueTokens(user, meta);
+  const tokens = await issueTokens(user, meta, branch?.id ?? null);
 
   await prismaUnscoped.refreshToken.update({
     where: { id: stored.id },
@@ -296,7 +362,56 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     },
   });
 
-  return { ...tokens, user: toAuthenticatedUser(user) };
+  return { ...tokens, user: toAuthenticatedUser(user, branch) };
+}
+
+/**
+ * A group administrator choosing which branch to work in.
+ *
+ * What comes back is an ordinary session bound to one school — the same shape a
+ * School Admin's is — because every tenant-scoped query in the API reads one
+ * `schoolId` off the token and nothing else. Switching is signing in again at
+ * the chosen branch, not holding two schools at once.
+ *
+ * The session that was open stays valid until it expires or is rotated, exactly
+ * as it would if the same person signed in on a second device.
+ */
+export async function switchBranch(
+  userId: string,
+  schoolId: string,
+  meta: RequestMeta,
+): Promise<LoginResponse> {
+  const user = await prismaUnscoped.user.findUnique({ where: { id: userId }, ...userWithSchool });
+  if (!user) throw ApiError.unauthenticated('Your account no longer exists');
+
+  if (user.role !== 'ORG_ADMIN' || !user.organisationId) {
+    throw ApiError.forbidden('Only a group administrator can change branch');
+  }
+
+  // Scoped to their own group in the query itself: a branch belonging to
+  // somebody else is not found rather than refused, like every other
+  // cross-tenant read here.
+  const branch = await prismaUnscoped.school.findFirst({
+    where: { id: schoolId, organisationId: user.organisationId },
+    select: branchSelect,
+  });
+  if (!branch) throw ApiError.notFound('Branch not found');
+
+  await assertSchoolUsable(branch.id);
+
+  const tokens = await issueTokens(user, meta, branch.id);
+
+  writeAuditLogSafe({
+    action: 'BRANCH_SWITCHED',
+    entity: 'School',
+    entityId: branch.id,
+    schoolId: branch.id,
+    actorUserId: user.id,
+    metadata: { organisationId: user.organisationId, branchCode: branch.code },
+    ipAddress: meta.ipAddress ?? null,
+  });
+
+  return { ...tokens, user: toAuthenticatedUser(user, branch) };
 }
 
 /**
@@ -326,10 +441,38 @@ export async function logout(rawToken: string | undefined, userId: string): Prom
   });
 }
 
-export async function getAuthenticatedUser(userId: string): Promise<AuthenticatedUser> {
+export async function getAuthenticatedUser(
+  userId: string,
+  activeSchoolId?: string | null,
+): Promise<AuthenticatedUser> {
   const user = await prismaUnscoped.user.findUnique({ where: { id: userId }, ...userWithSchool });
   if (!user) throw ApiError.unauthenticated('Your account no longer exists');
-  return toAuthenticatedUser(user);
+
+  // A group administrator's own row holds no school, so the branch has to come
+  // from the token that asked.
+  const branch =
+    activeSchoolId && activeSchoolId !== user.schoolId
+      ? await prismaUnscoped.school.findUnique({
+          where: { id: activeSchoolId },
+          select: branchSelect,
+        })
+      : null;
+
+  return toAuthenticatedUser(user, branch);
+}
+
+/** The branches a group administrator may work in. */
+export async function branchesFor(
+  userId: string,
+  currentSchoolId: string | null,
+): Promise<BranchSummary[]> {
+  const user = await prismaUnscoped.user.findUnique({
+    where: { id: userId },
+    select: { organisationId: true },
+  });
+
+  if (!user?.organisationId) return [];
+  return listBranches(user.organisationId, currentSchoolId);
 }
 
 /**

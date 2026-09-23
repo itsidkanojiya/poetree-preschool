@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, FormError, Input, PasswordInput, SubmitButton } from '@/components/ui/form';
+import { Field, FormError, Input, PasswordInput, Select, SubmitButton } from '@/components/ui/form';
 import { Notice } from '@/components/ui/layout';
 import { loginAction, type LoginState } from './actions';
 
@@ -33,6 +33,20 @@ export function LoginForm({ notice }: { notice?: string }) {
       <Field label="Password" required>
         <PasswordInput name="password" autoComplete="current-password" required />
       </Field>
+
+      {/* Only ever shown when the API has said it cannot tell which school this
+          login belongs to. Nobody is asked for a code they do not need. */}
+      {state.schoolCodes && state.schoolCodes.length > 0 && (
+        <Field label="School" required hint="This login exists at more than one school.">
+          <Select name="schoolCode" defaultValue={state.schoolCodes[0]} required>
+            {state.schoolCodes.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
 
       <SubmitButton className="w-full" pendingLabel="Signing in…">
         Sign in

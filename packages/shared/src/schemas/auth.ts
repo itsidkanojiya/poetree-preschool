@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ROLES } from '../enums.js';
-import { passwordSchema } from './common.js';
+import { idSchema, passwordSchema } from './common.js';
 
 /**
  * Login accepts either an email address or a phone number in a single field —
@@ -10,10 +10,31 @@ import { passwordSchema } from './common.js';
 export const loginSchema = z.object({
   identifier: z.string().trim().min(3, 'Enter your email or phone number').max(160),
   password: z.string().min(1, 'Enter your password').max(72),
-  /** Optional: restricts login to a specific school. Unused in Phase 1. */
+  /**
+   * Narrows the search to one school — or to one group's branches.
+   *
+   * A school code and an organisation code are both accepted here, in one
+   * field, because the caller does not know which it holds: a branded app is
+   * built per school when the customer is independent and per group when it is
+   * not, and either way the app sends the code it was built with.
+   *
+   * Without it, login still works: the user is found by email or phone and the
+   * school comes from the row that matches. The code is what makes the answer
+   * unambiguous when the same phone number exists at two schools.
+   */
   schoolCode: z.string().trim().toLowerCase().optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * A group administrator choosing which branch to work in.
+ *
+ * Returns a fresh token pair bound to that branch, so from the next request on
+ * the session is indistinguishable from a School Admin's. One token, one
+ * school — which is what every tenant-scoped query in the API relies on.
+ */
+export const switchBranchSchema = z.object({ schoolId: idSchema });
+export type SwitchBranchInput = z.infer<typeof switchBranchSchema>;
 
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
@@ -73,6 +94,16 @@ export interface AuthenticatedUser {
     logoUrl: string | null;
     primaryColor: string | null;
     status: string;
+  } | null;
+  /**
+   * The group this session belongs to, for a group administrator — set whether
+   * or not they have picked a branch yet, which is how a client knows to show
+   * the branch switcher at all.
+   */
+  organisation: {
+    id: string;
+    name: string;
+    code: string;
   } | null;
 }
 

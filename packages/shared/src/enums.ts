@@ -6,8 +6,24 @@
  * casts between the two without a translation layer.
  */
 
-export const ROLES = ['PUBLICATION_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'PARENT'] as const;
+export const ROLES = [
+  'PUBLICATION_ADMIN',
+  'ORG_ADMIN',
+  'SCHOOL_ADMIN',
+  'TEACHER',
+  'PARENT',
+] as const;
 export type Role = (typeof ROLES)[number];
+
+/**
+ * A group's own administrator, above its branches and below the publisher.
+ *
+ * They hold no school of their own — they pick a branch, and from that moment
+ * their session is an ordinary School Admin session for that branch. That is
+ * what keeps one token bound to one school, which is the assumption the whole
+ * tenant-isolation layer rests on.
+ */
+export const ORG_ADMIN_ROLE = 'ORG_ADMIN';
 
 /**
  * Roles allowed to sign in to the Next.js portal.
@@ -16,7 +32,12 @@ export type Role = (typeof ROLES)[number];
  * desktop as well as in the app. Parents remain app-only; students never sign in
  * at all.
  */
-export const PORTAL_ROLES = ['PUBLICATION_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'] as const;
+export const PORTAL_ROLES = [
+  'PUBLICATION_ADMIN',
+  'ORG_ADMIN',
+  'SCHOOL_ADMIN',
+  'TEACHER',
+] as const;
 export type PortalRole = (typeof PORTAL_ROLES)[number];
 
 export const USER_STATUSES = ['ACTIVE', 'INACTIVE', 'SUSPENDED'] as const;
@@ -204,6 +225,10 @@ export const AUDIT_ACTIONS = [
   'SCHOOL_REACTIVATED',
   'SUBSCRIPTION_ASSIGNED',
   'SCHOOL_ADMIN_CREATED',
+  'ORGANISATION_CREATED',
+  'ORGANISATION_UPDATED',
+  'ORG_ADMIN_CREATED',
+  'BRANCH_SWITCHED',
   'USER_CREATED',
   'USER_UPDATED',
   'STUDENT_CREATED',

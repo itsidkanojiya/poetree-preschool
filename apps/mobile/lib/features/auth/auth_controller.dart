@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_service.dart';
+import '../../core/config/school_config.dart';
 import '../../core/push/push_service.dart';
 import '../../core/session/session_scope.dart';
 import '../notifications/inbox_controller.dart';
@@ -97,7 +98,16 @@ class AuthController extends GetxController {
     try {
       final data = await api.post<Map<String, dynamic>>(
         '/auth/login',
-        body: {'identifier': identifier.trim(), 'password': password},
+        body: {
+          'identifier': identifier.trim(),
+          'password': password,
+          // The code this binary was built with — a school's, or a group's when
+          // the customer runs several branches. Sending it is what makes the
+          // answer unambiguous for a parent whose phone number also exists at
+          // another school, and what stops a wrongly-built app signing anyone
+          // in to a school it does not belong to.
+          'schoolCode': SchoolConfig.schoolCode,
+        },
       );
 
       final signedIn = AppUser.fromJson(data['user'] as Map<String, dynamic>);

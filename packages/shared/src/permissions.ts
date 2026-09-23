@@ -70,6 +70,10 @@ export const PERMISSIONS = [
   // teacher on a classroom device.
   'progress:record',
 
+  // Groups of schools
+  'organisation:read',
+  'organisation:manage',
+
   // Cross-cutting
   'report:view',
   'report:export',
@@ -81,6 +85,8 @@ export type Permission = (typeof PERMISSIONS)[number];
 const PUBLICATION_ADMIN: Permission[] = [
   'school:read_all',
   'school:manage',
+  'organisation:read',
+  'organisation:manage',
   'plan:manage',
   'content:manage',
   'student:read',
@@ -172,8 +178,20 @@ const PARENT: Permission[] = [
   'progress:record',
 ];
 
+/**
+ * A group administrator working inside one of their branches.
+ *
+ * Exactly a School Admin's rights, deliberately: once they have chosen a
+ * branch, they are doing a School Admin's job in it, and a second slightly
+ * different matrix would be a second thing to keep in step. What they hold
+ * that a School Admin does not is `organisation:read` — the group overview,
+ * which is the only thing that spans branches.
+ */
+const ORG_ADMIN: Permission[] = [...SCHOOL_ADMIN, 'organisation:read'];
+
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   PUBLICATION_ADMIN,
+  ORG_ADMIN,
   SCHOOL_ADMIN,
   TEACHER,
   PARENT,
@@ -181,6 +199,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
 
 const PERMISSION_SETS: Record<Role, ReadonlySet<Permission>> = {
   PUBLICATION_ADMIN: new Set(PUBLICATION_ADMIN),
+  ORG_ADMIN: new Set(ORG_ADMIN),
   SCHOOL_ADMIN: new Set(SCHOOL_ADMIN),
   TEACHER: new Set(TEACHER),
   PARENT: new Set(PARENT),

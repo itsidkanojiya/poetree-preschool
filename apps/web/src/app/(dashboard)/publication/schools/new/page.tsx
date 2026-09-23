@@ -1,9 +1,15 @@
 import Link from 'next/link';
+import type { OrganisationSummary } from '@poetree/shared';
+import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { NewSchoolForm } from './school-form';
 
-export default function NewSchoolPage() {
+export default async function NewSchoolPage() {
+  // Offered as a choice on the form. Most schools are independent, so this is
+  // usually an empty list and the field does not appear at all.
+  const organisations = await apiFetch<OrganisationSummary[]>('/publication/organisations');
+
   return (
     <>
       <PageHeader
@@ -21,7 +27,7 @@ export default function NewSchoolPage() {
       />
       <div className="max-w-3xl">
         <Card>
-          <NewSchoolForm />
+          <NewSchoolForm organisations={organisations} />
         </Card>
       </div>
     </>

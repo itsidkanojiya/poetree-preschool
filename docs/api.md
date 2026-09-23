@@ -49,6 +49,8 @@ Branch on `code`, never on `message`.
 | `POST` | `/auth/logout` | authenticated |
 | `GET` | `/auth/me` | authenticated |
 | `POST` | `/auth/change-password` | authenticated — ends all other sessions |
+| `GET` | `/auth/branches` | authenticated — the branches an `ORG_ADMIN` may work in; `[]` for anyone else |
+| `POST` | `/auth/switch-branch` | `ORG_ADMIN` only — `{ schoolId }`, returns a whole new session |
 
 `POST /auth/login`
 
@@ -60,6 +62,11 @@ Branch on `code`, never on `message`.
 more than one school, the response is `409 CONFLICT` listing the school codes; send
 `schoolCode` to disambiguate.
 
+`schoolCode` accepts a school's code **or an organisation's**, because a branded
+app is built per school for an independent customer and per group for one that
+runs branches — and it sends whichever code it was built with. The mobile app
+always sends it.
+
 In Phase 1 the endpoint admits only `PUBLICATION_ADMIN` and `SCHOOL_ADMIN`.
 
 Response: `{ accessToken, refreshToken, expiresIn, user }`.
@@ -70,7 +77,7 @@ Response: `{ accessToken, refreshToken, expiresIn, user }`.
 |---|---|---|
 | `GET` | `/publication/overview` | Counts by status, students, teachers, expiring soon |
 | `GET` | `/publication/schools` | `?page&pageSize&search&status` |
-| `POST` | `/publication/schools` | `code` is immutable once set |
+| `POST` | `/publication/schools` | `code` optional — generated from the name, or numbered under the group's code; immutable once set. `organisationId` makes it a branch |
 | `GET` | `/publication/schools/:id` | |
 | `PATCH` | `/publication/schools/:id` | `code` cannot be changed |
 | `POST` | `/publication/schools/:id/admins` | Creates the school's `SCHOOL_ADMIN` |
@@ -80,6 +87,10 @@ Response: `{ accessToken, refreshToken, expiresIn, user }`.
 | `POST` | `/publication/schools/:id/reactivate` | `{ note?, expiresAt? }` |
 | `GET/POST` | `/publication/plans` | |
 | `GET/PATCH` | `/publication/plans/:id` | |
+| `GET/POST` | `/publication/organisations` | Groups that run several schools; `code` optional |
+| `PATCH` | `/publication/organisations/:id` | Name only — the code is immutable, like a school's |
+| `GET` | `/publication/organisations/:id/overview` | Branches with their counts |
+| `POST` | `/publication/organisations/:id/admins` | Creates the group's `ORG_ADMIN` |
 
 ### Suspending
 

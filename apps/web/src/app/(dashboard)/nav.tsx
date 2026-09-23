@@ -34,6 +34,7 @@ const PUBLICATION_NAV: NavGroup[] = [
     items: [
       { href: '/publication', label: 'Overview', icon: <IconHome size={18} />, exact: true },
       { href: '/publication/schools', label: 'Schools', icon: <IconSchool size={18} /> },
+      { href: '/publication/organisations', label: 'Groups', icon: <IconParents size={18} /> },
       { href: '/publication/books', label: 'Books', icon: <IconPlan size={18} /> },
       {
         href: '/publication/question-types',
@@ -94,6 +95,12 @@ const TEACHER_NAV: NavGroup[] = [
   },
 ];
 
+/** A group administrator's way back out of the branch they are in. */
+const BRANCH_SWITCH: NavGroup = {
+  heading: 'Group',
+  items: [{ href: '/organisation', label: 'Switch branch', icon: <IconSchool size={18} /> }],
+};
+
 export function SidebarNav({ role }: { role: string }) {
   const pathname = usePathname();
   const groups =
@@ -101,7 +108,9 @@ export function SidebarNav({ role }: { role: string }) {
       ? PUBLICATION_NAV
       : role === 'TEACHER'
         ? TEACHER_NAV
-        : SCHOOL_NAV;
+        : role === 'ORG_ADMIN'
+          ? [...SCHOOL_NAV, BRANCH_SWITCH]
+          : SCHOOL_NAV;
 
   return (
     <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:gap-5 lg:overflow-visible lg:px-4 lg:pb-0">

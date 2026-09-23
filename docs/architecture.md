@@ -109,6 +109,9 @@ and only for a request already in flight.
 ## Identity
 
 - **Super Admin** (`PUBLICATION_ADMIN`) — `schoolId` is `NULL`; sees every school.
+- **Group Admin** (`ORG_ADMIN`) — a customer that runs several branches. `schoolId`
+  is `NULL` until they choose one, and from that moment their session is a School
+  Admin session for that branch. See *Branches* below.
 - **School Admin** — bound to one school.
 - **Teacher / Parent** — records exist and credentials are set, but `/auth/login`
   is narrowed to the two portal roles in Phase 1. The endpoint itself is
@@ -116,11 +119,38 @@ and only for a request already in flight.
 - **Student** — no credentials, ever. Reached through a guardian's account; in the
   Phase 2 app the parent taps a child's avatar.
 
+## Branches
+
+A branch **is** a `School` row, and a group is an `Organisation` above it
+(`School.organisationId`, nullable — an independent school has none and is
+unchanged).
+
+This is the whole reason the feature is small. Forty-six tables carry `schoolId`
+and one Prisma extension filters every one of them; a second `branchId`
+dimension would be forty-six columns and a second filter to get wrong. As a
+school row, a branch already has its own children, staff, fees, admission-number
+series and ID card settings, already isolated, already tested.
+
+One token names one school. A group administrator does not hold several at once:
+`POST /auth/switch-branch` verifies the branch belongs to their group and issues
+a **new session** bound to it, and `refresh_tokens.activeSchoolId` carries that
+choice across a refresh so an hour-old session does not silently fall back to
+"no branch chosen". Anything that must read across branches — only the group
+overview, so far — uses `prismaUnscoped` with an explicit `schoolId: { in: … }`,
+the same way the Super Admin's screens do. The tenant client stays fail-closed.
+
+Codes: a group's code is the recognisable one (`sunrise`) and its branches are
+numbered under it (`sunrise01`, `sunrise02`), so a group ships **one** app built
+with the group's code rather than one per branch. `POST /auth/login` accepts
+either kind in `schoolCode`.
+
 ## Forward compatibility
 
 `School.code` is constrained to `[a-z][a-z0-9]{2,29}` and is immutable. That is not
 cosmetic: Phase 2 derives each school's Android application id from it
-(`com.poetree.<code>`), so changing it later would orphan a published app.
+(`com.poetree.<code>`), so changing it later would orphan a published app. It is
+generated from the school's name when the Super Admin does not type one, and the
+insert retries on the unique constraint rather than trusting a check-then-write.
 
 `AcademicYear` exists now, unused by any feature, because attendance, fees and
 progress all hang off it and retrofitting one into live data is painful.

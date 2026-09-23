@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import {
+  createOrganisationSchema,
+  updateOrganisationSchema,
   assignSubscriptionSchema,
   createActivitySchema,
   createBookSchema,
@@ -28,6 +30,8 @@ import {
   updateSchoolSchema,
 } from '@poetree/shared';
 import type {
+  CreateOrganisationInput,
+  UpdateOrganisationInput,
   AssignSubscriptionInput,
   CreateActivityInput,
   CreateBookInput,
@@ -61,6 +65,7 @@ import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
+import * as organisationService from '../services/organisation.service.js';
 import * as planService from '../services/plan.service.js';
 import * as catalogue from '../services/catalogue.service.js';
 import * as usage from '../services/usage.service.js';
@@ -114,6 +119,69 @@ publicationRouter.get(
       students,
       teachers,
     });
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Organisations — customers that run more than one school                    */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/organisations',
+  asyncHandler(async (_req, res) => {
+    res.json(await organisationService.listOrganisations());
+  }),
+);
+
+publicationRouter.post(
+  '/organisations',
+  validate({ body: createOrganisationSchema }),
+  asyncHandler(async (req, res) => {
+    const organisation = await organisationService.createOrganisation(
+      body<CreateOrganisationInput>(req),
+      req.auth!.userId,
+    );
+    res.status(201).json(organisation);
+  }),
+);
+
+publicationRouter.patch(
+  '/organisations/:id',
+  validate({ params: idParamSchema, body: updateOrganisationSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await organisationService.updateOrganisation(
+        params<{ id: string }>(req).id,
+        body<UpdateOrganisationInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** The group's branches, with the group's own totals beside them. */
+publicationRouter.get(
+  '/organisations/:id/overview',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await organisationService.organisationOverview(params<{ id: string }>(req).id, null));
+  }),
+);
+
+/**
+ * The group's own administrator. Created here rather than by the group,
+ * because nobody inside a group can be the first account in it.
+ */
+publicationRouter.post(
+  '/organisations/:id/admins',
+  validate({ params: idParamSchema, body: createSchoolAdminSchema }),
+  asyncHandler(async (req, res) => {
+    const admin = await organisationService.createOrganisationAdmin(
+      params<{ id: string }>(req).id,
+      body<CreateSchoolAdminInput>(req),
+      req.auth!.userId,
+    );
+    res.status(201).json(admin);
   }),
 );
 

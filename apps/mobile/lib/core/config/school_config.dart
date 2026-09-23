@@ -6,8 +6,13 @@
 /// build.
 ///
 /// They are compile-time constants rather than runtime settings on purpose: the
-/// app cannot be pointed at a different school by anything a user does, and the
-/// API still refuses a login whose school does not match.
+/// app cannot be pointed at a different school by anything a user does. The
+/// code is sent with every sign-in, so the API refuses a login that belongs to
+/// a school this binary was not built for.
+///
+/// For a customer that runs several branches the code here is the GROUP's, not
+/// one branch's: one app covers every branch, and each person's own branch
+/// comes from their account.
 class SchoolConfig {
   const SchoolConfig._();
 

@@ -236,7 +236,11 @@ export async function registrationAwaiting(
     where: {
       ...(looksLikeEmail ? { email: identifier.toLowerCase() } : { phone: identifier }),
       status: { in: ['PENDING', 'REJECTED'] },
-      ...(schoolCode ? { school: { code: schoolCode } } : {}),
+      // A school code or a group's code, as at login: the app sends whichever
+      // it was built with.
+      ...(schoolCode
+        ? { school: { OR: [{ code: schoolCode }, { organisation: { code: schoolCode } }] } }
+        : {}),
     },
     // The most recent word on it. A family rejected once and re-registering is
     // waiting again, and should be told so.

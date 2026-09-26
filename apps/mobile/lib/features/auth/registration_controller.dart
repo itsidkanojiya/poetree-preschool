@@ -160,17 +160,21 @@ class RegistrationController extends GetxController {
 
   /// One field's refusal, as a sentence.
   ///
-  /// A field we know by name is named. One we do not — a version of the app
-  /// older than the API it is talking to, which is exactly when this is hardest
-  /// to work out — at least says that it is a field and not the family's fault.
+  /// A field we know by name is named. A field we have never heard of means the
+  /// app and the school's server disagree about what a registration is — and
+  /// the message must not guess which of the two is behind. It said "update the
+  /// app" once, to somebody holding the newest app there was, while the school's
+  /// own server was the stale one; they had no way to know that and nothing
+  /// they could do about it either way.
   static String _fieldMessage(String? path, String message) {
     final label = _fieldLabels[path];
     final required = message.toLowerCase() == 'required';
 
     if (label == null) {
       return required
-          ? 'The school needs something this version of the app did not ask '
-                'for ($path). Please update the app.'
+          ? 'This app and the school’s system are out of step over “$path”. '
+                'Please tell the school office — they need to update their '
+                'system, or there may be a newer app to install.'
           : message;
     }
 

@@ -65,21 +65,20 @@ void main() {
       expect(message, contains('Invalid phone number'));
     });
 
-    test(
-      'tells an out-of-date app to update rather than blaming the family',
-      () {
-        // The case that produced the bare "Required": an app newer or older than
-        // the API it is talking to, asked for a field it has never heard of.
-        final message = RegistrationController.messageFor(
-          refusal([
-            {'path': 'admissionNo', 'message': 'Required'},
-          ]),
-        );
+    test('blames neither side when the app and the server disagree', () {
+      // The real case: a family holding the newest app there was, while the
+      // school's own server was the stale one. "Please update the app" was
+      // advice they had already taken.
+      final message = RegistrationController.messageFor(
+        refusal([
+          {'path': 'admissionNo', 'message': 'Required'},
+        ]),
+      );
 
-        expect(message, contains('update the app'));
-        expect(message, contains('admissionNo'));
-      },
-    );
+      expect(message, contains('admissionNo'));
+      expect(message, contains('school office'));
+      expect(message, isNot(contains('update the app')));
+    });
 
     test('falls back to the API’s own sentence when there are no details', () {
       final message = RegistrationController.messageFor(

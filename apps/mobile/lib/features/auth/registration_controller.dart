@@ -23,7 +23,9 @@ class RegistrationController extends GetxController {
   final isSent = false.obs;
 
   Future<void> submit({
-    required String studentName,
+    required String studentFirstName,
+    required String studentMiddleName,
+    required String studentLastName,
     required DateTime studentDateOfBirth,
     required String guardianName,
     required String relation,
@@ -52,7 +54,11 @@ class RegistrationController extends GetxController {
       await api.post<dynamic>(
         '/public/schools/${SchoolConfig.schoolCode}/registrations',
         body: {
-          'studentName': studentName.trim(),
+          'studentFirstName': studentFirstName.trim(),
+          if (given(studentMiddleName) != null)
+            'studentMiddleName': given(studentMiddleName),
+          if (given(studentLastName) != null)
+            'studentLastName': given(studentLastName),
           // Date only. The API takes the day, and a time zone on a birthday is
           // how a child born on the 1st is recorded as the 31st.
           'studentDateOfBirth': studentDateOfBirth.toIso8601String().substring(
@@ -96,7 +102,9 @@ class RegistrationController extends GetxController {
   /// parent nothing at all; it was on screen for a family who had filled in
   /// every field they could see. The path is the half that says where to look.
   static const Map<String, String> _fieldLabels = {
-    'studentName': 'your child’s name',
+    'studentFirstName': 'your child’s name',
+    'studentMiddleName': 'the father’s name',
+    'studentLastName': 'your child’s surname',
     'studentDateOfBirth': 'your child’s date of birth',
     'guardianName': 'your name',
     'relation': 'how you are related to the child',

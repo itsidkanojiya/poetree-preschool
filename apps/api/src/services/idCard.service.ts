@@ -7,6 +7,7 @@ import { storage } from '../lib/storage.js';
 import { createDocument, mm, toBuffer } from '../lib/pdf.js';
 import { assertCanReadStudent } from './scope.service.js';
 import { SIDES, type CardData } from './idCardLayouts.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * The card a child wears on a lanyard.
@@ -100,6 +101,7 @@ async function load(studentId: string): Promise<{
     where: { id: studentId },
     select: {
       firstName: true,
+      middleName: true,
       lastName: true,
       admissionNo: true,
       dateOfBirth: true,
@@ -151,7 +153,7 @@ async function load(studentId: string): Promise<{
       primaryColor: school.primaryColor ?? '#16307C',
     },
     student: {
-      name: [student.firstName, student.lastName].filter(Boolean).join(' '),
+      name: studentName(student),
       admissionNo: student.admissionNo,
       classroom: classroom ? `${classroom.classLevel.name} — ${classroom.section}` : null,
       batch: classroom?.academicYear.name ?? null,
@@ -243,7 +245,9 @@ export async function classroomIdCards(classroomId: string): Promise<{
       classLevel: { select: { name: true } },
       enrolments: {
         where: { status: 'ACTIVE' },
-        select: { student: { select: { id: true, firstName: true, lastName: true } } },
+        select: {
+          student: { select: { id: true, firstName: true, middleName: true, lastName: true } },
+        },
       },
     },
   });
@@ -259,10 +263,7 @@ export async function classroomIdCards(classroomId: string): Promise<{
 
   const first = await gather(children[0]!.id);
   const page = pageFor(first.size);
-  const doc = createDocument(
-    `ID cards — ${classroom.classLevel.name} ${classroom.section}`,
-    page,
-  );
+  const doc = createDocument(`ID cards — ${classroom.classLevel.name} ${classroom.section}`, page);
 
   drawChild(doc, page, first.layout, first.card, true);
   for (const child of children.slice(1)) {

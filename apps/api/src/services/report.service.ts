@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * Reports.
@@ -96,7 +97,9 @@ export async function studentAttendance(
   const enrolments = await prisma.studentEnrolment.findMany({
     where: { status: 'ACTIVE', ...(classroomId ? { classroomId } : {}) },
     include: {
-      student: { select: { id: true, firstName: true, lastName: true, admissionNo: true } },
+      student: {
+        select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true },
+      },
       classroom: { include: { classLevel: { select: { code: true, name: true } } } },
     },
     orderBy: [{ rollNo: 'asc' }],
@@ -138,9 +141,7 @@ export async function studentAttendance(
 
     return {
       admissionNo: enrolment.student.admissionNo,
-      student: [enrolment.student.firstName, enrolment.student.lastName]
-        .filter(Boolean)
-        .join(' '),
+      student: studentName(enrolment.student),
       classroom: `${enrolment.classroom.classLevel.name} ${enrolment.classroom.section}`,
       present: t.PRESENT ?? 0,
       absent: t.ABSENT ?? 0,
@@ -180,7 +181,7 @@ export async function feeCollection(range: DateRange): Promise<CollectionRow[]> 
   const payments = await prisma.payment.findMany({
     where: { paidOn: { gte: range.from, lte: range.to } },
     include: {
-      student: { select: { firstName: true, lastName: true, admissionNo: true } },
+      student: { select: { firstName: true, middleName: true, lastName: true, admissionNo: true } },
       recordedBy: { select: { name: true } },
     },
     orderBy: [{ paidOn: 'asc' }, { receiptNo: 'asc' }],
@@ -190,7 +191,7 @@ export async function feeCollection(range: DateRange): Promise<CollectionRow[]> 
     paymentId: payment.id,
     receiptNo: payment.receiptNo,
     paidOn: payment.paidOn.toISOString().slice(0, 10),
-    student: [payment.student.firstName, payment.student.lastName].filter(Boolean).join(' '),
+    student: studentName(payment.student),
     admissionNo: payment.student.admissionNo,
     method: payment.method,
     amountInPaise: payment.amountInPaise,
@@ -220,12 +221,15 @@ export async function outstandingDues(): Promise<DuesRow[]> {
       student: {
         select: {
           firstName: true,
+          middleName: true,
           lastName: true,
           admissionNo: true,
           enrolments: {
             where: { status: 'ACTIVE' },
             take: 1,
-            include: { classroom: { include: { classLevel: { select: { code: true, name: true } } } } },
+            include: {
+              classroom: { include: { classLevel: { select: { code: true, name: true } } } },
+            },
           },
         },
       },
@@ -243,7 +247,7 @@ export async function outstandingDues(): Promise<DuesRow[]> {
 
       return {
         admissionNo: invoice.student.admissionNo,
-        student: [invoice.student.firstName, invoice.student.lastName].filter(Boolean).join(' '),
+        student: studentName(invoice.student),
         classroom: enrolment
           ? `${enrolment.classroom.classLevel.name} ${enrolment.classroom.section}`
           : '',

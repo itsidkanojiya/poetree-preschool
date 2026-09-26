@@ -25,6 +25,7 @@ import {
   teacherClassroomIds,
 } from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * Tells the class's guardians that work has been set.
@@ -164,9 +165,16 @@ export async function listHomework(query: ListHomeworkQuery): Promise<Paginated<
     _count: { _all: true },
   });
 
-  const progressByHomework = new Map<string, { total: number; completed: number; pending: number }>();
+  const progressByHomework = new Map<
+    string,
+    { total: number; completed: number; pending: number }
+  >();
   for (const group of grouped) {
-    const entry = progressByHomework.get(group.homeworkId) ?? { total: 0, completed: 0, pending: 0 };
+    const entry = progressByHomework.get(group.homeworkId) ?? {
+      total: 0,
+      completed: 0,
+      pending: 0,
+    };
     const count = group._count._all;
     entry.total += count;
     if (group.status === 'COMPLETED' || group.status === 'SUBMITTED') entry.completed += count;
@@ -232,7 +240,8 @@ export async function getHomework(homeworkId: string): Promise<HomeworkSummary> 
   const progress = { total: 0, completed: 0, pending: 0 };
   for (const group of grouped) {
     progress.total += group._count._all;
-    if (group.status === 'COMPLETED' || group.status === 'SUBMITTED') progress.completed += group._count._all;
+    if (group.status === 'COMPLETED' || group.status === 'SUBMITTED')
+      progress.completed += group._count._all;
     if (group.status === 'PENDING') progress.pending += group._count._all;
   }
 
@@ -484,6 +493,7 @@ export async function listSubmissions(homeworkId: string): Promise<SubmissionSum
         select: {
           id: true,
           firstName: true,
+          middleName: true,
           lastName: true,
           enrolments: { where: { status: 'ACTIVE' }, take: 1, select: { rollNo: true } },
         },
@@ -496,9 +506,7 @@ export async function listSubmissions(homeworkId: string): Promise<SubmissionSum
   return submissions.map((submission) => ({
     id: submission.id,
     studentId: submission.studentId,
-    fullName: [submission.student.firstName, submission.student.lastName]
-      .filter(Boolean)
-      .join(' '),
+    fullName: studentName(submission.student),
     rollNo: submission.student.enrolments[0]?.rollNo ?? null,
     status: submission.status,
     submittedOn: submission.submittedOn?.toISOString() ?? null,
@@ -692,7 +700,6 @@ export async function createClassroomPost(
   if (!created) throw ApiError.internal('Post was created but could not be read back');
   return created;
 }
-
 
 /**
  * Closes any homework that *was* this activity, for this child.

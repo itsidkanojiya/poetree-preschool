@@ -12,6 +12,7 @@ import { ApiError } from '../lib/apiError.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { getPlanLimits } from './plan.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * A student's class and roll number live on their enrolment for the current
@@ -46,17 +47,16 @@ function toSummary(student: StudentRow): StudentSummary {
     id: student.id,
     admissionNo: student.admissionNo,
     firstName: student.firstName,
+    middleName: student.middleName,
     lastName: student.lastName,
-    fullName: [student.firstName, student.lastName].filter(Boolean).join(' '),
+    fullName: studentName(student),
     dateOfBirth: student.dateOfBirth.toISOString(),
     gender: student.gender,
     rollNo: enrolment?.rollNo ?? null,
     // The uploaded photograph wins over a typed-in URL: somebody who uploads
     // one has just said which they mean. Authenticated, unlike a school logo —
     // this is a picture of a four-year-old.
-    avatarUrl: student.photoFileId
-      ? `/api/v1/files/${student.photoFileId}`
-      : student.avatarUrl,
+    avatarUrl: student.photoFileId ? `/api/v1/files/${student.photoFileId}` : student.avatarUrl,
     bloodGroup: student.bloodGroup,
     status: student.status,
     classroom: enrolment
@@ -194,6 +194,7 @@ export async function createStudent(
         admissionNo: input.admissionNo,
         admissionDate: new Date(),
         firstName: input.firstName,
+        middleName: input.middleName ?? null,
         lastName: input.lastName ?? null,
         dateOfBirth: input.dateOfBirth,
         gender: input.gender,
@@ -338,7 +339,6 @@ export async function updateStudent(
 
   return getStudent(studentId);
 }
-
 
 /**
  * Points a child's record at an already-uploaded photograph.

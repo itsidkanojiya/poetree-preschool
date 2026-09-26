@@ -1,4 +1,9 @@
-import type { ImportReport, ImportRowIssue, ImportStudentRow, ImportStudentsInput } from '@poetree/shared';
+import type {
+  ImportReport,
+  ImportRowIssue,
+  ImportStudentRow,
+  ImportStudentsInput,
+} from '@poetree/shared';
 import { importStudentRowSchema } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
@@ -165,6 +170,7 @@ export async function importStudents(
           admissionNo,
           admissionDate: new Date(),
           firstName: data.firstName,
+          middleName: data.middleName ?? null,
           lastName: data.lastName ?? null,
           dateOfBirth: data.dateOfBirth,
           gender: data.gender,

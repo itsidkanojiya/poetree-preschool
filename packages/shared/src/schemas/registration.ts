@@ -28,8 +28,17 @@ import {
  */
 export const submitRegistrationSchema = z
   .object({
-    /** What the parent calls the child. The office matches it to its roll. */
-    studentName: nameSchema,
+    /**
+     * The child's name in three parts, as a school form in India asks for it:
+     * given name, father's name, surname — "Dishan Krunal Patel".
+     *
+     * Only the given name is demanded. A family with one name between them is
+     * rarer than a form that will not let them past, and the office can put
+     * right on approval what the family could not type.
+     */
+    studentFirstName: z.string().trim().min(1, 'Enter your child’s name').max(60),
+    studentMiddleName: z.string().trim().max(60).optional(),
+    studentLastName: z.string().trim().max(60).optional(),
     /**
      * The child's birthday.
      *
@@ -116,6 +125,7 @@ export interface RegistrationSummary {
    * is the whole point of the change that removed it from the form.
    */
   admissionNo: string | null;
+  /** The three parts written out, which is what the queue shows and searches. */
   studentName: string;
   /** ISO date. Null on rows submitted before the form asked for it. */
   studentDateOfBirth: string | null;

@@ -16,6 +16,7 @@ import {
   toBuffer,
   type Letterhead,
 } from '../lib/pdf.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * The documents a school hands to a parent.
@@ -84,7 +85,9 @@ export async function paymentReceipt(paymentId: string): Promise<{
             where: { status: 'ACTIVE' },
             orderBy: { enrolledOn: 'desc' },
             take: 1,
-            include: { classroom: { include: { classLevel: { select: { code: true, name: true } } } } },
+            include: {
+              classroom: { include: { classLevel: { select: { code: true, name: true } } } },
+            },
           },
         },
       },
@@ -115,9 +118,7 @@ export async function paymentReceipt(paymentId: string): Promise<{
   doc.moveDown(0.8);
 
   row = doc.y;
-  const fullName = [payment.student.firstName, payment.student.lastName]
-    .filter(Boolean)
-    .join(' ');
+  const fullName = studentName(payment.student);
   field(doc, 'Received from', fullName, { x: left, width: half - 10 });
   doc.y = row;
   field(doc, 'Admission no.', payment.student.admissionNo, { x: left + half, width: half });
@@ -175,7 +176,10 @@ export async function paymentReceipt(paymentId: string): Promise<{
   doc.moveDown(0.7);
 
   const totalLabel = isRefund ? 'Total refunded' : 'Total received';
-  doc.font(FONT.bold).fontSize(15).text(`${totalLabel}   ${money(payment.amountInPaise)}`);
+  doc
+    .font(FONT.bold)
+    .fontSize(15)
+    .text(`${totalLabel}   ${money(payment.amountInPaise)}`);
   doc.moveDown(0.3);
   doc
     .font(FONT.regular)
@@ -187,10 +191,7 @@ export async function paymentReceipt(paymentId: string): Promise<{
   doc.font(FONT.regular).fontSize(9).fillColor('#1A1D29');
   doc.text(`Recorded by ${payment.recordedBy.name}`);
 
-  footer(
-    doc,
-    'This is a computer-generated receipt and is valid without a signature.',
-  );
+  footer(doc, 'This is a computer-generated receipt and is valid without a signature.');
 
   return {
     buffer: await toBuffer(doc),
@@ -234,7 +235,7 @@ export async function feeCard(studentId: string): Promise<{
   const half = (doc.page.width - left - doc.page.margins.right) / 2;
 
   let row = doc.y;
-  field(doc, 'Child', [student.firstName, student.lastName].filter(Boolean).join(' '), {
+  field(doc, 'Child', studentName(student), {
     x: left,
     width: half - 10,
   });

@@ -70,9 +70,12 @@ export const createTeacherSchema = z.object({
 });
 export type CreateTeacherInput = z.infer<typeof createTeacherSchema>;
 
-export const updateTeacherSchema = createTeacherSchema.omit({ password: true }).partial().extend({
-  status: z.enum(USER_STATUSES).optional(),
-});
+export const updateTeacherSchema = createTeacherSchema
+  .omit({ password: true })
+  .partial()
+  .extend({
+    status: z.enum(USER_STATUSES).optional(),
+  });
 export type UpdateTeacherInput = z.infer<typeof updateTeacherSchema>;
 
 /* -------------------------------------------------------------------------- */
@@ -90,9 +93,12 @@ export const createParentSchema = z.object({
 });
 export type CreateParentInput = z.infer<typeof createParentSchema>;
 
-export const updateParentSchema = createParentSchema.omit({ password: true }).partial().extend({
-  status: z.enum(USER_STATUSES).optional(),
-});
+export const updateParentSchema = createParentSchema
+  .omit({ password: true })
+  .partial()
+  .extend({
+    status: z.enum(USER_STATUSES).optional(),
+  });
 export type UpdateParentInput = z.infer<typeof updateParentSchema>;
 
 /* -------------------------------------------------------------------------- */
@@ -107,7 +113,14 @@ export const guardianLinkSchema = z.object({
 
 export const createStudentSchema = z
   .object({
+    /**
+     * Three parts, the way a school form in India asks for them: given name,
+     * father's name, surname — "Dishan Krunal Patel". The middle one is a
+     * person, not a spelling, so it has a field of its own rather than being
+     * run into the surname where nothing could separate it again.
+     */
     firstName: z.string().trim().min(1).max(60),
+    middleName: z.string().trim().max(60).optional(),
     lastName: z.string().trim().max(60).optional(),
     dateOfBirth: z.coerce.date(),
     gender: z.enum(GENDERS),
@@ -130,6 +143,7 @@ export type CreateStudentInput = z.infer<typeof createStudentSchema>;
 
 export const updateStudentSchema = z.object({
   firstName: z.string().trim().min(1).max(60).optional(),
+  middleName: z.string().trim().max(60).optional(),
   lastName: z.string().trim().max(60).optional(),
   dateOfBirth: z.coerce.date().optional(),
   gender: z.enum(GENDERS).optional(),
@@ -221,6 +235,8 @@ export interface StudentSummary {
   id: string;
   admissionNo: string;
   firstName: string;
+  /** The father's given name — the middle part of "Dishan Krunal Patel". */
+  middleName: string | null;
   lastName: string | null;
   fullName: string;
   dateOfBirth: string;

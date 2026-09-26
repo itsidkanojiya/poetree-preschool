@@ -664,7 +664,16 @@ model ParentRegistration {
 
   /// Declared about the child, for the office to check against its own records.
   /// Approval fills these onto the Student only where the school holds nothing.
+  ///
+  /// The name arrives in three parts — given name, father's name, surname — and
+  /// is kept that way, because that is how it goes onto the child's record when
+  /// the office approves. `studentName` is the three of them written out, which
+  /// is what the queue displays and searches, and is all there is on rows from
+  /// before the form asked separately.
   studentName           String    @db.VarChar(120)
+  studentFirstName      String?   @db.VarChar(60)
+  studentMiddleName     String?   @db.VarChar(60)
+  studentLastName       String?   @db.VarChar(60)
   /// Null on rows submitted before the form asked for it.
   studentDateOfBirth    DateTime?
   fatherName            String?   @db.VarChar(120)
@@ -728,6 +737,10 @@ model Student {
   admissionNo   String        @db.VarChar(40)
   admissionDate DateTime?
   firstName     String        @db.VarChar(60)
+  /// The father's given name, which is the middle name on an Indian school
+  /// form — "Dishan Krunal Patel". Its own column, because run into the surname
+  /// nothing could ever separate it again.
+  middleName    String?       @db.VarChar(60)
   lastName      String?       @db.VarChar(60)
   dateOfBirth   DateTime
   gender        Gender

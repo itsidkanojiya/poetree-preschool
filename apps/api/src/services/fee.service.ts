@@ -6,6 +6,7 @@ import { writeAuditLog } from './audit.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { guardianStudentIds } from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * Fees.
@@ -41,9 +42,7 @@ export function periodsFor(frequency: Frequency, yearStart: Date): string[] {
     case 'MONTHLY': {
       const labels: string[] = [];
       for (let i = 0; i < 12; i += 1) {
-        const d = new Date(
-          Date.UTC(yearStart.getUTCFullYear(), yearStart.getUTCMonth() + i, 1),
-        );
+        const d = new Date(Date.UTC(yearStart.getUTCFullYear(), yearStart.getUTCMonth() + i, 1));
         labels.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
       }
       return labels;
@@ -577,8 +576,7 @@ export async function studentLedger(studentId: string): Promise<{
       outstandingInPaise: outstanding,
       status: invoice.status,
       // Derived, never stored.
-      overdue:
-        outstanding > 0 && invoice.status !== 'CANCELLED' && invoice.dueDate < today,
+      overdue: outstanding > 0 && invoice.status !== 'CANCELLED' && invoice.dueDate < today,
     };
   });
 
@@ -611,13 +609,23 @@ export async function outstandingReport(): Promise<
 > {
   const invoices = await prisma.feeInvoice.findMany({
     where: { status: { in: ['ISSUED', 'PARTIAL'] } },
-    include: { student: { select: { id: true, firstName: true, lastName: true, admissionNo: true } } },
+    include: {
+      student: {
+        select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true },
+      },
+    },
   });
 
   const today = new Date();
   const byStudent = new Map<
     string,
-    { studentId: string; fullName: string; admissionNo: string; outstandingInPaise: number; overdueCount: number }
+    {
+      studentId: string;
+      fullName: string;
+      admissionNo: string;
+      outstandingInPaise: number;
+      overdueCount: number;
+    }
   >();
 
   for (const invoice of invoices) {
@@ -626,7 +634,7 @@ export async function outstandingReport(): Promise<
 
     const entry = byStudent.get(invoice.studentId) ?? {
       studentId: invoice.studentId,
-      fullName: [invoice.student.firstName, invoice.student.lastName].filter(Boolean).join(' '),
+      fullName: studentName(invoice.student),
       admissionNo: invoice.student.admissionNo,
       outstandingInPaise: 0,
       overdueCount: 0,

@@ -6,6 +6,7 @@ import { closeHomeworkForActivity } from './homework.service.js';
 import { composeContent, upconvertStoredContent } from './question.service.js';
 import { lockedChapterIdsFor } from './book.service.js';
 import { logger } from '../lib/logger.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * Progress tracking — the bridge between the ERP and the learning activities.
@@ -268,7 +269,9 @@ export interface ClassroomProgressRow {
 export async function classroomProgress(classroomId: string): Promise<ClassroomProgressRow[]> {
   const enrolments = await prisma.studentEnrolment.findMany({
     where: { classroomId, status: 'ACTIVE' },
-    include: { student: { select: { id: true, firstName: true, lastName: true } } },
+    include: {
+      student: { select: { id: true, firstName: true, middleName: true, lastName: true } },
+    },
     orderBy: [{ rollNo: 'asc' }],
   });
 
@@ -292,16 +295,12 @@ export async function classroomProgress(classroomId: string): Promise<ClassroomP
 
     return {
       studentId: enrolment.studentId,
-      fullName: [enrolment.student.firstName, enrolment.student.lastName]
-        .filter(Boolean)
-        .join(' '),
+      fullName: studentName(enrolment.student),
       skillsAttempted: attempted.length,
       averageMastery:
         attempted.length === 0
           ? 0
-          : Math.round(
-              attempted.reduce((sum, r) => sum + r.masteryPercent, 0) / attempted.length,
-            ),
+          : Math.round(attempted.reduce((sum, r) => sum + r.masteryPercent, 0) / attempted.length),
       needsAttention: attempted
         .filter((r) => r.masteryPercent < 50)
         .map((r) => r.skill.name)
@@ -379,7 +378,9 @@ export async function listActivities(options?: {
    * a video had been watched would look like a chapter with nothing in it, and
    * the child would never find the film that opens it.
    */
-  const locked = options?.studentId ? await lockedChapterIdsFor(options.studentId) : new Set<string>();
+  const locked = options?.studentId
+    ? await lockedChapterIdsFor(options.studentId)
+    : new Set<string>();
 
   /**
    * The book the child opened, for pages that belong to every book.
@@ -413,12 +414,12 @@ export async function listActivities(options?: {
         null;
 
       return {
-      ...row,
-      book,
-      isLocked: row.chapterId !== null && locked.has(row.chapterId),
-      contentJson:
-        (await composeContent({ id: row.id, type: row.type })) ??
-        upconvertStoredContent(row.contentJson),
+        ...row,
+        book,
+        isLocked: row.chapterId !== null && locked.has(row.chapterId),
+        contentJson:
+          (await composeContent({ id: row.id, type: row.type })) ??
+          upconvertStoredContent(row.contentJson),
       };
     }),
   );

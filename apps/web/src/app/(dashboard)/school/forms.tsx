@@ -135,12 +135,17 @@ export function StudentForm({
     <form action={formAction} className="space-y-6">
       <Result state={state} />
 
+      {/* Three parts, as a school form in India asks for them: given name,
+          father's name, surname — "Dishan Krunal Patel". */}
       <FieldSet legend="Child">
-        <Field label="First name" required>
-          <Input name="firstName" required />
+        <Field label="Name" required>
+          <Input name="firstName" required placeholder="Dishan" />
         </Field>
-        <Field label="Last name">
-          <Input name="lastName" />
+        <Field label="Father’s name">
+          <Input name="middleName" placeholder="Krunal" />
+        </Field>
+        <Field label="Surname">
+          <Input name="lastName" placeholder="Patel" />
         </Field>
         <Field label="Date of birth" required>
           <Input name="dateOfBirth" type="date" required />

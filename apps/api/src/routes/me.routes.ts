@@ -6,6 +6,7 @@ import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
 import * as idCards from '../services/idCard.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * "What is mine?" — the first call every client makes after signing in.
@@ -21,8 +22,7 @@ meRouter.get(
     const role = req.auth!.role;
 
     // School Admins see the whole school; teachers only what they are assigned.
-    const where =
-      role === 'TEACHER' ? { id: { in: await teacherClassroomIds() } } : {};
+    const where = role === 'TEACHER' ? { id: { in: await teacherClassroomIds() } } : {};
 
     const classrooms = await prisma.classroom.findMany({
       where,
@@ -95,7 +95,7 @@ meRouter.get(
         const enrolment = student.enrolments[0];
         return {
           id: student.id,
-          fullName: [student.firstName, student.lastName].filter(Boolean).join(' '),
+          fullName: studentName(student),
           admissionNo: student.admissionNo,
           avatarUrl: student.avatarUrl,
           rollNo: enrolment?.rollNo ?? null,

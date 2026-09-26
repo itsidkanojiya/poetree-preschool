@@ -12,6 +12,7 @@ import { ApiError } from '../lib/apiError.js';
 import { hashPassword } from '../lib/password.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * Parents own the family's login. Students hang off a parent account and never
@@ -23,7 +24,9 @@ const parentInclude = {
   parentProfile: {
     include: {
       children: {
-        include: { student: { select: { id: true, firstName: true, lastName: true } } },
+        include: {
+          student: { select: { id: true, firstName: true, middleName: true, lastName: true } },
+        },
       },
     },
   },
@@ -45,7 +48,7 @@ function toSummary(user: ParentRow): ParentSummary {
     address: profile?.address ?? null,
     children: (profile?.children ?? []).map((link) => ({
       id: link.student.id,
-      name: [link.student.firstName, link.student.lastName].filter(Boolean).join(' '),
+      name: studentName(link.student),
       isPrimary: link.isPrimary,
     })),
     createdAt: user.createdAt.toISOString(),

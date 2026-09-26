@@ -90,7 +90,9 @@ class _RegistrationForm extends StatefulWidget {
 class _RegistrationFormState extends State<_RegistrationForm> {
   final _formKey = GlobalKey<FormState>();
 
-  final _studentName = TextEditingController();
+  final _studentFirstName = TextEditingController();
+  final _studentMiddleName = TextEditingController();
+  final _studentLastName = TextEditingController();
   final _guardianName = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
@@ -111,7 +113,9 @@ class _RegistrationFormState extends State<_RegistrationForm> {
   @override
   void dispose() {
     for (final controller in [
-      _studentName,
+      _studentFirstName,
+      _studentMiddleName,
+      _studentLastName,
       _guardianName,
       _phone,
       _email,
@@ -180,7 +184,9 @@ class _RegistrationFormState extends State<_RegistrationForm> {
     FocusScope.of(context).unfocus();
 
     await registration.submit(
-      studentName: _studentName.text,
+      studentFirstName: _studentFirstName.text,
+      studentMiddleName: _studentMiddleName.text,
+      studentLastName: _studentLastName.text,
       studentDateOfBirth: _dateOfBirth!,
       guardianName: _guardianName.text,
       relation: _relation,
@@ -241,11 +247,37 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             }),
 
             _Section(title: 'Your child'),
+            // Three boxes rather than one, the way every school form here asks
+            // for a name: given name, father's name, surname. Typed into one
+            // box they come back in whatever order the parent thought of them,
+            // and the office cannot sort a register by surname afterwards.
             TextFormField(
-              controller: _studentName,
+              controller: _studentFirstName,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Child’s full name'),
+              decoration: const InputDecoration(
+                labelText: 'Child’s name',
+                hintText: 'Dishan',
+              ),
               validator: (v) => _required(v, 'your child’s name'),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _studentMiddleName,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Father’s name',
+                hintText: 'Krunal',
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _studentLastName,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Surname',
+                hintText: 'Patel',
+              ),
+              validator: (v) => _required(v, 'your child’s surname'),
             ),
             const SizedBox(height: 14),
             // A picker rather than a typed date: a birthday typed as 04/09

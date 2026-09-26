@@ -122,6 +122,7 @@ export async function createStudentAction(
       redirectOnAuthFailure: false,
       body: {
         firstName: text(formData, 'firstName'),
+        middleName: text(formData, 'middleName'),
         lastName: text(formData, 'lastName'),
         dateOfBirth: text(formData, 'dateOfBirth'),
         gender: text(formData, 'gender'),

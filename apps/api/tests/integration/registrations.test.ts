@@ -24,11 +24,19 @@ describe.skipIf(!dbUp)('parent registration', () => {
   let school: TestSchool;
   let other: TestSchool;
   let admin: Session;
-  let seededChild: { name: string; dateOfBirth: string; admissionNo: string };
+  let seededChild: {
+    firstName: string;
+    lastName: string | null;
+    dateOfBirth: string;
+    admissionNo: string;
+  };
 
   /** The form as a real family fills it in. */
   const form = (overrides: Record<string, unknown> = {}) => ({
-    studentName: 'Aarav Joshi',
+    // Three parts, as the form asks for them: name, father's name, surname.
+    studentFirstName: 'Aarav',
+    studentMiddleName: 'Nikhil',
+    studentLastName: 'Joshi',
     studentDateOfBirth: '2021-04-09',
     guardianName: 'Meera Joshi',
     relation: 'MOTHER',
@@ -55,7 +63,8 @@ describe.skipIf(!dbUp)('parent registration', () => {
       select: { firstName: true, lastName: true, dateOfBirth: true, admissionNo: true },
     });
     seededChild = {
-      name: [student.firstName, student.lastName].filter(Boolean).join(' '),
+      firstName: student.firstName,
+      lastName: student.lastName,
       dateOfBirth: student.dateOfBirth.toISOString(),
       admissionNo: student.admissionNo,
     };
@@ -84,7 +93,7 @@ describe.skipIf(!dbUp)('parent registration', () => {
     // admission number, because the office has not issued one yet.
     const newcomer = await submit(
       'beta',
-      form({ phone: '+919820007009', studentName: 'Nobody Onroll' }),
+      form({ phone: '+919820007009', studentFirstName: 'Nobody', studentLastName: 'Onroll' }),
     );
 
     expect(newcomer.status).toBe(202);
@@ -99,7 +108,7 @@ describe.skipIf(!dbUp)('parent registration', () => {
   });
 
   it('refuses a registration with no child named', async () => {
-    const wrong = await submit('alpha', form({ studentName: '' }));
+    const wrong = await submit('alpha', form({ studentFirstName: '' }));
 
     expect(wrong.status).toBe(404);
     expect(wrong.body.error.message).toContain('admission number');
@@ -167,8 +176,8 @@ describe.skipIf(!dbUp)('parent registration', () => {
     );
 
     // Nothing is claimed any more, so there is nothing to compare it against
-    // until the office decides.
-    expect(row.studentName).toBe('Aarav Joshi');
+    // until the office decides. The three parts are written out for the queue.
+    expect(row.studentName).toBe('Aarav Nikhil Joshi');
     expect(row.student).toBeNull();
     expect(row.admissionNo).toBeNull();
     expect(Array.isArray(row.matches)).toBe(true);
@@ -182,7 +191,9 @@ describe.skipIf(!dbUp)('parent registration', () => {
       'alpha',
       form({
         phone: '+919820007011',
-        studentName: seededChild.name,
+        studentFirstName: seededChild.firstName,
+        studentMiddleName: '',
+        studentLastName: seededChild.lastName ?? '',
         studentDateOfBirth: seededChild.dateOfBirth,
       }),
     );
@@ -249,7 +260,12 @@ describe.skipIf(!dbUp)('parent registration', () => {
   it('creates the child and issues the number when the office says so', async () => {
     const sent = await submit(
       'alpha',
-      form({ phone: '+919820007013', studentName: 'Ishaan Newcomer' }),
+      form({
+        phone: '+919820007013',
+        studentFirstName: 'Ishaan',
+        studentMiddleName: 'Ketan',
+        studentLastName: 'Newcomer',
+      }),
     );
     expect(sent.status).toBe(202);
 
@@ -269,10 +285,20 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     const child = await prismaUnscoped.student.findUniqueOrThrow({
       where: { id: approved.body.student.id },
-      select: { firstName: true, lastName: true, dateOfBirth: true, schoolId: true },
+      select: {
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        dateOfBirth: true,
+        schoolId: true,
+      },
     });
+    // The three parts as the family typed them, not a guess from splitting a
+    // sentence on its spaces.
     expect(child.firstName).toBe('Ishaan');
+    expect(child.middleName).toBe('Ketan');
     expect(child.lastName).toBe('Newcomer');
+    expect(approved.body.student.name).toBe('Ishaan Ketan Newcomer');
     expect(child.schoolId).toBe(school.id);
     // The birthday the family gave, not today.
     expect(child.dateOfBirth.toISOString().slice(0, 10)).toBe('2021-04-09');

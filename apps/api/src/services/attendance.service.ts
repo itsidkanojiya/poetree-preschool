@@ -13,6 +13,7 @@ import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 import { assertCanReadStudent, assertTeacherOwnsClassroom } from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * Tells a guardian their child is not at school today.
@@ -37,7 +38,7 @@ async function notifyAbsences(
 
   const students = await prisma.student.findMany({
     where: { id: { in: newlyAbsent.map((r) => r.studentId) } },
-    select: { id: true, firstName: true, lastName: true },
+    select: { id: true, firstName: true, middleName: true, lastName: true },
   });
 
   const when = date.toLocaleDateString('en-IN', {
@@ -50,7 +51,7 @@ async function notifyAbsences(
     const guardians = await guardianUserIdsFor([student.id]);
     if (guardians.length === 0) continue;
 
-    const name = [student.firstName, student.lastName].filter(Boolean).join(' ');
+    const name = studentName(student);
     notifySafe({
       schoolId,
       userIds: guardians,
@@ -126,7 +127,10 @@ function canEdit(date: Date): boolean {
   return age <= TEACHER_GRACE_DAYS;
 }
 
-export async function getAttendanceSheet(classroomId: string, rawDate: Date): Promise<AttendanceSheet> {
+export async function getAttendanceSheet(
+  classroomId: string,
+  rawDate: Date,
+): Promise<AttendanceSheet> {
   await assertTeacherOwnsClassroom(classroomId);
   const date = toDateOnly(rawDate);
 
@@ -142,7 +146,14 @@ export async function getAttendanceSheet(classroomId: string, rawDate: Date): Pr
       where: { classroomId, status: 'ACTIVE' },
       include: {
         student: {
-          select: { id: true, firstName: true, lastName: true, admissionNo: true, avatarUrl: true },
+          select: {
+            id: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            admissionNo: true,
+            avatarUrl: true,
+          },
         },
       },
       orderBy: [{ rollNo: 'asc' }],
@@ -167,9 +178,7 @@ export async function getAttendanceSheet(classroomId: string, rawDate: Date): Pr
 
     return {
       studentId: enrolment.studentId,
-      fullName: [enrolment.student.firstName, enrolment.student.lastName]
-        .filter(Boolean)
-        .join(' '),
+      fullName: studentName(enrolment.student),
       admissionNo: enrolment.student.admissionNo,
       rollNo: enrolment.rollNo,
       avatarUrl: enrolment.student.avatarUrl,
@@ -391,7 +400,9 @@ export async function studentAttendanceSummary(
 
   const enrolments = await prisma.studentEnrolment.findMany({
     where: { classroomId, status: 'ACTIVE' },
-    include: { student: { select: { id: true, firstName: true, lastName: true } } },
+    include: {
+      student: { select: { id: true, firstName: true, middleName: true, lastName: true } },
+    },
     orderBy: [{ rollNo: 'asc' }],
   });
 
@@ -416,9 +427,7 @@ export async function studentAttendanceSummary(
 
     return {
       studentId: enrolment.studentId,
-      fullName: [enrolment.student.firstName, enrolment.student.lastName]
-        .filter(Boolean)
-        .join(' '),
+      fullName: studentName(enrolment.student),
       present: tally.PRESENT,
       absent: tally.ABSENT,
       late: tally.LATE,

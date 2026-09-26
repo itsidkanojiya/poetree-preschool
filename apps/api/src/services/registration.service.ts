@@ -16,6 +16,7 @@ import { isSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLog } from './audit.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * A family asking their school for access, and the school deciding.
@@ -34,6 +35,7 @@ import { assertStudentSeatAvailable, currentAcademicYearId } from './student.ser
 const studentSelect = {
   id: true,
   firstName: true,
+  middleName: true,
   lastName: true,
   admissionNo: true,
   dateOfBirth: true,
@@ -58,7 +60,7 @@ function toMatch(student: StudentRow): StudentMatch {
 
   return {
     id: student.id,
-    name: [student.firstName, student.lastName].filter(Boolean).join(' '),
+    name: studentName(student),
     admissionNo: student.admissionNo,
     dateOfBirth: student.dateOfBirth.toISOString(),
     classroom: classroom ? `${classroom.classLevel.name} — ${classroom.section}` : null,
@@ -175,7 +177,14 @@ export async function submitRegistration(
       // one already on the roll, or a record it creates — when it approves.
       studentId: null,
       admissionNo: null,
-      studentName: input.studentName,
+      studentName: studentName({
+        firstName: input.studentFirstName,
+        middleName: input.studentMiddleName,
+        lastName: input.studentLastName,
+      }),
+      studentFirstName: input.studentFirstName,
+      studentMiddleName: input.studentMiddleName ?? null,
+      studentLastName: input.studentLastName ?? null,
       studentDateOfBirth: input.studentDateOfBirth,
 
       guardianName: input.guardianName,
@@ -203,7 +212,7 @@ export async function submitRegistration(
     schoolId: school.id,
     // Nobody is signed in. The actor is the family, who has no account yet.
     actorUserId: null,
-    metadata: { phone: input.phone, studentName: input.studentName },
+    metadata: { phone: input.phone, studentName: input.studentFirstName },
   });
 
   return {
@@ -295,9 +304,7 @@ export async function listRegistrations(
   // Only for the rows still waiting: a decided one has its child already, and
   // a page of twenty would otherwise run twenty pointless queries.
   const items = await Promise.all(
-    rows.map(async (row) =>
-      toSummary(row, row.status === 'PENDING' ? await matchesFor(row) : []),
-    ),
+    rows.map(async (row) => toSummary(row, row.status === 'PENDING' ? await matchesFor(row) : [])),
   );
 
   return {
@@ -487,7 +494,17 @@ export async function approveRegistration(
     const child =
       existing ??
       (await (async () => {
-        const [firstName, ...rest] = registration.studentName.trim().split(/\s+/);
+        // The three parts as they were typed. Rows from before the form
+        // asked separately have only the written-out name, and the first word
+        // of it is the best guess there is.
+        const [firstWord, ...rest] = registration.studentName.trim().split(/\s+/);
+        const firstName = registration.studentFirstName ?? firstWord ?? registration.studentName;
+        const middleName = registration.studentMiddleName;
+        const lastName =
+          registration.studentFirstName === null
+            ? rest.join(' ') || null
+            : registration.studentLastName;
+
         const admissionNo =
           input.mode === 'CREATE' && input.admissionNo
             ? input.admissionNo
@@ -503,8 +520,9 @@ export async function approveRegistration(
             schoolId,
             admissionNo,
             admissionDate: new Date(),
-            firstName: firstName ?? registration.studentName,
-            lastName: rest.join(' ') || null,
+            firstName,
+            middleName,
+            lastName,
             // The birthday the family gave. A row from before the form asked
             // for one falls back to today, which the office will correct —
             // better than refusing to approve a family that did nothing wrong.

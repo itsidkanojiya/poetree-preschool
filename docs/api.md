@@ -137,6 +137,11 @@ A family registers from the app with no account and **no admission number** —
 `POST /public/schools/:code/registrations`, which returns `202` and creates
 nothing. The office decides.
 
+The child's name arrives in three parts, the way a school form in India asks for
+them — `studentFirstName`, `studentMiddleName` (the father's given name),
+`studentLastName` — and is kept that way, so approving writes "Dishan Krunal
+Patel" onto the record rather than a guess made by splitting a sentence.
+
 Approving says which child the request is about, and that is the whole body:
 
 ```json
@@ -157,7 +162,9 @@ here who look like the one described — so the office is choosing, not searchin
 
 ```json
 {
-  "firstName": "Aarav",
+  "firstName": "Dishan",
+  "middleName": "Krunal",
+  "lastName": "Patel",
   "dateOfBirth": "2022-03-01",
   "gender": "MALE",
   "admissionNo": "SUN-001",

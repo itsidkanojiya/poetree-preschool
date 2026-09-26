@@ -51,6 +51,8 @@ export type ListEnrolmentsQuery = z.infer<typeof listEnrolmentsQuerySchema>;
 export const importStudentRowSchema = z.object({
   admissionNo: z.string().trim().max(40).optional(),
   firstName: z.string().trim().min(1, 'First name is required').max(60),
+  /** The father's given name, as on a school form. Blank column is fine. */
+  middleName: z.string().trim().max(60).optional(),
   lastName: z.string().trim().max(60).optional(),
   dateOfBirth: z.coerce.date(),
   gender: z.enum(GENDERS),

@@ -14,6 +14,7 @@ import { ApiError } from '../lib/apiError.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
+import { studentName } from '../lib/names.js';
 
 /**
  * The enrolment lifecycle: admission number issue, promotion, section transfer,
@@ -25,7 +26,9 @@ import { nextDocumentNumber } from './sequence.service.js';
  */
 
 const enrolmentInclude = {
-  student: { select: { id: true, firstName: true, lastName: true, admissionNo: true } },
+  student: {
+    select: { id: true, firstName: true, middleName: true, lastName: true, admissionNo: true },
+  },
   academicYear: { select: { id: true, name: true } },
   classroom: { include: { classLevel: { select: { code: true, name: true } } } },
 } satisfies Prisma.StudentEnrolmentInclude;
@@ -40,7 +43,7 @@ function toSummary(row: EnrolmentRow): EnrolmentSummary {
   return {
     id: row.id,
     studentId: row.studentId,
-    fullName: [row.student.firstName, row.student.lastName].filter(Boolean).join(' '),
+    fullName: studentName(row.student),
     admissionNo: row.student.admissionNo,
     rollNo: row.rollNo,
     status: row.status,
@@ -115,7 +118,9 @@ export async function promoteStudents(
   const schoolId = requireSchoolId();
 
   if (input.fromClassroomId === input.toClassroomId) {
-    throw ApiError.badRequest('Promote into a different classroom than the one you are promoting from.');
+    throw ApiError.badRequest(
+      'Promote into a different classroom than the one you are promoting from.',
+    );
   }
 
   const target = await prisma.classroom.findFirst({
@@ -142,7 +147,9 @@ export async function promoteStudents(
       status: 'ACTIVE',
       ...(input.studentIds ? { studentId: { in: input.studentIds } } : {}),
     },
-    include: { student: { select: { id: true, firstName: true, lastName: true } } },
+    include: {
+      student: { select: { id: true, firstName: true, middleName: true, lastName: true } },
+    },
   });
 
   if (candidates.length === 0) {
@@ -165,7 +172,7 @@ export async function promoteStudents(
     .filter((c) => blocked.has(c.studentId))
     .map((c) => ({
       studentId: c.studentId,
-      fullName: [c.student.firstName, c.student.lastName].filter(Boolean).join(' '),
+      fullName: studentName(c.student),
       reason: 'Already enrolled in the target academic year',
     }));
 
@@ -204,7 +211,11 @@ export async function promoteStudents(
     },
   });
 
-  return { promoted: movable.length, skipped, toClassroomLabel: label(target as EnrolmentRow['classroom']) };
+  return {
+    promoted: movable.length,
+    skipped,
+    toClassroomLabel: label(target as EnrolmentRow['classroom']),
+  };
 }
 
 /**

@@ -98,8 +98,15 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _tokens.accessToken;
-          if (token != null) options.headers['authorization'] = 'Bearer $token';
+          // Nothing under /public is authenticated, and sending a token there
+          // is how a stale one from a previous sign-in gets a registration
+          // refused as somebody else's expired session.
+          if (!_isPublic(options.path)) {
+            final token = await _tokens.accessToken;
+            if (token != null) {
+              options.headers['authorization'] = 'Bearer $token';
+            }
+          }
           handler.next(options);
         },
         onError: (error, handler) async {
@@ -120,7 +127,22 @@ class ApiClient {
             '/auth/refresh',
           );
 
-          if (!isAuthFailure || alreadyRetried || isRefreshCall) {
+          // A public call has no session to expire, whatever it answers.
+          //
+          // Registration runs on /public routes with nobody signed in, and the
+          // API answers an unknown path under /api/v1 with 401 rather than
+          // 404. A parent part-way through the form was therefore told their
+          // session had ended — tokens cleared, thrown back to the sign-in
+          // screen — because the server they were talking to did not have the
+          // route yet. Twice over: once for a leftover token from an earlier
+          // sign-in on the same phone, which is why the token is no longer
+          // attached at all above.
+          final isPublicCall = _isPublic(error.requestOptions.path);
+
+          if (!isAuthFailure ||
+              isPublicCall ||
+              alreadyRetried ||
+              isRefreshCall) {
             return handler.next(error);
           }
 
@@ -145,6 +167,9 @@ class ApiClient {
       ),
     );
   }
+
+  /// Everything a family can reach before they have an account.
+  static bool _isPublic(String path) => path.startsWith('/public/');
 
   final Dio _dio;
   final Dio _refreshDio;

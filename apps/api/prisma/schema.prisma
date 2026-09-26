@@ -442,6 +442,7 @@ model School {
   subscriptions            SchoolSubscription[]
   auditLogs                AuditLog[]
   parentRegistrations      ParentRegistration[]
+  otpChallenges            OtpChallenge[]
 
   @@index([publicationId])
   @@index([organisationId])
@@ -678,6 +679,10 @@ model ParentRegistration {
   studentDateOfBirth    DateTime?
   fatherName            String?   @db.VarChar(120)
   motherName            String?   @db.VarChar(120)
+  /// The father's number is the one that signs in, so it is `phone` above.
+  /// This is the mother's, which the school rings when the first does not
+  /// answer — the reason the form asks for two.
+  motherPhone           String?   @db.VarChar(20)
   bloodGroup            String?   @db.VarChar(8)
   emergencyContactName  String?   @db.VarChar(120)
   emergencyContactPhone String?   @db.VarChar(20)
@@ -704,6 +709,54 @@ model ParentRegistration {
   @@index([schoolId, admissionNo])
   @@index([studentId])
   @@map("parent_registrations")
+}
+
+/// Which way a code was sent. The two are the same problem with different
+/// plumbing, so they are one table and one service.
+enum OtpChannel {
+  PHONE
+  EMAIL
+}
+
+/// A code sent to a parent while they register, and the fact that they typed it
+/// back.
+///
+/// Its own table rather than a column on the registration, because the code is
+/// asked for BEFORE there is a registration — the number has to be proved
+/// before the form it belongs to is sent, or a family fills in three screens to
+/// be told at the end that the number was a typo.
+///
+/// The code is hashed. It is four digits today and six later, and four digits
+/// in a database is a number anybody reading the table could use.
+model OtpChallenge {
+  id       String @id @default(cuid())
+  schoolId String
+
+  channel OtpChannel
+
+  /// The number or the address being proved. Not unique: a family that
+  /// mistypes it and starts again leaves the first challenge behind, unused
+  /// and expiring.
+  destination String @db.VarChar(160)
+  codeHash    String @db.VarChar(64)
+
+  /// Wrong guesses. A four-digit code is one in ten thousand, which is worth
+  /// nothing at all if it may be guessed without limit.
+  attempts Int @default(0)
+
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  /// Set when a registration has been sent with it, so one proof cannot open
+  /// two accounts.
+  usedAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, channel, destination])
+  @@index([expiresAt])
+  @@map("otp_challenges")
 }
 
 model ParentProfile {

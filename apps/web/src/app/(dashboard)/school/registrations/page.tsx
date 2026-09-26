@@ -99,6 +99,13 @@ export default async function RegistrationsPage({
                       <TPrimary sub={`${titleCase(row.relation)} · ${row.phone}`}>
                         {row.guardianName}
                       </TPrimary>
+                      {/* The second number the form now insists on, because
+                          the first one is not always the one that answers. */}
+                      {row.motherPhone && (
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          Mother · {row.motherPhone}
+                        </span>
+                      )}
                     </TCell>
 
                     <TCell>

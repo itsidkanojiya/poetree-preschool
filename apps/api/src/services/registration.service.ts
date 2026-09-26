@@ -14,6 +14,7 @@ import { ApiError } from '../lib/apiError.js';
 import { hashPassword } from '../lib/password.js';
 import { isSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLog } from './audit.service.js';
+import { consumeVerifiedChallenge } from './otp.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
 import { studentName } from '../lib/names.js';
@@ -89,6 +90,7 @@ function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): Registra
     address: row.address,
 
     admissionNo: row.admissionNo,
+    motherPhone: row.motherPhone,
     studentName: row.studentName,
     studentDateOfBirth: row.studentDateOfBirth?.toISOString() ?? null,
     fatherName: row.fatherName,
@@ -125,10 +127,16 @@ function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): Registra
  * is that a row grants nothing, the route is rate limited, and somebody in the
  * office reads every one before an account exists.
  */
-export async function submitRegistration(
+/**
+ * The school a family is registering at, by the code in the path.
+ *
+ * Shared with the two code-sending routes: a school that cannot take
+ * registrations must not be able to send text messages at its own expense
+ * either, and three copies of this check would be three chances to disagree.
+ */
+export async function registeringSchool(
   schoolCode: string,
-  input: SubmitRegistrationInput,
-): Promise<SubmitRegistrationResponse> {
+): Promise<{ id: string; name: string }> {
   const school = await prismaUnscoped.school.findUnique({
     where: { code: schoolCode },
     select: { id: true, name: true, status: true },
@@ -142,6 +150,22 @@ export async function submitRegistration(
       `${school.name} is not accepting registrations at the moment. Please contact the school.`,
     );
   }
+
+  return { id: school.id, name: school.name };
+}
+
+export async function submitRegistration(
+  schoolCode: string,
+  input: SubmitRegistrationInput,
+): Promise<SubmitRegistrationResponse> {
+  const school = await registeringSchool(schoolCode);
+
+  // Both answered before any of this was typed. Spent here, so one code cannot
+  // open two accounts, and each checked against what is ON the form — a family
+  // that proves one number and types another would leave the school ringing a
+  // phone nobody had answered for.
+  await consumeVerifiedChallenge(school.id, 'PHONE', input.phoneChallengeId, input.phone);
+  await consumeVerifiedChallenge(school.id, 'EMAIL', input.emailChallengeId, input.email);
 
   // Already has an account: they want to sign in, not register. Saying so is
   // more use than "phone already taken".
@@ -186,6 +210,7 @@ export async function submitRegistration(
       studentMiddleName: input.studentMiddleName ?? null,
       studentLastName: input.studentLastName ?? null,
       studentDateOfBirth: input.studentDateOfBirth,
+      motherPhone: input.motherPhone,
 
       guardianName: input.guardianName,
       relation: input.relation,
@@ -586,6 +611,14 @@ export async function approveRegistration(
     }
     if (!child.emergencyContactPhone && registration.emergencyContactPhone) {
       fill.emergencyContactPhone = registration.emergencyContactPhone;
+    }
+    // No emergency contact given, but a mother's number was: that is the second
+    // number to ring, which is what an emergency contact is for.
+    if (!child.emergencyContactPhone && !registration.emergencyContactPhone && registration.motherPhone) {
+      fill.emergencyContactPhone = registration.motherPhone;
+      if (!child.emergencyContactName && registration.motherName) {
+        fill.emergencyContactName = registration.motherName;
+      }
     }
     if (Object.keys(fill).length > 0) {
       await tx.student.update({ where: { id: child.id }, data: fill });

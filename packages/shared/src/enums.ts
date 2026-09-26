@@ -64,6 +64,14 @@ export type GuardianRelation = (typeof GUARDIAN_RELATIONS)[number];
 export const REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
+/**
+ * How a sign-up code reaches a parent. Both are proved before a registration
+ * is sent: the number signs in, and the address is the school's second way to
+ * reach a family when it does not answer.
+ */
+export const OTP_CHANNELS = ['PHONE', 'EMAIL'] as const;
+export type OtpChannel = (typeof OTP_CHANNELS)[number];
+
 export const ID_CARD_SIZE_CODES = ['CR80', 'LARGE', 'HALF_A5', 'A6'] as const;
 export type IdCardSize = (typeof ID_CARD_SIZE_CODES)[number];
 

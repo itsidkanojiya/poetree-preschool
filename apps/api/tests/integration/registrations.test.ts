@@ -38,8 +38,11 @@ describe.skipIf(!dbUp)('parent registration', () => {
     studentMiddleName: 'Nikhil',
     studentLastName: 'Joshi',
     studentDateOfBirth: '2021-04-09',
-    guardianName: 'Meera Joshi',
-    relation: 'MOTHER',
+    // The second number, and an email: both required since the form stopped
+    // asking a family to identify themselves separately from their child.
+    motherPhone: '+919820007777',
+    email: 'family@example.test',
+    guardianName: 'Nikhil Joshi',
     phone: '+919820007001',
     password: 'Family@2026',
     confirmPassword: 'Family@2026',
@@ -48,8 +51,42 @@ describe.skipIf(!dbUp)('parent registration', () => {
     ...overrides,
   });
 
-  const submit = (code: string, body: Record<string, unknown>) =>
-    api.post(`${BASE}/public/schools/${code}/registrations`).send(body);
+  /**
+   * Ask for a code and type it back, the way the app does before the form is
+   * sent. The static providers answer 1234 to everybody, which is what they
+   * are for — see otp.service.ts for why that is not verification of anything.
+   */
+  const verifiedChallenge = async (
+    schoolCode: string,
+    channel: 'PHONE' | 'EMAIL',
+    destination: string,
+  ): Promise<string> => {
+    const sent = await api
+      .post(`${BASE}/public/schools/${schoolCode}/otp/send`)
+      .send({ channel, destination });
+
+    const challengeId = sent.body.challengeId as string;
+    await api
+      .post(`${BASE}/public/schools/${schoolCode}/otp/verify`)
+      .send({ challengeId, code: '1234' });
+
+    return challengeId;
+  };
+
+  /** The whole journey: prove both, then send the form with both proofs. */
+  const submit = async (schoolCode: string, body: Record<string, unknown>) => {
+    const phone = String(body.phone ?? '+919820007001');
+    const email = String(body.email ?? 'family@example.test');
+
+    const phoneChallengeId =
+      body.phoneChallengeId ?? (await verifiedChallenge(schoolCode, 'PHONE', phone));
+    const emailChallengeId =
+      body.emailChallengeId ?? (await verifiedChallenge(schoolCode, 'EMAIL', email));
+
+    return api
+      .post(`${BASE}/public/schools/${schoolCode}/registrations`)
+      .send({ ...body, phoneChallengeId, emailChallengeId });
+  };
 
   beforeAll(async () => {
     await resetDatabase();
@@ -380,6 +417,118 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     expect(after.bloodGroup).toBe('O+');
     expect(after.emergencyContactName).toBe('The office knows best');
+  });
+
+  it('will not take a registration without a code that was typed back', async () => {
+    const phone = '+919820007021';
+
+    // Asked for, never confirmed.
+    const sent = await api
+      .post(`${BASE}/public/schools/alpha/otp/send`)
+      .send({ channel: 'PHONE', destination: phone });
+    expect(sent.status).toBe(202);
+    expect(sent.body.challengeId).toBeTruthy();
+    // The code itself is never in the reply, whatever the provider.
+    expect(JSON.stringify(sent.body)).not.toContain('1234');
+
+    const refused = await submit(
+      'alpha',
+      form({ phone, phoneChallengeId: sent.body.challengeId }),
+    );
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.message).toContain('confirm');
+  });
+
+  it('refuses a wrong code, and says the same thing every time', async () => {
+    const phone = '+919820007023';
+    const sent = await api
+      .post(`${BASE}/public/schools/alpha/otp/send`)
+      .send({ channel: 'PHONE', destination: phone });
+
+    const wrong = await api
+      .post(`${BASE}/public/schools/alpha/otp/verify`)
+      .send({ challengeId: sent.body.challengeId, code: '9999' });
+
+    expect(wrong.status).toBe(400);
+
+    // A challenge that does not exist says exactly the same: which of the two
+    // it was is the only thing a guesser would learn here.
+    const unknown = await api
+      .post(`${BASE}/public/schools/alpha/otp/verify`)
+      .send({ challengeId: sent.body.challengeId.replace(/.$/, 'z'), code: '1234' });
+
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error.message).toBe(wrong.body.error.message);
+  });
+
+  it('will not let one code open two accounts', async () => {
+    const phone = '+919820007025';
+    const challengeId = await verifiedChallenge('alpha', 'PHONE', phone);
+
+    const first = await submit('alpha', form({ phone, phoneChallengeId: challengeId }));
+    expect(first.status).toBe(202);
+
+    // Same proof, a second family. It was spent when the first form arrived.
+    const second = await submit(
+      'alpha',
+      form({ phone: '+919820007027', phoneChallengeId: challengeId }),
+    );
+    expect(second.status).toBe(400);
+  });
+
+  it('will not accept a code proved for a different number', async () => {
+    // Prove one number, type another: the school would end up ringing a phone
+    // nobody had ever answered for.
+    const challengeId = await verifiedChallenge('alpha', 'PHONE', '+919820007029');
+
+    const refused = await submit(
+      'alpha',
+      form({ phone: '+919820007031', phoneChallengeId: challengeId }),
+    );
+
+    expect(refused.status).toBe(400);
+  });
+
+  it('keeps one school’s codes out of another school’s registrations', async () => {
+    const challengeId = await verifiedChallenge('beta', 'PHONE', '+919820007033');
+
+    const refused = await submit(
+      'alpha',
+      form({ phone: '+919820007033', phoneChallengeId: challengeId }),
+    );
+
+    expect(refused.status).toBe(400);
+  });
+
+  it('will not take a registration without the email confirmed', async () => {
+    const email = 'unconfirmed@example.test';
+
+    const sent = await api
+      .post(`${BASE}/public/schools/alpha/otp/send`)
+      .send({ channel: 'EMAIL', destination: email });
+    expect(sent.status).toBe(202);
+
+    const refused = await submit(
+      'alpha',
+      form({ phone: '+919820007035', email, emailChallengeId: sent.body.challengeId }),
+    );
+
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.message).toContain('email');
+  });
+
+  it('will not accept a phone code as proof of an email address', async () => {
+    // Same table, two channels: the one thing that must not be interchangeable.
+    const email = 'crossed@example.test';
+    const phoneProof = await verifiedChallenge('alpha', 'PHONE', '+919820007037');
+
+    const refused = await submit(
+      'alpha',
+      form({ phone: '+919820007037', email, emailChallengeId: phoneProof }),
+    );
+
+    expect(refused.status).toBe(400);
   });
 
   it('turns one down, and says so at the next sign-in', async () => {

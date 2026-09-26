@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { GENDERS, GUARDIAN_RELATIONS, REGISTRATION_STATUSES } from '../enums.js';
+import {
+  GENDERS,
+  GUARDIAN_RELATIONS,
+  OTP_CHANNELS,
+  REGISTRATION_STATUSES,
+} from '../enums.js';
 import {
   emailSchema,
   idSchema,
@@ -55,16 +60,35 @@ export const submitRegistrationSchema = z
         message: 'Check the year — that is not a preschool child',
       }),
 
+    /**
+     * Who the account belongs to. The form no longer asks: the father's number
+     * is the one that signs in, so this is his name and his number, and the
+     * mother's number is kept beside them as the second one to ring.
+     */
     guardianName: nameSchema,
-    relation: z.enum(GUARDIAN_RELATIONS),
+    relation: z.enum(GUARDIAN_RELATIONS).default('FATHER'),
+    /** The father's mobile. This is the sign-in, and the number the code went to. */
     phone: phoneSchema,
-    email: emailSchema.optional(),
+    /**
+     * Proof that the number above answered.
+     *
+     * The challenge is raised and confirmed before this form is sent, so a
+     * family finds out about a typo on the screen where they typed it rather
+     * than a week later when nothing arrives.
+     */
+    phoneChallengeId: idSchema,
+    /** Required now: a school with no email for a family has no second way to reach them. */
+    email: emailSchema,
+    /** And proof of that too — the same code, sent to the address instead. */
+    emailChallengeId: idSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
     address: z.string().trim().max(300).optional(),
 
     fatherName: z.string().trim().max(120).optional(),
     motherName: z.string().trim().max(120).optional(),
+    /** The second number, asked for because the first one is not always answered. */
+    motherPhone: phoneSchema,
     bloodGroup: z.string().trim().max(8).optional(),
     emergencyContactName: z.string().trim().max(120).optional(),
     emergencyContactPhone: phoneSchema.optional(),
@@ -125,6 +149,8 @@ export interface RegistrationSummary {
    * is the whole point of the change that removed it from the form.
    */
   admissionNo: string | null;
+  /** The second number on the form — the mother's. The first is `phone`. */
+  motherPhone: string | null;
   /** The three parts written out, which is what the queue shows and searches. */
   studentName: string;
   /** ISO date. Null on rows submitted before the form asked for it. */
@@ -191,5 +217,37 @@ export const approveRegistrationSchema = z.discriminatedUnion('mode', [
   }),
 ]);
 export type ApproveRegistrationInput = z.infer<typeof approveRegistrationSchema>;
+
+/**
+ * Asking for a code, and sending one back.
+ *
+ * Both run before anybody has an account, on the same public route as the
+ * registration itself, and both are rate limited there: a code-sending endpoint
+ * with no ceiling is somebody else's phone ringing all night at your expense.
+ */
+export const sendOtpSchema = z.discriminatedUnion('channel', [
+  z.object({ channel: z.literal('PHONE'), destination: phoneSchema }),
+  z.object({ channel: z.literal('EMAIL'), destination: emailSchema }),
+]);
+export type SendOtpInput = z.infer<typeof sendOtpSchema>;
+
+export interface SendOtpResponse {
+  challengeId: string;
+  expiresInSeconds: number;
+  /**
+   * False while no message is really being sent — the fixed-code setup used
+   * until there is an SMS account. The app says so on screen rather than
+   * leaving a family waiting for a text that was never sent.
+   */
+  delivered: boolean;
+}
+
+export const otpChannelSchema = z.enum(OTP_CHANNELS);
+
+export const verifyOtpSchema = z.object({
+  challengeId: idSchema,
+  code: z.string().trim().regex(/^[0-9]{4,6}$/, 'The code is 4 to 6 digits'),
+});
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 
 export const registrationIdSchema = z.object({ id: idSchema });

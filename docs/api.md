@@ -137,6 +137,28 @@ A family registers from the app with no account and **no admission number** —
 `POST /public/schools/:code/registrations`, which returns `202` and creates
 nothing. The office decides.
 
+Before the form, the family proves the number that will sign in — the father's:
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/public/schools/:code/otp/send` | `{ channel, destination }` where channel is `PHONE` or `EMAIL` → `{ challengeId, expiresInSeconds, delivered }`. Never returns the code. 6/hour per address |
+| `POST` | `/public/schools/:code/otp/verify` | `{ challengeId, code }`. Same refusal whatever is wrong with it |
+
+Both the number and the address are proved. The registration carries
+`phoneChallengeId` and `emailChallengeId`, each checked against the `phone` and
+`email` on the form — and against its own channel, so a code sent to a phone
+cannot stand in for one sent to an inbox — then spent, so one proof cannot open
+two accounts.
+
+`delivered` is false while a provider is `static`: it sends nothing and accepts
+one fixed code, and the app says so on screen rather than leaving a family
+waiting. That setting verifies nothing, and the office's approval is what stands
+in the gap. SMS has MSG91 written and waiting on credentials; email has no real
+sender yet, so it is `static` until a service is chosen.
+
+`motherPhone` and `email` are required alongside it. On approval the mother's
+number becomes the child's emergency contact where the school holds none.
+
 The child's name arrives in three parts, the way a school form in India asks for
 them — `studentFirstName`, `studentMiddleName` (the father's given name),
 `studentLastName` — and is kept that way, so approving writes "Dishan Krunal

@@ -34,6 +34,32 @@ const envSchema = z
     CORS_ORIGINS: z.string().default('http://localhost:3200'),
 
     /**
+     * Who sends the sign-up code to a parent's phone.
+     *
+     * `static` accepts one fixed code and sends nothing — it is how this was
+     * built and how it runs until an SMS account exists. It is NOT a
+     * verification of anything: anyone can claim any number with it. What
+     * still stands between that and an account is the office, which approves
+     * every registration by hand.
+     *
+     * `msg91` is the real one. Switching is this variable and three
+     * credentials; no schema, no app release.
+     */
+    OTP_PROVIDER: z.enum(['static', 'msg91']).default('static'),
+    /**
+     * The same for the address. Nothing in this platform sends email yet, so
+     * `static` is the only one written — adding a mailer on spec would be
+     * guessing at a service nobody has chosen. When there is an account it goes
+     * in otp.service.ts beside MSG91, and nothing else moves.
+     */
+    EMAIL_OTP_PROVIDER: z.enum(['static']).default('static'),
+    OTP_STATIC_CODE: z.string().regex(/^[0-9]{4,6}$/).default('1234'),
+    OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(600),
+    MSG91_AUTH_KEY: z.string().optional(),
+    MSG91_TEMPLATE_ID: z.string().optional(),
+    MSG91_SENDER_ID: z.string().optional(),
+
+    /**
      * How many reverse proxies sit in front of this process.
      *
      * 0 = none, so `req.ip` is the real socket address. 1 = behind Nginx, where

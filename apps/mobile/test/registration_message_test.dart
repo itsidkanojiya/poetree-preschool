@@ -91,6 +91,33 @@ void main() {
       expect(message, 'There is already an account with that phone number.');
     });
 
+    test('says who can fix it when the server has no such route', () {
+      // What a parent saw: Continue did nothing. The code-sending route did not
+      // exist on the school's server yet, and "No route for POST /api/v1/..."
+      // is not something anybody holding a phone can act on.
+      final missing = DioException(
+        requestOptions: RequestOptions(
+          path: '/public/schools/sunrise/otp/send',
+        ),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(
+            path: '/public/schools/sunrise/otp/send',
+          ),
+          statusCode: 404,
+          data: {
+            'error': {
+              'code': 'NOT_FOUND',
+              'message': 'No route for POST /otp/send',
+            },
+          },
+        ),
+      );
+
+      final message = RegistrationController.messageFor(missing);
+      expect(message, contains('school office'));
+      expect(message, isNot(contains('No route')));
+    });
+
     test('says something useful when the school cannot be reached', () {
       final offline = DioException(
         requestOptions: RequestOptions(path: '/registrations'),

@@ -14,6 +14,35 @@ import '../../core/config/school_config.dart';
 ///
 /// Nothing here creates an account. The reply says only that the school has the
 /// request; the family cannot sign in until somebody in the office agrees.
+/// One channel's code: asked for, typed back, and spent.
+///
+/// A class rather than two sets of fields on the controller, because the phone
+/// and the email do exactly the same thing and the screen renders them with one
+/// widget. Two copies would be two places to fix the next thing found wrong.
+class OtpState {
+  /// The challenge a code belongs to. Null until one has been asked for.
+  final challengeId = RxnString();
+
+  /// What it was sent to, so changing the field clears the proof.
+  final destination = RxnString();
+
+  /// False while no message is really being sent and a fixed code stands in.
+  /// The screen says so rather than leaving a family waiting for a text.
+  final delivered = true.obs;
+
+  final isSending = false.obs;
+  final isVerifying = false.obs;
+  final isVerified = false.obs;
+  final error = RxnString();
+
+  void forget() {
+    challengeId.value = null;
+    destination.value = null;
+    isVerified.value = false;
+    error.value = null;
+  }
+}
+
 class RegistrationController extends GetxController {
   final isBusy = false.obs;
   final errorMessage = RxnString();
@@ -22,19 +51,130 @@ class RegistrationController extends GetxController {
   /// rather than cleared, so nobody sends the same thing twice.
   final isSent = false.obs;
 
+  /* ---- Proving the number and the address ------------------------------- */
+
+  /// One of these per channel. They behave identically, which is why the screen
+  /// can use one widget for both.
+  final phoneOtp = OtpState();
+  final emailOtp = OtpState();
+
+  OtpState otpFor(String channel) => channel == 'EMAIL' ? emailOtp : phoneOtp;
+
+  /// Ask for a code. Any earlier one for the same destination stops counting.
+  Future<void> sendOtp(String channel, String destination) async {
+    final state = otpFor(channel);
+    state.isSending.value = true;
+    state.error.value = null;
+    state.isVerified.value = false;
+
+    try {
+      final data = await api.post<Map<String, dynamic>>(
+        '/public/schools/${SchoolConfig.schoolCode}/otp/send',
+        body: {'channel': channel, 'destination': destination.trim()},
+      );
+
+      state.challengeId.value = data['challengeId']?.toString();
+      state.destination.value = destination.trim();
+      state.delivered.value = data['delivered'] == true;
+    } on DioException catch (e) {
+      state.error.value = messageFor(e);
+    } finally {
+      state.isSending.value = false;
+    }
+  }
+
+  /// Type it back. The API says the same thing however it is wrong.
+  Future<void> verifyOtp(String channel, String code) async {
+    final state = otpFor(channel);
+    final challengeId = state.challengeId.value;
+    if (challengeId == null) return;
+
+    state.isVerifying.value = true;
+    state.error.value = null;
+
+    try {
+      await api.post<Map<String, dynamic>>(
+        '/public/schools/${SchoolConfig.schoolCode}/otp/verify',
+        body: {'challengeId': challengeId, 'code': code.trim()},
+      );
+      state.isVerified.value = true;
+    } on DioException catch (e) {
+      state.error.value = messageFor(e);
+    } finally {
+      state.isVerifying.value = false;
+    }
+  }
+
+  /// Typing a different number or address throws away the proof for the old one.
+  void forgetProof(String channel) => otpFor(channel).forget();
+
+  /// Both codes at once, because Continue sends them together.
+  ///
+  /// Either failing stops the family moving on — carrying them to a screen
+  /// asking for a code that was never sent is worse than keeping them here
+  /// with the reason.
+  ///
+  /// The reason is put in the banner at the top of the form, not only on the
+  /// field. The two code boxes live on the NEXT step, so a failure reported
+  /// only there is reported nowhere: pressing Continue did nothing at all, and
+  /// looked like a dead button.
+  Future<bool> sendBothCodes({
+    required String phone,
+    required String email,
+  }) async {
+    errorMessage.value = null;
+
+    await sendOtp('PHONE', phone);
+    if (phoneOtp.error.value != null) {
+      errorMessage.value = phoneOtp.error.value;
+      return false;
+    }
+
+    await sendOtp('EMAIL', email);
+    if (emailOtp.error.value != null) {
+      errorMessage.value = emailOtp.error.value;
+      return false;
+    }
+
+    return true;
+  }
+
+  /// And checks them together. Each says for itself what is wrong with it.
+  Future<bool> verifyBothCodes({
+    required String phoneCode,
+    required String emailCode,
+  }) async {
+    if (!phoneOtp.isVerified.value) {
+      if (phoneCode.trim().isEmpty) {
+        phoneOtp.error.value = 'Enter the code sent to your mobile.';
+      } else {
+        await verifyOtp('PHONE', phoneCode);
+      }
+    }
+
+    if (!emailOtp.isVerified.value) {
+      if (emailCode.trim().isEmpty) {
+        emailOtp.error.value = 'Enter the code sent to your email.';
+      } else {
+        await verifyOtp('EMAIL', emailCode);
+      }
+    }
+
+    return phoneOtp.isVerified.value && emailOtp.isVerified.value;
+  }
+
   Future<void> submit({
     required String studentFirstName,
     required String studentMiddleName,
     required String studentLastName,
     required DateTime studentDateOfBirth,
     required String guardianName,
-    required String relation,
     required String phone,
+    required String motherPhone,
+    required String email,
     required String password,
     required String confirmPassword,
-    String? email,
     String? address,
-    String? fatherName,
     String? motherName,
     String? bloodGroup,
     String? emergencyContactName,
@@ -66,13 +206,22 @@ class RegistrationController extends GetxController {
             10,
           ),
           'guardianName': guardianName.trim(),
-          'relation': relation,
+          // The father, always: his is the number that signs in. The form no
+          // longer asks, because asking a question with one answer is a
+          // question a family has to read.
+          'relation': 'FATHER',
           'phone': phone.trim(),
+          'phoneChallengeId': phoneOtp.challengeId.value,
+          'emailChallengeId': emailOtp.challengeId.value,
+          'motherPhone': motherPhone.trim(),
+          'email': email.trim(),
           'password': password,
           'confirmPassword': confirmPassword,
-          if (given(email) != null) 'email': given(email),
           if (given(address) != null) 'address': given(address),
-          if (given(fatherName) != null) 'fatherName': given(fatherName),
+          // The father's name is the child's middle name, already sent above.
+          'fatherName': studentMiddleName.trim().isEmpty
+              ? null
+              : studentMiddleName.trim(),
           if (given(motherName) != null) 'motherName': given(motherName),
           if (given(bloodGroup) != null) 'bloodGroup': given(bloodGroup),
           if (given(emergencyContactName) != null)
@@ -103,6 +252,9 @@ class RegistrationController extends GetxController {
   /// every field they could see. The path is the half that says where to look.
   static const Map<String, String> _fieldLabels = {
     'studentFirstName': 'your child’s name',
+    'motherPhone': 'the mother’s mobile number',
+    'phoneChallengeId': 'the code sent to your mobile',
+    'emailChallengeId': 'the code sent to your email',
     'studentMiddleName': 'the father’s name',
     'studentLastName': 'your child’s surname',
     'studentDateOfBirth': 'your child’s date of birth',
@@ -130,6 +282,9 @@ class RegistrationController extends GetxController {
   /// verbatim.
   @visibleForTesting
   static String messageFor(DioException e) {
+    final outOfStep = _outOfStep(e);
+    if (outOfStep != null) return outOfStep;
+
     final data = e.response?.data;
 
     if (data is Map && data['error'] is Map) {
@@ -166,6 +321,23 @@ class RegistrationController extends GetxController {
   /// app" once, to somebody holding the newest app there was, while the school's
   /// own server was the stale one; they had no way to know that and nothing
   /// they could do about it either way.
+  /// A refusal that is not about a field at all.
+  ///
+  /// A public route answering "not found" means the school's server does not
+  /// have it — an app talking to a system older than itself. Saying so is the
+  /// only useful thing: nobody holding the phone can fix it, and "No route for
+  /// POST /api/v1/..." tells a parent nothing.
+  static String? _outOfStep(DioException e) {
+    final status = e.response?.statusCode;
+    final path = e.requestOptions.path;
+
+    if ((status == 404 || status == 401) && path.startsWith('/public/')) {
+      return 'The school’s system has not been updated for this app yet. '
+          'Please tell the school office.';
+    }
+    return null;
+  }
+
   static String _fieldMessage(String? path, String message) {
     final label = _fieldLabels[path];
     final required = message.toLowerCase() == 'required';

@@ -78,6 +78,65 @@ String _encode(Map<String, dynamic> body) {
 }
 
 void main() {
+  group('registering with nobody signed in', () {
+    test(
+      'sends no token to a public route, and keeps the session on a 401',
+      () async {
+        // The bug this is here for: a parent part-way through registering tapped
+        // Continue, and the app threw them out to the sign-in screen. The phone
+        // still held a token from an earlier sign-in, the server did not have the
+        // route yet and answered 401 for it, and the app read that as "your
+        // session has ended" — cleared the tokens and navigated away from a form
+        // that was half filled in. There was no session involved at all.
+        final tokens = _MemoryTokenStore(access: 'left-over', refresh: 'old');
+
+        String? sentAuthorisation;
+        var refreshCalls = 0;
+        var expired = 0;
+
+        final adapter = _ScriptedAdapter((options) async {
+          sentAuthorisation = options.headers['authorization'] as String?;
+          return _json({
+            'error': {
+              'code': 'UNAUTHENTICATED',
+              'message': 'Missing bearer token',
+            },
+          }, 401);
+        });
+
+        final refreshAdapter = _ScriptedAdapter((options) async {
+          refreshCalls += 1;
+          return _json({
+            'error': {'code': 'INVALID_REFRESH', 'message': 'no'},
+          }, 401);
+        });
+
+        final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+          ..httpClientAdapter = adapter;
+        final refreshDio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+          ..httpClientAdapter = refreshAdapter;
+
+        final client = ApiClient(tokens, dio: dio, refreshDio: refreshDio)
+          ..onSessionExpired = () => expired += 1;
+
+        await expectLater(
+          client.post<Map<String, dynamic>>(
+            '/public/schools/sunrise/otp/send',
+            body: {'channel': 'PHONE', 'destination': '+919820000000'},
+          ),
+          throwsA(isA<DioException>()),
+        );
+
+        // Nothing public is authenticated, so nothing was sent.
+        expect(sentAuthorisation, isNull);
+        // And nothing was concluded about a session that was not involved.
+        expect(expired, 0);
+        expect(refreshCalls, 0);
+        expect(await tokens.accessToken, 'left-over');
+      },
+    );
+  });
+
   group('token rotation', () {
     test('refreshes once when several requests fail together', () async {
       // A cold start fires four requests at once. The API rotates refresh

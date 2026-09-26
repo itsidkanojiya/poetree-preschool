@@ -1,11 +1,19 @@
 import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { submitRegistrationSchema, type SubmitRegistrationInput } from '@poetree/shared';
+import {
+  sendOtpSchema,
+  submitRegistrationSchema,
+  verifyOtpSchema,
+  type SendOtpInput,
+  type SubmitRegistrationInput,
+  type VerifyOtpInput,
+} from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { body, params, validate } from '../middleware/validate.js';
 import { env } from '../config/env.js';
 import * as registrationService from '../services/registration.service.js';
+import * as otpService from '../services/otp.service.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { sendStoredFile } from '../lib/sendStoredFile.js';
@@ -143,6 +151,59 @@ const registrationLimiter = rateLimit({
     },
   },
 });
+
+/**
+ * Sending a code costs the school money and rings somebody's phone, so this is
+ * the tightest ceiling on the public surface. Six is a family mistyping their
+ * number twice and asking again, which is the most anyone honest will do.
+ */
+const otpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 6,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many codes requested. Try again in an hour.',
+    },
+  },
+});
+
+/**
+ * A code to the number that will sign in, or to the address beside it. Sent
+ * before the form, not after.
+ */
+publicRouter.post(
+  '/schools/:code/otp/send',
+  otpLimiter,
+  validate({ params: codeParamSchema, body: sendOtpSchema }),
+  asyncHandler(async (req: Request, res) => {
+    const { code } = params<{ code: string }>(req);
+    const input = body<SendOtpInput>(req);
+
+    const school = await registrationService.registeringSchool(code);
+    res
+      .status(202)
+      .json(await otpService.sendChallenge(school.id, input.channel, input.destination));
+  }),
+);
+
+/** Typing it back. Answers the same way whatever is wrong with it. */
+publicRouter.post(
+  '/schools/:code/otp/verify',
+  otpLimiter,
+  validate({ params: codeParamSchema, body: verifyOtpSchema }),
+  asyncHandler(async (req: Request, res) => {
+    const { code } = params<{ code: string }>(req);
+    const input = body<VerifyOtpInput>(req);
+
+    const school = await registrationService.registeringSchool(code);
+    await otpService.verifyChallenge(school.id, input.challengeId, input.code);
+    res.json({ verified: true });
+  }),
+);
 
 publicRouter.post(
   '/schools/:code/registrations',

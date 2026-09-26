@@ -14,7 +14,7 @@ import { ApiError } from '../lib/apiError.js';
 import { hashPassword } from '../lib/password.js';
 import { isSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLog } from './audit.service.js';
-import { consumeVerifiedChallenge } from './otp.service.js';
+import { consumeVerifiedChallenges } from './otp.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
 import { studentName } from '../lib/names.js';
@@ -164,8 +164,12 @@ export async function submitRegistration(
   // open two accounts, and each checked against what is ON the form — a family
   // that proves one number and types another would leave the school ringing a
   // phone nobody had answered for.
-  await consumeVerifiedChallenge(school.id, 'PHONE', input.phoneChallengeId, input.phone);
-  await consumeVerifiedChallenge(school.id, 'EMAIL', input.emailChallengeId, input.email);
+  await consumeVerifiedChallenges(school.id, {
+    phoneChallengeId: input.phoneChallengeId,
+    phone: input.phone,
+    emailChallengeId: input.emailChallengeId,
+    email: input.email,
+  });
 
   // Already has an account: they want to sign in, not register. Saying so is
   // more use than "phone already taken".

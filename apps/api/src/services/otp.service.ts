@@ -220,12 +220,12 @@ export async function verifyChallenge(
  *
  * Marked used in the same breath, so one proof cannot open two accounts.
  */
-export async function consumeVerifiedChallenge(
+async function findVerified(
   schoolId: string,
   channel: OtpChannel,
   challengeId: string,
   destination: string,
-): Promise<void> {
+): Promise<string> {
   const notVerified = ApiError.badRequest(
     channel === 'PHONE'
       ? 'Please confirm your mobile number with the code we sent before sending this.'
@@ -245,8 +245,40 @@ export async function consumeVerifiedChallenge(
     throw notVerified;
   }
 
-  await prismaUnscoped.otpChallenge.update({
-    where: { id: challenge.id },
+  return challenge.id;
+}
+
+/**
+ * Spend both proofs on one registration, or neither.
+ *
+ * Checked before either is marked, because spending the number and then
+ * refusing the address would send a family back to confirm a number they had
+ * already confirmed — for a mistake in the other field.
+ */
+export async function consumeVerifiedChallenges(
+  schoolId: string,
+  proofs: {
+    phoneChallengeId: string;
+    phone: string;
+    emailChallengeId: string;
+    email: string;
+  },
+): Promise<void> {
+  const phoneId = await findVerified(
+    schoolId,
+    'PHONE',
+    proofs.phoneChallengeId,
+    proofs.phone,
+  );
+  const emailId = await findVerified(
+    schoolId,
+    'EMAIL',
+    proofs.emailChallengeId,
+    proofs.email,
+  );
+
+  await prismaUnscoped.otpChallenge.updateMany({
+    where: { id: { in: [phoneId, emailId] } },
     data: { usedAt: new Date() },
   });
 }

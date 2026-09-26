@@ -38,10 +38,10 @@ describe.skipIf(!dbUp)('parent registration', () => {
     studentMiddleName: 'Nikhil',
     studentLastName: 'Joshi',
     studentDateOfBirth: '2021-04-09',
-    // The second number, and an email: both required since the form stopped
-    // asking a family to identify themselves separately from their child.
+    // The second number: required since the form stopped asking a family to
+    // identify themselves separately from their child. The email is filled in
+    // by `submit` below, one per family.
     motherPhone: '+919820007777',
-    email: 'family@example.test',
     guardianName: 'Nikhil Joshi',
     phone: '+919820007001',
     password: 'Family@2026',
@@ -76,7 +76,11 @@ describe.skipIf(!dbUp)('parent registration', () => {
   /** The whole journey: prove both, then send the form with both proofs. */
   const submit = async (schoolCode: string, body: Record<string, unknown>) => {
     const phone = String(body.phone ?? '+919820007001');
-    const email = String(body.email ?? 'family@example.test');
+    // One address per family, derived from their number. Sharing one across
+    // the suite would be fine until the first approval created an account with
+    // it — and then every later registration would be refused as an account
+    // that already exists, which is correct behaviour and a useless test.
+    const email = String(body.email ?? `${phone.replace(/[^0-9]/g, '')}@example.test`);
 
     const phoneChallengeId =
       body.phoneChallengeId ?? (await verifiedChallenge(schoolCode, 'PHONE', phone));
@@ -85,7 +89,7 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     return api
       .post(`${BASE}/public/schools/${schoolCode}/registrations`)
-      .send({ ...body, phoneChallengeId, emailChallengeId });
+      .send({ ...body, email, phoneChallengeId, emailChallengeId });
   };
 
   beforeAll(async () => {

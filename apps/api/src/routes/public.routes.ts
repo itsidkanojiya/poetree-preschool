@@ -26,13 +26,13 @@ import { sendStoredFile } from '../lib/sendStoredFile.js';
  * so the request cannot carry a token, and a successful reply says only that
  * the request was received.
  *
- * Its refusals do say more than that, and deliberately: a wrong admission
- * number is told it is wrong, and a phone that already has an account is told
- * to sign in instead. Both are real disclosures — somebody working through
- * guessed admission numbers learns which exist. The alternative is a parent who
- * mistyped one digit having no way to find out, and they are the far more
- * likely caller. The rate limiter below is what makes that trade payable;
- * see submitRegistration for the reasoning in full.
+ * Its refusals do say more than that, and deliberately: a phone that already
+ * has an account is told to sign in instead, and one with a request already
+ * waiting is told that too. Both are real disclosures — somebody working
+ * through numbers learns which have accounts at this school. The alternative is
+ * a parent who has forgotten they already registered having no way to find out,
+ * and they are the far more likely caller. The rate limiter below is what makes
+ * that trade payable; see submitRegistration for the reasoning in full.
  */
 export const publicRouter = Router();
 

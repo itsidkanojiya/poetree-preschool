@@ -210,13 +210,13 @@ class LoginView extends GetView<AuthController> {
                     ),
                     const SizedBox(height: 6),
                     OutlinedButton(
-                      onPressed: () => Get.toNamed<void>(AppRoutes.registration),
+                      onPressed: () =>
+                          Get.toNamed<void>(AppRoutes.registration),
                       child: const Text('Register with the school'),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Your child must already be enrolled. You will need their '
-                      'admission number.',
+                      'The school checks your details and opens your account.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,

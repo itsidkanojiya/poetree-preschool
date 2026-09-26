@@ -24,12 +24,12 @@ describe.skipIf(!dbUp)('parent registration', () => {
   let school: TestSchool;
   let other: TestSchool;
   let admin: Session;
-  let admissionNo: string;
+  let seededChild: { name: string; dateOfBirth: string; admissionNo: string };
 
   /** The form as a real family fills it in. */
   const form = (overrides: Record<string, unknown> = {}) => ({
-    admissionNo,
     studentName: 'Aarav Joshi',
+    studentDateOfBirth: '2021-04-09',
     guardianName: 'Meera Joshi',
     relation: 'MOTHER',
     phone: '+919820007001',
@@ -52,9 +52,13 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     const student = await prismaUnscoped.student.findUniqueOrThrow({
       where: { id: school.studentId },
-      select: { admissionNo: true },
+      select: { firstName: true, lastName: true, dateOfBirth: true, admissionNo: true },
     });
-    admissionNo = student.admissionNo;
+    seededChild = {
+      name: [student.firstName, student.lastName].filter(Boolean).join(' '),
+      dateOfBirth: student.dateOfBirth.toISOString(),
+      admissionNo: student.admissionNo,
+    };
   });
 
   afterAll(async () => {
@@ -75,8 +79,27 @@ describe.skipIf(!dbUp)('parent registration', () => {
     expect(account).toBeNull();
   });
 
-  it('refuses a child the school has never heard of', async () => {
-    const wrong = await submit('alpha', form({ admissionNo: 'NOT-A-REAL-ONE' }));
+  it('takes a family whose child the school has never heard of', async () => {
+    // The whole point of the change: a family joining the school has no
+    // admission number, because the office has not issued one yet.
+    const newcomer = await submit(
+      'beta',
+      form({ phone: '+919820007009', studentName: 'Nobody Onroll' }),
+    );
+
+    expect(newcomer.status).toBe(202);
+
+    const waiting = await prismaUnscoped.parentRegistration.findFirstOrThrow({
+      where: { phone: '+919820007009' },
+      select: { studentId: true, admissionNo: true, studentDateOfBirth: true },
+    });
+    expect(waiting.studentId).toBeNull();
+    expect(waiting.admissionNo).toBeNull();
+    expect(waiting.studentDateOfBirth).not.toBeNull();
+  });
+
+  it('refuses a registration with no child named', async () => {
+    const wrong = await submit('alpha', form({ studentName: '' }));
 
     expect(wrong.status).toBe(404);
     expect(wrong.body.error.message).toContain('admission number');
@@ -143,11 +166,34 @@ describe.skipIf(!dbUp)('parent registration', () => {
       (r: { phone: string }) => r.phone === '+919820007001',
     );
 
-    // Both halves, because the screen exists to compare them: a name that does
-    // not match the admission number is exactly what it is there to catch.
+    // Nothing is claimed any more, so there is nothing to compare it against
+    // until the office decides.
     expect(row.studentName).toBe('Aarav Joshi');
-    expect(row.student.admissionNo).toBe(admissionNo);
-    expect(row.student.name).toBeTruthy();
+    expect(row.student).toBeNull();
+    expect(row.admissionNo).toBeNull();
+    expect(Array.isArray(row.matches)).toBe(true);
+  });
+
+  it('offers the office the children it might be', async () => {
+    // A family registering for a child already on the roll — a sibling, or one
+    // the office entered last week. The screen should put them in front of the
+    // office rather than make them go and search.
+    const sibling = await submit(
+      'alpha',
+      form({
+        phone: '+919820007011',
+        studentName: seededChild.name,
+        studentDateOfBirth: seededChild.dateOfBirth,
+      }),
+    );
+    expect(sibling.status).toBe(202);
+
+    const listed = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const row = listed.body.items.find((r: { phone: string }) => r.phone === '+919820007011');
+
+    expect(row.matches.length).toBeGreaterThan(0);
+    expect(row.matches.map((m: { id: string }) => m.id)).toContain(school.studentId);
+    expect(row.matches[0].admissionNo).toBeTruthy();
   });
 
   it('creates the account, links the child, and lets the family in', async () => {
@@ -158,9 +204,13 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     const approved = await api
       .post(`${BASE}/registrations/${waiting.id}/approve`)
-      .set(auth(admin));
+      .set(auth(admin))
+      .send({ mode: 'LINK', studentId: school.studentId });
     expect(approved.status).toBe(200);
     expect(approved.body.status).toBe('APPROVED');
+    // The decided row says what was decided.
+    expect(approved.body.student.id).toBe(school.studentId);
+    expect(approved.body.admissionNo).toBe(seededChild.admissionNo);
 
     const user = await prismaUnscoped.user.findFirstOrThrow({
       where: { phone: '+919820007001' },
@@ -190,9 +240,72 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     const again = await api
       .post(`${BASE}/registrations/${listed.body.items[0].id}/approve`)
-      .set(auth(admin));
+      .set(auth(admin))
+      .send({ mode: 'LINK', studentId: school.studentId });
 
     expect(again.status).toBe(409);
+  });
+
+  it('creates the child and issues the number when the office says so', async () => {
+    const sent = await submit(
+      'alpha',
+      form({ phone: '+919820007013', studentName: 'Ishaan Newcomer' }),
+    );
+    expect(sent.status).toBe(202);
+
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const waiting = queue.body.items.find(
+      (r: { phone: string }) => r.phone === '+919820007013',
+    );
+
+    const approved = await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'CREATE', gender: 'MALE' });
+
+    expect(approved.status).toBe(200);
+    // Issued from the school's own series, not typed by the family.
+    expect(approved.body.admissionNo).toMatch(/^ADM-\d+$/);
+
+    const child = await prismaUnscoped.student.findUniqueOrThrow({
+      where: { id: approved.body.student.id },
+      select: { firstName: true, lastName: true, dateOfBirth: true, schoolId: true },
+    });
+    expect(child.firstName).toBe('Ishaan');
+    expect(child.lastName).toBe('Newcomer');
+    expect(child.schoolId).toBe(school.id);
+    // The birthday the family gave, not today.
+    expect(child.dateOfBirth.toISOString().slice(0, 10)).toBe('2021-04-09');
+
+    // And the family can sign in and see that child.
+    const parent = await api
+      .post(`${BASE}/auth/login`)
+      .send({ identifier: '+919820007013', password: 'Family@2026' });
+    expect(parent.status).toBe(200);
+
+    const children = await api
+      .get(`${BASE}/me/children`)
+      .set({ Authorization: `Bearer ${parent.body.accessToken}` });
+    expect(children.status).toBe(200);
+    expect(JSON.stringify(children.body)).toContain(approved.body.student.id);
+  });
+
+  it('will not link a child belonging to another school', async () => {
+    const sent = await submit('alpha', form({ phone: '+919820007015' }));
+    expect(sent.status).toBe(202);
+
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const waiting = queue.body.items.find(
+      (r: { phone: string }) => r.phone === '+919820007015',
+    );
+
+    const refused = await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'LINK', studentId: other.studentId });
+
+    // 404, like every other cross-tenant read.
+    expect(refused.status).toBe(404);
   });
 
   it('fills a blank on the child but never writes over the office', async () => {
@@ -207,15 +320,9 @@ describe.skipIf(!dbUp)('parent registration', () => {
       },
     });
 
-    const child = await prismaUnscoped.student.findUniqueOrThrow({
-      where: { id: other.studentId },
-      select: { admissionNo: true },
-    });
-
     const sent = await submit(
       'beta',
       form({
-        admissionNo: child.admissionNo,
         phone: '+919820007003',
         bloodGroup: 'O+',
         emergencyContactName: 'A parent’s guess',
@@ -226,9 +333,13 @@ describe.skipIf(!dbUp)('parent registration', () => {
 
     const neighbour = await login(other.adminEmail);
     const queue = await api.get(`${BASE}/registrations`).set(auth(neighbour));
+    const waiting = queue.body.items.find(
+      (r: { phone: string }) => r.phone === '+919820007003',
+    );
     await api
-      .post(`${BASE}/registrations/${queue.body.items[0].id}/approve`)
-      .set(auth(neighbour));
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(neighbour))
+      .send({ mode: 'LINK', studentId: other.studentId });
 
     const after = await prismaUnscoped.student.findUniqueOrThrow({
       where: { id: other.studentId },

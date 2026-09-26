@@ -20,6 +20,7 @@ import {
   listRegistrationsQuerySchema,
   setSchoolLogoSchema,
   updateSchoolProfileSchema,
+  approveRegistrationSchema,
   rejectRegistrationSchema,
   setPasswordSchema,
   updateTeacherSchema,
@@ -42,6 +43,7 @@ import type {
   ListRegistrationsQuery,
   SetSchoolLogoInput,
   UpdateSchoolProfileInput,
+  ApproveRegistrationInput,
   RejectRegistrationInput,
   SetPasswordInput,
 } from '@poetree/shared';
@@ -439,9 +441,15 @@ schoolAdminRouter.get(
 
 schoolAdminRouter.post(
   '/registrations/:id/approve',
-  validate({ params: idParamSchema }),
+  validate({ params: idParamSchema, body: approveRegistrationSchema }),
   asyncHandler(async (req, res) => {
-    res.json(await registrationService.approveRegistration(idOf(req), req.auth!.userId));
+    res.json(
+      await registrationService.approveRegistration(
+        idOf(req),
+        body<ApproveRegistrationInput>(req),
+        req.auth!.userId,
+      ),
+    );
   }),
 );
 

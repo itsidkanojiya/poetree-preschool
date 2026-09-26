@@ -7,14 +7,16 @@ import 'registration_controller.dart';
 
 /// A parent registering themselves.
 ///
-/// The form asks for one thing that proves the family belongs here — the
-/// child's admission number, which only the school can have issued — and then
-/// for who the guardian is. It does not ask which school: this binary belongs
-/// to one, and its name is on the screen above.
+/// The form asks who the child is and who the guardian is, and nothing else.
+/// It used to demand the child's admission number, which meant a family could
+/// only register if the office had already handed them one — the wrong way
+/// round for a family joining the school. The office issues that number when it
+/// approves, and until then this is a request, not a claim.
 ///
-/// It does not ask for a photograph either. Uploading one would mean accepting
-/// files from somebody with no account, and the school already has the child on
-/// its roll: the photograph on their record is the one that goes on the ID card.
+/// It does not ask which school: this binary belongs to one, and its name is on
+/// the screen above. It does not ask for a photograph either — that would mean
+/// accepting files from somebody with no account, and the office puts the
+/// child's photograph on their record itself.
 class RegistrationView extends GetView<RegistrationController> {
   const RegistrationView({super.key});
 
@@ -88,7 +90,6 @@ class _RegistrationForm extends StatefulWidget {
 class _RegistrationFormState extends State<_RegistrationForm> {
   final _formKey = GlobalKey<FormState>();
 
-  final _admissionNo = TextEditingController();
   final _studentName = TextEditingController();
   final _guardianName = TextEditingController();
   final _phone = TextEditingController();
@@ -103,13 +104,13 @@ class _RegistrationFormState extends State<_RegistrationForm> {
   final _emergencyPhone = TextEditingController();
 
   String _relation = 'MOTHER';
+  DateTime? _dateOfBirth;
   bool _declared = false;
   bool _accepted = false;
 
   @override
   void dispose() {
     for (final controller in [
-      _admissionNo,
       _studentName,
       _guardianName,
       _phone,
@@ -131,11 +132,45 @@ class _RegistrationFormState extends State<_RegistrationForm> {
   String? _required(String? value, String what) =>
       (value == null || value.trim().isEmpty) ? 'Enter $what' : null;
 
+  /// Shown only once they have tried to send, like the two tick boxes below —
+  /// scolding somebody for a field they have not reached yet is not help.
+  String? _dateOfBirthError;
+
+  static String _formatDate(DateTime value) =>
+      '${value.day.toString().padLeft(2, '0')}/'
+      '${value.month.toString().padLeft(2, '0')}/'
+      '${value.year}';
+
+  Future<void> _pickDateOfBirth() async {
+    final now = DateTime.now();
+    final chosen = await showDatePicker(
+      context: context,
+      // Opens on a plausible birthday for a preschool child rather than on
+      // today, which is nobody's.
+      initialDate: _dateOfBirth ?? DateTime(now.year - 4, now.month, now.day),
+      firstDate: DateTime(now.year - 20),
+      lastDate: now,
+      helpText: 'Child’s date of birth',
+    );
+
+    if (chosen == null) return;
+    setState(() {
+      _dateOfBirth = chosen;
+      _dateOfBirthError = null;
+    });
+  }
+
   Future<void> _submit() async {
     final registration = Get.find<RegistrationController>();
 
+    setState(() {
+      _dateOfBirthError = _dateOfBirth == null
+          ? 'Choose your child’s date of birth'
+          : null;
+    });
+
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (!_declared || !_accepted) {
+    if (_dateOfBirth == null || !_declared || !_accepted) {
       // Said where the boxes are rather than in a banner at the top, which on a
       // form this long is off the screen by the time you reach the button.
       setState(() {});
@@ -145,8 +180,8 @@ class _RegistrationFormState extends State<_RegistrationForm> {
     FocusScope.of(context).unfocus();
 
     await registration.submit(
-      admissionNo: _admissionNo.text,
       studentName: _studentName.text,
+      studentDateOfBirth: _dateOfBirth!,
       guardianName: _guardianName.text,
       relation: _relation,
       phone: _phone.text,
@@ -181,8 +216,9 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Your child must already be enrolled. The school checks what you '
-              'send against their records before your account is opened.',
+              'Tell us about your child and yourself. The school checks it '
+              'against their records and opens your account — you do not need '
+              'an admission number.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 20),
@@ -206,20 +242,33 @@ class _RegistrationFormState extends State<_RegistrationForm> {
 
             _Section(title: 'Your child'),
             TextFormField(
-              controller: _admissionNo,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Admission number',
-                helperText: 'On your child’s records. The school issued it.',
-              ),
-              validator: (v) => _required(v, 'the admission number'),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
               controller: _studentName,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Child’s full name'),
               validator: (v) => _required(v, 'your child’s name'),
+            ),
+            const SizedBox(height: 14),
+            // A picker rather than a typed date: a birthday typed as 04/09
+            // means two different days to two different people, and the office
+            // uses this to tell one child from another.
+            InkWell(
+              onTap: _pickDateOfBirth,
+              borderRadius: BorderRadius.circular(12),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Child’s date of birth',
+                  helperText: 'So the school can tell which child this is.',
+                  errorText: _dateOfBirthError,
+                ),
+                child: Text(
+                  _dateOfBirth == null
+                      ? 'Choose a date'
+                      : _formatDate(_dateOfBirth!),
+                  style: _dateOfBirth == null
+                      ? TextStyle(color: theme.hintColor)
+                      : null,
+                ),
+              ),
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -240,7 +289,9 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               initialValue: _relation,
-              decoration: const InputDecoration(labelText: 'You are the child’s'),
+              decoration: const InputDecoration(
+                labelText: 'You are the child’s',
+              ),
               items: const [
                 DropdownMenuItem(value: 'MOTHER', child: Text('Mother')),
                 DropdownMenuItem(value: 'FATHER', child: Text('Father')),
@@ -270,7 +321,9 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             TextFormField(
               controller: _address,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Address (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Address (optional)',
+              ),
             ),
 
             _Section(title: 'Parents'),

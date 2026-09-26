@@ -1,7 +1,9 @@
 import type {
+  ApproveRegistrationInput,
   ListRegistrationsQuery,
   Paginated,
   RegistrationSummary,
+  StudentMatch,
   SubmitRegistrationInput,
   SubmitRegistrationResponse,
 } from '@poetree/shared';
@@ -12,6 +14,8 @@ import { ApiError } from '../lib/apiError.js';
 import { hashPassword } from '../lib/password.js';
 import { isSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLog } from './audit.service.js';
+import { nextDocumentNumber } from './sequence.service.js';
+import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
 
 /**
  * A family asking their school for access, and the school deciding.
@@ -27,27 +31,43 @@ import { writeAuditLog } from './audit.service.js';
  *    found.
  */
 
-const registrationInclude = {
-  student: {
+const studentSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  admissionNo: true,
+  dateOfBirth: true,
+  photoFileId: true,
+  avatarUrl: true,
+  enrolments: {
+    where: { status: 'ACTIVE' as const },
+    take: 1,
+    orderBy: { enrolledOn: 'desc' as const },
     select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      admissionNo: true,
-      photoFileId: true,
-      avatarUrl: true,
-      enrolments: {
-        where: { status: 'ACTIVE' as const },
-        take: 1,
-        orderBy: { enrolledOn: 'desc' as const },
-        select: {
-          classroom: {
-            select: { section: true, classLevel: { select: { name: true } } },
-          },
-        },
+      classroom: {
+        select: { section: true, classLevel: { select: { name: true } } },
       },
     },
   },
+} satisfies Prisma.StudentSelect;
+
+type StudentRow = Prisma.StudentGetPayload<{ select: typeof studentSelect }>;
+
+function toMatch(student: StudentRow): StudentMatch {
+  const classroom = student.enrolments[0]?.classroom;
+
+  return {
+    id: student.id,
+    name: [student.firstName, student.lastName].filter(Boolean).join(' '),
+    admissionNo: student.admissionNo,
+    dateOfBirth: student.dateOfBirth.toISOString(),
+    classroom: classroom ? `${classroom.classLevel.name} — ${classroom.section}` : null,
+    photoUrl: student.photoFileId ? `/api/v1/files/${student.photoFileId}` : student.avatarUrl,
+  };
+}
+
+const registrationInclude = {
+  student: { select: studentSelect },
   reviewedBy: { select: { name: true } },
 } satisfies Prisma.ParentRegistrationInclude;
 
@@ -55,9 +75,7 @@ type RegistrationRow = Prisma.ParentRegistrationGetPayload<{
   include: typeof registrationInclude;
 }>;
 
-function toSummary(row: RegistrationRow): RegistrationSummary {
-  const classroom = row.student.enrolments[0]?.classroom;
-
+function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): RegistrationSummary {
   return {
     id: row.id,
     status: row.status,
@@ -70,23 +88,15 @@ function toSummary(row: RegistrationRow): RegistrationSummary {
 
     admissionNo: row.admissionNo,
     studentName: row.studentName,
+    studentDateOfBirth: row.studentDateOfBirth?.toISOString() ?? null,
     fatherName: row.fatherName,
     motherName: row.motherName,
     bloodGroup: row.bloodGroup,
     emergencyContactName: row.emergencyContactName,
     emergencyContactPhone: row.emergencyContactPhone,
 
-    student: {
-      id: row.student.id,
-      name: [row.student.firstName, row.student.lastName].filter(Boolean).join(' '),
-      admissionNo: row.student.admissionNo,
-      classroom: classroom
-        ? `${classroom.classLevel.name} — ${classroom.section}`
-        : null,
-      photoUrl: row.student.photoFileId
-        ? `/api/v1/files/${row.student.photoFileId}`
-        : row.student.avatarUrl,
-    },
+    student: row.student ? toMatch(row.student) : null,
+    matches,
 
     submittedAt: row.createdAt.toISOString(),
     reviewedAt: row.reviewedAt?.toISOString() ?? null,
@@ -102,16 +112,16 @@ function toSummary(row: RegistrationRow): RegistrationSummary {
 /**
  * A parent's own request to join, from the app, with nobody signed in.
  *
- * It claims a child the school has already enrolled. The admission number is
- * what makes that a claim rather than an application: the school issued it, so
- * a family holding one is a family the school has already met.
+ * It is a request, not a claim. It used to demand the child's admission number
+ * and resolve a pupil from it here, which meant a family could only register if
+ * the office had already handed them one — the wrong way round for a family
+ * joining the school. Nothing is checked against the roll any more, and nothing
+ * is created: the office decides which child this is, and issues the number,
+ * when it approves.
  *
- * Note what this tells a stranger. A wrong admission number gets a plain "we
- * could not find that", which does let somebody with a list of guessed numbers
- * learn which ones exist. The alternative — refusing to say — leaves a parent
- * who mistyped one digit with no way to work out what is wrong, which is the
- * more likely person by a very long way. The rate limiter on the route is what
- * makes the trade acceptable.
+ * What that costs is a queue anyone can put a row into. What keeps it harmless
+ * is that a row grants nothing, the route is rate limited, and somebody in the
+ * office reads every one before an account exists.
  */
 export async function submitRegistration(
   schoolCode: string,
@@ -128,21 +138,6 @@ export async function submitRegistration(
   if (!isSchoolUsable(school.status)) {
     throw ApiError.schoolSuspended(
       `${school.name} is not accepting registrations at the moment. Please contact the school.`,
-    );
-  }
-
-  const student = await prismaUnscoped.student.findFirst({
-    where: {
-      schoolId: school.id,
-      admissionNo: input.admissionNo,
-      deletedAt: null,
-    },
-    select: { id: true, firstName: true, lastName: true },
-  });
-  if (!student) {
-    throw ApiError.notFound(
-      'We could not find a child with that admission number at this school. ' +
-        'Check the number on your child’s records, or ask the school office.',
     );
   }
 
@@ -176,9 +171,12 @@ export async function submitRegistration(
   const registration = await prismaUnscoped.parentRegistration.create({
     data: {
       schoolId: school.id,
-      studentId: student.id,
-      admissionNo: input.admissionNo,
+      // No child and no number yet. The office decides which pupil this is —
+      // one already on the roll, or a record it creates — when it approves.
+      studentId: null,
+      admissionNo: null,
       studentName: input.studentName,
+      studentDateOfBirth: input.studentDateOfBirth,
 
       guardianName: input.guardianName,
       relation: input.relation,
@@ -205,7 +203,7 @@ export async function submitRegistration(
     schoolId: school.id,
     // Nobody is signed in. The actor is the family, who has no account yet.
     actorUserId: null,
-    metadata: { phone: input.phone, admissionNo: input.admissionNo },
+    metadata: { phone: input.phone, studentName: input.studentName },
   });
 
   return {
@@ -294,13 +292,52 @@ export async function listRegistrations(
     prisma.parentRegistration.count({ where }),
   ]);
 
+  // Only for the rows still waiting: a decided one has its child already, and
+  // a page of twenty would otherwise run twenty pointless queries.
+  const items = await Promise.all(
+    rows.map(async (row) =>
+      toSummary(row, row.status === 'PENDING' ? await matchesFor(row) : []),
+    ),
+  );
+
   return {
-    items: rows.map(toSummary),
+    items,
     page: query.page,
     pageSize: query.pageSize,
     total,
     totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
   };
+}
+
+/**
+ * Children already on the roll who might be the one described.
+ *
+ * Birthday first, because it is the one thing that distinguishes two children
+ * of the same name; then the name itself, which catches a sibling whose
+ * birthday the parent mistyped. Five at most — this is a prompt for the office,
+ * not a search results page.
+ */
+async function matchesFor(row: {
+  studentName: string;
+  studentDateOfBirth: Date | null;
+}): Promise<StudentMatch[]> {
+  const firstWord = row.studentName.trim().split(/\s+/)[0] ?? '';
+
+  const candidates = await prisma.student.findMany({
+    where: {
+      deletedAt: null,
+      OR: [
+        ...(row.studentDateOfBirth ? [{ dateOfBirth: row.studentDateOfBirth }] : []),
+        ...(firstWord.length >= 3
+          ? [{ firstName: { contains: firstWord } }, { lastName: { contains: firstWord } }]
+          : []),
+      ],
+    },
+    select: studentSelect,
+    take: 5,
+  });
+
+  return candidates.map(toMatch);
 }
 
 /** How many are waiting, for the badge on the nav. */
@@ -315,6 +352,13 @@ export async function pendingRegistrationCount(): Promise<number> {
  * guardian link — except the password hash was chosen by the family weeks ago
  * and has been sitting on the registration ever since.
  *
+ * The child comes from the office, not from the form. Either they point at a
+ * pupil already on the roll — a sibling, or a child the office entered while
+ * the request sat in the queue — or they have the record created here, with an
+ * admission number issued from the school's own series. Those are the two
+ * things that actually happen, and doing the second here saves the office
+ * entering the same child twice.
+ *
  * It also fills gaps on the child: blood group and emergency contact are
  * written only where the school holds nothing. A parent's word is better than
  * an empty column and worse than the office's own record, and this is the only
@@ -322,6 +366,7 @@ export async function pendingRegistrationCount(): Promise<number> {
  */
 export async function approveRegistration(
   registrationId: string,
+  input: ApproveRegistrationInput,
   actorUserId: string,
 ): Promise<RegistrationSummary> {
   const schoolId = requireSchoolId();
@@ -359,18 +404,59 @@ export async function approveRegistration(
     );
   }
 
-  const student = await prisma.student.findFirst({
-    where: { id: registration.studentId },
-    select: {
-      id: true,
-      bloodGroup: true,
-      emergencyContactName: true,
-      emergencyContactPhone: true,
-    },
-  });
-  if (!student) throw ApiError.notFound('The child on this registration is no longer here');
+  // Linking: the child must be one of this school's, which the scoped client
+  // settles — another school's id is simply not found.
+  const existing =
+    input.mode === 'LINK'
+      ? await prisma.student.findFirst({
+          where: { id: input.studentId, deletedAt: null },
+          select: {
+            id: true,
+            admissionNo: true,
+            bloodGroup: true,
+            emergencyContactName: true,
+            emergencyContactPhone: true,
+          },
+        })
+      : null;
 
-  const userId = await prisma.$transaction(async (tx) => {
+  if (input.mode === 'LINK' && !existing) {
+    throw ApiError.notFound('That child is no longer on the roll');
+  }
+
+  if (input.mode === 'CREATE') {
+    // A new child takes a seat, the same as one entered by hand.
+    await assertStudentSeatAvailable(schoolId);
+
+    if (input.admissionNo) {
+      const duplicate = await prisma.student.findFirst({
+        where: { admissionNo: input.admissionNo },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw ApiError.conflict('Admission number "' + input.admissionNo + '" is already in use', {
+          field: 'admissionNo',
+        });
+      }
+    }
+
+    if (input.classroomId) {
+      const classroom = await prisma.classroom.findFirst({
+        where: { id: input.classroomId },
+        select: { id: true },
+      });
+      if (!classroom) throw ApiError.notFound('Classroom not found');
+    }
+  }
+
+  // A class means an enrolment, and an enrolment needs a year to belong to.
+  const academicYearId =
+    input.mode === 'CREATE' && input.classroomId ? await currentAcademicYearId() : null;
+  if (input.mode === 'CREATE' && input.classroomId && !academicYearId) {
+    throw ApiError.badRequest('Set a current academic year before putting a child in a classroom.');
+  }
+
+  const { userId, student } = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {
         schoolId,
@@ -395,10 +481,68 @@ export async function approveRegistration(
       },
     });
 
+    // The child: the one pointed at, or a new record whose number is issued
+    // from the school's own series inside this same transaction, so a rollback
+    // takes the number back with it.
+    const child =
+      existing ??
+      (await (async () => {
+        const [firstName, ...rest] = registration.studentName.trim().split(/\s+/);
+        const admissionNo =
+          input.mode === 'CREATE' && input.admissionNo
+            ? input.admissionNo
+            : await nextDocumentNumber(tx, {
+                schoolId,
+                kind: 'ADMISSION',
+                academicYearId: null,
+                defaultPrefix: 'ADM-',
+              });
+
+        const created = await tx.student.create({
+          data: {
+            schoolId,
+            admissionNo,
+            admissionDate: new Date(),
+            firstName: firstName ?? registration.studentName,
+            lastName: rest.join(' ') || null,
+            // The birthday the family gave. A row from before the form asked
+            // for one falls back to today, which the office will correct —
+            // better than refusing to approve a family that did nothing wrong.
+            dateOfBirth: registration.studentDateOfBirth ?? new Date(),
+            gender: input.mode === 'CREATE' ? input.gender : 'OTHER',
+            bloodGroup: registration.bloodGroup,
+            emergencyContactName: registration.emergencyContactName,
+            emergencyContactPhone: registration.emergencyContactPhone,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+            admissionNo: true,
+            bloodGroup: true,
+            emergencyContactName: true,
+            emergencyContactPhone: true,
+          },
+        });
+
+        if (input.mode === 'CREATE' && input.classroomId && academicYearId) {
+          await tx.studentEnrolment.create({
+            data: {
+              schoolId,
+              studentId: created.id,
+              academicYearId,
+              classroomId: input.classroomId,
+              status: 'ACTIVE',
+            },
+          });
+        }
+
+        return created;
+      })());
+
     await tx.studentGuardian.create({
       data: {
         schoolId,
-        studentId: registration.studentId,
+        studentId: child.id,
         parentProfileId: profile.id,
         relation: registration.relation,
         isEmergencyContact: Boolean(registration.emergencyContactPhone),
@@ -407,25 +551,33 @@ export async function approveRegistration(
 
     // Only where the school holds nothing. Never over the office's own record.
     const fill: Prisma.StudentUpdateInput = {};
-    if (!student.bloodGroup && registration.bloodGroup) {
+    if (!child.bloodGroup && registration.bloodGroup) {
       fill.bloodGroup = registration.bloodGroup;
     }
-    if (!student.emergencyContactName && registration.emergencyContactName) {
+    if (!child.emergencyContactName && registration.emergencyContactName) {
       fill.emergencyContactName = registration.emergencyContactName;
     }
-    if (!student.emergencyContactPhone && registration.emergencyContactPhone) {
+    if (!child.emergencyContactPhone && registration.emergencyContactPhone) {
       fill.emergencyContactPhone = registration.emergencyContactPhone;
     }
     if (Object.keys(fill).length > 0) {
-      await tx.student.update({ where: { id: student.id }, data: fill });
+      await tx.student.update({ where: { id: child.id }, data: fill });
     }
 
     await tx.parentRegistration.update({
       where: { id: registrationId },
-      data: { status: 'APPROVED', reviewedById: actorUserId, reviewedAt: new Date() },
+      data: {
+        status: 'APPROVED',
+        reviewedById: actorUserId,
+        reviewedAt: new Date(),
+        // Which child this turned out to be, and the number it was given,
+        // written back so a decided row says what was decided.
+        studentId: child.id,
+        admissionNo: child.admissionNo,
+      },
     });
 
-    return user.id;
+    return { userId: user.id, student: child };
   });
 
   // After the transaction, as createParent does. The audit log is written
@@ -437,7 +589,12 @@ export async function approveRegistration(
     entityId: registrationId,
     schoolId,
     actorUserId,
-    after: { userId, studentId: registration.studentId },
+    after: {
+      userId,
+      studentId: student.id,
+      admissionNo: student.admissionNo,
+      mode: input.mode,
+    },
   });
 
   const approved = await prisma.parentRegistration.findUniqueOrThrow({

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
@@ -22,8 +23,8 @@ class RegistrationController extends GetxController {
   final isSent = false.obs;
 
   Future<void> submit({
-    required String admissionNo,
     required String studentName,
+    required DateTime studentDateOfBirth,
     required String guardianName,
     required String relation,
     required String phone,
@@ -51,8 +52,13 @@ class RegistrationController extends GetxController {
       await api.post<dynamic>(
         '/public/schools/${SchoolConfig.schoolCode}/registrations',
         body: {
-          'admissionNo': admissionNo.trim(),
           'studentName': studentName.trim(),
+          // Date only. The API takes the day, and a time zone on a birthday is
+          // how a child born on the 1st is recorded as the 31st.
+          'studentDateOfBirth': studentDateOfBirth.toIso8601String().substring(
+            0,
+            10,
+          ),
           'guardianName': guardianName.trim(),
           'relation': relation,
           'phone': phone.trim(),
@@ -76,18 +82,46 @@ class RegistrationController extends GetxController {
 
       isSent.value = true;
     } on DioException catch (e) {
-      errorMessage.value = _messageFor(e);
+      errorMessage.value = messageFor(e);
     } finally {
       isBusy.value = false;
     }
   }
 
+  /// What each field is called, in the words on the form.
+  ///
+  /// A validation failure arrives as a path and a message written for a
+  /// programmer — `{"path": "studentDateOfBirth", "message": "Required"}`. On
+  /// its own that message is the word "Required" in a red box, which tells a
+  /// parent nothing at all; it was on screen for a family who had filled in
+  /// every field they could see. The path is the half that says where to look.
+  static const Map<String, String> _fieldLabels = {
+    'studentName': 'your child’s name',
+    'studentDateOfBirth': 'your child’s date of birth',
+    'guardianName': 'your name',
+    'relation': 'how you are related to the child',
+    'phone': 'your mobile number',
+    'email': 'your email address',
+    'password': 'your password',
+    'confirmPassword': 'the repeated password',
+    'address': 'your address',
+    'bloodGroup': 'the blood group',
+    'fatherName': 'the father’s name',
+    'motherName': 'the mother’s name',
+    'emergencyContactName': 'the emergency contact’s name',
+    'emergencyContactPhone': 'the emergency contact’s number',
+    'declarationAccepted': 'the declaration',
+    'termsAccepted': 'the terms',
+  };
+
   /// The API's own words wherever it has any.
   ///
-  /// Its refusals are the useful part of this screen — a wrong admission number
-  /// and an account that already exists are the two things a family actually
-  /// gets wrong, and both come back with a sentence worth showing verbatim.
-  static String _messageFor(DioException e) {
+  /// Its refusals are the useful part of this screen — an account that already
+  /// exists, and a request already waiting, are the two things a family
+  /// actually runs into, and both come back with a sentence worth showing
+  /// verbatim.
+  @visibleForTesting
+  static String messageFor(DioException e) {
     final data = e.response?.data;
 
     if (data is Map && data['error'] is Map) {
@@ -97,11 +131,15 @@ class RegistrationController extends GetxController {
       if (details is List && details.isNotEmpty) {
         final first = details.first;
         if (first is Map && first['message'] != null) {
-          return first['message'].toString();
+          return _fieldMessage(
+            first['path']?.toString(),
+            first['message'].toString(),
+          );
         }
       }
 
-      return error['message']?.toString() ?? 'Could not send your registration.';
+      return error['message']?.toString() ??
+          'Could not send your registration.';
     }
 
     if (e.type == DioExceptionType.connectionTimeout ||
@@ -110,5 +148,28 @@ class RegistrationController extends GetxController {
     }
 
     return 'Could not send your registration. Please try again.';
+  }
+
+  /// One field's refusal, as a sentence.
+  ///
+  /// A field we know by name is named. One we do not — a version of the app
+  /// older than the API it is talking to, which is exactly when this is hardest
+  /// to work out — at least says that it is a field and not the family's fault.
+  static String _fieldMessage(String? path, String message) {
+    final label = _fieldLabels[path];
+    final required = message.toLowerCase() == 'required';
+
+    if (label == null) {
+      return required
+          ? 'The school needs something this version of the app did not ask '
+                'for ($path). Please update the app.'
+          : message;
+    }
+
+    if (required) return 'Please fill in $label.';
+
+    // Anything else is already a sentence written for a person — "The two
+    // passwords do not match" — and saying it twice would be worse.
+    return message.length > 24 ? message : 'Please check $label — $message.';
   }
 }

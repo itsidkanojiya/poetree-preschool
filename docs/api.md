@@ -33,7 +33,7 @@ Branch on `code`, never on `message`.
 | `SCHOOL_SUSPENDED` | 403 | The school's plan is off — **every** user is blocked |
 | `PORTAL_ACCESS_DENIED` | 403 | Teacher/parent attempting the admin portal |
 | `NOT_FOUND` | 404 | Missing — **also** what another school's records look like |
-| `CONFLICT` | 409 | Duplicate code, email, phone or admission number |
+| `CONFLICT` | 409 | Duplicate code, email, phone or admission number; a decision already taken |
 | `PLAN_LIMIT_EXCEEDED` | 422 | Seat limit on the school's plan reached |
 | `RATE_LIMITED` | 429 | Too many sign-in attempts |
 
@@ -127,6 +127,31 @@ Nothing here accepts a `schoolId`. It comes from the token.
 | `GET/POST` | `/academic-years` | |
 | `GET/POST` | `/classrooms` | `?academicYearId` |
 | `GET/PATCH` | `/classrooms/:id` | |
+| `GET` | `/registrations` | `?page&pageSize&search&status` — families who registered themselves |
+| `POST` | `/registrations/:id/approve` | Creates the account. Body says which child |
+| `POST` | `/registrations/:id/reject` | `{ reason? }` |
+
+## Registrations
+
+A family registers from the app with no account and **no admission number** —
+`POST /public/schools/:code/registrations`, which returns `202` and creates
+nothing. The office decides.
+
+Approving says which child the request is about, and that is the whole body:
+
+```json
+{ "mode": "LINK", "studentId": "…" }
+```
+```json
+{ "mode": "CREATE", "gender": "MALE", "classroomId": "…", "admissionNo": "SUN-042" }
+```
+
+`LINK` attaches the family to a pupil already on the roll — a sibling, or a
+child the office entered while the request waited. `CREATE` makes the record
+there and then from the name and date of birth the family gave; `admissionNo` is
+optional and is otherwise issued from the school's own `ADM-` series inside the
+same transaction. Each waiting row carries a `matches` list — children already
+here who look like the one described — so the office is choosing, not searching.
 
 `POST /students` requires at least one guardian:
 

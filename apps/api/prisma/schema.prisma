@@ -643,13 +643,16 @@ model ParentRegistration {
   id       String @id @default(cuid())
   schoolId String
 
-  /// The child being claimed, resolved from the admission number when the form
-  /// is submitted. Kept as a relation so a child who later leaves takes their
-  /// pending requests with them.
-  studentId   String
-  /// What the parent typed, kept alongside the resolved child so the office can
-  /// see the claim as it was made.
-  admissionNo String @db.VarChar(40)
+  /// The child, once the office has decided which one this is — an existing
+  /// pupil it linked to, or the record it created on approval. Null while the
+  /// request is waiting, because a family joining the school has no record yet.
+  ///
+  /// Kept as a relation so a child who later leaves takes their requests with
+  /// them.
+  studentId   String?
+  /// The admission number, once there is one. The office issues it on approval;
+  /// the form no longer asks a family to have one already.
+  admissionNo String? @db.VarChar(40)
 
   /// The guardian themselves — this becomes the User on approval.
   guardianName String           @db.VarChar(120)
@@ -661,12 +664,14 @@ model ParentRegistration {
 
   /// Declared about the child, for the office to check against its own records.
   /// Approval fills these onto the Student only where the school holds nothing.
-  studentName           String  @db.VarChar(120)
-  fatherName            String? @db.VarChar(120)
-  motherName            String? @db.VarChar(120)
-  bloodGroup            String? @db.VarChar(8)
-  emergencyContactName  String? @db.VarChar(120)
-  emergencyContactPhone String? @db.VarChar(20)
+  studentName           String    @db.VarChar(120)
+  /// Null on rows submitted before the form asked for it.
+  studentDateOfBirth    DateTime?
+  fatherName            String?   @db.VarChar(120)
+  motherName            String?   @db.VarChar(120)
+  bloodGroup            String?   @db.VarChar(8)
+  emergencyContactName  String?   @db.VarChar(120)
+  emergencyContactPhone String?   @db.VarChar(20)
 
   status          RegistrationStatus @default(PENDING)
   reviewedById    String?
@@ -676,9 +681,9 @@ model ParentRegistration {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school     School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  reviewedBy User?   @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User?    @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   /// The queue, and the duplicate checks, are both per school.
   ///

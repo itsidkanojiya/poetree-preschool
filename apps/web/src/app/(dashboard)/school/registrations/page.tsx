@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import type { Paginated, RegistrationSummary } from '@poetree/shared';
+import type { ClassroomSummary, Paginated, RegistrationSummary } from '@poetree/shared';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
@@ -19,10 +19,11 @@ const TABS: Array<{ key: string; label: string }> = [
 /**
  * Families who have asked to be let in.
  *
- * The screen exists to let somebody compare two things: what the parent typed,
- * and the child their admission number actually matched. A name that does not
- * match the number is exactly what this is here to catch, so both are on the
- * row rather than one.
+ * A request no longer names a child on the roll — a family joining the school
+ * has no admission number, because the office has not issued one yet. So the
+ * screen shows what the family said, and beside it the children already here
+ * who might be the same child. Deciding between those is the office's job, and
+ * this is where they do it.
  */
 export default async function RegistrationsPage({
   searchParams,
@@ -31,9 +32,14 @@ export default async function RegistrationsPage({
 }) {
   const { page = '1', search, status = 'PENDING' } = await searchParams;
 
-  const registrations = await apiFetch<Paginated<RegistrationSummary>>('/registrations', {
-    query: { page, pageSize: 20, search, status },
-  });
+  const [registrations, classrooms] = await Promise.all([
+    apiFetch<Paginated<RegistrationSummary>>('/registrations', {
+      query: { page, pageSize: 20, search, status },
+    }),
+    // Offered when the office creates the child on the spot. A preschool has a
+    // handful, so this is one small request rather than a search box.
+    apiFetch<ClassroomSummary[]>('/classrooms'),
+  ]);
 
   return (
     <>
@@ -84,13 +90,7 @@ export default async function RegistrationsPage({
           <>
             <Table>
               <THead
-                columns={[
-                  'Who is asking',
-                  'The child they claim',
-                  'What the school has',
-                  'Sent',
-                  '',
-                ]}
+                columns={['Who is asking', 'The child', 'On the roll', 'Sent', '']}
               />
               <tbody>
                 {registrations.items.map((row) => (
@@ -103,21 +103,46 @@ export default async function RegistrationsPage({
 
                     <TCell>
                       <span className="block text-sm text-navy-950">{row.studentName}</span>
-                      <span className="block text-xs text-slate-500">{row.admissionNo}</span>
+                      <span className="block text-xs text-slate-500">
+                        {row.studentDateOfBirth
+                          ? `Born ${new Date(row.studentDateOfBirth).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}`
+                          : 'No date of birth given'}
+                      </span>
                     </TCell>
 
-                    {/* The same child as the school's own roster has them. The
-                        two are side by side because the point is to compare. */}
+                    {/* Decided: the child it became. Waiting: who it might be,
+                        which is the question the office is about to answer. */}
                     <TCell>
-                      <span className="flex items-center gap-2">
-                        <Avatar name={row.student.name} size="sm" photoUrl={row.student.photoUrl} />
-                        <span>
-                          <span className="block text-sm text-navy-950">{row.student.name}</span>
-                          <span className="block text-xs text-slate-500">
-                            {row.student.classroom ?? 'Not in a class'}
+                      {row.student ? (
+                        <span className="flex items-center gap-2">
+                          <Avatar
+                            name={row.student.name}
+                            size="sm"
+                            photoUrl={row.student.photoUrl}
+                          />
+                          <span>
+                            <span className="block text-sm text-navy-950">
+                              {row.student.name}
+                            </span>
+                            <span className="block text-xs text-slate-500">
+                              {row.student.admissionNo}
+                              {row.student.classroom && <> · {row.student.classroom}</>}
+                            </span>
                           </span>
                         </span>
-                      </span>
+                      ) : (
+                        <span className="text-xs text-slate-500">
+                          {row.matches.length === 0
+                            ? 'New to the school'
+                            : `${row.matches.length} possible ${
+                                row.matches.length === 1 ? 'match' : 'matches'
+                              }`}
+                        </span>
+                      )}
                     </TCell>
 
                     <TCell>
@@ -135,7 +160,11 @@ export default async function RegistrationsPage({
                           registrationId={row.id}
                           guardianName={row.guardianName}
                           studentName={row.studentName}
-                          matchedName={row.student.name}
+                          matches={row.matches}
+                          classrooms={classrooms.map((classroom) => ({
+                            id: classroom.id,
+                            label: `${classroom.classLevel.name} — ${classroom.section}`,
+                          }))}
                         />
                       ) : (
                         <span className="flex flex-col gap-1">

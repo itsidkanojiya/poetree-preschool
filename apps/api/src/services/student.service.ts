@@ -77,7 +77,7 @@ function toSummary(student: StudentRow): StudentSummary {
 }
 
 /** The year new admissions are enrolled into. */
-async function currentAcademicYearId(): Promise<string | null> {
+export async function currentAcademicYearId(): Promise<string | null> {
   const year = await prisma.academicYear.findFirst({
     where: { isCurrent: true },
     select: { id: true },
@@ -146,7 +146,7 @@ async function assertClassroomBelongsToSchool(classroomId: string): Promise<void
   if (!classroom) throw ApiError.badRequest('That classroom does not exist at your school');
 }
 
-async function assertStudentSeatAvailable(schoolId: string): Promise<void> {
+export async function assertStudentSeatAvailable(schoolId: string): Promise<void> {
   const limits = await getPlanLimits(schoolId);
   if (limits?.maxStudents == null) return;
 

@@ -21,7 +21,12 @@ class ActivityListView extends GetView<ActivityListController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(controller.bookName ?? 'Things to do')),
+      appBar: AppBar(
+        title: Text(
+          controller.bookName ??
+              (controller.type == 'TRACING' ? 'Tracing' : 'Things to do'),
+        ),
+      ),
       body: Obx(() {
         final playable = controller.playable;
 

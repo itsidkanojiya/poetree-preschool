@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { idParamSchema } from '@poetree/shared';
+import { idParamSchema, idSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { params, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
 import * as idCards from '../services/idCard.service.js';
+import * as gallery from '../services/gallery.service.js';
 import { studentName } from '../lib/names.js';
 
 /**
@@ -126,6 +127,29 @@ meRouter.get(
  * Guarded by assertCanReadStudent inside the service, so a parent reaches their
  * own children and nobody else's.
  */
+/**
+ * The events this child's family may see: the whole school's, and their own
+ * class's. Guarded inside the service like the ID card — a parent reaches their
+ * own children and nobody else's.
+ */
+meRouter.get(
+  '/children/:id/gallery',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await gallery.eventsForChild(params<{ id: string }>(req).id));
+  }),
+);
+
+/** One event's photos. An event they may not see is not found, not forbidden. */
+meRouter.get(
+  '/children/:id/gallery/:eventId',
+  validate({ params: idParamSchema.extend({ eventId: idSchema }) }),
+  asyncHandler(async (req, res) => {
+    const { id, eventId } = params<{ id: string; eventId: string }>(req);
+    res.json(await gallery.eventForChild(id, eventId));
+  }),
+);
+
 meRouter.get(
   '/children/:id/id-card',
   validate({ params: idParamSchema }),

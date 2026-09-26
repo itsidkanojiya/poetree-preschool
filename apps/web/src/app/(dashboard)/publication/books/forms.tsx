@@ -1,7 +1,12 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import type { BookSummary, SchoolBookRow, StandardSummary } from '@poetree/shared';
+import type {
+  BookSubjectSummary,
+  BookSummary,
+  SchoolBookRow,
+  StandardSummary,
+} from '@poetree/shared';
 import {
   Field,
   FieldSet,
@@ -90,7 +95,43 @@ function ChapterRows() {
   );
 }
 
-export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
+/**
+ * Which subject a book is filed under. Optional: an unfiled book still shows in
+ * the app, under "More books", so leaving it blank loses nothing.
+ */
+function SubjectSelect({
+  subjects,
+  defaultValue,
+}: {
+  subjects: BookSubjectSummary[];
+  defaultValue?: string | null;
+}) {
+  return (
+    <Field
+      label="Subject"
+      hint="What the app files it under — English, Maths, EVS. Children open a subject, then its books."
+    >
+      <Select name="subjectId" defaultValue={defaultValue ?? ''}>
+        <option value="">Not filed yet</option>
+        {subjects
+          .filter((subject) => subject.isActive || subject.id === defaultValue)
+          .map((subject) => (
+            <option key={subject.id} value={subject.id}>
+              {subject.name}
+            </option>
+          ))}
+      </Select>
+    </Field>
+  );
+}
+
+export function NewBookForm({
+  standards,
+  subjects,
+}: {
+  standards: StandardSummary[];
+  subjects: BookSubjectSummary[];
+}) {
   const [state, formAction] = useActionState<BookState, FormData>(createBookAction, {});
 
   if (standards.length === 0) {
@@ -119,6 +160,7 @@ export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
             ))}
           </Select>
         </Field>
+        <SubjectSelect subjects={subjects} />
       </FieldSet>
 
       <ChapterRows />
@@ -142,7 +184,13 @@ export function NewBookForm({ standards }: { standards: StandardSummary[] }) {
  * The standard and the code are not editable on purpose — a book that changed
  * year or code mid-term would move under every school already using it.
  */
-export function BookDetailsForm({ book }: { book: BookSummary }) {
+export function BookDetailsForm({
+  book,
+  subjects,
+}: {
+  book: BookSummary;
+  subjects: BookSubjectSummary[];
+}) {
   const [state, formAction] = useActionState<BookState, FormData>(
     renameBookAction.bind(null, book.id),
     {},
@@ -162,6 +210,7 @@ export function BookDetailsForm({ book }: { book: BookSummary }) {
         <Field label="Standard" hint="Chosen when the book was added, and fixed.">
           <Input value={book.classLevel.name} disabled readOnly />
         </Field>
+        <SubjectSelect subjects={subjects} defaultValue={book.subject?.id} />
       </FieldSet>
 
       <SubmitButton pendingLabel="Saving…">Save</SubmitButton>

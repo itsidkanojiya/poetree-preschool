@@ -64,18 +64,23 @@ class ChildrenController extends GetxController {
   /// on the home tab has wasted the tap.
   final tab = 0.obs;
 
+  /// The child's own front page: their face, the big friendly buttons, and a
+  /// card for everything a family opens — homework, attendance, notices, the
+  /// gallery, fees. Attendance and homework used to be tabs of their own; on a
+  /// screen shared with a four-year-old, four tabs are easier to read than five.
   static const homeTab = 0;
 
   /// The books, which is the one thing here a child does rather than a parent
-  /// reads — so it gets a place of its own rather than a card on the home page.
-  static const learnTab = 1;
-  static const attendanceTab = 2;
-  static const homeworkTab = 3;
+  /// reads.
+  static const learningTab = 1;
 
-  /// Everything a parent looks up rather than checks: fees, notices, the
-  /// timetable, signing out. Money does not belong on the bottom bar of an app
-  /// a four-year-old is handed.
-  static const profileTab = 4;
+  /// How the child is getting on: skills, and films watched.
+  static const progressTab = 2;
+
+  /// Everything a parent looks up rather than checks: the child's details,
+  /// timetable, ID card, the app's settings, signing out. Money does not belong
+  /// on the bottom bar of an app a four-year-old is handed.
+  static const settingsTab = 3;
 
   Child? get selected {
     if (children.isEmpty) return null;

@@ -8,11 +8,16 @@ import '../../features/activities/chapter_list_view.dart';
 import '../../features/activities/book_shelf_view.dart';
 import '../../features/activities/activity_models.dart';
 import '../../features/activities/activity_play_view.dart';
+import '../../features/animation/film_books_view.dart';
+import '../../features/animation/film_chapters_view.dart';
+import '../../features/animation/film_controllers.dart';
+import '../../features/animation/film_subjects_view.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/change_password_view.dart';
 import '../../features/auth/login_view.dart';
 import '../../features/auth/registration_controller.dart';
 import '../../features/auth/registration_view.dart';
+import '../../features/gallery/gallery_view.dart';
 import '../../features/notifications/inbox_controller.dart';
 import '../../features/notifications/inbox_view.dart';
 import '../../features/parent/child_controller.dart';
@@ -84,6 +89,7 @@ class InboxBinding extends Bindings {
 class AppRoutes {
   static const login = '/login';
   static const changePassword = '/change-password';
+
   /// A parent registering themselves. Not `register`, which is the
   /// teacher's attendance register and got the name first.
   static const registration = '/registration';
@@ -100,6 +106,79 @@ class AppRoutes {
   static const activities = '/activities';
   static const activityPlay = '/activities/play';
   static const blocked = '/blocked';
+
+  /// 2D & 3D Animation: subject → book → chapter → film.
+  static const filmSubjects = '/films';
+  static const filmBooks = '/films/books';
+  static const filmChapters = '/films/chapters';
+
+  /// School events → one event's photos.
+  static const gallery = '/gallery';
+  static const galleryEvent = '/gallery/event';
+}
+
+class FilmSubjectsBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<FilmSubjectsController>(
+      FilmSubjectsController(
+        studentId: args['studentId'] as String?,
+        childName: args['childName'] as String? ?? '',
+      ),
+    );
+  }
+}
+
+class FilmBooksBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<FilmBooksController>(
+      FilmBooksController(
+        studentId: args['studentId'] as String?,
+        subjectId: args['subjectId'] as String?,
+        subjectName: args['subjectName'] as String? ?? 'Books',
+      ),
+    );
+  }
+}
+
+class FilmChaptersBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<FilmChaptersController>(
+      FilmChaptersController(
+        studentId: args['studentId'] as String?,
+        bookId: args['bookId'] as String?,
+        bookName: args['bookName'] as String? ?? 'Book',
+      ),
+    );
+  }
+}
+
+class GalleryBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<GalleryController>(
+      GalleryController(studentId: args['studentId'] as String?),
+    );
+  }
+}
+
+class GalleryEventBinding extends Bindings {
+  @override
+  void dependencies() {
+    final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    Get.put<GalleryEventController>(
+      GalleryEventController(
+        studentId: args['studentId'] as String?,
+        eventId: args['eventId'] as String?,
+      ),
+    );
+  }
 }
 
 class ActivityListBinding extends Bindings {
@@ -113,6 +192,7 @@ class ActivityListBinding extends Bindings {
         bookId: args['bookId'] as String?,
         bookName: args['bookName'] as String?,
         chapterId: args['chapterId'] as String?,
+        type: args['type'] as String?,
       ),
     );
   }
@@ -289,6 +369,35 @@ final appPages = <GetPage<dynamic>>[
     name: AppRoutes.activityPlay,
     page: () => const ActivityPlayView(),
     binding: ActivityPlayBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.filmSubjects,
+    page: () => const FilmSubjectsView(),
+    binding: FilmSubjectsBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.filmBooks,
+    page: () => const FilmBooksView(),
+    binding: FilmBooksBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.filmChapters,
+    page: () => const FilmChaptersView(),
+    binding: FilmChaptersBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.gallery,
+    page: () => const GalleryView(),
+    binding: GalleryBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.galleryEvent,
+    page: () => GalleryEventView(
+      title:
+          (Get.arguments as Map<String, dynamic>?)?['eventName'] as String? ??
+          'Photos',
+    ),
+    binding: GalleryEventBinding(),
   ),
   GetPage<void>(name: AppRoutes.blocked, page: () => const BlockedView()),
 ];

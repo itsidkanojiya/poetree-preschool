@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { StandardSummary } from '@poetree/shared';
+import type { BookSubjectSummary, StandardSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
@@ -9,7 +9,10 @@ import { NewBookForm } from '../forms';
 export const metadata: Metadata = { title: 'Add a book · Poetree Admin' };
 
 export default async function NewBookPage() {
-  const standards = await apiFetch<StandardSummary[]>('/publication/standards');
+  const [standards, subjects] = await Promise.all([
+    apiFetch<StandardSummary[]>('/publication/standards'),
+    apiFetch<BookSubjectSummary[]>('/publication/book-subjects'),
+  ]);
 
   return (
     <>
@@ -28,7 +31,7 @@ export default async function NewBookPage() {
       />
       <div className="max-w-3xl">
         <Card>
-          <NewBookForm standards={standards} />
+          <NewBookForm standards={standards} subjects={subjects} />
         </Card>
       </div>
     </>

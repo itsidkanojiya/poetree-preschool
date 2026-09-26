@@ -7,12 +7,19 @@ import { TabStrip } from '@/components/ui/tab-strip';
  * twice a year — which is a poor reason to spend a place in the sidebar. It
  * lives beside the books instead, one click from them.
  */
-export function CatalogueTabs({ current }: { current: 'books' | 'standards' }) {
+export function CatalogueTabs({
+  current,
+}: {
+  current: 'books' | 'subjects' | 'standards';
+}) {
   return (
     <TabStrip
       current={current}
       tabs={[
         { key: 'books', label: 'Books', href: '/publication/books' },
+        // Beside the books for the same reason as standards: edited rarely,
+        // and only ever in the context of the books filed under them.
+        { key: 'subjects', label: 'Subjects', href: '/publication/books/subjects' },
         { key: 'standards', label: 'Standards', href: '/publication/books/standards' },
       ]}
     />

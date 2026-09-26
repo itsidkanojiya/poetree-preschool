@@ -20,10 +20,80 @@ const bookCodeSchema = z
   .max(40)
   .regex(/^[A-Z][A-Z0-9_]{1,39}$/, 'Use capitals, digits and underscores, e.g. NUR_EVS');
 
+/* -------------------------------------------------------------------------- */
+/* Subjects                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The pictures the app knows how to draw for a subject.
+ *
+ * A fixed set of keys rather than uploaded images, so a subject added in the
+ * admin panel has a proper tile on the first day instead of a grey square.
+ */
+export const BOOK_SUBJECT_ICONS = [
+  'abc',
+  'numbers',
+  'globe',
+  'hindi',
+  'gujarati',
+  'bulb',
+  'music',
+  'phonics',
+  'book',
+] as const;
+export type BookSubjectIcon = (typeof BOOK_SUBJECT_ICONS)[number];
+
+export const createBookSubjectSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  /** Derived from the name when not given. */
+  code: bookCodeSchema.optional(),
+  icon: z.enum(BOOK_SUBJECT_ICONS).default('book'),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+export type CreateBookSubjectInput = z.infer<typeof createBookSubjectSchema>;
+
+export const updateBookSubjectSchema = createBookSubjectSchema
+  .omit({ code: true })
+  .partial()
+  .extend({ isActive: z.boolean().optional() });
+export type UpdateBookSubjectInput = z.infer<typeof updateBookSubjectSchema>;
+
+export interface BookSubjectSummary {
+  id: string;
+  code: string;
+  name: string;
+  icon: BookSubjectIcon;
+  sortOrder: number;
+  isActive: boolean;
+  /** Books filed under it, across every standard. */
+  bookCount: number;
+}
+
+/**
+ * A subject as a child's shelf shows it: only subjects with a book this child
+ * can open, and how much is waiting inside them.
+ */
+export interface SubjectForChild {
+  /** Null for the "More books" group — books nobody has filed yet. */
+  id: string | null;
+  name: string;
+  icon: BookSubjectIcon;
+  bookCount: number;
+  /** Chapters with a film, across its books. */
+  filmCount: number;
+  /** Of those, how many this child has not watched. */
+  filmsToWatch: number;
+}
+
 export const createBookSchema = z.object({
   /** Derived from the standard and the name when not given. */
   code: bookCodeSchema.optional(),
   name: z.string().trim().min(2).max(120),
+  /**
+   * What the book is about. Optional so an unfiled book still saves — it shows
+   * under "More books" in the app until somebody files it.
+   */
+  subjectId: idSchema.nullish(),
   classLevelId: idSchema,
   sortOrder: z.number().int().min(0).max(999).optional(),
   coverFileId: idSchema.nullish(),
@@ -39,6 +109,7 @@ export interface BookSummary {
   id: string;
   code: string;
   name: string;
+  subject: { id: string; name: string } | null;
   classLevel: { id: string; name: string };
   sortOrder: number;
   isActive: boolean;
@@ -71,6 +142,7 @@ export type SetSchoolBooksInput = z.infer<typeof setSchoolBooksSchema>;
 export interface BookForChild {
   id: string;
   name: string;
+  subject: { id: string; name: string; icon: BookSubjectIcon } | null;
   classLevel: { id: string; name: string };
   coverUrl: string | null;
   /**

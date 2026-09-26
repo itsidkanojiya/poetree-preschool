@@ -443,6 +443,9 @@ model School {
   auditLogs                AuditLog[]
   parentRegistrations      ParentRegistration[]
   otpChallenges            OtpChallenge[]
+  galleryEvents            GalleryEvent[]
+  galleryEventClassrooms   GalleryEventClassroom[]
+  galleryPhotos            GalleryPhoto[]
 
   @@index([publicationId])
   @@index([organisationId])
@@ -596,6 +599,7 @@ model User {
   suspendedSubscriptions   SchoolSubscription[] @relation("SubscriptionSuspender")
   reactivatedSubscriptions SchoolSubscription[] @relation("SubscriptionReactivator")
   reviewedRegistrations    ParentRegistration[] @relation("RegistrationReviewer")
+  galleryEventsCreated     GalleryEvent[]       @relation("GalleryEventCreator")
 
   @@unique([scopeKey, email], name: "user_scope_email")
   @@unique([scopeKey, phone], name: "user_scope_phone")
@@ -970,9 +974,9 @@ model Classroom {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school             School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  classLevel         ClassLevel          @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  school             School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear       AcademicYear            @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel         ClassLevel              @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
   /// Multiple staff per classroom: a class teacher, an assistant, and subject
   /// teachers all coexist without a schema change.
   teachers           ClassroomTeacher[]
@@ -980,6 +984,7 @@ model Classroom {
   attendanceSessions AttendanceSession[]
   homework           Homework[]
   posts              ClassroomPost[]
+  galleryEvents      GalleryEventClassroom[]
   timetableEntries   TimetableEntry[]
   noticeTargets      NoticeTarget[]
 
@@ -1748,10 +1753,42 @@ model Skill {
 /// "Nursery EVS", "Junior KG Phonics". It belongs to one standard and holds the
 /// question types a child plays. Publication-owned: there is no schoolId here,
 /// because a book has to mean the same thing at every school that bought it.
+/// What a book is about — English, Maths, EVS — so a child's shelf can be
+/// entered by subject rather than by title.
+///
+/// Its own list rather than the school's timetable `Subject`: that one belongs
+/// to each school and names what is taught on a Tuesday, and a school renaming
+/// "EVS" to "Our World" must not move the publisher's books. Publication-owned,
+/// like the books it groups, so no schoolId.
+///
+/// A subject has many books — English Book A, English Book B, the English
+/// Reader — which is why the app shows the books under a subject before the
+/// chapters under a book.
+model BookSubject {
+  id        String  @id @default(cuid())
+  code      String  @unique @db.VarChar(40)
+  name      String  @db.VarChar(80)
+  /// Which picture the app draws for it. A short key rather than an uploaded
+  /// image, so a subject added in the admin panel looks right on day one.
+  icon      String  @default("book") @db.VarChar(30)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books Book[]
+
+  @@map("book_subjects")
+}
+
 model Book {
   id           String  @id @default(cuid())
   code         String  @unique @db.VarChar(40)
   name         String  @db.VarChar(120)
+  /// Null for a book nobody has filed yet. It still appears on the shelf, under
+  /// "More books", rather than vanishing because a dropdown was left empty.
+  subjectId    String?
   classLevelId String
   sortOrder    Int     @default(0)
   coverFileId  String? @db.VarChar(191)
@@ -1761,12 +1798,15 @@ model Book {
   updatedAt DateTime @updatedAt
 
   classLevel ClassLevel     @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  /// SetNull: retiring a subject must not delete the books filed under it.
+  subject    BookSubject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   cover      FileObject?    @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
   activities ActivityBook[]
   chapters   Chapter[]
   schools    SchoolBook[]
 
   @@index([classLevelId, sortOrder])
+  @@index([subjectId])
   @@map("books")
 }
 
@@ -1821,27 +1861,33 @@ model ChapterAnimationView {
 }
 
 model Chapter {
-  id           String  @id @default(cuid())
-  bookId       String
-  name         String  @db.VarChar(160)
+  id             String  @id @default(cuid())
+  bookId         String
+  name           String  @db.VarChar(160)
   /// Printed on the page, and not the same as the order: a book can open with
   /// "Chapter 0: Getting ready".
-  number       Int?
-  sortOrder    Int     @default(0)
+  number         Int?
+  sortOrder      Int     @default(0)
   /// The film a child watches before this chapter's pages open.
   ///
   /// A chapter is what a book is actually divided into — "we're on chapter
   /// three" — so it is the unit a film introduces. One film for a whole book
   /// meant a single video standing in for everything between two covers.
-  animationUrl String? @db.VarChar(500)
+  animationUrl   String? @db.VarChar(500)
+  /// The same chapter made in 3D, when the publisher has one.
+  ///
+  /// A second link rather than a table of films: a chapter has at most one of
+  /// each, and the app only needs to know whether to offer the switch. The
+  /// link above stays the 2D one, so nothing already published changes.
+  animation3dUrl String? @db.VarChar(500)
   /// Optional picture for the chapter, drawn on the contents page in the app.
   ///
   /// Optional on purpose: a book of twelve chapters is twelve pictures to draw,
   /// and a chapter without one still has to look like something. The app falls
   /// back to the chapter's own colour, so a half-illustrated book is not a
   /// half-broken one.
-  coverFileId  String? @db.VarChar(191)
-  isActive     Boolean @default(true)
+  coverFileId    String? @db.VarChar(191)
+  isActive       Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1853,6 +1899,75 @@ model Chapter {
 
   @@index([bookId, sortOrder])
   @@map("chapters")
+}
+
+/// An occasion the school photographed — Sports Day, the Diwali assembly.
+///
+/// Parents see a gallery as a list of these, then the photos inside one. It is
+/// shown only to the classes the office chooses, because the photos are of
+/// other people's children: the Nursery trip is nothing to do with Senior KG,
+/// and a school must be able to keep it that way.
+model GalleryEvent {
+  id       String @id @default(cuid())
+  schoolId String
+
+  name        String    @db.VarChar(120)
+  eventDate   DateTime?
+  description String?   @db.VarChar(500)
+
+  /// Every family in the school, instead of the classes listed below. A choice
+  /// rather than a default, so nothing reaches the whole school by accident.
+  visibleToAll Boolean @default(false)
+
+  createdById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school     School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdBy  User?                   @relation("GalleryEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  classrooms GalleryEventClassroom[]
+  photos     GalleryPhoto[]
+
+  @@index([schoolId, eventDate])
+  @@map("gallery_events")
+}
+
+/// Which classes may see an event.
+model GalleryEventClassroom {
+  id          String @id @default(cuid())
+  schoolId    String
+  eventId     String
+  classroomId String
+
+  event     GalleryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  classroom Classroom    @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, classroomId])
+  @@index([schoolId, classroomId])
+  @@map("gallery_event_classrooms")
+}
+
+/// One photograph in an event. The bytes are a FileObject like any other
+/// upload; this row is what makes it part of the gallery, and orders it.
+model GalleryPhoto {
+  id        String  @id @default(cuid())
+  schoolId  String
+  eventId   String
+  fileId    String
+  caption   String? @db.VarChar(200)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  event  GalleryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  file   FileObject   @relation("GalleryPhotoFile", fields: [fileId], references: [id], onDelete: Cascade)
+  school School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, fileId])
+  @@index([schoolId, eventId, sortOrder])
+  @@map("gallery_photos")
 }
 
 model LearningActivity {
@@ -2088,6 +2203,7 @@ model FileObject {
   questionPrompts          ActivityQuestion[]        @relation("QuestionPrompt")
   optionImages             QuestionOption[]          @relation("OptionImage")
   studentPhotos            Student[]                 @relation("StudentPhoto")
+  galleryPhotos            GalleryPhoto[]            @relation("GalleryPhotoFile")
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   documents                StudentDocument[]
   homeworkAttachments      HomeworkAttachment[]

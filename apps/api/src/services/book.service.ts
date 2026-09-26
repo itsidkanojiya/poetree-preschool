@@ -1,7 +1,10 @@
 import type { Prisma } from '@prisma/client';
 import type {
   BookForChild,
+  BookSubjectIcon,
   BookSummary,
+  ChapterForChild,
+  SubjectForChild,
   CreateBookInput,
   SchoolBookRow,
   SetSchoolBooksInput,
@@ -27,6 +30,7 @@ import { writeAuditLog } from './audit.service.js';
 
 const bookInclude = {
   classLevel: { select: { id: true, name: true } },
+  subject: { select: { id: true, name: true } },
   _count: { select: { activities: true, schools: true } },
 } satisfies Prisma.BookInclude;
 
@@ -44,6 +48,7 @@ function toSummary(row: BookRow, enabledSchools: number): BookSummary {
     id: row.id,
     code: row.code,
     name: row.name,
+    subject: row.subject,
     classLevel: row.classLevel,
     sortOrder: row.sortOrder,
     isActive: row.isActive,
@@ -117,6 +122,7 @@ export async function createBook(
     data: {
       code,
       name: input.name,
+      subjectId: input.subjectId ?? null,
       classLevelId: input.classLevelId,
       sortOrder: input.sortOrder ?? (last?.sortOrder ?? 0) + 1,
       coverFileId: input.coverFileId ?? null,
@@ -166,6 +172,7 @@ export async function updateBook(
     where: { id },
     data: {
       name: input.name,
+      subjectId: input.subjectId,
       classLevelId: input.classLevelId,
       sortOrder: input.sortOrder,
       coverFileId: input.coverFileId,
@@ -349,7 +356,71 @@ async function classLevelOf(studentId: string): Promise<string | null> {
   return enrolment?.classroom.classLevelId ?? null;
 }
 
-export async function booksForChild(studentId: string): Promise<BookForChild[]> {
+/**
+ * The subjects on a child's shelf: only those with a book this child can open,
+ * in the publisher's order, with "More books" last for anything unfiled.
+ *
+ * Built from the child's own books rather than the subject list, so a subject
+ * the school has not bought — or that has nothing for this child's year — never
+ * appears as an empty tile.
+ */
+export async function subjectsForChild(studentId: string): Promise<SubjectForChild[]> {
+  const books = await booksForChild(studentId);
+  if (books.length === 0) return [];
+
+  const films = await prismaUnscoped.chapter.groupBy({
+    by: ['bookId'],
+    where: {
+      bookId: { in: books.map((book) => book.id) },
+      isActive: true,
+      OR: [{ animationUrl: { not: null } }, { animation3dUrl: { not: null } }],
+    },
+    _count: { _all: true },
+  });
+  const filmsIn = new Map(films.map((row) => [row.bookId, row._count._all]));
+
+  const subjects = await prismaUnscoped.bookSubject.findMany({
+    where: { id: { in: books.flatMap((book) => (book.subject ? [book.subject.id] : [])) } },
+    select: { id: true, sortOrder: true },
+  });
+  const order = new Map(subjects.map((subject) => [subject.id, subject.sortOrder]));
+
+  const groups = new Map<string, SubjectForChild>();
+  for (const book of books) {
+    const key = book.subject?.id ?? 'none';
+    const group = groups.get(key) ?? {
+      id: book.subject?.id ?? null,
+      name: book.subject?.name ?? 'More books',
+      icon: book.subject?.icon ?? 'book',
+      bookCount: 0,
+      filmCount: 0,
+      filmsToWatch: 0,
+    };
+    group.bookCount += 1;
+    group.filmCount += filmsIn.get(book.id) ?? 0;
+    group.filmsToWatch += book.filmsToWatch;
+    groups.set(key, group);
+  }
+
+  return [...groups.values()].sort((a, b) => {
+    // "More books" last; everything else in the publisher's order.
+    if (a.id === null) return 1;
+    if (b.id === null) return -1;
+    return (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999);
+  });
+}
+
+/**
+ * The books a child can open, optionally only those under one subject.
+ *
+ * `subjectId` of `'none'` is the "More books" group: books nobody has filed
+ * under a subject yet. Kept reachable on purpose — a book must not vanish from
+ * a child's shelf because a dropdown in the admin panel was left empty.
+ */
+export async function booksForChild(
+  studentId: string,
+  subjectId?: string,
+): Promise<BookForChild[]> {
   await assertCanReadStudent(studentId);
   const schoolId = requireSchoolId();
 
@@ -371,8 +442,12 @@ export async function booksForChild(studentId: string): Promise<BookForChild[]> 
         // year of it. Without this a Nursery child's shelf carries the Junior KG
         // workbook — work they have not been taught — next to their own.
         ...(classLevelId ? { classLevelId } : {}),
+        ...(subjectId === 'none' ? { subjectId: null } : subjectId ? { subjectId } : {}),
       },
-      include: { classLevel: { select: { id: true, name: true } } },
+      include: {
+        classLevel: { select: { id: true, name: true } },
+        subject: { select: { id: true, name: true, icon: true } },
+      },
       orderBy: [{ classLevel: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     }),
     prismaUnscoped.chapterAnimationView.findMany({
@@ -393,7 +468,8 @@ export async function booksForChild(studentId: string): Promise<BookForChild[]> 
     where: {
       bookId: { in: books.map((book) => book.id) },
       isActive: true,
-      animationUrl: { not: null },
+      // Either film counts: a chapter published only in 3D still has one.
+      OR: [{ animationUrl: { not: null } }, { animation3dUrl: { not: null } }],
     },
     select: { id: true, bookId: true },
   });
@@ -408,6 +484,9 @@ export async function booksForChild(studentId: string): Promise<BookForChild[]> 
     return {
       id: book.id,
       name: book.name,
+      subject: book.subject
+        ? { ...book.subject, icon: book.subject.icon as BookSubjectIcon }
+        : null,
       classLevel: book.classLevel,
       coverUrl: book.coverFileId ? `/api/v1/catalogue/assets/${book.coverFileId}` : null,
       /** How many films inside are still to watch. Zero means nothing waiting. */
@@ -462,17 +541,7 @@ export async function recordAnimationWatched(
 export async function chaptersForChild(
   studentId: string,
   bookId: string,
-): Promise<
-  Array<{
-    id: string;
-    name: string;
-    number: number | null;
-    animation: { videoId: string; url: string } | null;
-    /** The chapter's picture, or null — most chapters have none. */
-    coverUrl: string | null;
-    isUnlocked: boolean;
-  }>
-> {
+): Promise<ChapterForChild[]> {
   await assertCanReadStudent(studentId);
   const schoolId = requireSchoolId();
 
@@ -487,7 +556,14 @@ export async function chaptersForChild(
   const [chapters, watched] = await Promise.all([
     prismaUnscoped.chapter.findMany({
       where: { bookId, isActive: true },
-      select: { id: true, name: true, number: true, animationUrl: true, coverFileId: true },
+      select: {
+        id: true,
+        name: true,
+        number: true,
+        animationUrl: true,
+        animation3dUrl: true,
+        coverFileId: true,
+      },
       orderBy: { sortOrder: 'asc' },
     }),
     prismaUnscoped.chapterAnimationView.findMany({
@@ -500,13 +576,20 @@ export async function chaptersForChild(
 
   return chapters.map((chapter) => {
     const animation = toAnimation(chapter.animationUrl);
+    const animation3d = toAnimation(chapter.animation3dUrl);
+    const isWatched = seen.has(chapter.id);
     return {
       id: chapter.id,
       name: chapter.name,
       number: chapter.number,
-      animation,
+      // A chapter whose only film is the 3D one still has a film. The 2D slot
+      // is filled from it rather than left empty, so the app never shows "no
+      // film" for a chapter that has one.
+      animation: animation ?? animation3d,
+      animation3d: animation ? animation3d : null,
       coverUrl: chapter.coverFileId ? `/api/v1/catalogue/assets/${chapter.coverFileId}` : null,
-      isUnlocked: animation === null || seen.has(chapter.id),
+      isWatched,
+      isUnlocked: (animation === null && animation3d === null) || isWatched,
     };
   });
 }
@@ -517,7 +600,10 @@ export async function lockedChapterIdsFor(studentId: string): Promise<Set<string
 
   const [withFilm, watched] = await Promise.all([
     prismaUnscoped.chapter.findMany({
-      where: { isActive: true, animationUrl: { not: null } },
+      where: {
+        isActive: true,
+        OR: [{ animationUrl: { not: null } }, { animation3dUrl: { not: null } }],
+      },
       select: { id: true },
     }),
     prismaUnscoped.chapterAnimationView.findMany({

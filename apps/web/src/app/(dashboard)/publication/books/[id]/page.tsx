@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { BookSummary, CatalogueActivity, ChapterSummary, Paginated } from '@poetree/shared';
+import type {
+  BookSubjectSummary,
+  BookSummary,
+  CatalogueActivity,
+  ChapterSummary,
+  Paginated,
+} from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
@@ -23,12 +29,13 @@ export const metadata: Metadata = { title: 'Book · Poetree Admin' };
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [books, chapters, activities] = await Promise.all([
+  const [books, chapters, activities, subjects] = await Promise.all([
     apiFetch<BookSummary[]>('/publication/books'),
     apiFetch<ChapterSummary[]>(`/publication/books/${id}/chapters`),
     apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
       query: { bookId: id, pageSize: 100, includeInactive: 'true' },
     }),
+    apiFetch<BookSubjectSummary[]>('/publication/book-subjects'),
   ]);
 
   const book = books.find((row) => row.id === id);
@@ -122,7 +129,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <Card title="The book">
-          <BookDetailsForm book={book} />
+          <BookDetailsForm book={book} subjects={subjects} />
         </Card>
 
         <div className="space-y-4">

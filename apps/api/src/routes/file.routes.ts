@@ -124,7 +124,17 @@ fileRouter.post(
 async function assertMayRead(fileId: string): Promise<void> {
   const context = getRequestContext();
   if (!context) throw ApiError.unauthenticated();
-  if (context.role === 'SCHOOL_ADMIN' || context.role === 'PUBLICATION_ADMIN') return;
+  // A group administrator inside a branch is doing a school admin's job there,
+  // with a token naming that one school. Left out of this line, they fell
+  // through to the parent rules below and got "not found" for the school's own
+  // receipts and photographs.
+  if (
+    context.role === 'SCHOOL_ADMIN' ||
+    context.role === 'ORG_ADMIN' ||
+    context.role === 'PUBLICATION_ADMIN'
+  ) {
+    return;
+  }
 
   if (context.role === 'TEACHER') {
     const classrooms = await teacherClassroomIds();
@@ -153,6 +163,18 @@ async function assertMayRead(fileId: string): Promise<void> {
             },
           },
           { noticeAttachments: { some: {} } },
+          {
+            galleryPhotos: {
+              some: {
+                event: {
+                  OR: [
+                    { visibleToAll: true },
+                    { classrooms: { some: { classroomId: { in: classrooms } } } },
+                  ],
+                },
+              },
+            },
+          },
         ],
       },
       select: { id: true },
@@ -194,6 +216,31 @@ async function assertMayRead(fileId: string): Promise<void> {
         { studentPhotos: { some: { id: { in: studentIds } } } },
         { noticeAttachments: { some: { notice: { status: 'PUBLISHED' } } } },
         { documents: { some: { studentId: { in: studentIds } } } },
+        // A gallery photo from an event open to the whole school, or to a class
+        // one of their children is in this year. The same rule the gallery
+        // itself lists by, so a photo they can see is a photo they can open.
+        {
+          galleryPhotos: {
+            some: {
+              event: {
+                OR: [
+                  { visibleToAll: true },
+                  {
+                    classrooms: {
+                      some: {
+                        classroom: {
+                          enrolments: {
+                            some: { studentId: { in: studentIds }, status: 'ACTIVE' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
         // Their own child's submitted work.
         //
         // Scoped by the guardian link and nothing else. Deliberately NOT by

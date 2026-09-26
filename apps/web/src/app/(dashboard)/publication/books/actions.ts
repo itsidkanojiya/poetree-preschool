@@ -28,6 +28,8 @@ export async function createBookAction(_prev: BookState, formData: FormData): Pr
         // No code: the API derives one from the standard and the name.
         name: String(formData.get('name') ?? '').trim(),
         classLevelId: String(formData.get('classLevelId') ?? ''),
+        // Empty means "not filed yet", which the API takes as no subject.
+        subjectId: String(formData.get('subjectId') ?? '') || null,
         coverFileId,
       },
     });
@@ -88,6 +90,7 @@ export async function renameBookAction(
       redirectOnAuthFailure: false,
       body: {
         name: String(formData.get('name') ?? '').trim(),
+        subjectId: String(formData.get('subjectId') ?? '') || null,
       },
     });
   } catch (error) {

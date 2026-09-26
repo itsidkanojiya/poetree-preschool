@@ -33,6 +33,7 @@ function toSummary(row: {
   sortOrder: number;
   isActive: boolean;
   animationUrl: string | null;
+  animation3dUrl: string | null;
   coverFileId: string | null;
   activities: Array<{ _count: { questions: number } }>;
 }): ChapterSummary {
@@ -42,6 +43,7 @@ function toSummary(row: {
     name: row.name,
     number: row.number,
     animation: toAnimation(row.animationUrl),
+    animation3d: toAnimation(row.animation3dUrl),
     // The same address the book's cover uses, so one proxy and one cache serve
     // both.
     coverUrl: row.coverFileId ? `/api/v1/catalogue/assets/${row.coverFileId}` : null,
@@ -117,6 +119,7 @@ export async function createChapter(
       // made twice.
       number: input.number ?? position,
       animationUrl: input.animationUrl ?? null,
+      animation3dUrl: input.animation3dUrl ?? null,
       coverFileId: input.coverFileId ?? null,
       sortOrder: input.sortOrder ?? position,
     },
@@ -155,6 +158,7 @@ export async function updateChapter(
       number: input.number,
       sortOrder: input.sortOrder,
       animationUrl: input.animationUrl,
+      animation3dUrl: input.animation3dUrl,
       coverFileId: input.coverFileId,
       isActive: input.isActive,
     },

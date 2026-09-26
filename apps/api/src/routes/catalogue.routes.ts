@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { idParamSchema, idSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
-import { body, params, validate } from '../middleware/validate.js';
+import { body, params, query, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import * as books from '../services/book.service.js';
@@ -19,6 +19,11 @@ import { sendStoredFile } from '../lib/sendStoredFile.js';
 export const catalogueRouter = Router();
 
 const watchedBodySchema = z.object({ studentId: idSchema });
+
+/** A subject's id, or `none` for the books nobody has filed yet. */
+const subjectQuerySchema = z.object({
+  subjectId: z.union([idSchema, z.literal('none')]).optional(),
+});
 
 /**
  * The books this school has.
@@ -45,9 +50,24 @@ catalogueRouter.get(
 catalogueRouter.get(
   '/children/:id/books',
   requirePermission('progress:read'),
+  validate({ params: idParamSchema, query: subjectQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const { subjectId } = query<{ subjectId?: string }>(req);
+    res.json(await books.booksForChild(params<{ id: string }>(req).id, subjectId));
+  }),
+);
+
+/**
+ * The subjects on this child's shelf — English, Maths, EVS — each with how many
+ * books and films are inside. Only subjects with something this child can
+ * open; a subject the school did not buy never appears as an empty tile.
+ */
+catalogueRouter.get(
+  '/children/:id/subjects',
+  requirePermission('progress:read'),
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    res.json(await books.booksForChild(params<{ id: string }>(req).id));
+    res.json(await books.subjectsForChild(params<{ id: string }>(req).id));
   }),
 );
 

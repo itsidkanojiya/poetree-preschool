@@ -8,6 +8,9 @@ import 'package:get/get.dart';
 
 import '../../features/auth/auth_controller.dart';
 import '../../features/parent/children_controller.dart';
+import '../../features/parent/child_controller.dart';
+import '../../features/parent/parent_home_view.dart'
+    show ParentPage, openParentPage;
 import '../api/api_service.dart';
 import '../routes/app_pages.dart';
 
@@ -57,11 +60,13 @@ class PushService extends GetxService {
         unawaited(_register(refreshed));
       });
 
-      FirebaseMessaging.onMessageOpenedApp.listen(_openFrom);
+      FirebaseMessaging.onMessageOpenedApp.listen(
+        (message) => unawaited(_openFrom(message)),
+      );
 
       // A notification that launched the app from cold.
       final initial = await messaging.getInitialMessage();
-      if (initial != null) _openFrom(initial);
+      if (initial != null) unawaited(_openFrom(initial));
     } on Object catch (error) {
       debugPrint('Push setup failed, continuing without it: $error');
     }
@@ -101,7 +106,7 @@ class PushService extends GetxService {
   /// The API puts the entity in the data payload precisely so the body never
   /// has to - a push about a child appears on a lock screen, and no child's
   /// name or detail belongs there.
-  void _openFrom(RemoteMessage message) {
+  Future<void> _openFrom(RemoteMessage message) async {
     final entity = message.data['entityType']?.toString();
 
     // A teacher's phone has no parent screens to open, so the same notification
@@ -117,25 +122,28 @@ class PushService extends GetxService {
       return;
     }
 
-    // Parents live on one route with tabs, so the destination is a tab index
-    // rather than a route. Opening the home tab for a fee reminder wastes the
-    // tap that the notification just earned.
-    final tab = switch (entity) {
-      'AttendanceSession' ||
-      'AttendanceRecord' => ChildrenController.attendanceTab,
-      'Homework' || 'HomeworkSubmission' => ChildrenController.homeworkTab,
-      // Both live under Profile now: money and announcements are things a
-      // parent looks up, not things the bottom bar should keep offering.
-      'Payment' || 'FeeInvoice' || 'Notice' => ChildrenController.profileTab,
-      _ => ChildrenController.homeTab,
+    // Parents land on the home tab and the page the notification is about
+    // opens over it, so Back from it is the home page rather than nowhere.
+    // Opening the home page alone for a fee reminder wastes the tap the
+    // notification just earned.
+    final page = switch (entity) {
+      'AttendanceSession' || 'AttendanceRecord' => ParentPage.attendance,
+      'Homework' || 'HomeworkSubmission' => ParentPage.homework,
+      'Payment' || 'FeeInvoice' => ParentPage.fees,
+      'Notice' => ParentPage.notices,
+      _ => null,
     };
 
     if (Get.isRegistered<ChildrenController>()) {
-      Get.find<ChildrenController>().tab.value = tab;
+      Get.find<ChildrenController>().tab.value = ChildrenController.homeTab;
     }
 
     if (Get.currentRoute != AppRoutes.parent) {
-      unawaited(Get.toNamed<void>(AppRoutes.parent));
+      await Get.toNamed<void>(AppRoutes.parent);
+    }
+
+    if (page != null && Get.isRegistered<ChildController>()) {
+      openParentPage(page);
     }
   }
 }

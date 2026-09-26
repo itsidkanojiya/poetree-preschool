@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import {
+  createBookSubjectSchema,
+  updateBookSubjectSchema,
   createOrganisationSchema,
   updateOrganisationSchema,
   assignSubscriptionSchema,
@@ -30,6 +32,8 @@ import {
   updateSchoolSchema,
 } from '@poetree/shared';
 import type {
+  CreateBookSubjectInput,
+  UpdateBookSubjectInput,
   CreateOrganisationInput,
   UpdateOrganisationInput,
   AssignSubscriptionInput,
@@ -66,6 +70,7 @@ import { body, params, query, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
 import * as organisationService from '../services/organisation.service.js';
+import * as bookSubjects from '../services/bookSubject.service.js';
 import * as planService from '../services/plan.service.js';
 import * as catalogue from '../services/catalogue.service.js';
 import * as usage from '../services/usage.service.js';
@@ -450,6 +455,39 @@ publicationRouter.post(
     });
 
     res.status(201).json({ ...record, url: `/api/v1/catalogue/assets/${record.id}` });
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Subjects — what books are filed under                                      */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/book-subjects',
+  asyncHandler(async (_req, res) => {
+    res.json(await bookSubjects.listBookSubjects());
+  }),
+);
+
+publicationRouter.post(
+  '/book-subjects',
+  validate({ body: createBookSubjectSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await bookSubjects.createBookSubject(body<CreateBookSubjectInput>(req)));
+  }),
+);
+
+/** Never deleted, only switched off — its books fall back to "More books". */
+publicationRouter.patch(
+  '/book-subjects/:id',
+  validate({ params: idParamSchema, body: updateBookSubjectSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await bookSubjects.updateBookSubject(
+        params<{ id: string }>(req).id,
+        body<UpdateBookSubjectInput>(req),
+      ),
+    );
   }),
 );
 

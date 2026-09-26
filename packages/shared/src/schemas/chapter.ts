@@ -21,6 +21,11 @@ export const createChapterSchema = z.object({
    */
   animationUrl: youTubeUrlSchema.nullish(),
   /**
+   * The same chapter made in 3D, when the publisher has one. The link above
+   * stays the 2D one; the app offers a switch only when a chapter has both.
+   */
+  animation3dUrl: youTubeUrlSchema.nullish(),
+  /**
    * An optional picture for the chapter, shown on the contents page in the app.
    *
    * Optional because a book of twelve chapters is twelve pictures to draw, and
@@ -61,6 +66,8 @@ export interface ChapterSummary {
   number: number | null;
   /** Null when there is no film, in which case the chapter is open from the start. */
   animation: BookAnimation | null;
+  /** The 3D version, when there is one. */
+  animation3d: BookAnimation | null;
   /** The chapter's picture, or null — most chapters have none. */
   coverUrl: string | null;
   sortOrder: number;
@@ -69,6 +76,28 @@ export interface ChapterSummary {
   activityCount: number;
   /** Questions across those, which is what tells you a chapter is written. */
   questionCount: number;
+}
+
+/**
+ * A chapter as a child's app shows it.
+ *
+ * Carries both films, and whether this child has watched the chapter — which
+ * is what "completed" means for the animation flow. The next chapter is the
+ * next row: the list comes back in the book's running order, so the app never
+ * has to be told separately what comes after.
+ */
+export interface ChapterForChild {
+  id: string;
+  name: string;
+  number: number | null;
+  /** The 2D film, the one every chapter with a film has. */
+  animation: BookAnimation | null;
+  animation3d: BookAnimation | null;
+  coverUrl: string | null;
+  /** True once this child has watched either film to the end. */
+  isWatched: boolean;
+  /** Pages open — true when there is no film, or it has been watched. */
+  isUnlocked: boolean;
 }
 
 /** For the pickers: every chapter, with the book it belongs to. */

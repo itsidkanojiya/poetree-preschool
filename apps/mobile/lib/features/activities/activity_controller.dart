@@ -16,6 +16,7 @@ class ActivityListController extends GetxController {
     this.bookId,
     this.bookName,
     this.chapterId,
+    this.type,
   });
 
   final String? studentId;
@@ -26,6 +27,10 @@ class ActivityListController extends GetxController {
 
   /// Set when it is one chapter of that book, which is how a child arrives.
   final String? chapterId;
+
+  /// Set when the list is one kind of page across every book — the home
+  /// page's Tracing card, which is "let me trace letters", not "open a book".
+  final String? type;
 
   final activities = <ActivityDefinition>[].obs;
   final isLoading = true.obs;
@@ -43,6 +48,7 @@ class ActivityListController extends GetxController {
       // chapter list's counts, and one round trip is worth more to a phone on
       // a school's wifi than a shorter response body.
       .where((a) => chapterId == null || a.chapterId == chapterId)
+      .where((a) => type == null || a.type == type)
       .toList();
 
   /// Every chapter of this book that has a film, keyed by chapter id.

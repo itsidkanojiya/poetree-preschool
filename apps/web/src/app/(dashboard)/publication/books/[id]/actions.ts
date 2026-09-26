@@ -34,6 +34,7 @@ export async function saveChaptersAction(
   const ids = formData.getAll('chapterId').map(String);
   const names = formData.getAll('name').map(String);
   const films = formData.getAll('animationUrl').map(String);
+  const films3d = formData.getAll('animation3dUrl').map(String);
   const before = formData.getAll('before').map(String);
 
   // One file input per row, always rendered, so this array lines up with the
@@ -47,6 +48,7 @@ export async function saveChaptersAction(
   for (const [index, id] of ids.entries()) {
     const name = (names[index] ?? '').trim();
     const film = (films[index] ?? '').trim();
+    const film3d = (films3d[index] ?? '').trim();
 
     const chosen = covers[index];
     const picture = chosen instanceof File && chosen.size > 0 ? chosen : null;
@@ -57,7 +59,7 @@ export async function saveChaptersAction(
     // The number is not in it — that follows the order, and dragging saves it.
     // A picture is not in it either, because a File has no place in a string;
     // the two flags above say whether this row's picture is part of the save.
-    if (`${name}|${film}` === before[index] && !picture && !removingPicture) continue;
+    if (`${name}|${film}|${film3d}` === before[index] && !picture && !removingPicture) continue;
 
     if (name === '') {
       return { error: 'A chapter needs a name. Use Remove to take one out.' };
@@ -83,6 +85,7 @@ export async function saveChaptersAction(
         body: {
           name,
           animationUrl: film === '' ? null : film,
+          animation3dUrl: film3d === '' ? null : film3d,
           ...(coverFileId === undefined ? {} : { coverFileId }),
         },
       });
@@ -115,6 +118,7 @@ export async function createChapterAction(
       body: {
         name: String(formData.get('name') ?? '').trim(),
         animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
+        animation3dUrl: String(formData.get('animation3dUrl') ?? '').trim() || null,
         coverFileId,
       },
     });
@@ -140,6 +144,7 @@ export async function renameChapterAction(
         name: String(formData.get('name') ?? '').trim(),
         number: optionalNumber(formData, 'number'),
         animationUrl: String(formData.get('animationUrl') ?? '').trim() || null,
+        animation3dUrl: String(formData.get('animation3dUrl') ?? '').trim() || null,
       },
     });
   } catch (error) {

@@ -41,6 +41,12 @@ export const TENANT_MODELS = new Set<string>([
   // should ever read one through the scoped client, and if something does, it
   // gets its own school's codes and nobody else's.
   'OtpChallenge',
+  // The gallery. Every one of these carries schoolId, and a gallery is photos
+  // of children: one school's reaching another's is the exact thing this list
+  // exists to prevent.
+  'GalleryEvent',
+  'GalleryEventClassroom',
+  'GalleryPhoto',
   // Academic structure
   'AcademicYear',
   'Classroom',

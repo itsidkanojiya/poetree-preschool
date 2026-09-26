@@ -71,6 +71,8 @@ const SCHOOL_NAV: NavGroup[] = [
       { href: '/school/classrooms', label: 'Classrooms', icon: <IconClassroom size={18} /> },
       { href: '/school/timetable', label: 'Timetable', icon: <IconClassroom size={18} /> },
       { href: '/school/notices', label: 'Notices', icon: <IconInbox size={18} /> },
+      // Beside notices: both are the office deciding what families see.
+      { href: '/school/gallery', label: 'Gallery', icon: <IconSpark size={18} /> },
       { href: '/school/progress', label: 'Progress', icon: <IconSpark size={18} /> },
     ],
   },

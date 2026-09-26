@@ -41,9 +41,17 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
         <span className="min-w-[13rem] flex-1">
           <Input
             name="animationUrl"
-            placeholder="Film — https://youtu.be/… (optional)"
+            placeholder="2D film — https://youtu.be/… (optional)"
             className="py-1.5 text-sm"
-            aria-label="Film for this chapter"
+            aria-label="2D film for this chapter"
+          />
+        </span>
+        <span className="min-w-[13rem] flex-1">
+          <Input
+            name="animation3dUrl"
+            placeholder="3D film — https://youtu.be/… (optional)"
+            className="py-1.5 text-sm"
+            aria-label="3D film for this chapter"
           />
         </span>
         <SubmitButton pendingLabel="Adding…">Add chapter</SubmitButton>
@@ -167,11 +175,12 @@ export function ChapterFields({
   position: number;
 }) {
   const film = chapter.animation?.url ?? '';
+  const film3d = chapter.animation3d?.url ?? '';
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="chapterId" value={chapter.id} />
-      <input type="hidden" name="before" value={`${chapter.name}|${film}`} />
+      <input type="hidden" name="before" value={`${chapter.name}|${film}|${film3d}`} />
 
       {/* The number is where the chapter sits, so it is shown rather than
           typed. Asking for both the position and the number is asking the same
@@ -205,9 +214,20 @@ export function ChapterFields({
         <Input
           name="animationUrl"
           defaultValue={film}
-          placeholder="Film — https://youtu.be/… (optional)"
+          placeholder="2D film — https://youtu.be/… (optional)"
           className="py-1.5 text-sm"
-          aria-label={`Film for ${chapter.name}`}
+          aria-label={`2D film for ${chapter.name}`}
+        />
+      </span>
+      {/* The 3D version, when there is one. The app shows a 2D / 3D switch
+          only for a chapter that has both. */}
+      <span className="min-w-[13rem] flex-1">
+        <Input
+          name="animation3dUrl"
+          defaultValue={film3d}
+          placeholder="3D film — https://youtu.be/… (optional)"
+          className="py-1.5 text-sm"
+          aria-label={`3D film for ${chapter.name}`}
         />
       </span>
     </div>

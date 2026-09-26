@@ -1,6 +1,9 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import {
+  addGalleryPhotosSchema,
+  createGalleryEventSchema,
+  updateGalleryEventSchema,
   setStudentPhotoSchema,
   attachDocumentSchema,
   createAcademicYearSchema,
@@ -26,6 +29,9 @@ import {
   updateTeacherSchema,
 } from '@poetree/shared';
 import type {
+  AddGalleryPhotosInput,
+  CreateGalleryEventInput,
+  UpdateGalleryEventInput,
   AttachDocumentInput,
   CreateAcademicYearInput,
   CreateClassroomInput,
@@ -49,6 +55,7 @@ import type {
 } from '@poetree/shared';
 import { requireSchoolId } from '../context/requestContext.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { requirePermission } from '../middleware/requirePermission.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
@@ -56,6 +63,7 @@ import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
 import * as passwordService from '../services/password.service.js';
 import * as registrationService from '../services/registration.service.js';
+import * as galleryService from '../services/gallery.service.js';
 import * as schoolService from '../services/school.service.js';
 import * as idCards from '../services/idCard.service.js';
 import * as studentService from '../services/student.service.js';
@@ -423,6 +431,86 @@ schoolAdminRouter.patch(
 /* -------------------------------------------------------------------------- */
 /* Parent registrations — families asking to be let in                        */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* Gallery                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The school's photographs, by event.
+ *
+ * `notice:manage` rather than a new permission: putting photos in front of
+ * families is the same act as putting a notice in front of them — the office
+ * deciding what the school says to parents, and to which classes.
+ */
+schoolAdminRouter.get(
+  '/gallery/events',
+  requirePermission('notice:manage'),
+  asyncHandler(async (_req, res) => {
+    res.json(await galleryService.listEvents());
+  }),
+);
+
+schoolAdminRouter.post(
+  '/gallery/events',
+  requirePermission('notice:manage'),
+  validate({ body: createGalleryEventSchema }),
+  asyncHandler(async (req, res) => {
+    const event = await galleryService.createEvent(
+      body<CreateGalleryEventInput>(req),
+      req.auth!.userId,
+    );
+    res.status(201).json(event);
+  }),
+);
+
+schoolAdminRouter.get(
+  '/gallery/events/:id',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await galleryService.getEvent(idOf(req)));
+  }),
+);
+
+schoolAdminRouter.patch(
+  '/gallery/events/:id',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema, body: updateGalleryEventSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await galleryService.updateEvent(idOf(req), body<UpdateGalleryEventInput>(req)));
+  }),
+);
+
+schoolAdminRouter.delete(
+  '/gallery/events/:id',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await galleryService.deleteEvent(idOf(req), req.auth!.userId);
+    res.status(204).send();
+  }),
+);
+
+/** Files already uploaded through POST /files, added to the event. */
+schoolAdminRouter.post(
+  '/gallery/events/:id/photos',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema, body: addGalleryPhotosSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await galleryService.addPhotos(idOf(req), body<AddGalleryPhotosInput>(req)));
+  }),
+);
+
+schoolAdminRouter.delete(
+  '/gallery/photos/:id',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await galleryService.removePhoto(idOf(req));
+    res.status(204).send();
+  }),
+);
 
 /**
  * The queue, and the two decisions.

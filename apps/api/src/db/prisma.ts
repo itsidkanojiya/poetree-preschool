@@ -33,6 +33,14 @@ export const TENANT_MODELS = new Set<string>([
   // prismaUnscoped with a schoolId resolved from the school code in the path.
   // That is the deliberate exception, not an oversight.
   'ParentRegistration',
+  // A sign-up code, before there is a registration or an account.
+  //
+  // Only ever read and written by the public code routes, which have no request
+  // context and use prismaUnscoped with a schoolId resolved from the path —
+  // the same exception as ParentRegistration above. Listed anyway: nothing
+  // should ever read one through the scoped client, and if something does, it
+  // gets its own school's codes and nobody else's.
+  'OtpChallenge',
   // Academic structure
   'AcademicYear',
   'Classroom',

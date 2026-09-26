@@ -92,7 +92,7 @@ describe.skipIf(!dbUp)('parent registration', () => {
     // The whole point of the change: a family joining the school has no
     // admission number, because the office has not issued one yet.
     const newcomer = await submit(
-      'beta',
+      'alpha',
       form({ phone: '+919820007009', studentFirstName: 'Nobody', studentLastName: 'Onroll' }),
     );
 
@@ -110,8 +110,13 @@ describe.skipIf(!dbUp)('parent registration', () => {
   it('refuses a registration with no child named', async () => {
     const wrong = await submit('alpha', form({ studentFirstName: '' }));
 
-    expect(wrong.status).toBe(404);
-    expect(wrong.body.error.message).toContain('admission number');
+    // A validation failure now, not a missing child: there is no roll to miss.
+    expect(wrong.status).toBe(400);
+    expect(
+      wrong.body.error.details.some(
+        (issue: { path: string }) => issue.path === 'studentFirstName',
+      ),
+    ).toBe(true);
   });
 
   it('tells somebody who already has an account to sign in instead', async () => {
@@ -165,7 +170,8 @@ describe.skipIf(!dbUp)('parent registration', () => {
     // leak about the school next door.
     const refused = await api
       .post(`${BASE}/registrations/${mine.body.items[0].id}/approve`)
-      .set(auth(neighbour));
+      .set(auth(neighbour))
+      .send({ mode: 'LINK', studentId: other.studentId });
     expect(refused.status).toBe(404);
   });
 

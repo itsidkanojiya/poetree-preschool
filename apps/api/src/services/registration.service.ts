@@ -463,7 +463,16 @@ export async function approveRegistration(
     throw ApiError.badRequest('Set a current academic year before putting a child in a classroom.');
   }
 
-  const { userId, student } = await prisma.$transaction(async (tx) => {
+  // Longer than the five seconds Prisma allows by default. Approving writes
+  // eight statements — the account, the profile, the child, its admission
+  // number under a row lock, the class, the guardian link, the gap-filling and
+  // the decision — and the first run of this against a database over an SSH
+  // tunnel died halfway through with "transaction not found", leaving a family
+  // approved on screen and no account behind it. On the server the database is
+  // local and this is nowhere near the limit; the limit is there for the day it
+  // is not.
+  const { userId, student } = await prisma.$transaction(
+    async (tx) => {
     const user = await tx.user.create({
       data: {
         schoolId,
@@ -595,8 +604,10 @@ export async function approveRegistration(
       },
     });
 
-    return { userId: user.id, student: child };
-  });
+      return { userId: user.id, student: child };
+    },
+    { timeout: 20_000, maxWait: 10_000 },
+  );
 
   // After the transaction, as createParent does. The audit log is written
   // through the unscoped client so that a tenant filter can never suppress it,

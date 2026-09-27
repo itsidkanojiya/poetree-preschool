@@ -1,45 +1,36 @@
 import 'package:flutter/material.dart';
 
+import '../../core/assets/app_assets.dart';
 import '../../core/theme/play_palette.dart';
+import '../../core/widgets/art.dart';
 
-/// The picture for a subject, from the publisher's choice of icon.
+/// The picture for a subject, from the asset pack, on a white tile.
 ///
-/// Hindi and Gujarati get their own first letter rather than an icon: a child
-/// learning अ recognises अ, and no icon set has one.
+/// Which picture is [SubjectArt]'s decision: the publisher's chosen key, or
+/// the subject's name when they left it on the plain book.
 class SubjectBadge extends StatelessWidget {
   const SubjectBadge({
     required this.icon,
+    required this.name,
     required this.tone,
     this.size = 56,
     super.key,
   });
 
   final String icon;
+  final String name;
   final PlayTone tone;
   final double size;
 
-  static const _letters = {'hindi': 'अ', 'gujarati': 'અ'};
-
-  static const _icons = <String, IconData>{
-    'abc': Icons.abc_rounded,
-    'numbers': Icons.onetwothree_rounded,
-    'globe': Icons.public_rounded,
-    'bulb': Icons.lightbulb_rounded,
-    'music': Icons.music_note_rounded,
-    'phonics': Icons.record_voice_over_rounded,
-    'book': Icons.menu_book_rounded,
-  };
-
   @override
   Widget build(BuildContext context) {
-    final letter = _letters[icon];
-
     return Container(
       width: size,
       height: size,
+      padding: EdgeInsets.all(size * 0.08),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(size * 0.32),
+        borderRadius: BorderRadius.circular(size * 0.3),
         boxShadow: [
           BoxShadow(
             color: tone.deep.withValues(alpha: 0.16),
@@ -48,22 +39,10 @@ class SubjectBadge extends StatelessWidget {
           ),
         ],
       ),
-      alignment: Alignment.center,
-      child: letter != null
-          ? Text(
-              letter,
-              style: TextStyle(
-                fontSize: size * 0.5,
-                fontWeight: FontWeight.w800,
-                color: tone.ink,
-                height: 1.1,
-              ),
-            )
-          : Icon(
-              _icons[icon] ?? Icons.menu_book_rounded,
-              size: size * 0.58,
-              color: tone.ink,
-            ),
+      child: ArtIcon(
+        SubjectArt.forSubject(icon: icon, name: name),
+        size: size * 0.84,
+      ),
     );
   }
 }
@@ -98,81 +77,77 @@ class FilmProgressBar extends StatelessWidget {
   }
 }
 
-/// The bright banner at the top of each animation screen.
-class FilmBanner extends StatelessWidget {
-  const FilmBanner({
+/// How far through the films a child is — the card under each banner.
+class FilmProgressCard extends StatelessWidget {
+  const FilmProgressCard({
     required this.title,
-    required this.subtitle,
-    required this.colors,
-    this.trailing,
-    this.icon = Icons.movie_filter_rounded,
+    required this.done,
+    required this.total,
+    this.emptyText = 'Watch the story, then play.',
     super.key,
   });
 
   final String title;
-  final String subtitle;
-  final List<Color> colors;
-  final Widget? trailing;
-  final IconData icon;
+  final int done;
+  final int total;
+  final String emptyText;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final allDone = total > 0 && done >= total;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(
-            color: colors.last.withValues(alpha: 0.3),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: FilmColors.violet.withValues(alpha: 0.18)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(icon, color: Colors.white, size: 32),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Expanded(
+                child: Text(
                   title,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 2),
+              ),
+              if (total > 0)
                 Text(
-                  subtitle,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.92),
+                  '$done / $total',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: allDone ? FilmColors.mint : FilmColors.violet,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (trailing != null) ...[
-                  const SizedBox(height: 10),
-                  trailing!,
-                ],
-              ],
-            ),
+            ],
           ),
+          const SizedBox(height: 4),
+          Text(
+            total == 0
+                ? emptyText
+                : allDone
+                ? 'All $total films watched — well done!'
+                : '$done of $total films watched',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (total > 0) ...[
+            const SizedBox(height: 10),
+            FilmProgressBar(
+              done: done,
+              total: total,
+              color: allDone ? FilmColors.mint : FilmColors.violet,
+              track: FilmColors.violet.withValues(alpha: 0.12),
+            ),
+          ],
         ],
       ),
     );

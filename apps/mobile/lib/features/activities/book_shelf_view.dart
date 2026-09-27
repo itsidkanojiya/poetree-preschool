@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/routes/app_pages.dart';
-import '../../core/theme/kid_icons.dart';
+import '../../core/assets/app_assets.dart';
 import '../../core/theme/play_palette.dart';
+import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/squish.dart';
@@ -158,15 +159,10 @@ class _BookTile extends StatelessWidget {
                     if (book.coverPath != null)
                       AuthedImage(path: book.coverPath!, fit: BoxFit.cover)
                     else
-                      // No cover: the book's own colour and a drawn book,
-                      // which a child can still tell apart at a glance.
-                      Center(
-                        child: KidIcon(
-                          KidGlyph.book,
-                          size: 64,
-                          color: tone.ink,
-                        ),
-                      ),
+                      // No cover: the book's own colour and its subject's
+                      // picture, which a child can still tell apart at a
+                      // glance.
+                      Center(child: ArtIcon(book.art, size: 96)),
 
                     // The film still to watch. A play badge rather than a
                     // padlock: the child is being offered something, not
@@ -194,11 +190,7 @@ class _BookTile extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              KidIcon(
-                                KidGlyph.film,
-                                size: 16,
-                                color: tone.deep,
-                              ),
+                              const ArtIcon(AppIcons.animation, size: 20),
                               const SizedBox(width: 5),
                               Text(
                                 book.filmsToWatch == 1

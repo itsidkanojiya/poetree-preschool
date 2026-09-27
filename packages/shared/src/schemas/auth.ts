@@ -125,6 +125,12 @@ export interface AccessTokenPayload {
    * pair without the claim.
    */
   mustChangePassword?: boolean;
+  /**
+   * Which sign-in this token belongs to. Stays the same across refreshes; a
+   * new sign-in starts a new one. For roles held to one device, a token whose
+   * session is no longer the account's current one is refused.
+   */
+  sid?: string;
 }
 
 export interface RefreshTokenPayload {

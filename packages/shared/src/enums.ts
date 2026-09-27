@@ -16,6 +16,15 @@ export const ROLES = [
 export type Role = (typeof ROLES)[number];
 
 /**
+ * The roles signed in on one device at a time: the app's families and
+ * teachers. Signing in on a second phone signs the first one out.
+ *
+ * Not the office roles, who work in the web portal from more than one computer
+ * as a matter of course.
+ */
+export const SINGLE_DEVICE_ROLES: readonly Role[] = ['PARENT', 'TEACHER'];
+
+/**
  * A group's own administrator, above its branches and below the publisher.
  *
  * They hold no school of their own — they pick a branch, and from that moment

@@ -35,6 +35,7 @@ import '../../features/teacher/roster_controller.dart';
 import '../../features/teacher/roster_view.dart';
 import '../../features/teacher/register_view.dart';
 import '../../features/teacher/teacher_home_view.dart';
+import '../assets/app_assets.dart';
 import '../offline/outbox.dart';
 
 /// Controllers are registered through bindings rather than Get.put inside
@@ -153,6 +154,7 @@ class FilmChaptersBinding extends Bindings {
         studentId: args['studentId'] as String?,
         bookId: args['bookId'] as String?,
         bookName: args['bookName'] as String? ?? 'Book',
+        art: args['art'] as String? ?? AppIcons.storybook,
       ),
     );
   }

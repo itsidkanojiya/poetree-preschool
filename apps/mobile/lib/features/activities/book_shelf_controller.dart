@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/assets/app_assets.dart';
 
 /// One book on a child's shelf.
 class ShelfBook {
@@ -14,11 +15,14 @@ class ShelfBook {
     required this.isUnlocked,
     required this.filmsToWatch,
     this.coverPath,
+    this.subjectName,
+    this.subjectIcon,
   });
 
   factory ShelfBook.fromJson(Map<String, dynamic> json) {
     final cover = json['coverUrl'] as String?;
     final level = json['classLevel'] as Map<String, dynamic>?;
+    final subject = json['subject'] as Map<String, dynamic>?;
 
     return ShelfBook(
       id: json['id'] as String,
@@ -32,6 +36,8 @@ class ShelfBook {
           : cover.replaceFirst('/api/v1', ''),
       filmsToWatch: (json['filmsToWatch'] as num?)?.toInt() ?? 0,
       isUnlocked: json['isUnlocked'] as bool? ?? true,
+      subjectName: subject?['name'] as String?,
+      subjectIcon: subject?['icon'] as String?,
     );
   }
 
@@ -52,6 +58,17 @@ class ShelfBook {
   final int filmsToWatch;
 
   bool get hasAnimation => filmsToWatch > 0;
+
+  /// The subject it is filed under, when the publisher has filed it.
+  final String? subjectName;
+  final String? subjectIcon;
+
+  /// The picture drawn when there is no cover: the subject's own, or failing
+  /// that whatever the book's name suggests.
+  String get art => SubjectArt.forSubject(
+    icon: subjectIcon ?? 'book',
+    name: subjectName ?? name,
+  );
 }
 
 /// The books this child's school has bought.

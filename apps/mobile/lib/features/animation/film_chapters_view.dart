@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/assets/app_assets.dart';
 import '../../core/theme/play_palette.dart';
+import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/squish.dart';
@@ -38,29 +40,27 @@ class FilmChaptersView extends GetView<FilmChaptersController> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                 children: [
-                  FilmBanner(
+                  // The 2D banner, or the 2D & 3D one when this book has
+                  // chapters in both.
+                  ArtBanner(
+                    chapters.any((c) => c.has3d)
+                        ? AppBanners.animation2d3d
+                        : AppBanners.animation2d,
+                    semanticLabel: '${controller.bookName} films',
+                  ),
+                  const SizedBox(height: 14),
+                  FilmProgressCard(
                     title: controller.bookName,
-                    subtitle: films == 0
-                        ? 'No films in this book yet'
-                        : watched == films
-                        ? 'All $films films watched — well done!'
-                        : '$watched of $films films watched',
-                    colors: const [FilmColors.sky, FilmColors.violet],
-                    icon: Icons.auto_stories_rounded,
-                    trailing: films == 0
-                        ? null
-                        : FilmProgressBar(
-                            done: watched,
-                            total: films,
-                            color: Colors.white,
-                            track: Colors.white.withValues(alpha: 0.3),
-                          ),
+                    done: watched,
+                    total: films,
+                    emptyText: 'No films in this book yet',
                   ),
                   const SizedBox(height: 16),
                   for (final (index, chapter) in chapters.indexed) ...[
                     _ChapterCard(
                       chapter: chapter,
                       position: index + 1,
+                      art: controller.art,
                       onPlay: chapter.hasFilm
                           ? () => openFilm(controller, chapter.id)
                           : null,
@@ -92,11 +92,15 @@ class _ChapterCard extends StatelessWidget {
   const _ChapterCard({
     required this.chapter,
     required this.position,
+    required this.art,
     required this.onPlay,
   });
 
   final FilmChapter chapter;
   final int position;
+
+  /// The subject's picture, for a chapter with none of its own.
+  final String art;
   final VoidCallback? onPlay;
 
   @override
@@ -132,17 +136,40 @@ class _ChapterCard extends StatelessWidget {
                   height: 64,
                   child: chapter.coverPath != null
                       ? AuthedImage(path: chapter.coverPath!)
+                      // No picture of its own: the subject's, with the
+                      // chapter's number on it.
                       : ColoredBox(
                           color: tone.wash,
-                          child: Center(
-                            child: Text(
-                              '${chapter.number ?? position}',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                color: tone.ink,
+                          child: Stack(
+                            children: [
+                              Center(child: ArtIcon(art, size: 50)),
+                              Positioned(
+                                right: 4,
+                                bottom: 4,
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 22,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: tone.ink,
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(
+                                    '${chapter.number ?? position}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                 ),

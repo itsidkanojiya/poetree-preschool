@@ -39,6 +39,12 @@ export class ApiError extends Error {
     return new ApiError(401, ERROR_CODES.INVALID_REFRESH_TOKEN, message);
   }
 
+  static sessionReplaced(
+    message = 'You signed in on another device, so you were signed out here. Sign in again to carry on.',
+  ): ApiError {
+    return new ApiError(401, ERROR_CODES.SESSION_REPLACED, message);
+  }
+
   static forbidden(message = 'You do not have access to this resource'): ApiError {
     return new ApiError(403, ERROR_CODES.FORBIDDEN, message);
   }

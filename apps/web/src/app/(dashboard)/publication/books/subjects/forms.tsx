@@ -22,6 +22,13 @@ const ICON_LABELS: Record<(typeof BOOK_SUBJECT_ICONS)[number], string> = {
   music: 'Music note',
   phonics: 'Speaker',
   book: 'Book',
+  stories: 'Lion and elephant (stories)',
+  shapes: 'Shapes',
+  festivals: 'Festivals and seasons',
+  awareness: 'World landmarks',
+  abc_blocks: 'ABC blocks',
+  number_blocks: '123 blocks',
+  storybook: 'Open storybook',
 };
 
 function IconSelect({ defaultValue }: { defaultValue?: string }) {

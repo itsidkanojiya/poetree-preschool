@@ -15,6 +15,7 @@ class ApiService extends GetxService {
   Future<ApiService> init() async {
     client = ApiClient(SecureTokenStore(const FlutterSecureStorage()))
       ..onSessionExpired = _toLogin
+      ..onSessionReplaced = _toLoginReplaced
       ..onSchoolSuspended = _toBlocked;
     return this;
   }
@@ -22,6 +23,14 @@ class ApiService extends GetxService {
   void _toLogin() {
     if (Get.currentRoute != '/login') {
       Get.offAllNamed<void>('/login', arguments: {'reason': 'expired'});
+    }
+  }
+
+  /// Signed out because the account signed in on another phone. The sign-in
+  /// screen says so, or it looks like the app forgot them.
+  void _toLoginReplaced() {
+    if (Get.currentRoute != '/login') {
+      Get.offAllNamed<void>('/login', arguments: {'reason': 'replaced'});
     }
   }
 

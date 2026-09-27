@@ -97,6 +97,14 @@ const senders: Record<OtpChannel, Sender> = {
   EMAIL: emailSenders[env.EMAIL_OTP_PROVIDER] ?? staticSender('EMAIL'),
 };
 
+/**
+ * Whether a code on this channel is really sent — and so costs money and rings
+ * somebody. False while the fixed code stands in for a provider.
+ */
+export function isDelivered(channel: OtpChannel): boolean {
+  return senders[channel].delivers;
+}
+
 /** Hashed, because four digits sitting in a table is a number anyone could use. */
 function hash(code: string): string {
   return createHash('sha256').update(code).digest('hex');
@@ -118,6 +126,8 @@ export interface SentChallenge {
   expiresInSeconds: number;
   /** True when a message was really sent, so the app can say when one was not. */
   delivered: boolean;
+  /** How many digits to expect, so the app draws one box per digit. */
+  codeLength: number;
 }
 
 /**
@@ -162,6 +172,7 @@ export async function sendChallenge(
     challengeId: challenge.id,
     expiresInSeconds: env.OTP_TTL_SECONDS,
     delivered: senders[channel].delivers,
+    codeLength: code.length,
   };
 }
 

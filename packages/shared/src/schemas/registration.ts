@@ -240,6 +240,11 @@ export interface SendOtpResponse {
    * leaving a family waiting for a text that was never sent.
    */
   delivered: boolean;
+  /**
+   * How many digits the code has — six from a real provider, the fixed code's
+   * own length until then. The app draws one box per digit.
+   */
+  codeLength: number;
 }
 
 export const otpChannelSchema = z.enum(OTP_CHANNELS);

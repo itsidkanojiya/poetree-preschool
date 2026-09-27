@@ -8,6 +8,12 @@ export const ERROR_CODES = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
   INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
+  /**
+   * This account signed in on another device, which ended the session here.
+   * Parents and teachers are signed in on one device at a time. Its own code
+   * so the app can say why, rather than a bare "session expired".
+   */
+  SESSION_REPLACED: 'SESSION_REPLACED',
   FORBIDDEN: 'FORBIDDEN',
   /** Signed in, but holding a password somebody else set. Change it first. */
   PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',

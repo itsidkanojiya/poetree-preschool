@@ -11,6 +11,7 @@ export function signAccessToken(input: {
   role: Role;
   schoolId: string | null;
   mustChangePassword?: boolean;
+  sessionId?: string;
 }): string {
   const payload: AccessTokenPayload = {
     sub: input.userId,
@@ -19,6 +20,7 @@ export function signAccessToken(input: {
     tokenType: 'access',
     // Omitted rather than false so an ordinary token keeps its current shape.
     ...(input.mustChangePassword ? { mustChangePassword: true } : {}),
+    ...(input.sessionId ? { sid: input.sessionId } : {}),
   };
 
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, {

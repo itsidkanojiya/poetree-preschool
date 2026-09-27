@@ -9,6 +9,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/assets/app_assets.dart';
+import '../../core/widgets/art.dart';
 import 'chapter_done_view.dart';
 import 'film_controllers.dart';
 import 'film_widgets.dart';
@@ -681,9 +683,29 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
         ),
         const SizedBox(height: 18),
 
+        // Both films, as the pack's two banners: the one playing is lifted
+        // and outlined, and tapping the other switches to it.
         if (_chapter.has3d) ...[
-          Center(
-            child: _ModeSwitch(is3d: _is3d, onChanged: _switchMode),
+          Row(
+            children: [
+              Expanded(
+                child: _ModeCard(
+                  banner: AppBanners.animation2d,
+                  label: '2D',
+                  selected: !_is3d,
+                  onTap: () => _switchMode(false),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ModeCard(
+                  banner: AppBanners.animation3d,
+                  label: '3D',
+                  selected: _is3d,
+                  onTap: () => _switchMode(true),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
         ],
@@ -922,6 +944,78 @@ class _Scrubber extends StatelessWidget {
         const SizedBox(width: 6),
         ...trailing,
       ],
+    );
+  }
+}
+
+/// One of the two films, as its banner.
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.banner,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String banner;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 180),
+      scale: selected ? 1 : 0.94,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: selected ? 1 : 0.6,
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                gradient: selected
+                    ? const LinearGradient(colors: FilmColors.banner)
+                    : null,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: ArtBanner(
+                banner,
+                semanticLabel: selected
+                    ? '$label film, playing'
+                    : 'Watch the $label film',
+                onTap: onTap,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (selected) ...[
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: FilmColors.violet,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  selected ? 'Playing $label' : 'Watch in $label',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: selected
+                        ? FilmColors.violet
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

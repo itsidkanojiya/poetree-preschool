@@ -211,6 +211,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                           foregroundColor: FilmColors.violet,
                           minimumSize: const Size.fromHeight(54),
                           textStyle: const TextStyle(
+                            fontFamily: 'Poppins',
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
                           ),

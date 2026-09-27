@@ -434,6 +434,8 @@ describe.skipIf(!dbUp)('parent registration', () => {
     expect(sent.body.challengeId).toBeTruthy();
     // The code itself is never in the reply, whatever the provider.
     expect(JSON.stringify(sent.body)).not.toContain('1234');
+    // But how long it is, so the app draws the right number of boxes.
+    expect(sent.body.codeLength).toBe(4);
 
     const refused = await submit(
       'alpha',

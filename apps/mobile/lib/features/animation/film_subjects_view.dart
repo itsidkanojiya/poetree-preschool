@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/assets/app_assets.dart';
 import '../../core/routes/app_pages.dart';
 import '../../core/theme/play_palette.dart';
+import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/squish.dart';
 import 'film_controllers.dart';
@@ -42,22 +44,19 @@ class FilmSubjectsView extends GetView<FilmSubjectsController> {
                 slivers: [
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    sliver: SliverToBoxAdapter(
-                      child: FilmBanner(
-                        title: 'Pick a subject',
-                        subtitle: films == 0
-                            ? 'Watch the story, then play.'
-                            : '$watched of $films films watched',
-                        colors: FilmColors.banner,
-                        trailing: films == 0
-                            ? null
-                            : FilmProgressBar(
-                                done: watched,
-                                total: films,
-                                color: Colors.white,
-                                track: Colors.white.withValues(alpha: 0.3),
-                              ),
-                      ),
+                    sliver: SliverList.list(
+                      children: [
+                        const ArtBanner(
+                          AppBanners.animation2d3d,
+                          semanticLabel: '2D and 3D Animation',
+                        ),
+                        const SizedBox(height: 14),
+                        FilmProgressCard(
+                          title: 'Pick a subject',
+                          done: watched,
+                          total: films,
+                        ),
+                      ],
                     ),
                   ),
                   SliverPadding(
@@ -137,7 +136,12 @@ class _SubjectCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SubjectBadge(icon: subject.icon, tone: tone, size: 52),
+                SubjectBadge(
+                  icon: subject.icon,
+                  name: subject.name,
+                  tone: tone,
+                  size: 64,
+                ),
                 const Spacer(),
                 if (subject.filmsToWatch > 0)
                   Container(

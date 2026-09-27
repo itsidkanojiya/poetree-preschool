@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/assets/app_assets.dart';
 import '../activities/book_shelf_controller.dart';
 
 /// One subject on the films page — English, Maths, EVS — with how many films
@@ -209,11 +210,15 @@ class FilmChaptersController extends GetxController {
     required this.studentId,
     required this.bookId,
     required this.bookName,
+    this.art = AppIcons.storybook,
   });
 
   final String? studentId;
   final String? bookId;
   final String bookName;
+
+  /// The book's subject picture, for chapters with no picture of their own.
+  final String art;
 
   final chapters = <FilmChapter>[].obs;
   final isLoading = true.obs;

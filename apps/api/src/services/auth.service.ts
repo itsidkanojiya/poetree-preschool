@@ -6,6 +6,7 @@ import type {
   LoginResponse,
   Role,
 } from '@poetree/shared';
+import { SINGLE_DEVICE_ROLES } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { burnPasswordComparison, verifyPassword } from '../lib/password.js';
@@ -90,6 +91,44 @@ const branchSelect = {
   status: true,
 } satisfies Prisma.SchoolSelect;
 
+/** Why a refresh token was ended when its account signed in on another phone. */
+const SIGNED_IN_ELSEWHERE = 'SIGNED_IN_ELSEWHERE';
+
+export function isSingleDevice(role: string): boolean {
+  return (SINGLE_DEVICE_ROLES as readonly string[]).includes(role);
+}
+
+/**
+ * The current session of each account held to one device, kept briefly.
+ *
+ * Every request from a parent or teacher asks this, and the home screen alone
+ * fires half a dozen at once; a few seconds' memory turns those into one read.
+ * A sign-in in this process updates it at once. The cost of the memory is that
+ * another process may take up to [SESSION_MEMORY_MS] to notice a sign-in.
+ */
+const SESSION_MEMORY_MS = 10_000;
+const sessionMemory = new Map<string, { sessionId: string | null; at: number }>();
+
+function rememberSession(userId: string, sessionId: string | null): void {
+  sessionMemory.set(userId, { sessionId, at: Date.now() });
+  // Bounded without a timer: past a few thousand entries, start again.
+  if (sessionMemory.size > 5000) sessionMemory.clear();
+}
+
+/** The account's current session, or null when it has none on record. */
+export async function currentSessionOf(userId: string): Promise<string | null> {
+  const known = sessionMemory.get(userId);
+  if (known && Date.now() - known.at < SESSION_MEMORY_MS) return known.sessionId;
+
+  const row = await prismaUnscoped.user.findUnique({
+    where: { id: userId },
+    select: { currentSessionId: true },
+  });
+  const sessionId = row?.currentSessionId ?? null;
+  rememberSession(userId, sessionId);
+  return sessionId;
+}
+
 /**
  * A pair, and the session row behind the refresh half.
  *
@@ -102,9 +141,30 @@ async function issueTokens(
   user: UserWithSchool,
   meta: RequestMeta,
   activeSchoolId: string | null = null,
+  /** Carrying on an existing sign-in (a refresh). Absent: a new sign-in. */
+  continuing?: string,
 ) {
   const tokenId = newTokenId();
   const refreshToken = signRefreshToken({ userId: user.id, tokenId });
+  const sessionId = continuing ?? newTokenId();
+
+  // A new sign-in by a parent or teacher is now their only one: every other
+  // session they hold ends, and this one becomes the one requests are checked
+  // against. Done before this session's own token exists, so it is not caught
+  // in the sweep.
+  if (!continuing && isSingleDevice(user.role)) {
+    await prismaUnscoped.$transaction([
+      prismaUnscoped.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date(), revokedBy: SIGNED_IN_ELSEWHERE },
+      }),
+      prismaUnscoped.user.update({
+        where: { id: user.id },
+        data: { currentSessionId: sessionId },
+      }),
+    ]);
+    rememberSession(user.id, sessionId);
+  }
 
   await prismaUnscoped.refreshToken.create({
     data: {
@@ -115,6 +175,7 @@ async function issueTokens(
       userAgent: meta.userAgent?.slice(0, 300) ?? null,
       ipAddress: meta.ipAddress?.slice(0, 64) ?? null,
       activeSchoolId,
+      sessionId,
     },
   });
 
@@ -124,6 +185,7 @@ async function issueTokens(
       userId: user.id,
       role: user.role as Role,
       schoolId: activeSchoolId ?? user.schoolId,
+      sessionId,
     }),
     refreshToken,
     expiresIn: env.ACCESS_TOKEN_TTL_SECONDS,
@@ -297,6 +359,13 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     throw ApiError.invalidRefreshToken();
   }
 
+  // Ended because the account signed in on another phone. Not a theft: the
+  // old phone refreshing is exactly what is expected to happen next, and
+  // treating it as reuse would end the new phone's session too.
+  if (stored.revokedBy === SIGNED_IN_ELSEWHERE) {
+    throw ApiError.sessionReplaced();
+  }
+
   if (stored.revokedAt) {
     // A token presented moments after it was rotated is a race, not a theft.
     //
@@ -336,6 +405,18 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     throw ApiError.forbidden('Your account is not active. Please contact your administrator.');
   }
 
+  // Tokens from before sessions were tracked carry none; the row's own id
+  // stands in, so parallel refreshes of one such token stay one session.
+  const sessionId = stored.sessionId ?? stored.id;
+
+  if (
+    isSingleDevice(user.role) &&
+    user.currentSessionId !== null &&
+    user.currentSessionId !== sessionId
+  ) {
+    throw ApiError.sessionReplaced();
+  }
+
   // The branch this session was working in, if it is a group administrator's.
   const branch = stored.activeSchoolId
     ? await prismaUnscoped.school.findUnique({
@@ -351,7 +432,7 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     await assertSchoolUsable(schoolToCheck);
   }
 
-  const tokens = await issueTokens(user, meta, branch?.id ?? null);
+  const tokens = await issueTokens(user, meta, branch?.id ?? null, sessionId);
 
   await prismaUnscoped.refreshToken.update({
     where: { id: stored.id },

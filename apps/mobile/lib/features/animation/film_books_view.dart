@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/routes/app_pages.dart';
-import '../../core/theme/kid_icons.dart';
 import '../../core/theme/play_palette.dart';
+import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/squish.dart';
@@ -70,6 +70,7 @@ class _BookCard extends StatelessWidget {
           'studentId': studentId,
           'bookId': book.id,
           'bookName': book.name,
+          'art': book.art,
         },
       ),
       child: Column(
@@ -97,13 +98,8 @@ class _BookCard extends StatelessWidget {
                     if (book.coverPath != null)
                       AuthedImage(path: book.coverPath!, fit: BoxFit.cover)
                     else
-                      Center(
-                        child: KidIcon(
-                          KidGlyph.book,
-                          size: 64,
-                          color: tone.ink,
-                        ),
-                      ),
+                      // No cover: its subject's picture.
+                      Center(child: ArtIcon(book.art, size: 96)),
                     // A big play button: this screen is about the films.
                     Positioned(
                       right: 10,

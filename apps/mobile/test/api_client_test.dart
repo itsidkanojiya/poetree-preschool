@@ -287,4 +287,75 @@ void main() {
       expect(tokens.clearCount, 1);
     });
   });
+
+  group('signed in on another device', () {
+    test('goes to sign-in with the reason, without trying a refresh', () async {
+      // A refresh would be refused for the same reason; spending one only
+      // delays telling the family why they were signed out.
+      final tokens = _MemoryTokenStore(access: 'old', refresh: 'old');
+
+      var refreshCalls = 0;
+      final refreshDio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+        ..httpClientAdapter = _ScriptedAdapter((options) async {
+          refreshCalls += 1;
+          return _json({'accessToken': 'a', 'refreshToken': 'b'}, 200);
+        });
+
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+        ..httpClientAdapter = _ScriptedAdapter((options) async {
+          return _json({
+            'error': {'code': 'SESSION_REPLACED', 'message': 'elsewhere'},
+          }, 401);
+        });
+
+      var replaced = 0;
+      var expired = 0;
+      final client = ApiClient(tokens, dio: dio, refreshDio: refreshDio)
+        ..onSessionReplaced = (() => replaced += 1)
+        ..onSessionExpired = (() => expired += 1);
+
+      await expectLater(
+        client.get<Map<String, dynamic>>('/me/children'),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(replaced, 1);
+      expect(expired, 0);
+      expect(refreshCalls, 0);
+      expect(tokens.clearCount, 1);
+    });
+
+    test('is recognised when only the refresh says so', () async {
+      // An access token that simply expired finds out at refresh time.
+      final tokens = _MemoryTokenStore(access: 'old', refresh: 'old');
+
+      final refreshDio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+        ..httpClientAdapter = _ScriptedAdapter((options) async {
+          return _json({
+            'error': {'code': 'SESSION_REPLACED', 'message': 'elsewhere'},
+          }, 401);
+        });
+
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+        ..httpClientAdapter = _ScriptedAdapter((options) async {
+          return _json({
+            'error': {'code': 'TOKEN_EXPIRED', 'message': 'expired'},
+          }, 401);
+        });
+
+      var replaced = 0;
+      var expired = 0;
+      final client = ApiClient(tokens, dio: dio, refreshDio: refreshDio)
+        ..onSessionReplaced = (() => replaced += 1)
+        ..onSessionExpired = (() => expired += 1);
+
+      await expectLater(
+        client.get<Map<String, dynamic>>('/me/children'),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(replaced, 1);
+      expect(expired, 0);
+    });
+  });
 }

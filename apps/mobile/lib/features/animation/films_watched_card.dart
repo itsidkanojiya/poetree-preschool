@@ -138,6 +138,7 @@ class _FilmsWatchedCardState extends State<FilmsWatchedCard> {
                         children: [
                           SubjectBadge(
                             icon: subject.icon,
+                            name: subject.name,
                             tone: toneFor(subject.name),
                             size: 34,
                           ),

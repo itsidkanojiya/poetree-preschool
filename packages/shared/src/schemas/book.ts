@@ -28,7 +28,9 @@ const bookCodeSchema = z
  * The pictures the app knows how to draw for a subject.
  *
  * A fixed set of keys rather than uploaded images, so a subject added in the
- * admin panel has a proper tile on the first day instead of a grey square.
+ * admin panel has a proper tile on the first day instead of a grey square. The
+ * app maps each key to a picture in its asset pack (SubjectArt in
+ * lib/core/assets/app_assets.dart); an app too old to know a key draws a book.
  */
 export const BOOK_SUBJECT_ICONS = [
   'abc',
@@ -40,6 +42,14 @@ export const BOOK_SUBJECT_ICONS = [
   'music',
   'phonics',
   'book',
+  // From the app's picture pack, added after the first set.
+  'stories',
+  'shapes',
+  'festivals',
+  'awareness',
+  'abc_blocks',
+  'number_blocks',
+  'storybook',
 ] as const;
 export type BookSubjectIcon = (typeof BOOK_SUBJECT_ICONS)[number];
 

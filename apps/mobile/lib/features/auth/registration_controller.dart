@@ -30,6 +30,13 @@ class OtpState {
   /// The screen says so rather than leaving a family waiting for a text.
   final delivered = true.obs;
 
+  /// How many digits the code has, so the screen draws one box per digit.
+  /// Six from a real provider; the fixed code's own length until then.
+  final codeLength = 6.obs;
+
+  /// When the last code went out, for the "send again in 0:30" countdown.
+  final sentAt = Rxn<DateTime>();
+
   final isSending = false.obs;
   final isVerifying = false.obs;
   final isVerified = false.obs;
@@ -76,6 +83,11 @@ class RegistrationController extends GetxController {
       state.challengeId.value = data['challengeId']?.toString();
       state.destination.value = destination.trim();
       state.delivered.value = data['delivered'] == true;
+      // An API from before the field existed: its fixed code was 4 digits.
+      state.codeLength.value =
+          (data['codeLength'] as num?)?.toInt() ??
+          (state.delivered.value ? 6 : 4);
+      state.sentAt.value = DateTime.now();
     } on DioException catch (e) {
       state.error.value = messageFor(e);
     } finally {

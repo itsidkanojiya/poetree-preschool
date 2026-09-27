@@ -153,22 +153,82 @@ const registrationLimiter = rateLimit({
 });
 
 /**
- * Sending a code costs the school money and rings somebody's phone, so this is
- * the tightest ceiling on the public surface. Six is a family mistyping their
- * number twice and asking again, which is the most anyone honest will do.
+ * One phone number or one email address, however it was typed.
+ *
+ * Read from the raw body because the limiter runs before validation — a
+ * request refused for its rate never gets as far as being checked.
  */
-const otpLimiter = rateLimit({
+export const otpDestinationKey = (req: Pick<Request, 'body'>): string => {
+  const payload = req.body as { channel?: unknown; destination?: unknown } | undefined;
+  const channel = payload?.channel === 'EMAIL' ? 'EMAIL' : 'PHONE';
+  const raw = typeof payload?.destination === 'string' ? payload.destination : '';
+  const destination =
+    channel === 'EMAIL'
+      ? raw.trim().toLowerCase()
+      : // Last ten digits: +91 98200 00000, 098200 00000 and 9820000000 are
+        // one phone.
+        raw.replace(/[^0-9]/g, '').slice(-10);
+  return `${channel}|${destination}`;
+};
+
+const otpRateLimited = (message: string) => ({
+  error: { code: 'RATE_LIMITED', message },
+});
+
+/**
+ * Codes to one number or one address.
+ *
+ * A code really sent costs the school money and rings somebody's phone, so
+ * this is the tight one. It used to be keyed on the connection and shared with
+ * checking a code: one registration is two codes sent and two checked, so the
+ * second family registering over the school's Wi-Fi in the same hour was
+ * turned away with a correct code in the boxes. Keyed on the destination, a
+ * family asking again for their own phone is the only thing it counts.
+ *
+ * Skipped while no message is really sent: the fixed code costs nothing, and
+ * the office trying the form ten times to see it work is not abuse.
+ */
+const otpPerDestinationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 6,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  skip: () => env.isTest,
-  message: {
-    error: {
-      code: 'RATE_LIMITED',
-      message: 'Too many codes requested. Try again in an hour.',
-    },
+  skip: (req) => {
+    if (env.isTest) return true;
+    const channel = (req.body as { channel?: unknown } | undefined)?.channel;
+    return !otpService.isDelivered(channel === 'EMAIL' ? 'EMAIL' : 'PHONE');
   },
+  keyGenerator: otpDestinationKey,
+  message: otpRateLimited(
+    'Too many codes sent to this number or address. Try again in an hour.',
+  ),
+});
+
+/**
+ * The spray guard: one connection sending codes to many numbers. Loose enough
+ * for a school's worth of families registering over its one Wi-Fi.
+ */
+const otpSendPerAddressLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 40,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  message: otpRateLimited('Too many codes requested. Try again in an hour.'),
+});
+
+/**
+ * Typing codes back. Guessing is already capped where it matters — each code
+ * dies after five wrong tries and a new one costs a send — so this only stops
+ * a script hammering the endpoint.
+ */
+const otpVerifyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  message: otpRateLimited('Too many tries. Try again in an hour.'),
 });
 
 /**
@@ -177,7 +237,8 @@ const otpLimiter = rateLimit({
  */
 publicRouter.post(
   '/schools/:code/otp/send',
-  otpLimiter,
+  otpSendPerAddressLimiter,
+  otpPerDestinationLimiter,
   validate({ params: codeParamSchema, body: sendOtpSchema }),
   asyncHandler(async (req: Request, res) => {
     const { code } = params<{ code: string }>(req);
@@ -193,7 +254,7 @@ publicRouter.post(
 /** Typing it back. Answers the same way whatever is wrong with it. */
 publicRouter.post(
   '/schools/:code/otp/verify',
-  otpLimiter,
+  otpVerifyLimiter,
   validate({ params: codeParamSchema, body: verifyOtpSchema }),
   asyncHandler(async (req: Request, res) => {
     const { code } = params<{ code: string }>(req);

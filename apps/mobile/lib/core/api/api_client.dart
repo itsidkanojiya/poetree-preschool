@@ -12,6 +12,10 @@ class ApiErrorCodes {
   static const invalidCredentials = 'INVALID_CREDENTIALS';
   static const tokenExpired = 'TOKEN_EXPIRED';
   static const invalidRefreshToken = 'INVALID_REFRESH_TOKEN';
+
+  /// This account signed in on another phone, which ended the session here.
+  /// Parents and teachers are signed in on one device at a time.
+  static const sessionReplaced = 'SESSION_REPLACED';
   static const portalAccessDenied = 'PORTAL_ACCESS_DENIED';
   static const wrongSchoolApp = 'WRONG_SCHOOL_APP';
 
@@ -121,6 +125,15 @@ class ApiClient {
             return handler.next(error);
           }
 
+          // Signed in on another phone. Also terminal: a refresh would be
+          // refused for the same reason, and the family should be told why
+          // rather than shown a generic "session expired".
+          if (code == ApiErrorCodes.sessionReplaced) {
+            await _tokens.clear();
+            onSessionReplaced?.call();
+            return handler.next(error);
+          }
+
           final isAuthFailure = response?.statusCode == 401;
           final alreadyRetried = error.requestOptions.extra['retried'] == true;
           final isRefreshCall = error.requestOptions.path.contains(
@@ -149,7 +162,12 @@ class ApiClient {
           final refreshed = await _refreshOnce();
           if (!refreshed) {
             await _tokens.clear();
-            onSessionExpired?.call();
+            // An expired access token finds out at refresh time instead.
+            if (_lastRefreshFailure == ApiErrorCodes.sessionReplaced) {
+              onSessionReplaced?.call();
+            } else {
+              onSessionExpired?.call();
+            }
             return handler.next(error);
           }
 
@@ -181,6 +199,13 @@ class ApiClient {
   /// Called when the session cannot be recovered and the user must sign in.
   void Function()? onSessionExpired;
 
+  /// Called when the account signed in on another device, which ended this
+  /// session.
+  void Function()? onSessionReplaced;
+
+  /// Why the last refresh was refused, when the API said.
+  String? _lastRefreshFailure;
+
   Future<bool>? _inFlightRefresh;
 
   static String _codeOf(Response<dynamic>? response) {
@@ -202,6 +227,7 @@ class ApiClient {
 
   Future<bool> _doRefresh() async {
     final refresh = await _tokens.refreshToken;
+    _lastRefreshFailure = null;
     if (refresh == null) return false;
 
     try {
@@ -218,7 +244,8 @@ class ApiClient {
         refresh: data['refreshToken'] as String,
       );
       return true;
-    } on DioException {
+    } on DioException catch (e) {
+      _lastRefreshFailure = _codeOf(e.response);
       return false;
     }
   }

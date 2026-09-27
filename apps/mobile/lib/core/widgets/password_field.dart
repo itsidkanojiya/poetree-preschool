@@ -19,6 +19,7 @@ class PasswordField extends StatefulWidget {
     this.textInputAction,
     this.onSubmitted,
     this.validator,
+    this.prefixIcon,
   });
 
   final TextEditingController controller;
@@ -30,6 +31,9 @@ class PasswordField extends StatefulWidget {
 
   /// Given when the field sits in a Form; without it this is a plain field.
   final FormFieldValidator<String>? validator;
+
+  /// An icon at the start of the box, as the sign-in and register forms use.
+  final IconData? prefixIcon;
 
   @override
   State<PasswordField> createState() => _PasswordFieldState();
@@ -43,6 +47,7 @@ class _PasswordFieldState extends State<PasswordField> {
     final decoration = InputDecoration(
       labelText: widget.label,
       helperText: widget.helperText,
+      prefixIcon: widget.prefixIcon == null ? null : Icon(widget.prefixIcon),
       suffixIcon: IconButton(
         onPressed: () => setState(() => _hidden = !_hidden),
         icon: Icon(

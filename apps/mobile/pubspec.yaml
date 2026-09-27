@@ -90,6 +90,10 @@ flutter:
   assets:
     # Written by tool/configure_school.dart from the school's SchoolAppConfig.
     - assets/branding/
+    # The Student/Parent app's picture pack: one PNG per icon and banner.
+    # Paths are named once, in lib/core/assets/app_assets.dart.
+    - assets/images/icons/
+    - assets/images/banners/
   fonts:
     - family: Poppins
       fonts:

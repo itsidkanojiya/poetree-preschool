@@ -568,6 +568,10 @@ model User {
 
   lastLoginAt        DateTime?
   mustChangePassword Boolean   @default(false)
+  /// The one sign-in a parent or teacher may hold (SINGLE_DEVICE_ROLES).
+  /// Signing in again replaces it; a token from any other session is refused.
+  /// Null until they first sign in after this existed, and for office roles.
+  currentSessionId   String?   @db.VarChar(40)
 
   /// Soft delete. Staff who leave are deactivated, never removed — their name
   /// must still render on last year's attendance and homework.
@@ -1109,6 +1113,10 @@ model RefreshToken {
   /// must not silently drop somebody back to "no branch chosen", because their
   /// next request would then fail halfway through a task.
   activeSchoolId String? @db.VarChar(191)
+
+  /// The sign-in this token belongs to, the same across every rotation of it.
+  /// Null on tokens issued before sessions were tracked.
+  sessionId String? @db.VarChar(40)
 
   createdAt DateTime @default(now())
 

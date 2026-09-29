@@ -179,7 +179,12 @@ class TracingContent extends ActivityContent {
 }
 
 class TracingItem {
-  TracingItem({required this.glyph, required this.say, required this.strokes});
+  TracingItem({
+    required this.glyph,
+    required this.say,
+    required this.strokes,
+    this.ordered = true,
+  });
 
   factory TracingItem.fromJson(Map<String, dynamic> json) => TracingItem(
     glyph: json['glyph'] as String? ?? '',
@@ -198,6 +203,7 @@ class TracingItem {
               .toList(),
         )
         .toList(),
+    ordered: json['ordered'] as bool? ?? true,
   );
 
   final String glyph;
@@ -205,6 +211,10 @@ class TracingItem {
 
   /// Normalised 0–1 coordinates, so one definition renders on any screen.
   final List<List<({double x, double y})>> strokes;
+
+  /// False when the strokes may be traced in any order and either way round
+  /// (the Hindi and Gujarati letters, whose order is not taught yet).
+  final bool ordered;
 }
 
 class ChoiceContent extends ActivityContent {

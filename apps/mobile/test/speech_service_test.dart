@@ -63,4 +63,14 @@ void main() {
       expect(phrase.trim(), isNotEmpty);
     }
   });
+
+  test('knows a Hindi or Gujarati letter from an English one', () {
+    // So the child tracing क hears it in a Hindi voice, not silence.
+    expect(SpeechService.scriptOf('क'), 'hindi');
+    expect(SpeechService.scriptOf('Trace the letter क.'), 'hindi');
+    expect(SpeechService.scriptOf('ક'), 'gujarati');
+    expect(SpeechService.scriptOf('૧૦'), 'gujarati');
+    expect(SpeechService.scriptOf('A for Apple'), isNull);
+    expect(SpeechService.scriptOf('7'), isNull);
+  });
 }

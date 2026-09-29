@@ -52,11 +52,12 @@ def upper():
         line((L, T), (R, T), 10),
         line((L, MID), (R - 0.06, MID), 8),
     ]
-    # The arc stops on the right, then one shelf goes back in. Two lines from
-    # the same point made a path that doubled back on itself.
+    # The school's own G: a round curve that comes back up to the middle,
+    # then a shelf out to the right and a short line down — the "Gn" of the
+    # school's handwriting sheet, not a typeface G with a spur inside.
     out["G"] = [
-        arc(CX, MID, (R - L) / 2, (B - T) / 2, 310, 20),
-        line((CX + (R - L) / 2 * 0.94, MID + (B - T) / 2 * 0.34), (CX, MID + (B - T) / 2 * 0.34), 6),
+        arc(0.395, 0.50, 0.273, 0.37, 321, 2),
+        join(line((0.668, 0.511), (0.877, 0.511), 6), line((0.877, 0.511), (0.877, 0.855), 8)),
     ]
     out["H"] = [
         line((L, T), (L, B), 16),
@@ -225,7 +226,15 @@ def lower():
             curve((R - 0.02, BL - 0.07), (CX - 0.02, BL + 0.02), (L, BL - 0.05)),
         )
     ]
-    out["t"] = [line((CX, AT + 0.06), (CX, BL), 14), line((CX - 0.12, XT), (CX + 0.12, XT), 6)]
+    # Down with a little foot curling right, as on the school's sheet.
+    out["t"] = [
+        join(
+            line((CX - 0.05, AT + 0.06), (CX - 0.05, BL - 0.05), 14),
+            curve((CX - 0.05, BL - 0.05), (CX - 0.04, BL + 0.01), (CX + 0.06, BL)),
+            curve((CX + 0.06, BL), (CX + 0.12, BL), (CX + 0.17, BL - 0.03)),
+        ),
+        line((CX - 0.19, XT), (CX + 0.09, XT), 6),
+    ]
     out["u"] = [
         join(
             line((L, XT), (L, cy + 0.02), 5),
@@ -242,12 +251,11 @@ def lower():
         line((R - 0.09, BL), (R, XT), 7),
     ]
     out["x"] = [line((L, XT), (R, BL), 8), line((R, XT), (L, BL), 8)]
+    # Two straight slides, as on the school's sheet: a short one in to the
+    # middle, then a long one all the way down below the line.
     out["y"] = [
-        line((L, XT), (CX + 0.04, BL), 8),
-        join(
-            line((R, XT), (CX - 0.02, DB - 0.06), 10),
-            curve((CX - 0.02, DB - 0.06), (CX - 0.08, DB), (L + 0.02, DB - 0.02)),
-        ),
+        line((L + 0.05, XT), (CX, 0.685), 8),
+        line((R - 0.05, XT), (L + 0.05, DB), 14),
     ]
     out["z"] = [
         line((L, XT), (R, XT), 6),
@@ -265,7 +273,7 @@ SAY = {
     "D": "Straight down, then a big round tummy.",
     "E": "Straight down, then three lines across.",
     "F": "Straight down, then two lines across.",
-    "G": "A big curve, then a little shelf inside.",
+    "G": "A big curve, then across and down.",
     "H": "Down, down, then a line across the middle.",
     "I": "A line on top, straight down, a line underneath.",
     "J": "A line on top, down, then a little hook.",

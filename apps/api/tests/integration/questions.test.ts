@@ -251,12 +251,12 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
 
     // A script we have no shape for keeps whatever was drawn for it. Taking
     // that away would remove the feature rather than the mistake.
-    const hindi = await api
+    const tamil = await api
       .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
       .set(auth(publisher))
       .send({
         say: 'Trace this letter',
-        promptGlyph: 'अ',
+        promptGlyph: 'அ',
         strokes: [
           [
             { x: 0.3, y: 0.2 },
@@ -265,8 +265,18 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
         ],
       });
 
-    expect(hindi.body.strokes).toHaveLength(1);
+    expect(tamil.body.strokes).toHaveLength(1);
+    expect(tamil.body.problem).toBeNull();
+
+    // Hindi and Gujarati letters come from the school's handwriting sheet, the
+    // same way English ones do: the glyph alone is enough.
+    const hindi = await api
+      .post(`${BASE}/publication/activities/${tracing.body.id}/questions`)
+      .set(auth(publisher))
+      .send({ say: 'Trace the letter क', promptGlyph: 'क' });
+
     expect(hindi.body.problem).toBeNull();
+    expect(hindi.body.strokes.length).toBeGreaterThan(1);
 
     // And one with neither is a blank square a child is asked to trace.
     const empty = await api

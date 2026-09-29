@@ -10,7 +10,7 @@ import {
   type UpdateQuestionInput,
 } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
-import { strokesForGlyph } from '../content/glyphStrokes.js';
+import { isFreeOrderGlyph, strokesForGlyph } from '../content/glyphStrokes.js';
 import { ApiError } from '../lib/apiError.js';
 import { writeAuditLog } from './audit.service.js';
 
@@ -472,6 +472,7 @@ export async function composeContent(activity: {
             glyph: row.promptGlyph ?? row.say.slice(0, 16),
             say: row.say,
             strokes: strokesOf(row) ?? [],
+            ...(isFreeOrderGlyph(row.promptGlyph) ? { ordered: false } : {}),
           })),
         }
       : isMultiAnswer(kind)

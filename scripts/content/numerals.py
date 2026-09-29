@@ -16,8 +16,8 @@ from strokes_lib import arc, curve, join, line, stroke
 # --- the numerals ------------------------------------------------------------
 
 def one():
-    # The flag, then straight down. One stroke, as it is taught.
-    return [stroke(join(line((0.37, 0.25), (0.5, 0.12), 6), line((0.5, 0.12), (0.5, 0.88), 20)))]
+    # Straight down, no flag — the school's sheet writes a one as one line.
+    return [stroke(line((0.5, 0.12), (0.5, 0.88), 20))]
 
 
 def two():
@@ -36,10 +36,11 @@ def three():
 
 
 def four():
-    # Down the slope and across, then the stem beside it.
-    slope = join(line((0.63, 0.12), (0.26, 0.62), 14), line((0.26, 0.62), (0.80, 0.62), 14))
-    stem = line((0.63, 0.12), (0.63, 0.9), 20)
-    return [stroke(slope), stroke(stem)]
+    # The school's open four: down the arm and across, then the long line
+    # down through the bar.
+    arm = join(line((0.354, 0.12), (0.270, 0.507), 10), line((0.270, 0.507), (0.730, 0.507), 12))
+    stem = line((0.629, 0.12), (0.629, 0.88), 20)
+    return [stroke(arm), stroke(stem)]
 
 
 def five():
@@ -70,29 +71,30 @@ def eight():
 
 
 def nine():
-    # A loop at the top, then straight down the side.
-    loop = arc(0.50, 0.32, 0.18, 0.18, 0, 360)
-    stem = curve((0.68, 0.32), (0.68, 0.68), (0.55, 0.88))
-    return [stroke(join(loop, stem))]
+    # A loop at the top, then a straight line down its right side — the
+    # school's nine, with no curl at the foot.
+    loop = arc(0.50, 0.309, 0.197, 0.189, 0, -360)
+    stem = line((0.697, 0.12), (0.697, 0.88), 20)
+    return [stroke(loop), stroke(stem)]
 
 
 def ten():
     # A one and an oh, side by side — two separate strokes, as it is written.
-    stem = join(line((0.14, 0.24), (0.24, 0.14), 5), line((0.24, 0.14), (0.24, 0.86), 18))
+    stem = line((0.24, 0.14), (0.24, 0.86), 18)
     oh = arc(0.62, 0.50, 0.17, 0.36, 0, 360)
     return [stroke(stem), stroke(oh)]
 
 
 ITEMS = [
-    ("1", "Trace the number one. Start at the flag, then straight down.", one()),
+    ("1", "Trace the number one. Straight down from the top.", one()),
     ("2", "Trace the number two. Around the top, down, and across the bottom.", two()),
     ("3", "Trace the number three. Two bumps, one under the other.", three()),
-    ("4", "Trace the number four. Down and across, then a line beside it.", four()),
+    ("4", "Trace the number four. Down and across, then a long line down.", four()),
     ("5", "Trace the number five. Down the back, round the tummy, then the hat.", five()),
     ("6", "Trace the number six. A big curve down, then loop around.", six()),
     ("7", "Trace the number seven. Across the top, then slide down.", seven()),
     ("8", "Trace the number eight. A small loop, then a bigger one.", eight()),
-    ("9", "Trace the number nine. A loop at the top, then down the side.", nine()),
+    ("9", "Trace the number nine. A loop at the top, then straight down.", nine()),
     ("10", "Trace the number ten. A one, then a round oh.", ten()),
 ]
 

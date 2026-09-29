@@ -59,6 +59,26 @@ const promptSchema = z.object({
  * any screen size. Scoring is per stroke completed, not per pixel — a
  * three-year-old's line is never going to sit on the path.
  */
+/**
+ * The pre-writing patterns a tracing question can ask for, from the school's
+ * handwriting sheet. The key is what goes in the question's glyph; the API has
+ * a path for each.
+ */
+export const TRACING_PATTERNS = [
+  { key: 'pattern-standing', label: 'Standing lines' },
+  { key: 'pattern-sleeping', label: 'Sleeping lines' },
+  { key: 'pattern-slant-r', label: 'Slanting line /' },
+  { key: 'pattern-slant-l', label: 'Slanting line \\' },
+  { key: 'pattern-curve', label: 'Big curve' },
+  { key: 'pattern-curve-s', label: 'Small curve' },
+  { key: 'pattern-arch', label: 'Big bridge' },
+  { key: 'pattern-arch-s', label: 'Small bridge' },
+  { key: 'pattern-cup', label: 'Big cup' },
+  { key: 'pattern-cup-s', label: 'Small cup' },
+  { key: 'pattern-zigzag', label: 'Big zigzag' },
+  { key: 'pattern-zigzag-s', label: 'Small zigzag' },
+] as const;
+
 export const tracingContentSchema = z.object({
   kind: z.literal('TRACING'),
   items: z
@@ -71,7 +91,15 @@ export const tracingContentSchema = z.object({
             z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })).min(2),
           )
           .min(1)
-          .max(6),
+          // A Hindi or Gujarati letter from the school's sheet can be a dozen
+          // parts: a knot, a curl, a headline and a dot.
+          .max(16),
+        /**
+         * False when the strokes may be traced in any order and either way
+         * round — the Hindi and Gujarati letters, whose order is not yet
+         * taught. Absent means in order, as written.
+         */
+        ordered: z.boolean().optional(),
       }),
     )
     .min(1)

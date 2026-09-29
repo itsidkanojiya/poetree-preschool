@@ -36,6 +36,60 @@ class SpeechService extends GetxService {
 
   bool _ready = false;
 
+  /// The English voice [_configure] settled on, and the one speaking now.
+  String? _english;
+  String? _speaking;
+
+  /// Voices tried for a script, in order, and what each turned out to be.
+  static const _voices = {
+    'hindi': ['hi-IN'],
+    'gujarati': ['gu-IN', 'hi-IN'],
+  };
+  final _available = <String, bool>{};
+
+  /// Which script [text] is written in, when it is not English.
+  ///
+  /// A Hindi letter read by the English voice comes out as silence or as
+  /// nonsense; the child tracing क should hear "क".
+  static String? scriptOf(String text) {
+    for (final unit in text.runes) {
+      if (unit >= 0x0900 && unit <= 0x097F) return 'hindi';
+      if (unit >= 0x0A80 && unit <= 0x0AFF) return 'gujarati';
+    }
+    return null;
+  }
+
+  /// Switches to the voice for [text]'s script, if the phone has one, and
+  /// back to English after.
+  Future<void> _voiceFor(String text) async {
+    final script = scriptOf(text);
+    String? want = _english;
+    if (script != null) {
+      for (final language in _voices[script]!) {
+        final ok = _available[language] ??= await _has(language);
+        if (ok) {
+          want = language;
+          break;
+        }
+      }
+    }
+    if (want == null || want == _speaking) return;
+    try {
+      await _tts.setLanguage(want);
+      _speaking = want;
+    } on Exception {
+      // The current voice still says something.
+    }
+  }
+
+  Future<bool> _has(String language) async {
+    try {
+      return await _tts.isLanguageAvailable(language) == true;
+    } on Exception {
+      return false;
+    }
+  }
+
   Future<SpeechService> init() async {
     try {
       isOn.value = (await _storage.read(key: _key)) != 'off';
@@ -64,6 +118,7 @@ class SpeechService extends GetxService {
         final available = await _tts.isLanguageAvailable(language);
         if (available == true) {
           await _tts.setLanguage(language);
+          _english = _speaking = language;
           break;
         }
       } on Exception {
@@ -105,6 +160,7 @@ class SpeechService extends GetxService {
 
     try {
       await _tts.stop();
+      await _voiceFor(text);
       // Deliberately not awaiting completion: `awaitSpeakCompletion` makes this
       // return only when the sentence has finished, so a speaker button would
       // hold its callback open for the length of the sentence, and an engine

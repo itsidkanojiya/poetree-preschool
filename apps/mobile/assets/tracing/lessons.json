@@ -1,0 +1,307 @@
+{
+  "_about": "What a child sees and hears after tracing each letter or number. Keyed by the glyph exactly as the tracing activity sends it; a lowercase letter uses its capital. \"object\" names a picture in assets/tracing/objects/<object>.png and, optionally, a recording in assets/tracing/audio/<glyph>.mp3 (not played yet). Add Hindi or Gujarati letters the same way, keyed by the letter itself.",
+  "glyphs": {
+    "A": {
+      "kind": "letter",
+      "word": "Apple",
+      "object": "apple",
+      "say": "A for Apple. Apple starts with A."
+    },
+    "B": {
+      "kind": "letter",
+      "word": "Ball",
+      "object": "ball",
+      "say": "B for Ball. Ball starts with B."
+    },
+    "C": {
+      "kind": "letter",
+      "word": "Cat",
+      "object": "cat",
+      "say": "C for Cat. Cat starts with C."
+    },
+    "D": {
+      "kind": "letter",
+      "word": "Dog",
+      "object": "dog",
+      "say": "D for Dog. Dog starts with D."
+    },
+    "E": {
+      "kind": "letter",
+      "word": "Elephant",
+      "object": "elephant",
+      "say": "E for Elephant. Elephant starts with E."
+    },
+    "F": {
+      "kind": "letter",
+      "word": "Fish",
+      "object": "fish",
+      "say": "F for Fish. Fish starts with F."
+    },
+    "G": {
+      "kind": "letter",
+      "word": "Grapes",
+      "object": "grapes",
+      "say": "G for Grapes. Grapes starts with G."
+    },
+    "H": {
+      "kind": "letter",
+      "word": "Hat",
+      "object": "hat",
+      "say": "H for Hat. Hat starts with H."
+    },
+    "I": {
+      "kind": "letter",
+      "word": "Ice cream",
+      "object": "ice_cream",
+      "say": "I for Ice cream. Ice cream starts with I."
+    },
+    "J": {
+      "kind": "letter",
+      "word": "Jug",
+      "object": "jug",
+      "say": "J for Jug. Jug starts with J."
+    },
+    "K": {
+      "kind": "letter",
+      "word": "Kite",
+      "object": "kite",
+      "say": "K for Kite. Kite starts with K."
+    },
+    "L": {
+      "kind": "letter",
+      "word": "Lion",
+      "object": "lion",
+      "say": "L for Lion. Lion starts with L."
+    },
+    "M": {
+      "kind": "letter",
+      "word": "Mango",
+      "object": "mango",
+      "say": "M for Mango. Mango starts with M."
+    },
+    "N": {
+      "kind": "letter",
+      "word": "Nest",
+      "object": "nest",
+      "say": "N for Nest. Nest starts with N."
+    },
+    "O": {
+      "kind": "letter",
+      "word": "Orange",
+      "object": "orange",
+      "say": "O for Orange. Orange starts with O."
+    },
+    "P": {
+      "kind": "letter",
+      "word": "Parrot",
+      "object": "parrot",
+      "say": "P for Parrot. Parrot starts with P."
+    },
+    "Q": {
+      "kind": "letter",
+      "word": "Queen",
+      "object": "queen",
+      "say": "Q for Queen. Queen starts with Q."
+    },
+    "R": {
+      "kind": "letter",
+      "word": "Rabbit",
+      "object": "rabbit",
+      "say": "R for Rabbit. Rabbit starts with R."
+    },
+    "S": {
+      "kind": "letter",
+      "word": "Sun",
+      "object": "sun",
+      "say": "S for Sun. Sun starts with S."
+    },
+    "T": {
+      "kind": "letter",
+      "word": "Tree",
+      "object": "tree",
+      "say": "T for Tree. Tree starts with T."
+    },
+    "U": {
+      "kind": "letter",
+      "word": "Umbrella",
+      "object": "umbrella",
+      "say": "U for Umbrella. Umbrella starts with U."
+    },
+    "V": {
+      "kind": "letter",
+      "word": "Van",
+      "object": "van",
+      "say": "V for Van. Van starts with V."
+    },
+    "W": {
+      "kind": "letter",
+      "word": "Watch",
+      "object": "watch",
+      "say": "W for Watch. Watch starts with W."
+    },
+    "X": {
+      "kind": "letter",
+      "word": "Xylophone",
+      "object": "xylophone",
+      "say": "X for Xylophone. Xylophone starts with X."
+    },
+    "Y": {
+      "kind": "letter",
+      "word": "Yo-yo",
+      "object": "yo_yo",
+      "say": "Y for Yo-yo. Yo-yo starts with Y."
+    },
+    "Z": {
+      "kind": "letter",
+      "word": "Zebra",
+      "object": "zebra",
+      "say": "Z for Zebra. Zebra starts with Z."
+    },
+    "0": {
+      "kind": "number",
+      "count": 0,
+      "name": "zero",
+      "say": "Zero. Nothing at all."
+    },
+    "1": {
+      "kind": "number",
+      "count": 1,
+      "name": "one",
+      "object": "apple",
+      "objectName": "apple",
+      "say": "One. One apple."
+    },
+    "2": {
+      "kind": "number",
+      "count": 2,
+      "name": "two",
+      "object": "ball",
+      "objectName": "balls",
+      "say": "Two. Two balls."
+    },
+    "3": {
+      "kind": "number",
+      "count": 3,
+      "name": "three",
+      "object": "star",
+      "objectName": "stars",
+      "say": "Three. Three stars."
+    },
+    "4": {
+      "kind": "number",
+      "count": 4,
+      "name": "four",
+      "object": "fish",
+      "objectName": "fish",
+      "say": "Four. Four fish."
+    },
+    "5": {
+      "kind": "number",
+      "count": 5,
+      "name": "five",
+      "object": "flower",
+      "objectName": "flowers",
+      "say": "Five. Five flowers."
+    },
+    "6": {
+      "kind": "number",
+      "count": 6,
+      "name": "six",
+      "object": "balloon",
+      "objectName": "balloons",
+      "say": "Six. Six balloons."
+    },
+    "7": {
+      "kind": "number",
+      "count": 7,
+      "name": "seven",
+      "object": "butterfly",
+      "objectName": "butterflies",
+      "say": "Seven. Seven butterflies."
+    },
+    "8": {
+      "kind": "number",
+      "count": 8,
+      "name": "eight",
+      "object": "duck",
+      "objectName": "ducks",
+      "say": "Eight. Eight ducks."
+    },
+    "9": {
+      "kind": "number",
+      "count": 9,
+      "name": "nine",
+      "object": "car",
+      "objectName": "cars",
+      "say": "Nine. Nine cars."
+    },
+    "10": {
+      "kind": "number",
+      "count": 10,
+      "name": "ten",
+      "object": "crayon",
+      "objectName": "crayons",
+      "say": "Ten. Ten crayons."
+    },
+    "pattern-standing": {
+      "kind": "pattern",
+      "word": "Standing lines",
+      "say": "Well done! You traced standing lines."
+    },
+    "pattern-sleeping": {
+      "kind": "pattern",
+      "word": "Sleeping lines",
+      "say": "Well done! You traced sleeping lines."
+    },
+    "pattern-slant-r": {
+      "kind": "pattern",
+      "word": "A slanting line",
+      "say": "Well done! You traced a slanting line."
+    },
+    "pattern-slant-l": {
+      "kind": "pattern",
+      "word": "A slanting line",
+      "say": "Well done! You traced a slanting line."
+    },
+    "pattern-curve": {
+      "kind": "pattern",
+      "word": "A big curve",
+      "say": "Well done! You traced a big curve."
+    },
+    "pattern-curve-s": {
+      "kind": "pattern",
+      "word": "A small curve",
+      "say": "Well done! You traced a small curve."
+    },
+    "pattern-arch": {
+      "kind": "pattern",
+      "word": "A big bridge",
+      "say": "Well done! You traced a big bridge."
+    },
+    "pattern-arch-s": {
+      "kind": "pattern",
+      "word": "A small bridge",
+      "say": "Well done! You traced a small bridge."
+    },
+    "pattern-cup": {
+      "kind": "pattern",
+      "word": "A big cup",
+      "say": "Well done! You traced a big cup."
+    },
+    "pattern-cup-s": {
+      "kind": "pattern",
+      "word": "A small cup",
+      "say": "Well done! You traced a small cup."
+    },
+    "pattern-zigzag": {
+      "kind": "pattern",
+      "word": "A big zigzag",
+      "say": "Well done! You traced a big zigzag."
+    },
+    "pattern-zigzag-s": {
+      "kind": "pattern",
+      "word": "A small zigzag",
+      "say": "Well done! You traced a small zigzag."
+    }
+  }
+}

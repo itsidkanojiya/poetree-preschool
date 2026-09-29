@@ -1,15 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../core/audio/speech_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/kid_icons.dart';
 import '../../core/widgets/authed_image.dart';
+import '../../core/letterforms/glyph_text.dart';
 import 'activity_controller.dart';
-import 'trace_check.dart';
 import 'activity_models.dart';
+import '../tracing/tracing_play.dart';
 
 /// A child doing one activity.
 ///
@@ -30,6 +28,25 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
     return Scaffold(
       appBar: AppBar(
         title: Text(controller.activity.title),
+        // Where they are, in numbers a parent can read over the child's
+        // shoulder: "3 / 10".
+        actions: [
+          Obx(
+            () => controller.isFinished.value || controller.total == 0
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Center(
+                      child: Text(
+                        '${controller.index.value + 1} / ${controller.total}',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(3),
           child: Obx(
@@ -60,7 +77,7 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
             content: c,
           ),
           CardContent c => _CardStep(controller: controller, content: c),
-          TracingContent c => _TracingStep(controller: controller, content: c),
+          TracingContent c => TracingPlay(controller: controller, content: c),
           null => const Center(child: Text('Nothing to do here yet.')),
         };
       }),
@@ -106,7 +123,7 @@ class _ChoiceStep extends StatelessWidget {
               ),
             )
           else if (item.glyph != null)
-            Text(item.glyph!, style: const TextStyle(fontSize: 64)),
+            GlyphText(item.glyph!, size: 56),
           const SizedBox(height: 12),
           Text(
             item.say,
@@ -202,7 +219,7 @@ class _MultiChoiceStep extends StatelessWidget {
               ),
             )
           else if (item.glyph != null)
-            Text(item.glyph!, style: const TextStyle(fontSize: 60)),
+            GlyphText(item.glyph!, size: 52),
           const SizedBox(height: 12),
           Text(
             item.say,
@@ -349,10 +366,16 @@ class _DragStep extends StatelessWidget {
                             height: 110,
                             fit: BoxFit.contain,
                           )
+                        : item.glyph != null
+                        ? GlyphText(
+                            item.glyph!,
+                            size: 48,
+                            color: colors.outline,
+                          )
                         : Text(
-                            item.glyph ?? 'Drop it here',
+                            'Drop it here',
                             style: TextStyle(
-                              fontSize: item.glyph == null ? 18 : 56,
+                              fontSize: 18,
                               color: colors.outline,
                             ),
                           ))
@@ -455,7 +478,7 @@ class _CardStep extends StatelessWidget {
               ),
             )
           else if (item.glyph != null)
-            Text(item.glyph!, style: const TextStyle(fontSize: 110)),
+            GlyphText(item.glyph!, size: 96),
           const SizedBox(height: 20),
           Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 12),
@@ -476,373 +499,6 @@ class _CardStep extends StatelessWidget {
       ),
     );
   }
-}
-
-class _TracingStep extends StatefulWidget {
-  const _TracingStep({required this.controller, required this.content});
-
-  final ActivityPlayController controller;
-  final TracingContent content;
-
-  @override
-  State<_TracingStep> createState() => _TracingStepState();
-}
-
-class _TracingStepState extends State<_TracingStep> {
-  final _drawn = <Offset>[];
-
-  SpeechService? get _voice =>
-      Get.isRegistered<SpeechService>() ? Get.find<SpeechService>() : null;
-
-  /// Which number was last spoken, so arriving at it says it once.
-  ///
-  /// The build runs on every finger movement; without this the app would say
-  /// "trace the number one" over and over while a child was drawing it.
-  int? _announced;
-
-  @override
-  void dispose() {
-    // A child who leaves mid-sentence should not be followed out of the page.
-    unawaited(_voice?.stop());
-    super.dispose();
-  }
-
-  /// Reads the instruction, which names the number in its first three words.
-  void _announce(int item, String say) {
-    if (_announced == item) return;
-    _announced = item;
-    unawaited(_voice?.say(say));
-  }
-
-  /// The last judgement, or null while the finger is still down.
-  ///
-  /// Held rather than recomputed on every frame: measuring a few hundred
-  /// points against a few hundred more, sixty times a second, for no reason.
-  /// It is worked out once, when the finger lifts.
-  TraceCheck? _check;
-
-  /// The canvas, so a lifted finger can be measured against a guide drawn at
-  /// the same size the child saw.
-  Size _canvas = Size.zero;
-
-  void _judge() {
-    final item = widget.content.items[widget.controller.index.value];
-    final result = checkTrace(
-      strokes: item.strokes,
-      drawn: _drawn,
-      size: _canvas,
-    );
-
-    setState(() => _check = result);
-
-    if (result.passes) {
-      widget.controller.traceAccepted();
-      unawaited(_voice?.wellDone());
-    } else {
-      // The same words on the screen, said out loud — a child who cannot read
-      // the hint is exactly the child who needs it.
-      unawaited(_voice?.say(result.hint));
-    }
-  }
-
-  void _restart() {
-    setState(() {
-      _drawn.clear();
-      _check = null;
-    });
-  }
-
-  /// See [_ChoiceStep.build] — same reason, same fix. `setState` keeps driving
-  /// the finger-drawing, which is this widget's own state and not the
-  /// controller's; the two rebuild paths sit happily on top of each other.
-  @override
-  Widget build(BuildContext context) => Obx(() => _body(context));
-
-  Widget _body(BuildContext context) {
-    final controller = widget.controller;
-    final item = widget.content.items[controller.index.value];
-    final done = controller.chosen.value != null;
-    final theme = Theme.of(context);
-    final check = _check;
-
-    // After this frame, not during it: speaking from inside build would fire
-    // while the widget tree is still being assembled.
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _announce(controller.index.value, item.say),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      child: Column(
-        children: [
-          // Which number this is, and which are still shut. A sequence, not a
-          // set: you learn to write one before two, so they open in order and
-          // the strip says how far along the child is.
-          _TraceStrip(controller: controller, onPick: _restart),
-          const SizedBox(height: 14),
-
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.say,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium,
-                ),
-              ),
-              // Heard again on demand. A child asks for the same thing five
-              // times, and leaving the page to get it is not an answer.
-              IconButton(
-                onPressed: () => unawaited(_voice?.say(item.say)),
-                icon: const Icon(Icons.volume_up_rounded),
-                tooltip: 'Say it again',
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final size = Size(constraints.maxWidth, constraints.maxHeight);
-                _canvas = size;
-
-                return GestureDetector(
-                  // Judged when the finger lifts, not while it is down: a line
-                  // half drawn is not a wrong answer, it is an unfinished one.
-                  onPanUpdate: (details) {
-                    if (done) return;
-                    setState(() {
-                      _drawn.add(details.localPosition);
-                      _check = null;
-                    });
-                  },
-                  onPanEnd: (_) {
-                    if (!done) _judge();
-                  },
-                  child: Container(
-                    width: size.width,
-                    height: size.height,
-                    // Paper, and paper is white in both themes — a child is
-                    // writing on it. Which means every colour on it has to be
-                    // fixed too: taking the ink from the theme would give a
-                    // pale line on white paper in dark mode, and the guide
-                    // would follow the theme away from being visible.
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: done ? AppTheme.leaf : _paperEdge,
-                        width: done ? 2 : 1,
-                      ),
-                    ),
-                    child: CustomPaint(
-                      painter: _TracePainter(
-                        item: item,
-                        drawn: _drawn,
-                        guideColour: _guideInk,
-                        inkColour: done ? AppTheme.leaf : AppTheme.apricot,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // One line that says what just happened. Never blank while there is
-          // something to say, and never a red failure: a child who missed is
-          // asked to go again, not marked wrong.
-          SizedBox(
-            height: 24,
-            child: Center(
-              child: Text(
-                done
-                    ? 'That looks like it! Well done.'
-                    : check == null
-                    ? 'Trace over the grey line with your finger.'
-                    : check.hint,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: done ? AppTheme.leaf : theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: _drawn.isEmpty ? null : _restart,
-              child: const Text('Start again'),
-            ),
-          ),
-          const SizedBox(height: 4),
-
-          // Stacked rather than beside "Start again": the theme gives every
-          // FilledButton an infinite minimum width, so one in a Row is pushed
-          // off the screen — which is how the way on went missing before.
-          //
-          // Disabled until the shape is actually traced. That is the whole
-          // point: a page you could leave by tapping Next taught nothing about
-          // writing a one.
-          FilledButton(
-            onPressed: done
-                ? () {
-                    _restart();
-                    controller.next();
-                  }
-                : null,
-            child: Text(controller.isLast ? 'Finish' : 'Next'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The tracing paper's own colours, fixed in both themes.
-///
-/// The sheet is white because a child is writing on it, so what is drawn on it
-/// cannot come from a theme that assumes a dark ground.
-const _guideInk = Color(0xFF2B3242);
-const _paperEdge = Color(0x1F000000);
-
-/// The numbers in this activity, in order, with the shut ones shut.
-///
-/// A child sees where they are and what is coming. Tapping one they have
-/// already done goes back to it — practice is the point — and tapping a locked
-/// one does nothing, because the number before it has not been written yet.
-class _TraceStrip extends StatelessWidget {
-  const _TraceStrip({required this.controller, required this.onPick});
-
-  final ActivityPlayController controller;
-
-  /// Clears the canvas, so moving between numbers never leaves the last line
-  /// drawn on the new one.
-  final VoidCallback onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: controller.total,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, item) {
-          final isDone = controller.traced.contains(item);
-          final isHere = controller.index.value == item;
-          final isOpen = controller.isUnlocked(item);
-
-          final background = isHere
-              ? theme.colorScheme.primary
-              : isDone
-              ? AppTheme.leafSoft
-              : isOpen
-              ? theme.colorScheme.surface
-              : theme.colorScheme.surfaceContainerHighest;
-
-          final foreground = isHere
-              ? theme.colorScheme.onPrimary
-              : isDone
-              ? AppTheme.leaf
-              : isOpen
-              ? theme.colorScheme.onSurface
-              : theme.colorScheme.onSurfaceVariant;
-
-          return GestureDetector(
-            onTap: isOpen
-                ? () {
-                    controller.goTo(item);
-                    onPick();
-                  }
-                : null,
-            child: Container(
-              width: 42,
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isHere
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.outlineVariant,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: isOpen
-                  ? Text(
-                      '${item + 1}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: foreground,
-                      ),
-                    )
-                  // A padlock, because a locked number showing its own digit
-                  // reads as available and greyed out for no reason.
-                  : Icon(Icons.lock_rounded, size: 17, color: foreground),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _TracePainter extends CustomPainter {
-  _TracePainter({
-    required this.item,
-    required this.drawn,
-    required this.guideColour,
-    required this.inkColour,
-  });
-
-  final TracingItem item;
-  final List<Offset> drawn;
-  final Color guideColour;
-  final Color inkColour;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final guide = Paint()
-      ..color = guideColour
-      ..strokeWidth = 18
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    // Coordinates are normalised 0–1 so one definition renders at any size.
-    for (final stroke in item.strokes) {
-      if (stroke.length < 2) continue;
-      final path = Path()
-        ..moveTo(stroke.first.x * size.width, stroke.first.y * size.height);
-      for (final point in stroke.skip(1)) {
-        path.lineTo(point.x * size.width, point.y * size.height);
-      }
-      canvas.drawPath(path, guide);
-    }
-
-    final ink = Paint()
-      ..color = inkColour
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    for (var i = 1; i < drawn.length; i++) {
-      // A big jump means the finger lifted and came down elsewhere.
-      if ((drawn[i] - drawn[i - 1]).distance > 40) continue;
-      canvas.drawLine(drawn[i - 1], drawn[i], ink);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_TracePainter oldDelegate) =>
-      oldDelegate.drawn.length != drawn.length || oldDelegate.item != item;
 }
 
 class _Finished extends StatelessWidget {
@@ -962,7 +618,18 @@ class _Option extends StatelessWidget {
       );
     }
 
-    final label = media.glyph ?? media.text ?? '';
+    // A letter or number in the school's handwriting; an emoji or a word as
+    // text.
+    if (media.glyph != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: FittedBox(child: GlyphText(media.glyph!, size: 44)),
+        ),
+      );
+    }
+
+    final label = media.text ?? '';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(8),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import type { QuestionRow } from '@poetree/shared';
+import { TRACING_PATTERNS, type QuestionRow } from '@poetree/shared';
 import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
 import { ConfirmButton } from '@/components/ui/confirm-button';
 import { Notice } from '@/components/ui/layout';
@@ -94,6 +94,19 @@ function optionFileId(option?: QuestionRow['options'][number]): string {
   return url ? (url.split('/').pop() ?? '') : '';
 }
 
+/** The patterns, offered as the author types; any letter can still be typed. */
+function TracingGlyphList() {
+  return (
+    <datalist id="tracing-glyphs">
+      {TRACING_PATTERNS.map((pattern) => (
+        <option key={pattern.key} value={pattern.key}>
+          {pattern.label}
+        </option>
+      ))}
+    </datalist>
+  );
+}
+
 export function AddQuestionForm({
   activityId,
   scored,
@@ -132,15 +145,20 @@ export function AddQuestionForm({
           <Input type="file" name="prompt-image" accept="image/png,image/jpeg,image/webp" />
         </Field>
         <Field
-          label={tracing ? 'The letter or number' : 'or an emoji'}
+          label={tracing ? 'The letter, number or pattern' : 'or an emoji'}
           hint={
             tracing
-              ? 'The one thing a tracing question needs — the path comes with it.'
+              ? 'English, Hindi or Gujarati — A, क, ક, 7, ૭ — or pick a pattern. The path comes with it.'
               : 'Shown large, above the choices.'
           }
         >
-          <Input name="promptGlyph" placeholder={tracing ? 'A' : '🍎'} />
+          <Input
+            name="promptGlyph"
+            placeholder={tracing ? 'A' : '🍎'}
+            list={tracing ? 'tracing-glyphs' : undefined}
+          />
         </Field>
+        {tracing && <TracingGlyphList />}
       </div>
 
       {tracing ? (
@@ -217,7 +235,13 @@ export function EditQuestionForm({
       </Field>
 
       <Field label="Emoji above the question">
-        <Input name="promptGlyph" defaultValue={question.promptGlyph ?? ''} placeholder="🍎" />
+        <Input
+          name="promptGlyph"
+          defaultValue={question.promptGlyph ?? ''}
+          placeholder={tracing ? 'A' : '🍎'}
+          list={tracing ? 'tracing-glyphs' : undefined}
+        />
+        {tracing && <TracingGlyphList />}
       </Field>
 
       {tracing ? (

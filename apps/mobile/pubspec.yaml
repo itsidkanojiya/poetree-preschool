@@ -94,6 +94,13 @@ flutter:
     # Paths are named once, in lib/core/assets/app_assets.dart.
     - assets/images/icons/
     - assets/images/banners/
+    # Tracing: what each letter and number teaches once traced, and the
+    # object pictures for it. See assets/tracing/objects/README.md.
+    - assets/tracing/
+    - assets/tracing/objects/
+    # The school's handwriting: every letter, number and pattern as its sheet
+    # draws it. Written by scripts/content/letterforms/build.py.
+    - assets/letterforms/
   fonts:
     - family: Poppins
       fonts:

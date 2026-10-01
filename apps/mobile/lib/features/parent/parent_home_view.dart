@@ -15,6 +15,8 @@ import 'children_controller.dart';
 import 'id_card_view.dart';
 import '../activities/book_shelf_view.dart';
 import '../animation/films_watched_card.dart';
+import '../results/certificates_view.dart';
+import '../results/report_cards_view.dart';
 import 'kid_home_view.dart';
 
 final _money = NumberFormat.currency(
@@ -326,6 +328,15 @@ class _ProfileTab extends StatelessWidget {
               }),
             ),
           ),
+          const SizedBox(height: 10),
+          _ActionTile(
+            icon: Icons.workspace_premium_rounded,
+            tone: AppTheme.apricot,
+            toneSoft: AppTheme.apricotSoft,
+            title: 'Certificates',
+            subtitle: 'What ${selected.firstName} has been awarded',
+            onTap: () => openParentPage(ParentPage.certificates),
+          ),
         ],
 
         const SizedBox(height: 10),
@@ -465,7 +476,14 @@ class _SettingsPage extends StatelessWidget {
 
 /// Fees on their own page, reached from Profile.
 /// Where a card on the home page, or a notification, can take a parent.
-enum ParentPage { attendance, homework, fees, notices }
+enum ParentPage {
+  attendance,
+  homework,
+  fees,
+  notices,
+  reportCards,
+  certificates,
+}
 
 /// Opens one of the parent's pages over the tabs.
 ///
@@ -474,13 +492,49 @@ enum ParentPage { attendance, homework, fees, notices }
 /// tab. They are pages now, reached the same way from either door.
 void openParentPage(ParentPage page) {
   final child = Get.find<ChildController>();
+  final selected = Get.find<ChildrenController>().selected;
+
+  switch (page) {
+    case ParentPage.attendance:
+      Get.to<void>(() => _AttendancePage(child: child));
+    case ParentPage.homework:
+      Get.to<void>(() => _HomeworkPage(child: child));
+    case ParentPage.fees:
+      Get.to<void>(() => _FeesPage(child: child));
+    case ParentPage.notices:
+      Get.to<void>(() => _NoticesPage(child: child));
+    case ParentPage.reportCards:
+      if (selected != null) _openReportCards(selected);
+    case ParentPage.certificates:
+      if (selected != null) _openCertificates(selected);
+  }
+}
+
+void _openReportCards(Child selected) {
   Get.to<void>(
-    () => switch (page) {
-      ParentPage.attendance => _AttendancePage(child: child),
-      ParentPage.homework => _HomeworkPage(child: child),
-      ParentPage.fees => _FeesPage(child: child),
-      ParentPage.notices => _NoticesPage(child: child),
-    },
+    () => const ReportCardsView(),
+    binding: BindingsBuilder(() {
+      Get.put<ReportCardsController>(
+        ReportCardsController(
+          studentId: selected.id,
+          childName: selected.firstName,
+        ),
+      );
+    }),
+  );
+}
+
+void _openCertificates(Child selected) {
+  Get.to<void>(
+    () => const CertificatesView(),
+    binding: BindingsBuilder(() {
+      Get.put<CertificatesController>(
+        CertificatesController(
+          studentId: selected.id,
+          childName: selected.firstName,
+        ),
+      );
+    }),
   );
 }
 
@@ -533,12 +587,24 @@ class _ProgressTab extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          if (selected != null)
+          if (selected != null) ...[
+            // What the school says, before what the app has counted.
+            _ActionTile(
+              icon: Icons.assignment_rounded,
+              tone: AppTheme.sky,
+              toneSoft: AppTheme.skySoft,
+              title: 'Report cards',
+              subtitle:
+                  '${selected.firstName}’s report from the school, each term',
+              onTap: () => openParentPage(ParentPage.reportCards),
+            ),
+            const SizedBox(height: 14),
             FilmsWatchedCard(
               key: ValueKey(selected.id),
               studentId: selected.id,
               childName: selected.firstName,
             ),
+          ],
           const SizedBox(height: 18),
           Text('SKILLS', style: theme.textTheme.labelSmall),
           const SizedBox(height: 6),

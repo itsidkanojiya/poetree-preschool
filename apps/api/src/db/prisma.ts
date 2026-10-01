@@ -47,6 +47,15 @@ export const TENANT_MODELS = new Set<string>([
   'GalleryEvent',
   'GalleryEventClassroom',
   'GalleryPhoto',
+  // Report cards and certificates: a child's grades and awards, the most
+  // personal records a family receives from the school.
+  'GradeLevel',
+  'Term',
+  'ReportArea',
+  'ReportCard',
+  'ReportCardGrade',
+  'Certificate',
+  'CertificateAward',
   // Academic structure
   'AcademicYear',
   'Classroom',

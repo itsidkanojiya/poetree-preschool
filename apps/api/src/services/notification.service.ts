@@ -21,7 +21,9 @@ export type NotificationType =
   | 'NOTICE_EMERGENCY'
   | 'CLASSROOM_POST'
   | 'PROGRESS_UPDATED'
-  | 'ACCOUNT_SECURITY';
+  | 'ACCOUNT_SECURITY'
+  | 'RESULT_PUBLISHED'
+  | 'CERTIFICATE_ISSUED';
 
 export interface NotifyInput {
   schoolId: string;
@@ -57,7 +59,10 @@ export async function notify(input: NotifyInput): Promise<{ stored: number; push
     body: input.body,
     entityType: input.entityType ?? null,
     entityId: input.entityId ?? null,
-    dataJson: input.data ?? undefined,
+    // The column is `data`. This was written as `dataJson`, which only ever
+    // worked because nothing passed data: the first caller that did would have
+    // had every notification refused.
+    data: input.data ?? undefined,
   }));
 
   await prismaUnscoped.notification.createMany({ data: rows });

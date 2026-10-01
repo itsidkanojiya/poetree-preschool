@@ -16,6 +16,8 @@ export * from './schemas/catalogue.js';
 export * from './schemas/standard.js';
 export * from './schemas/book.js';
 export * from './schemas/gallery.js';
+export * from './schemas/results.js';
+export * from './schemas/certificate.js';
 export * from './schemas/chapter.js';
 export * from './schemas/animation.js';
 export * from './schemas/question.js';

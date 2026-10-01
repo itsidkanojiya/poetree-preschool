@@ -109,6 +109,8 @@ export interface SchoolProfile {
   principalName: string | null;
   primaryColor: string | null;
   logoUrl: string | null;
+  /** The principal's signature, printed on report cards and certificates. */
+  principalSignatureUrl: string | null;
 
   idCardSize: IdCardSize;
   idCardLayout: IdCardLayout;

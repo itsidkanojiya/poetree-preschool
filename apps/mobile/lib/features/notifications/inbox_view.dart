@@ -14,6 +14,8 @@ IconData _iconFor(String type) {
     return Icons.receipt_long_outlined;
   }
   if (type.startsWith('NOTICE')) return Icons.campaign_outlined;
+  if (type.startsWith('RESULT')) return Icons.assignment_outlined;
+  if (type.startsWith('CERTIFICATE')) return Icons.workspace_premium_outlined;
   return Icons.notifications_none;
 }
 

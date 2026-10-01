@@ -39,6 +39,7 @@ function toSummary(user: TeacherRow): TeacherSummary {
     qualification: user.teacherProfile?.qualification ?? null,
     joinedAt: user.teacherProfile?.joinedAt?.toISOString() ?? null,
     classroomCount: user._count.classroomAssignments,
+    signatureUrl: user.signatureFileId ? `/api/v1/files/${user.signatureFileId}` : null,
     createdAt: user.createdAt.toISOString(),
   };
 }

@@ -70,6 +70,19 @@ export const PERMISSIONS = [
   // teacher on a classroom device.
   'progress:record',
 
+  // Report cards. Configuring the scale, terms and areas, entering grades,
+  // and publishing to families are three different jobs held by different
+  // people: the office sets up, the class teacher fills in, the office checks
+  // and sends.
+  'result:configure',
+  'result:enter',
+  'result:publish',
+  'result:read',
+
+  // Certificates the school awards
+  'certificate:manage',
+  'certificate:read',
+
   // Groups of schools
   'organisation:read',
   'organisation:manage',
@@ -129,6 +142,12 @@ const SCHOOL_ADMIN: Permission[] = [
   'notice:read',
   'notice:manage',
   'progress:read',
+  'result:configure',
+  'result:enter',
+  'result:publish',
+  'result:read',
+  'certificate:manage',
+  'certificate:read',
   'report:view',
   'report:export',
   'audit:read',
@@ -159,6 +178,9 @@ const TEACHER: Permission[] = [
   // Held by the app's two audiences - a parent whose child is playing, and a
   // teacher on a classroom device.
   'progress:record',
+  // Fills in report cards for their own classes; the office publishes them.
+  'result:enter',
+  'result:read',
   'report:view',
 ];
 
@@ -176,6 +198,9 @@ const PARENT: Permission[] = [
   // child's guardian — the permission alone would let them post scores for any
   // child in the school.
   'progress:record',
+  // Published report cards and issued certificates, for their own children.
+  'result:read',
+  'certificate:read',
 ];
 
 /**

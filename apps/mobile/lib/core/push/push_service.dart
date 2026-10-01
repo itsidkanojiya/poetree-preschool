@@ -131,6 +131,8 @@ class PushService extends GetxService {
       'Homework' || 'HomeworkSubmission' => ParentPage.homework,
       'Payment' || 'FeeInvoice' => ParentPage.fees,
       'Notice' => ParentPage.notices,
+      'ReportCard' => ParentPage.reportCards,
+      'CertificateAward' => ParentPage.certificates,
       _ => null,
     };
 

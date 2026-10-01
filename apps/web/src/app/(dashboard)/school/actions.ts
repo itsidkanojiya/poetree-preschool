@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
+import { chosenFile, uploadFile } from '@/lib/upload';
 
 export interface ActionState {
   error?: string;
@@ -187,4 +188,30 @@ export async function createAcademicYearAction(
 
   revalidatePath('/school/classrooms');
   return { success: 'Academic year created.' };
+}
+
+/**
+ * A teacher's signature, printed on the report cards of the classes they
+ * teach. Uploaded by the office, which is where the paper copy is signed.
+ */
+export async function uploadTeacherSignatureAction(
+  userId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const file = chosenFile(formData, 'signature');
+
+  try {
+    const fileId = file ? await uploadFile(file) : null;
+    await apiFetch(`/teachers/${userId}/signature`, {
+      method: 'PUT',
+      redirectOnAuthFailure: false,
+      body: { fileId },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the signature.') };
+  }
+
+  revalidatePath('/school/teachers');
+  return { success: file ? 'Signature saved.' : 'Signature removed.' };
 }

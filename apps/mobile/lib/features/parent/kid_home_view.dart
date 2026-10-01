@@ -22,9 +22,10 @@ final _money = NumberFormat.currency(
 
 /// The child's front page.
 ///
-/// Their face and class at the top, the Game banner, a card for everything
-/// else a family opens — each showing the one number that matters on it, so
-/// most mornings nobody has to open anything at all — then the films.
+/// Their face and class at the top, the 2D & 3D Animation banner, a card for
+/// everything else a family opens — each showing the one number that matters
+/// on it, so most mornings nobody has to open anything at all — then the
+/// Game banner.
 class KidHome extends StatelessWidget {
   const KidHome({
     required this.child,
@@ -124,11 +125,11 @@ class KidHome extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ArtBanner(
-                    AppBanners.game,
-                    semanticLabel: 'Game — play activities from your books',
+                    AppBanners.animation2d3d,
+                    semanticLabel: '2D and 3D Animation — watch the stories',
                     onTap: () => Get.toNamed<void>(
-                      AppRoutes.activities,
-                      arguments: {'studentId': selected.id},
+                      AppRoutes.filmSubjects,
+                      arguments: args,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -147,14 +148,14 @@ class KidHome extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const _SectionTitle('Watch and learn'),
+                  const _SectionTitle('Play and learn'),
                   const SizedBox(height: 10),
                   ArtBanner(
-                    AppBanners.animation2d3d,
-                    semanticLabel: '2D and 3D Animation — watch the stories',
+                    AppBanners.game,
+                    semanticLabel: 'Game — play activities from your books',
                     onTap: () => Get.toNamed<void>(
-                      AppRoutes.filmSubjects,
-                      arguments: args,
+                      AppRoutes.activities,
+                      arguments: {'studentId': selected.id},
                     ),
                   ),
                   const SizedBox(height: 16),

@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { SchoolProfile } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
+import { SignatureForm } from '@/components/signature-form';
+import { uploadPrincipalSignatureAction } from './actions';
 import { IdCardForm, LogoForm, SchoolDetailsForm } from './forms';
 
 export const metadata: Metadata = { title: 'Settings · Poetree' };
@@ -34,6 +36,17 @@ export default async function SchoolSettingsPage() {
         <div className="space-y-5">
           <Card title="Logo" description="Shown on the app’s sign-in screen and on ID cards.">
             <LogoForm school={school} />
+          </Card>
+
+          <Card
+            title="Principal’s signature"
+            description="Printed on report cards and certificates, above the principal’s name."
+          >
+            <SignatureForm
+              action={uploadPrincipalSignatureAction}
+              signatureUrl={school.principalSignatureUrl}
+              name={school.principalName ?? 'The principal'}
+            />
           </Card>
 
           <Card

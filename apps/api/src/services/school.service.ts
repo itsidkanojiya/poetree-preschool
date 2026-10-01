@@ -730,6 +730,7 @@ const profileSelect = {
   primaryColor: true,
   logoUrl: true,
   logoFileId: true,
+  principalSignatureFileId: true,
   idCardSize: true,
   idCardLayout: true,
   idCardShowBloodGroup: true,
@@ -758,6 +759,9 @@ function toProfile(row: {
     primaryColor: school.primaryColor,
     // The uploaded logo wins over a hosted URL, as everywhere else.
     logoUrl: school.logoFileId ? `/api/v1/files/${school.logoFileId}` : school.logoUrl,
+    principalSignatureUrl: school.principalSignatureFileId
+      ? `/api/v1/files/${school.principalSignatureFileId}`
+      : null,
     idCardSize: school.idCardSize,
     idCardLayout: school.idCardLayout,
     idCardShowBloodGroup: school.idCardShowBloodGroup,

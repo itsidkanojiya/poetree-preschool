@@ -78,6 +78,11 @@ dependencies:
   firebase_core: ^4.1.1
   firebase_messaging: ^16.0.2
 
+  # Report cards and certificates arrive as PDFs the school drew. This shows
+  # one on the phone and hands it to the share sheet or a printer — the three
+  # things a parent does with a certificate — without a viewer app of our own.
+  printing: ^5.15.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

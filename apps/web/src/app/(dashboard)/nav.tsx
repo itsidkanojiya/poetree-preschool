@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import {
+  IconAward,
   IconChart,
   IconClassroom,
   IconHome,
   IconParents,
   IconPlan,
+  IconReport,
   IconSchool,
   IconInbox,
   IconSpark,
@@ -74,12 +76,15 @@ const SCHOOL_NAV: NavGroup[] = [
       // Beside notices: both are the office deciding what families see.
       { href: '/school/gallery', label: 'Gallery', icon: <IconSpark size={18} /> },
       { href: '/school/progress', label: 'Progress', icon: <IconSpark size={18} /> },
+      // Term report cards: set up here, filled in by class teachers, sent from here.
+      { href: '/school/results', label: 'Results', icon: <IconReport size={18} /> },
     ],
   },
   {
     heading: 'Office',
     items: [
       { href: '/school/reports', label: 'Reports', icon: <IconChart size={18} /> },
+      { href: '/school/certificates', label: 'Certificates', icon: <IconAward size={18} /> },
       // The school's own record, and what it prints on an ID card.
       { href: '/school/settings', label: 'Settings', icon: <IconSchool size={18} /> },
     ],
@@ -93,6 +98,7 @@ const TEACHER_NAV: NavGroup[] = [
       { href: '/teacher/attendance', label: 'Attendance', icon: <IconClassroom size={18} /> },
       { href: '/teacher/homework', label: 'Homework', icon: <IconPlan size={18} /> },
       { href: '/teacher/stream', label: 'Class stream', icon: <IconInbox size={18} /> },
+      { href: '/teacher/results', label: 'Report cards', icon: <IconReport size={18} /> },
     ],
   },
 ];

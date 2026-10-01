@@ -198,7 +198,7 @@ export type HolidayType = (typeof HOLIDAY_TYPES)[number];
 /* -------------------------------------------------------------------------- */
 
 /** Gapless per-school counters. Receipt numbers must never collide or skip. */
-export const SEQUENCE_KINDS = ['ADMISSION', 'RECEIPT', 'INVOICE'] as const;
+export const SEQUENCE_KINDS = ['ADMISSION', 'RECEIPT', 'INVOICE', 'CERTIFICATE'] as const;
 export type SequenceKind = (typeof SEQUENCE_KINDS)[number];
 
 export const FILE_VISIBILITIES = ['PRIVATE', 'SCHOOL', 'PUBLIC'] as const;
@@ -232,8 +232,25 @@ export const NOTIFICATION_TYPES = [
   'CLASSROOM_POST',
   'PROGRESS_UPDATED',
   'ACCOUNT_SECURITY',
+  'RESULT_PUBLISHED',
+  'CERTIFICATE_ISSUED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+/** Where a report card is: being filled in, with the office, or with the family. */
+export const REPORT_CARD_STATUSES = ['DRAFT', 'SUBMITTED', 'PUBLISHED'] as const;
+export type ReportCardStatus = (typeof REPORT_CARD_STATUSES)[number];
+
+/** The built-in certificate designs, each drawn in the school's own colour. */
+export const CERTIFICATE_DESIGNS = ['CLASSIC', 'STARS', 'PLAYFUL', 'ELEGANT'] as const;
+export type CertificateDesign = (typeof CERTIFICATE_DESIGNS)[number];
+
+export const CERTIFICATE_DESIGN_LABELS: Record<CertificateDesign, string> = {
+  CLASSIC: 'Classic border',
+  STARS: 'Stars',
+  PLAYFUL: 'Playful',
+  ELEGANT: 'Elegant',
+};
 
 export const AUDIT_ACTIONS = [
   'SCHOOL_CREATED',
@@ -309,5 +326,10 @@ export const AUDIT_ACTIONS = [
   'REGISTRATION_SUBMITTED',
   'REGISTRATION_APPROVED',
   'REGISTRATION_REJECTED',
+  // Report cards reaching families, and being taken back to correct.
+  'RESULTS_PUBLISHED',
+  'RESULTS_UNPUBLISHED',
+  'CERTIFICATE_ISSUED',
+  'CERTIFICATE_REVOKED',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

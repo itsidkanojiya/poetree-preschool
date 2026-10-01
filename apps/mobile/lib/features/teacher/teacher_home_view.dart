@@ -6,6 +6,8 @@ import '../../core/routes/app_pages.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/auth_controller.dart';
 import '../notifications/inbox_view.dart';
+import '../results/report_entry_controller.dart';
+import '../results/report_entry_view.dart';
 import 'register_controller.dart';
 
 /// The teacher's home.
@@ -319,6 +321,22 @@ class _ClassCard extends StatelessWidget {
                 label: 'The class',
                 onTap: () =>
                     open(AppRoutes.roster, {'classroomId': classroom.id}),
+              ),
+              _divider(colors),
+              _CardAction(
+                icon: Icons.assignment_rounded,
+                label: 'Reports',
+                onTap: () => Get.to<void>(
+                  () => const ReportEntryView(),
+                  binding: BindingsBuilder(() {
+                    Get.put<ReportEntryController>(
+                      ReportEntryController(
+                        classroomId: classroom.id,
+                        classroomLabel: classroom.label,
+                      ),
+                    );
+                  }),
+                ),
               ),
             ],
           ),

@@ -6,6 +6,8 @@ import { formatDate } from '@/lib/format';
 import Link from 'next/link';
 import { IconPlus } from '@/components/icons';
 import { ChangePasswordButton } from '../change-password';
+import { SignatureButton } from '@/components/signature-form';
+import { uploadTeacherSignatureAction } from '../actions';
 
 export default async function TeachersPage({
   searchParams,
@@ -46,6 +48,8 @@ export default async function TeachersPage({
                   'Joined',
                   'State',
                   'Sign-in',
+                  // Printed on the report cards of their classes.
+                  'Signature',
                 ]}
               />
               <tbody>
@@ -70,6 +74,13 @@ export default async function TeachersPage({
                       <ChangePasswordButton
                         kind="teachers"
                         userId={teacher.userId}
+                        name={teacher.name}
+                      />
+                    </TCell>
+                    <TCell>
+                      <SignatureButton
+                        action={uploadTeacherSignatureAction.bind(null, teacher.userId)}
+                        signatureUrl={teacher.signatureUrl}
                         name={teacher.name}
                       />
                     </TCell>

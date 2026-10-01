@@ -22,6 +22,7 @@ import {
   updateSubjectSchema,
   listRegistrationsQuerySchema,
   setSchoolLogoSchema,
+  setSignatureSchema,
   updateSchoolProfileSchema,
   approveRegistrationSchema,
   rejectRegistrationSchema,
@@ -48,6 +49,7 @@ import type {
   UpdateTeacherInput,
   ListRegistrationsQuery,
   SetSchoolLogoInput,
+  SetSignatureInput,
   UpdateSchoolProfileInput,
   ApproveRegistrationInput,
   RejectRegistrationInput,
@@ -59,6 +61,7 @@ import { requirePermission } from '../middleware/requirePermission.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
+import * as printAssets from '../services/printAssets.service.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
 import * as passwordService from '../services/password.service.js';
@@ -575,6 +578,30 @@ schoolAdminRouter.patch(
   asyncHandler(async (req, res) => {
     const input = body<UpdateSchoolProfileInput>(req);
     res.json(await schoolService.updateOwnSchoolProfile(input, req.auth!.userId));
+  }),
+);
+
+/** The principal's signature, printed on report cards and certificates. */
+schoolAdminRouter.put(
+  '/school/principal-signature',
+  validate({ body: setSignatureSchema }),
+  asyncHandler(async (req, res) => {
+    await printAssets.setPrincipalSignature(body<SetSignatureInput>(req).fileId, req.auth!.userId);
+    res.json(await schoolService.getOwnSchoolProfile());
+  }),
+);
+
+/** A teacher's signature, printed on the report cards of their classes. */
+schoolAdminRouter.put(
+  '/teachers/:id/signature',
+  validate({ params: idParamSchema, body: setSignatureSchema }),
+  asyncHandler(async (req, res) => {
+    await printAssets.setTeacherSignature(
+      params<{ id: string }>(req).id,
+      body<SetSignatureInput>(req).fileId,
+      req.auth!.userId,
+    );
+    res.status(204).end();
   }),
 );
 

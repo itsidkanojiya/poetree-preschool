@@ -1,11 +1,10 @@
-import { readFile } from 'node:fs/promises';
 import { ID_CARD_SIZES, type IdCardLayout, type IdCardSize } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
-import { storage } from '../lib/storage.js';
 import { createDocument, mm, toBuffer } from '../lib/pdf.js';
 import { assertCanReadStudent } from './scope.service.js';
+import { imageBytes } from './printAssets.service.js';
 import { SIDES, type CardData } from './idCardLayouts.js';
 import { studentName } from '../lib/names.js';
 
@@ -21,36 +20,6 @@ import { studentName } from '../lib/names.js';
  * switches are applied once, here, so neither a layout nor the phone can print
  * a field the office turned off.
  */
-
-/** PDFKit embeds JPEG and PNG. Anything else has to be left out. */
-const EMBEDDABLE = new Set(['image/jpeg', 'image/png']);
-
-/**
- * The bytes of an uploaded image, or null for every reason it might not work.
- *
- * Null rather than throwing, in all of: no file, a soft-deleted one, a format
- * PDFKit cannot embed, or bytes that have gone missing from disk. A card with
- * initials where a photograph should be is a card; an exception is a school
- * that cannot print anything today.
- *
- * The WebP case is real rather than theoretical — the upload route accepts
- * WebP, and PDFKit cannot embed it.
- */
-async function imageBytes(fileId: string | null): Promise<Buffer | null> {
-  if (!fileId) return null;
-
-  const file = await prisma.fileObject.findFirst({
-    where: { id: fileId, deletedAt: null },
-    select: { storageKey: true, mimeType: true },
-  });
-  if (!file || !EMBEDDABLE.has(file.mimeType)) return null;
-
-  try {
-    return await readFile(storage.locate(file.storageKey));
-  } catch {
-    return null;
-  }
-}
 
 /** dd/mm/yyyy, as every form a parent in India has filled in writes it. */
 function printedDate(value: Date): string {

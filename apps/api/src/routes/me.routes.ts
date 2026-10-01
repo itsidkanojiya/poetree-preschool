@@ -7,6 +7,9 @@ import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
 import * as idCards from '../services/idCard.service.js';
 import * as gallery from '../services/gallery.service.js';
+import * as certificates from '../services/certificate.service.js';
+import * as results from '../services/result.service.js';
+import { requirePermission } from '../middleware/requirePermission.js';
 import { studentName } from '../lib/names.js';
 
 /**
@@ -137,6 +140,37 @@ meRouter.get(
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
     res.json(await gallery.eventsForChild(params<{ id: string }>(req).id));
+  }),
+);
+
+/** A child's certificates, issued and standing, newest first. */
+meRouter.get(
+  '/children/:id/certificates',
+  requirePermission('certificate:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await certificates.certificatesForChild(params<{ id: string }>(req).id));
+  }),
+);
+
+/** A child's published report cards, newest first. */
+meRouter.get(
+  '/children/:id/report-cards',
+  requirePermission('result:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await results.reportCardsForChild(params<{ id: string }>(req).id));
+  }),
+);
+
+/** One published report card, as the app draws it. */
+meRouter.get(
+  '/children/:id/report-cards/:termId',
+  requirePermission('result:read'),
+  validate({ params: idParamSchema.extend({ termId: idSchema }) }),
+  asyncHandler(async (req, res) => {
+    const { id, termId } = params<{ id: string; termId: string }>(req);
+    res.json(await results.reportCardForChild(id, termId));
   }),
 );
 

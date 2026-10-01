@@ -1,9 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
-import { API_BASE_URL, apiFetch, errorMessage } from '@/lib/api';
-import { ACCESS_COOKIE } from '@/lib/auth-cookies';
+import { apiFetch, errorMessage } from '@/lib/api';
+import { chosenFile, uploadFile } from '@/lib/upload';
 
 export interface SettingsState {
   error?: string;
@@ -89,35 +88,10 @@ export async function uploadSchoolLogoAction(
   _prev: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const file = formData.get('logo');
+  const file = chosenFile(formData, 'logo');
 
   try {
-    let fileId: string | null = null;
-
-    if (file instanceof File && file.size > 0) {
-      const token = (await cookies()).get(ACCESS_COOKIE)?.value;
-      const body = new FormData();
-      body.append('file', file);
-
-      const response = await fetch(`${API_BASE_URL}/files`, {
-        method: 'POST',
-        headers: token ? { authorization: `Bearer ${token}` } : {},
-        body,
-        cache: 'no-store',
-      });
-
-      const data: unknown = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message =
-          data && typeof data === 'object' && 'error' in data
-            ? String((data as { error: { message?: string } }).error.message ?? 'Upload failed')
-            : 'Upload failed';
-        throw new Error(message);
-      }
-
-      fileId = (data as { id: string }).id;
-    }
-
+    const fileId = file ? await uploadFile(file) : null;
     await apiFetch('/school/logo', {
       method: 'PUT',
       redirectOnAuthFailure: false,
@@ -129,10 +103,38 @@ export async function uploadSchoolLogoAction(
 
   refresh();
   return {
-    success:
-      file instanceof File && file.size > 0
-        ? 'Logo saved. It appears on the sign-in screen and on ID cards.'
-        : 'Logo removed.',
+    success: file
+      ? 'Logo saved. It appears on the sign-in screen and on ID cards.'
+      : 'Logo removed.',
+  };
+}
+
+/**
+ * The principal's signature, printed on report cards and certificates. Same
+ * two steps as the logo; an empty submit takes it off.
+ */
+export async function uploadPrincipalSignatureAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const file = chosenFile(formData, 'signature');
+
+  try {
+    const fileId = file ? await uploadFile(file) : null;
+    await apiFetch('/school/principal-signature', {
+      method: 'PUT',
+      redirectOnAuthFailure: false,
+      body: { fileId },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the signature.') };
+  }
+
+  refresh();
+  return {
+    success: file
+      ? 'Signature saved. Report cards and certificates carry it from now on.'
+      : 'Signature removed.',
   };
 }
 

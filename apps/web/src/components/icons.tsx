@@ -212,3 +212,24 @@ export const IconEyeOff = (p: IconProps) => (
     <path d="m4 4 16 16" />
   </Svg>
 );
+
+/** A sheet with ticked lines: a report card. */
+export const IconReport = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+    <path d="M15 3v4h4" />
+    <path d="m8.5 11.5 1.2 1.2 2.3-2.4" />
+    <path d="M14 11.5h2.5" />
+    <path d="m8.5 16 1.2 1.2 2.3-2.4" />
+    <path d="M14 16h2.5" />
+  </Svg>
+);
+
+/** A rosette with ribbons: something awarded. */
+export const IconAward = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="9" r="5.5" />
+    <path d="m12 6.6.8 1.6 1.7.2-1.3 1.2.3 1.7-1.5-.8-1.5.8.3-1.7-1.3-1.2 1.7-.2Z" />
+    <path d="m8.6 13.4-1.6 7.1 5-2.5 5 2.5-1.6-7.1" />
+  </Svg>
+);

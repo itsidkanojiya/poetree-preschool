@@ -210,6 +210,8 @@ export interface TeacherSummary {
   qualification: string | null;
   joinedAt: string | null;
   classroomCount: number;
+  /** Their signature, printed on the report cards of classes they teach. */
+  signatureUrl: string | null;
   createdAt: string;
 }
 

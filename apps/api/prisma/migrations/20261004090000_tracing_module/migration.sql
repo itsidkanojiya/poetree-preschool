@@ -30,7 +30,6 @@ CREATE TABLE `tracing_items` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `tracing_items_categoryId_sortOrder_idx`(`categoryId`, `sortOrder`),
-    UNIQUE INDEX `tracing_items_categoryId_glyph_key`(`categoryId`, `glyph`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

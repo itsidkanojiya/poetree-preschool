@@ -2554,7 +2554,9 @@ model TracingItem {
   category TracingCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   progress TracingProgress[]
 
-  @@unique([categoryId, glyph])
+  /// No unique (categoryId, glyph): the database's collation ignores the marks
+  /// that tell ड़ from ड and अं from अ, so it would call two different letters
+  /// the same one. The service checks for a repeat by exact comparison instead.
   @@index([categoryId, sortOrder])
   @@map("tracing_items")
 }

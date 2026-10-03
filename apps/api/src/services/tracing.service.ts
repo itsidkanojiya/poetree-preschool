@@ -443,6 +443,8 @@ export async function addItem(
   if (!category) throw ApiError.notFound('Category not found');
 
   const videoUrl = input.videoUrl?.trim() || null;
+  // Compared here, exactly, rather than by a unique index: the database's
+  // collation would call ड़ and ड the same letter.
   const existing = category.items.find((item) => item.glyph === glyph);
   if (existing?.isActive) throw ApiError.conflict(`“${glyph}” is already in ${category.name}`);
 

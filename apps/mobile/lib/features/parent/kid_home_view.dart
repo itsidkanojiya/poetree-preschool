@@ -10,6 +10,7 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/kid_ui.dart';
 import '../../core/widgets/squish.dart';
 import '../notifications/inbox_controller.dart';
+import '../tracing_module/tracing_module_views.dart';
 import 'child_controller.dart';
 import 'children_controller.dart';
 import 'parent_home_view.dart';
@@ -61,16 +62,19 @@ class KidHome extends StatelessWidget {
           note: 'Your books',
           onTap: () => children.tab.value = ChildrenController.learningTab,
         ),
-        _Feature(
-          label: 'Tracing',
-          art: AppIcons.tracing,
-          color: const Color(0xFF7B5CF0),
-          note: 'A B C',
-          onTap: () => Get.toNamed<void>(
-            AppRoutes.activities,
-            arguments: {'studentId': selected.id, 'type': 'TRACING'},
+        // Only while the publisher has the module on. Off removes the tile
+        // outright rather than greying it: there is nothing behind it.
+        if (child.tracingEnabled.value)
+          _Feature(
+            label: 'Tracing',
+            art: AppIcons.tracing,
+            color: const Color(0xFF7B5CF0),
+            note: 'A B C · 1 2 3',
+            onTap: () => openTracing(
+              studentId: selected.id,
+              childName: selected.firstName,
+            ),
           ),
-        ),
         _Feature(
           label: 'Homework',
           art: AppIcons.homework,

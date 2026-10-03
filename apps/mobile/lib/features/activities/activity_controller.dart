@@ -78,7 +78,7 @@ class ActivityListController extends GetxController {
 
     final watched = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AnimationView(
+        builder: (_) => AnimationView.chapter(
           videoId: animation.videoId,
           chapterId: forChapterId,
           chapterName: animation.chapterName,
@@ -162,10 +162,19 @@ class ActivityListController extends GetxController {
 /// the server. Everything above exists so that the number a parent later reads
 /// on the progress screen came from a child actually doing something.
 class ActivityPlayController extends GetxController {
-  ActivityPlayController({required this.activity, required this.studentId});
+  ActivityPlayController({
+    required this.activity,
+    required this.studentId,
+    this.recorder,
+  });
 
   final ActivityDefinition activity;
   final String studentId;
+
+  /// Records the finished sitting somewhere other than an activity attempt —
+  /// the tracing module's letters, which are not a book's activity. Returns
+  /// false when the record did not reach the school.
+  final Future<bool> Function(int correct, int total)? recorder;
 
   final index = 0.obs;
   final correct = 0.obs;
@@ -293,6 +302,13 @@ class ActivityPlayController extends GetxController {
 
     isSaving.value = true;
     saveFailed.value = false;
+
+    final record = recorder;
+    if (record != null) {
+      saveFailed.value = !await record(correct.value, total);
+      isSaving.value = false;
+      return;
+    }
 
     try {
       await api.post<Map<String, dynamic>>(

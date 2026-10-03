@@ -33,11 +33,16 @@ class TracingPlay extends StatefulWidget {
   const TracingPlay({
     required this.controller,
     required this.content,
+    this.finishLabel = 'Finish',
     super.key,
   });
 
   final ActivityPlayController controller;
   final TracingContent content;
+
+  /// The last button's words. The tracing module says where it goes next:
+  /// "Next letter".
+  final String finishLabel;
 
   @override
   State<TracingPlay> createState() => _TracingPlayState();
@@ -260,14 +265,17 @@ class _TracingPlayState extends State<TracingPlay>
     return Column(
       children: [
         const SizedBox(height: 10),
-        _Strip(
-          content: widget.content,
-          controller: controller,
-          onPick: (i) {
-            unawaited(_voice?.stop());
-            controller.goTo(i);
-          },
-        ),
+        // A strip of one is nothing to choose between: the tracing module
+        // brings one letter at a time, each after its video.
+        if (widget.content.items.length > 1)
+          _Strip(
+            content: widget.content,
+            controller: controller,
+            onPick: (i) {
+              unawaited(_voice?.stop());
+              controller.goTo(i);
+            },
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
           child: _Instruction(
@@ -352,7 +360,7 @@ class _TracingPlayState extends State<TracingPlay>
                   const SizedBox(width: 12),
                   Expanded(
                     child: GradientButton(
-                      label: controller.isLast ? 'Finish' : 'Next',
+                      label: controller.isLast ? widget.finishLabel : 'Next',
                       icon: controller.isLast
                           ? Icons.check_rounded
                           : Icons.arrow_forward_rounded,

@@ -72,19 +72,40 @@ const _watcher = '''
 /// was refused, each with a different code, on videos YouTube's own oEmbed
 /// service was happily handing out embed iframes for. Loading the page itself
 /// removes the negotiation rather than winning it.
+///
+/// What reaching the end unlocks is the caller's: a chapter's pages, or the
+/// tracing of one letter. [markWatched] tells the school; the screen only
+/// closes, with `true`, once that has worked.
 class AnimationView extends StatefulWidget {
   const AnimationView({
     required this.videoId,
-    required this.chapterId,
-    required this.chapterName,
-    required this.studentId,
+    required this.title,
+    required this.markWatched,
+    this.watchText = 'Watch this together, then the activities open.',
+    this.doneText = 'All done. The activities are open now.',
     super.key,
   });
 
+  /// A chapter's film, which opens its activities.
+  factory AnimationView.chapter({
+    required String videoId,
+    required String chapterId,
+    required String chapterName,
+    required String studentId,
+  }) => AnimationView(
+    videoId: videoId,
+    title: chapterName,
+    markWatched: () => api.post<dynamic>(
+      '/catalogue/chapters/$chapterId/watched',
+      body: {'studentId': studentId},
+    ),
+  );
+
   final String videoId;
-  final String chapterId;
-  final String chapterName;
-  final String studentId;
+  final String title;
+  final Future<void> Function() markWatched;
+  final String watchText;
+  final String doneText;
 
   @override
   State<AnimationView> createState() => _AnimationViewState();
@@ -229,10 +250,7 @@ class _AnimationViewState extends State<AnimationView> {
     });
 
     try {
-      await api.post<dynamic>(
-        '/catalogue/chapters/${widget.chapterId}/watched',
-        body: {'studentId': widget.studentId},
-      );
+      await widget.markWatched();
       if (!mounted) return;
       // `true` tells the chapter behind us to reload: it is open now.
       Navigator.of(context).pop(true);
@@ -258,7 +276,7 @@ class _AnimationViewState extends State<AnimationView> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.chapterName)),
+      appBar: AppBar(title: Text(widget.title)),
       body: Column(
         children: [
           AspectRatio(
@@ -274,9 +292,7 @@ class _AnimationViewState extends State<AnimationView> {
               child: Column(
                 children: [
                   Text(
-                    _finished
-                        ? 'All done. The activities are open now.'
-                        : 'Watch this together, then the activities open.',
+                    _finished ? widget.doneText : widget.watchText,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium,
                   ),

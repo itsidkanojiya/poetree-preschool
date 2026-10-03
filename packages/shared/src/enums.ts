@@ -313,6 +313,10 @@ export const AUDIT_ACTIONS = [
   // Which books a school has is a record of what was sold, so changing it is
   // the kind of thing somebody asks about a year later.
   'SCHOOL_BOOKS_CHANGED',
+  // The tracing module being switched on or off reaches every school's app at
+  // once; its letters and videos are content like a chapter's film.
+  'TRACING_SETTINGS_CHANGED',
+  'TRACING_CONTENT_UPDATED',
   'PASSWORD_CHANGED',
   // Somebody else setting a password on your behalf is a different event from
   // you changing your own, and the one worth being able to look up later.

@@ -300,12 +300,16 @@ enum NotificationType {
 // ---------------------------------------------------------------------------
 
 model Publication {
-  id        String   @id @default(cuid())
-  name      String   @db.VarChar(160)
-  logoUrl   String?  @db.VarChar(500)
-  settings  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String   @db.VarChar(160)
+  logoUrl        String?  @db.VarChar(500)
+  settings       Json?
+  /// The tracing module, for every school at once. Off hides it in the app
+  /// and closes its routes; the catalogue and every child's progress stay, so
+  /// switching it back on loses nothing.
+  tracingEnabled Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   schools       School[]
   organisations Organisation[]
@@ -475,6 +479,7 @@ model School {
   reportCardGrades         ReportCardGrade[]
   certificates             Certificate[]
   certificateAwards        CertificateAward[]
+  tracingProgress          TracingProgress[]
 
   @@index([publicationId])
   @@index([organisationId])
@@ -881,6 +886,7 @@ model Student {
   payments            Payment[]
   reportCards         ReportCard[]
   certificateAwards   CertificateAward[]
+  tracingProgress     TracingProgress[]
 
   @@unique([schoolId, admissionNo])
   @@index([schoolId, status])
@@ -2499,4 +2505,79 @@ model DeviceToken {
 
   @@index([schoolId, userId, revokedAt])
   @@map("device_tokens")
+}
+
+/// A set of things to trace, in the order a child learns them: capital
+/// letters, numbers, small letters, the pre-writing patterns, Hindi, Gujarati.
+///
+/// The publisher's, like a book: the same "A B C" for every school. What a
+/// child traces comes from the universal stroke table (content/glyphStrokes.ts)
+/// by glyph, so a category is a list of glyphs and their videos — there is no
+/// per-letter drawing to get wrong.
+model TracingCategory {
+  id        String  @id @default(cuid())
+  /// Stable name the defaults are seeded under: "capital", "number", "small".
+  key       String  @unique @db.VarChar(40)
+  name      String  @db.VarChar(80)
+  /// What the card shows a child who cannot read: "A B C", "1 2 3".
+  label     String  @db.VarChar(40)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items TracingItem[]
+
+  @@index([sortOrder])
+  @@map("tracing_categories")
+}
+
+/// One letter, number or pattern in a category, and the video a child watches
+/// before tracing it.
+model TracingItem {
+  id         String  @id @default(cuid())
+  categoryId String
+  /// A key of the stroke table: "A", "7", "क", "pattern-zigzag".
+  glyph      String  @db.VarChar(40)
+  /// The learning video, as pasted. Null: none yet, and the tracing opens
+  /// straight away rather than not at all.
+  videoUrl   String? @db.VarChar(500)
+  /// What the voice says to start. Null uses the plain sentence for the glyph.
+  say        String? @db.VarChar(200)
+  sortOrder  Int     @default(0)
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category TracingCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  progress TracingProgress[]
+
+  @@unique([categoryId, glyph])
+  @@index([categoryId, sortOrder])
+  @@map("tracing_items")
+}
+
+/// How far one child has got with one item: the video watched, the shape traced.
+model TracingProgress {
+  id             String    @id @default(cuid())
+  schoolId       String
+  studentId      String
+  itemId         String
+  videoWatchedAt DateTime?
+  tracedAt       DateTime?
+  /// Every time it was traced to the end, not just the first.
+  traceCount     Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school  School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  item    TracingItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, itemId])
+  @@index([schoolId, studentId])
+  @@map("tracing_progress")
 }

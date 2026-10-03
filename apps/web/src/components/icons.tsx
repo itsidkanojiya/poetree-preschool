@@ -233,3 +233,12 @@ export const IconAward = (p: IconProps) => (
     <path d="m8.6 13.4-1.6 7.1 5-2.5 5 2.5-1.6-7.1" />
   </Svg>
 );
+
+/** A pencil on a dotted line: tracing. */
+export const IconTrace = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m14.5 4.5 5 5L9 20H4v-5Z" />
+    <path d="m12.5 6.5 5 5" />
+    <path d="M4 22h1.5M8 22h1.5M12 22h1.5M16 22h1.5" />
+  </Svg>
+);

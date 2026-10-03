@@ -23,6 +23,10 @@ class ChildController extends GetxController {
   final ledger = Rxn<Ledger>();
   final skills = <SkillProgress>[].obs;
 
+  /// Whether the publisher has the tracing module switched on. False until the
+  /// answer arrives, so the tile never shows and then vanishes.
+  final tracingEnabled = false.obs;
+
   final isLoading = true.obs;
   final error = RxnString();
 
@@ -36,6 +40,20 @@ class ChildController extends GetxController {
     unawaited(load());
   }
 
+  /// Asked separately from the rest: a module that cannot be reached only
+  /// hides its tile, it does not take the home page down with it.
+  Future<void> _loadTracing(String studentId) async {
+    try {
+      final data = await api.get<Map<String, dynamic>>(
+        '/tracing',
+        query: {'studentId': studentId},
+      );
+      tracingEnabled.value = data['enabled'] == true;
+    } on DioException {
+      tracingEnabled.value = false;
+    }
+  }
+
   Future<void> load() async {
     final selected = child;
     if (selected == null) {
@@ -45,6 +63,7 @@ class ChildController extends GetxController {
 
     isLoading.value = true;
     error.value = null;
+    unawaited(_loadTracing(selected.id));
 
     final to = DateTime.now();
     final from = DateTime(to.year, to.month - 2, to.day);

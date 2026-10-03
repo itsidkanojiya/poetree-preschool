@@ -30,6 +30,10 @@ import {
   updateQuestionSchema,
   updateStandardSchema,
   updateSchoolSchema,
+  createTracingItemSchema,
+  tracingSettingsSchema,
+  updateTracingCategorySchema,
+  updateTracingItemSchema,
 } from '@poetree/shared';
 import type {
   CreateBookSubjectInput,
@@ -59,6 +63,10 @@ import type {
   UpdateQuestionInput,
   UpdateStandardInput,
   UpdateSchoolInput,
+  CreateTracingItemInput,
+  TracingSettingsInput,
+  UpdateTracingCategoryInput,
+  UpdateTracingItemInput,
 } from '@poetree/shared';
 import multer from 'multer';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -79,6 +87,7 @@ import * as standards from '../services/standard.service.js';
 import * as books from '../services/book.service.js';
 import * as chapters from '../services/chapter.service.js';
 import * as questions from '../services/question.service.js';
+import * as tracing from '../services/tracing.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -809,6 +818,70 @@ publicationRouter.patch(
       await catalogue.updateActivity(
         params<{ id: string }>(req).id,
         body<UpdateActivityInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Tracing — the module switch, its categories and each letter's video        */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/tracing',
+  asyncHandler(async (_req, res) => {
+    res.json(await tracing.catalogueAdmin());
+  }),
+);
+
+/** On or off in every school's app at once. Nothing is deleted either way. */
+publicationRouter.put(
+  '/tracing/settings',
+  validate({ body: tracingSettingsSchema }),
+  asyncHandler(async (req, res) => {
+    await tracing.setEnabled(body<TracingSettingsInput>(req).enabled, req.auth!.userId);
+    res.json(await tracing.catalogueAdmin());
+  }),
+);
+
+publicationRouter.patch(
+  '/tracing/categories/:id',
+  validate({ params: idParamSchema, body: updateTracingCategorySchema }),
+  asyncHandler(async (req, res) => {
+    await tracing.updateCategory(
+      params<{ id: string }>(req).id,
+      body<UpdateTracingCategoryInput>(req),
+      req.auth!.userId,
+    );
+    res.status(204).end();
+  }),
+);
+
+publicationRouter.post(
+  '/tracing/categories/:id/items',
+  validate({ params: idParamSchema, body: createTracingItemSchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(
+        await tracing.addItem(
+          params<{ id: string }>(req).id,
+          body<CreateTracingItemInput>(req),
+          req.auth!.userId,
+        ),
+      );
+  }),
+);
+
+publicationRouter.patch(
+  '/tracing/items/:id',
+  validate({ params: idParamSchema, body: updateTracingItemSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await tracing.updateItem(
+        params<{ id: string }>(req).id,
+        body<UpdateTracingItemInput>(req),
         req.auth!.userId,
       ),
     );

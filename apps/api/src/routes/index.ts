@@ -19,6 +19,7 @@ import { progressRouter } from './progress.routes.js';
 import { catalogueRouter } from './catalogue.routes.js';
 import { certificateRouter } from './certificate.routes.js';
 import { resultRouter } from './result.routes.js';
+import { tracingRouter } from './tracing.routes.js';
 import { publicationRouter } from './publication.routes.js';
 import { publicRouter } from './public.routes.js';
 import { schoolAdminRouter } from './schoolAdmin.routes.js';
@@ -75,6 +76,7 @@ secured.use('/progress', progressRouter);
 secured.use('/catalogue', catalogueRouter);
 secured.use('/certificates', certificateRouter);
 secured.use('/results', resultRouter);
+secured.use('/tracing', tracingRouter);
 
 secured.use('/', schoolAdminRouter);
 

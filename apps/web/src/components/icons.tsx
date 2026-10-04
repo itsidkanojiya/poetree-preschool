@@ -242,3 +242,13 @@ export const IconTrace = (p: IconProps) => (
     <path d="M4 22h1.5M8 22h1.5M12 22h1.5M16 22h1.5" />
   </Svg>
 );
+
+/** A game controller: the learning games. */
+export const IconGame = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 8h10a4 4 0 0 1 4 4v2.5a2.5 2.5 0 0 1-4.3 1.7L15 14.5H9l-1.7 1.7A2.5 2.5 0 0 1 3 14.5V12a4 4 0 0 1 4-4Z" />
+    <path d="M7.5 11v3M6 12.5h3" />
+    <circle cx="15.5" cy="11.5" r=".6" fill="currentColor" />
+    <circle cx="17" cy="13" r=".6" fill="currentColor" />
+  </Svg>
+);

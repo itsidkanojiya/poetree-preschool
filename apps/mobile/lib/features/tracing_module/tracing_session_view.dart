@@ -3,53 +3,55 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../core/letterforms/glyph_text.dart';
-import '../../core/widgets/kid_ui.dart';
+import '../../core/letterforms/letterforms.dart';
+
 import '../activities/activity_controller.dart';
 import '../activities/activity_models.dart';
-import '../activities/animation_view.dart';
 import '../tracing/tracing_play.dart';
+import 'lesson_video.dart';
+import 'tracing_lesson_view.dart';
 import 'tracing_module_controllers.dart';
 import 'tracing_module_models.dart';
+import 'tracing_ui.dart';
 
-/// One letter after another, each the same way:
+/// One letter after another.
 ///
-///   its video → watched to the end → trace it → next letter → its video …
+/// First visit to a letter with a video:
+///   lesson video → watched to the end → Start Tracing → trace → "A for Apple"
+/// Every visit after that, the video is not forced again:
+///   trace → "A for Apple"
+/// and "Watch again" on the tracing screen replays it whenever the child
+/// likes, then comes back to the tracing exactly as it was left.
 ///
-/// The video comes first every time, not only the first time: watching how a
-/// letter is written is the lesson, and tracing is practising it. There is no
-/// way past an unwatched video from here — Back from the video comes back to
-/// this page, which offers only to play it. A letter the publisher has not
-/// given a video yet goes straight to tracing.
+/// Whether a letter's video has been watched is kept per letter, on the
+/// school's server, so watching A's video does nothing for B. A letter the
+/// publisher has not given a video yet goes straight to tracing.
 class TracingSessionView extends StatefulWidget {
   const TracingSessionView({
     required this.controller,
     required this.startAt,
-    this.playVideo,
+    this.videoSurface,
     super.key,
   });
 
   final TracingLettersController controller;
   final int startAt;
 
-  /// Plays an item's video; true once it was watched to the end and the
-  /// school told. Defaults to the in-app player — a test passes its own,
-  /// since a WebView needs a phone.
-  final Future<bool?> Function(BuildContext context, TracingModuleItem item)?
-  playVideo;
+  /// The lesson video, for a test to stand in for YouTube.
+  final Widget Function(LessonVideoController video, VoidCallback onTap)?
+  videoSurface;
 
   @override
   State<TracingSessionView> createState() => _TracingSessionViewState();
 }
 
-enum _Step { video, trace }
+enum _Step { lesson, trace }
 
 class _TracingSessionViewState extends State<TracingSessionView> {
   late int _index = widget.startAt;
-  _Step _step = _Step.video;
+  _Step _step = _Step.trace;
   ActivityPlayController? _play;
   Worker? _finished;
-  bool _videoOpen = false;
 
   List<TracingModuleItem> get _items => widget.controller.items;
   TracingModuleItem get _item => _items[_index];
@@ -67,48 +69,19 @@ class _TracingSessionViewState extends State<TracingSessionView> {
     super.dispose();
   }
 
-  /// Arrives at a letter: its video if it has one, else its tracing.
+  /// Arrives at a letter: its lesson the first time, its tracing after.
   void _begin(int index) {
     _finished?.dispose();
     _finished = null;
     _play = null;
     _index = index;
 
-    if (_item.hasVideo) {
-      _step = _Step.video;
-      // After this frame: a route cannot be pushed while this one is built.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _index == index) unawaited(_watch());
-      });
+    if (_item.hasVideo && !_item.videoWatched) {
+      _step = _Step.lesson;
     } else {
       _startTracing();
     }
   }
-
-  /// Plays the letter's video. Only reaching the end — and the school
-  /// hearing about it — moves on to tracing.
-  Future<void> _watch() async {
-    if (_videoOpen) return;
-    _videoOpen = true;
-    final item = _item;
-    final watched = await (widget.playVideo ?? _inAppPlayer)(context, item);
-    _videoOpen = false;
-    if (!mounted || item != _item) return;
-    if (watched == true) setState(_startTracing);
-  }
-
-  Future<bool?> _inAppPlayer(BuildContext context, TracingModuleItem item) =>
-      Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => AnimationView(
-            videoId: item.videoId!,
-            title: 'Learn ${item.glyph}',
-            markWatched: () => widget.controller.markWatched(item),
-            watchText: 'Watch how to write it, then it is your turn to trace.',
-            doneText: 'Well watched! Now trace it.',
-          ),
-        ),
-      );
 
   void _startTracing() {
     final item = _item;
@@ -145,95 +118,191 @@ class _TracingSessionViewState extends State<TracingSessionView> {
     setState(() => _begin(_index + 1));
   }
 
+  /// Watching again, from the tracing: the lesson over the top, and Back
+  /// returns to the tracing just as it was.
+  Future<void> _watchAgain() async {
+    final item = _item;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (route) => TracingLessonView(
+          item: item,
+          categoryKey: widget.controller.categoryKey,
+          replay: true,
+          markWatched: () => widget.controller.markWatched(item),
+          onStart: () => Navigator.of(route).pop(),
+          onBack: () => Navigator.of(route).pop(),
+          videoSurface: widget.videoSurface,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final play = _play;
     final item = _item;
+    final play = _play;
+
+    // The lesson is this page's own content rather than a page on top of it:
+    // finishing it opens the tracing right here, with nothing in between to
+    // be backed out of.
+    if (_step == _Step.lesson || play == null) {
+      return TracingLessonView(
+        key: ValueKey('lesson-${item.id}'),
+        item: item,
+        categoryKey: widget.controller.categoryKey,
+        markWatched: () => widget.controller.markWatched(item),
+        onStart: () => setState(_startTracing),
+        onBack: () => Navigator.of(context).maybePop(),
+        videoSurface: widget.videoSurface,
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.controller.title),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                '${_index + 1} / ${_items.length}',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-              ),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: TracingSky()),
+          SafeArea(
+            child: Column(
+              children: [
+                _TraceHeader(
+                  title: _traceTitle(item),
+                  position: '${_index + 1} / ${_items.length}',
+                  progress: (_index + 1) / _items.length,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onWatchAgain: item.hasVideo
+                      ? () => unawaited(_watchAgain())
+                      : null,
+                ),
+                Expanded(
+                  child: TracingPlay(
+                    key: ValueKey('trace-${item.id}'),
+                    controller: play,
+                    content: play.activity.content! as TracingContent,
+                    finishLabel: _isLast ? 'All done' : 'Next ${item.kind}',
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
-      body: _step == _Step.trace && play != null
-          ? TracingPlay(
-              key: ValueKey('trace-${item.id}'),
-              controller: play,
-              content: play.activity.content! as TracingContent,
-              finishLabel: _isLast ? 'All done' : 'Next ${item.kind}',
-            )
-          : VideoGate(item: item, onPlay: () => unawaited(_watch())),
     );
   }
 }
 
-/// Before tracing: the letter, and the one way on — its video. Public so a
-/// preview test can draw it.
-class VideoGate extends StatelessWidget {
-  const VideoGate({required this.item, required this.onPlay, super.key});
+/// "Trace A", "Trace 7", "Trace the big zigzag".
+String _traceTitle(TracingModuleItem item) {
+  if (item.glyph.startsWith('pattern-')) {
+    final name = Letterforms.current?.patternNames[item.glyph];
+    return name == null
+        ? 'Trace the pattern'
+        : 'Trace the ${name.toLowerCase()}';
+  }
+  return 'Trace ${item.glyph}';
+}
 
-  final TracingModuleItem item;
-  final VoidCallback onPlay;
+/// Above the tracing: back, what is being traced, where in the set it is,
+/// and the way back to the video. The speaker is the tracing's own, beside
+/// the instruction it reads.
+class _TraceHeader extends StatelessWidget {
+  const _TraceHeader({
+    required this.title,
+    required this.position,
+    required this.progress,
+    required this.onBack,
+    required this.onWatchAgain,
+  });
+
+  final String title;
+  final String position;
+  final double progress;
+  final VoidCallback onBack;
+  final VoidCallback? onWatchAgain;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         children: [
-          const Spacer(),
-          Container(
-            width: 180,
-            height: 180,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(40),
-            ),
-            child: GlyphText(
-              item.glyph,
-              size: 110,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
+          Row(
+            children: [
+              BackRound(onTap: onBack),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: TraceInk.navy,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 28),
-          Text(
-            'First, watch the video',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  position,
+                  style: const TextStyle(
+                    color: TraceInk.navy,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: TracingProgressBar(value: progress)),
+              if (onWatchAgain != null) ...[
+                const SizedBox(width: 10),
+                Material(
+                  color: const Color(0xFF2F6FED),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: onWatchAgain,
+                    child: const Padding(
+                      padding: EdgeInsets.fromLTRB(10, 8, 14, 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.play_circle_fill_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Watch again',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'See how it is written, then it is your turn to trace it.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge,
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: GradientButton(
-              label: 'Play the video',
-              icon: Icons.play_arrow_rounded,
-              onPressed: onPlay,
-            ),
-          ),
-          const SizedBox(height: 12),
         ],
       ),
     );

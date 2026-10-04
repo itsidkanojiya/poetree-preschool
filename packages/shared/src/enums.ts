@@ -317,6 +317,8 @@ export const AUDIT_ACTIONS = [
   // once; its letters and videos are content like a chapter's film.
   'TRACING_SETTINGS_CHANGED',
   'TRACING_CONTENT_UPDATED',
+  // The games module and each game switched on or off.
+  'GAMES_SETTINGS_CHANGED',
   'PASSWORD_CHANGED',
   // Somebody else setting a password on your behalf is a different event from
   // you changing your own, and the one worth being able to look up later.

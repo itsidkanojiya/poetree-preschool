@@ -63,11 +63,15 @@ class TracingLettersController extends GetxController {
     required this.studentId,
     required this.categoryId,
     required this.title,
+    this.categoryKey = '',
   });
 
   final String studentId;
   final String categoryId;
   final String title;
+
+  /// "capital", "number", … — the colour the lesson draws the letter in.
+  final String categoryKey;
 
   final items = <TracingModuleItem>[].obs;
   final isLoading = true.obs;

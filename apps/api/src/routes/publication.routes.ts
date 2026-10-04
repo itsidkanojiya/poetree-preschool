@@ -34,6 +34,9 @@ import {
   tracingSettingsSchema,
   updateTracingCategorySchema,
   updateTracingItemSchema,
+  gameKeyParamSchema,
+  gamesSettingsSchema,
+  updateGameSchema,
 } from '@poetree/shared';
 import type {
   CreateBookSubjectInput,
@@ -67,6 +70,9 @@ import type {
   TracingSettingsInput,
   UpdateTracingCategoryInput,
   UpdateTracingItemInput,
+  GameKey,
+  GamesSettingsInput,
+  UpdateGameInput,
 } from '@poetree/shared';
 import multer from 'multer';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -88,6 +94,7 @@ import * as books from '../services/book.service.js';
 import * as chapters from '../services/chapter.service.js';
 import * as questions from '../services/question.service.js';
 import * as tracing from '../services/tracing.service.js';
+import * as games from '../services/games.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -885,5 +892,39 @@ publicationRouter.patch(
         req.auth!.userId,
       ),
     );
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Games — the module switch, and each game on or off                         */
+/* -------------------------------------------------------------------------- */
+
+publicationRouter.get(
+  '/games',
+  asyncHandler(async (_req, res) => {
+    res.json(await games.adminView());
+  }),
+);
+
+/** On or off in every school's app at once. Nothing is deleted either way. */
+publicationRouter.put(
+  '/games/settings',
+  validate({ body: gamesSettingsSchema }),
+  asyncHandler(async (req, res) => {
+    await games.setEnabled(body<GamesSettingsInput>(req).enabled, req.auth!.userId);
+    res.json(await games.adminView());
+  }),
+);
+
+publicationRouter.patch(
+  '/games/:key',
+  validate({ params: gameKeyParamSchema, body: updateGameSchema }),
+  asyncHandler(async (req, res) => {
+    await games.setGameActive(
+      params<{ key: GameKey }>(req).key,
+      body<UpdateGameInput>(req).isActive,
+      req.auth!.userId,
+    );
+    res.json(await games.adminView());
   }),
 );

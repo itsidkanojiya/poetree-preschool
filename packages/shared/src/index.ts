@@ -22,3 +22,4 @@ export * from './schemas/chapter.js';
 export * from './schemas/animation.js';
 export * from './schemas/question.js';
 export * from './schemas/tracing.js';
+export * from './schemas/games.js';

@@ -107,3 +107,39 @@ abstract final class SubjectArt {
     return AppIcons.storybook;
   }
 }
+
+/// The tracing lesson's icons: the designer's SVGs, drawn with flutter_svg.
+abstract final class LessonIcons {
+  static const _dir = 'assets/tracing_ui';
+
+  static const back = '$_dir/back.svg';
+  static const sound = '$_dir/sound.svg';
+  static const play = '$_dir/play.svg';
+  static const pause = '$_dir/pause.svg';
+  static const fullscreen = '$_dir/fullscreen.svg';
+  static const lock = '$_dir/lock.svg';
+  static const check = '$_dir/check.svg';
+  static const star = '$_dir/star.svg';
+  static const arrowRight = '$_dir/arrow_right.svg';
+}
+
+/// The learning pack: icons and pictures drawn for the tracing screens.
+abstract final class LearningArt {
+  static const _dir = 'assets/student_learning_ui_assets/icons';
+
+  static const star = '$_dir/star.svg';
+  static const speaker = '$_dir/speaker.svg';
+  static const play = '$_dir/play.svg';
+  static const check = '$_dir/check.svg';
+  static const pencil = '$_dir/tracing_pencil.svg';
+  static const flower = '$_dir/flower.svg';
+}
+
+/// The learning cards' own icons, from the multilingual pack.
+abstract final class CardArt {
+  static const _dir = 'assets/ui';
+
+  static const speaker = '$_dir/speaker.svg';
+  static const check = '$_dir/check.svg';
+  static const star = '$_dir/card_star.svg';
+}

@@ -93,7 +93,12 @@ class _LessonRevealState extends State<LessonReveal>
       for (var i = 1; i <= _items; i++) {
         _later(
           const Duration(milliseconds: 700) + _perItem * (i - 1),
-          () => widget.say(_numberWords[i]),
+          // Counted in the number's own language: "एक, दो, तीन".
+          () => widget.say(
+            _lesson.countWords.length >= i
+                ? _lesson.countWords[i - 1]
+                : _numberWords[i],
+          ),
         );
       }
       final counted = const Duration(milliseconds: 900) + _perItem * _items;
@@ -243,11 +248,10 @@ class _Object extends StatelessWidget {
     );
 
     final Widget picture = lesson.imagePath != null
-        ? Image.asset(
-            lesson.imagePath!,
+        ? SizedBox(
             width: side * 0.46,
             height: side * 0.46,
-            fit: BoxFit.contain,
+            child: ObjectPicture(lesson.imagePath!),
           )
         : _WordPicture(
             word: lesson.word ?? lesson.glyph,
@@ -373,6 +377,40 @@ class _Counted extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items == 0) return const SizedBox.shrink();
 
+    // A quantity picture already shows that many things: it arrives once,
+    // and the voice counts over it.
+    final picture = lesson.imagePath;
+    if (picture != null) {
+      return AnimatedBuilder(
+        animation: count,
+        builder: (context, child) => Transform.scale(
+          scale: Curves.elasticOut.transform(
+            (count.value * items).clamp(0.0, 1.0),
+          ),
+          child: child,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: side * 0.8,
+            maxHeight: side * 0.42,
+          ),
+          padding: EdgeInsets.all(side * 0.03),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(side * 0.06),
+            boxShadow: [
+              BoxShadow(
+                color: colour.withValues(alpha: 0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ObjectPicture(picture),
+        ),
+      );
+    }
+
     // Five to a row at most, so ten reads as two rows of five.
     final perRow = math.min(items, 5);
     final size = math.min(side * 0.17, side * 0.9 / perRow - 8);
@@ -406,9 +444,6 @@ class _Counted extends StatelessWidget {
   }
 
   Widget _item(int i, double size) {
-    if (lesson.imagePath != null) {
-      return Image.asset(lesson.imagePath!, fit: BoxFit.contain);
-    }
     final bubble = _bubbles[i % _bubbles.length];
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -451,16 +486,16 @@ class _Caption extends StatelessWidget {
     final theme = Theme.of(context);
     final word = lesson.word;
 
+    // "A for Apple", "अ से अनार", "Three stars", "तीन तारे" — the catalogue's
+    // own words, in the lesson's own language.
     final String text;
     if (lesson.isPattern) {
       text = word ?? 'Well done!';
     } else if (lesson.isNumber) {
-      final name = lesson.countName ?? '${lesson.count}';
-      final what = lesson.imagePath != null ? lesson.objectName : null;
-      final spoken = what == null ? name : '$name $what';
+      final spoken = lesson.phrase ?? lesson.label ?? '${lesson.count}';
       text = spoken.substring(0, 1).toUpperCase() + spoken.substring(1);
     } else {
-      text = word == null ? lesson.glyph : '${lesson.glyph} for $word';
+      text = lesson.phrase ?? lesson.glyph;
     }
 
     return Container(

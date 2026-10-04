@@ -1,12 +1,17 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:poetree_school/core/api/api_client.dart';
 import 'package:poetree_school/core/api/api_service.dart';
 import 'package:poetree_school/features/tracing/tracing_play.dart';
+import 'package:poetree_school/features/tracing/trace_lessons.dart';
+import 'package:poetree_school/features/tracing_module/learning_card.dart';
+import 'package:poetree_school/features/tracing_module/letter_cards.dart';
+import 'package:poetree_school/features/tracing_module/lesson_video.dart';
+import 'package:poetree_school/features/tracing_module/tracing_lesson_view.dart';
 import 'package:poetree_school/features/tracing_module/tracing_module_controllers.dart';
 import 'package:poetree_school/features/tracing_module/tracing_module_models.dart';
 import 'package:poetree_school/features/tracing_module/tracing_session_view.dart';
@@ -111,71 +116,229 @@ void main() {
     expect(TracingModuleItem.fromJson(_item('h', '३')).kind, 'number');
   });
 
-  testWidgets(
-    'the video comes first, cannot be skipped, and leads to tracing',
-    (tester) async {
-      final api = _install();
-      final controller = TracingLettersController(
-        studentId: 's1',
-        categoryId: 'cat1',
-        title: 'Capital letters',
-      );
-      await tester.runAsync(controller.load);
-      expect(controller.items, hasLength(2));
+  test('a first watch cannot be dragged past what has been seen', () {
+    final video = LessonVideoController(videoId: 'x', freeSeek: false)
+      ..handle('tick:5.00:30.00:0:0');
+    expect(video.started, isTrue);
+    expect(video.furthest, 5);
 
-      final played = <String>[];
-      var finishVideo = false;
-      await tester.pumpWidget(
-        GetMaterialApp(
-          home: TracingSessionView(
-            controller: controller,
-            startAt: 0,
-            playVideo: (context, item) async {
-              played.add(item.glyph);
-              if (!finishVideo) return false;
-              await controller.markWatched(item);
-              return true;
-            },
+    video.seek(28);
+    expect(video.position, 5);
+
+    var ended = 0;
+    video
+      ..onEnded = (() => ended++)
+      ..handle('ended')
+      ..handle('ended');
+    expect(ended, 1);
+    expect(video.ended, isTrue);
+
+    // Watching again, anywhere goes.
+    final again = LessonVideoController(videoId: 'x', freeSeek: true)
+      ..handle('tick:5.00:30.00:0:0')
+      ..seek(28);
+    expect(again.position, 28);
+  });
+
+  Future<TracingLettersController> openLetters(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.625;
+    addTearDown(tester.view.reset);
+    final controller = TracingLettersController(
+      studentId: 's1',
+      categoryId: 'cat1',
+      title: 'Capital letters',
+      categoryKey: 'capital',
+    );
+    await tester.runAsync(controller.load);
+    return controller;
+  }
+
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
+  testWidgets('first visit: the video unlocks tracing, then on to the next', (
+    tester,
+  ) async {
+    final api = _install();
+    final controller = await openLetters(tester);
+
+    LessonVideoController? video;
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: TracingSessionView(
+          controller: controller,
+          startAt: 0,
+          videoSurface: (v, onTap) {
+            video = v;
+            return const ColoredBox(color: Color(0xFF000000));
+          },
+        ),
+      ),
+    );
+    await settle(tester);
+
+    // A's lesson, with tracing locked.
+    expect(find.byType(TracingLessonView), findsOneWidget);
+    expect(find.text('Watch the video to unlock tracing'), findsOneWidget);
+    expect(find.byType(TracingPlay), findsNothing);
+
+    // Played to its end: recorded, celebrated, unlocked.
+    await tester.runAsync(() async {
+      video!
+        ..handle('tick:10.00:32.00:0:0')
+        ..handle('ended');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await settle(tester);
+    expect(api.sent, contains('POST /tracing/items/iA/watched'));
+    expect(find.text('Great Job!'), findsOneWidget);
+    expect(find.text('Start Tracing'), findsOneWidget);
+
+    await tester.tap(find.text('Start Tracing'));
+    await settle(tester);
+    expect(find.byType(TracingPlay), findsOneWidget);
+    expect(find.text('Watch again'), findsOneWidget);
+    final play = tester.widget<TracingPlay>(find.byType(TracingPlay));
+    expect(play.finishLabel, 'Next letter');
+
+    // A traced: recorded, and B — never watched — opens on its lesson.
+    await tester.runAsync(() async {
+      play.controller.traceAccepted();
+      play.controller.next();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await settle(tester);
+    expect(api.sent, contains('POST /tracing/items/iA/traced'));
+    expect(controller.items.first.traced, isTrue);
+    expect(find.byType(TracingLessonView), findsOneWidget);
+    expect(find.text('Watch the video to unlock tracing'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a letter whose video was watched goes straight to tracing', (
+    tester,
+  ) async {
+    _install();
+    final controller = await openLetters(tester);
+    controller.items.first.videoWatched = true;
+
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: TracingSessionView(
+          controller: controller,
+          startAt: 0,
+          videoSurface: (v, onTap) =>
+              const ColoredBox(color: Color(0xFF000000)),
+        ),
+      ),
+    );
+    await settle(tester);
+
+    expect(find.byType(TracingLessonView), findsNothing);
+    expect(find.byType(TracingPlay), findsOneWidget);
+
+    // Watching again opens the lesson unlocked, and comes back to tracing.
+    await tester.tap(find.text('Watch again'));
+    await settle(tester);
+    expect(find.byType(TracingLessonView), findsOneWidget);
+    expect(find.text('Back to tracing'), findsOneWidget);
+    await tester.tap(find.text('Back to tracing'));
+    await settle(tester);
+    expect(find.byType(TracingLessonView), findsNothing);
+    expect(find.byType(TracingPlay), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('cards show each language its own words, and stay open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.625;
+    addTearDown(tester.view.reset);
+
+    TracingModuleItem item(String glyph, {bool traced = false}) =>
+        TracingModuleItem.fromJson(_item(glyph, glyph))..traced = traced;
+    final lessons = TraceLessons.from(
+      {
+        'A': {
+          'kind': 'letter',
+          'language': 'en',
+          'word': 'Apple',
+          'say': 'A for Apple.',
+        },
+        '३': {
+          'kind': 'number',
+          'language': 'hi',
+          'count': 3,
+          'label': 'तीन',
+          'phrase': 'तीन तारे',
+          'image': 'assets/numbers/number_03_stars.png',
+          'say': 'तीन। तीन तारे।',
+        },
+      },
+      const {'assets/numbers/number_03_stars.png'},
+    );
+
+    final cards = [
+      LearningCard.from(item('A', traced: true), lessons.forGlyph('A')),
+      LearningCard.from(item('a'), lessons.forGlyph('a')),
+      LearningCard.from(item('३'), lessons.forGlyph('३')),
+    ];
+
+    // What the speaker says, per card.
+    expect(cards.map((c) => c.spoken), [
+      'A... Apple',
+      'a... apple',
+      '३... तीन',
+    ]);
+    expect(cards[2].type, LearningCardType.number);
+    expect(cards[2].imageAsset, 'assets/numbers/number_03_stars.png');
+
+    final picked = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              for (final (i, card) in cards.indexed)
+                SizedBox(
+                  width: 130,
+                  height: 190,
+                  child: LetterCard(
+                    card: card,
+                    tone: (
+                      paper: const Color(0xFFFFE9EC),
+                      ink: const Color(0xFFE8455B),
+                    ),
+                    onTap: () => picked.add(i),
+                  ),
+                ),
+            ],
           ),
         ),
-      );
-      await tester.pump();
-      await tester.pump();
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
 
-      // Backed out of A's video: still on the gate, nothing to trace.
-      expect(played, ['A']);
-      expect(find.byType(VideoGate), findsOneWidget);
-      expect(find.byType(TracingPlay), findsNothing);
+    expect(find.text('Apple'), findsOneWidget);
+    expect(find.text('apple'), findsOneWidget);
+    // The Hindi number: its own word and what the picture shows — no Apple,
+    // no "three".
+    expect(find.text('तीन'), findsOneWidget);
+    expect(find.text('तीन तारे'), findsOneWidget);
+    expect(find.text('Learned'), findsOneWidget);
 
-      // Watched to the end this time: A's tracing opens.
-      finishVideo = true;
-      await tester.runAsync(() async {
-        await tester.tap(find.text('Play the video'));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
-      await tester.pump();
-      expect(played, ['A', 'A']);
-      expect(api.sent, contains('POST /tracing/items/iA/watched'));
-      expect(find.byType(TracingPlay), findsOneWidget);
-      final play = tester.widget<TracingPlay>(find.byType(TracingPlay));
-      expect(play.finishLabel, 'Next letter');
-
-      // A traced: recorded, and B's video starts — not B's tracing.
-      await tester.runAsync(() async {
-        play.controller.traceAccepted();
-        play.controller.next();
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
-      await tester.pump();
-      await tester.pump();
-      expect(api.sent, contains('POST /tracing/items/iA/traced'));
-      expect(controller.items.first.traced, isTrue);
-      expect(played, ['A', 'A', 'B']);
-      expect(find.text('2 / 2'), findsOneWidget);
-
-      // Leave the page, so its timers stop with it.
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 1));
-    },
-  );
+    // Learned is not locked: tapping it opens it again.
+    await tester.tap(find.text('Apple'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(picked, [0]);
+  });
 }

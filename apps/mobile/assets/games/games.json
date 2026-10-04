@@ -1,0 +1,406 @@
+{
+  "_about": "The learning games' content. Which games exist, their words, and per language: the prompts and spoken feedback ({letter}, {things} are filled in), the ordered lists sequences and letter-finding draw from, and the names of the things to count. Letter Match and Listen & Match take each letter's word and picture from assets/tracing/lessons.json, so a letter teaches the same word in tracing and in games. Add a language by adding it here and its letters there.",
+  "questionsPerRound": 10,
+  "games": [
+    {
+      "key": "letter_match",
+      "name": "Letter Match",
+      "description": "Match the letter with its picture",
+      "icon": "assets/games/icons/letter_match.png",
+      "paper": "#FFE6EA",
+      "accent": "#E8455B"
+    },
+    {
+      "key": "find_letter",
+      "name": "Find the Letter",
+      "description": "Can you find it?",
+      "icon": "assets/games/icons/find_letter.png",
+      "paper": "#E1F0FF",
+      "accent": "#2F6FED"
+    },
+    {
+      "key": "complete_sequence",
+      "name": "Complete the Sequence",
+      "description": "Fill in what is missing",
+      "icon": "assets/games/icons/complete_sequence.png",
+      "paper": "#F0E6FF",
+      "accent": "#7B4FE0"
+    },
+    {
+      "key": "count_choose",
+      "name": "Count & Choose",
+      "description": "Count and pick the number",
+      "icon": "assets/games/icons/count_choose.png",
+      "paper": "#FFF3D1",
+      "accent": "#E08A00"
+    },
+    {
+      "key": "listen_match",
+      "name": "Listen & Match",
+      "description": "Listen and pick the picture",
+      "icon": "assets/games/icons/listen_match.png",
+      "paper": "#E1F7E7",
+      "accent": "#1E9E63"
+    }
+  ],
+  "countObjects": {
+    "apple": "assets/student_learning_ui_assets/icons/apple.svg",
+    "ball": "assets/student_learning_ui_assets/icons/ball.svg",
+    "star": "assets/student_learning_ui_assets/icons/star.svg",
+    "fish": "assets/student_learning_ui_assets/icons/fish.svg",
+    "flower": "assets/student_learning_ui_assets/icons/flower.svg",
+    "balloon": "assets/student_learning_ui_assets/icons/balloon.svg",
+    "cat": "assets/student_learning_ui_assets/icons/cat.svg",
+    "dog": "assets/student_learning_ui_assets/icons/dog.svg",
+    "elephant": "assets/student_learning_ui_assets/icons/elephant.svg"
+  },
+  "languages": {
+    "en": {
+      "label": "English",
+      "lists": {
+        "capital": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F",
+          "G",
+          "H",
+          "I",
+          "J",
+          "K",
+          "L",
+          "M",
+          "N",
+          "O",
+          "P",
+          "Q",
+          "R",
+          "S",
+          "T",
+          "U",
+          "V",
+          "W",
+          "X",
+          "Y",
+          "Z"
+        ],
+        "small": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+          "k",
+          "l",
+          "m",
+          "n",
+          "o",
+          "p",
+          "q",
+          "r",
+          "s",
+          "t",
+          "u",
+          "v",
+          "w",
+          "x",
+          "y",
+          "z"
+        ],
+        "number": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10"
+        ]
+      },
+      "findFrom": [
+        "capital",
+        "small",
+        "number"
+      ],
+      "sequenceFrom": [
+        "capital",
+        "small",
+        "number"
+      ],
+      "digits": "0123456789",
+      "prompts": {
+        "letter_match": "Which picture starts with {letter}?",
+        "find_letter": "Find the letter",
+        "find_number": "Find the number",
+        "find_say": "Find {letter}.",
+        "complete_sequence": "What is missing?",
+        "count_choose": "How many {things}?",
+        "listen_match": "Listen carefully!"
+      },
+      "feedback": {
+        "correct": "Correct!",
+        "tryAgain": "Try again!",
+        "thisIs": "This is {letter}."
+      },
+      "things": {
+        "apple": "apples",
+        "ball": "balls",
+        "star": "stars",
+        "fish": "fish",
+        "flower": "flowers",
+        "balloon": "balloons",
+        "cat": "cats",
+        "dog": "dogs",
+        "elephant": "elephants"
+      },
+      "thing": {
+        "apple": "apple",
+        "ball": "ball",
+        "star": "star",
+        "fish": "fish",
+        "flower": "flower",
+        "balloon": "balloon",
+        "cat": "cat",
+        "dog": "dog",
+        "elephant": "elephant"
+      }
+    },
+    "hi": {
+      "label": "हिंदी",
+      "lists": {
+        "vowel": [
+          "अ",
+          "आ",
+          "इ",
+          "ई",
+          "उ",
+          "ऊ",
+          "ऋ",
+          "ए",
+          "ऐ",
+          "ओ",
+          "औ",
+          "अं",
+          "अः"
+        ],
+        "consonant": [
+          "क",
+          "ख",
+          "ग",
+          "घ",
+          "ङ",
+          "च",
+          "छ",
+          "ज",
+          "झ",
+          "ञ",
+          "ट",
+          "ठ",
+          "ड",
+          "ढ",
+          "ण",
+          "त",
+          "थ",
+          "द",
+          "ध",
+          "न",
+          "प",
+          "फ",
+          "ब",
+          "भ",
+          "म",
+          "य",
+          "र",
+          "ल",
+          "व",
+          "श",
+          "ष",
+          "स",
+          "ह"
+        ],
+        "number": [
+          "१",
+          "२",
+          "३",
+          "४",
+          "५",
+          "६",
+          "७",
+          "८",
+          "९",
+          "१०"
+        ]
+      },
+      "findFrom": [
+        "vowel",
+        "consonant",
+        "number"
+      ],
+      "sequenceFrom": [
+        "vowel",
+        "consonant",
+        "number"
+      ],
+      "digits": "०१२३४५६७८९",
+      "prompts": {
+        "letter_match": "कौन सी तस्वीर {letter} से शुरू होती है?",
+        "find_letter": "अक्षर ढूँढो",
+        "find_number": "अंक ढूँढो",
+        "find_say": "{letter} ढूँढो।",
+        "complete_sequence": "खाली जगह में क्या आएगा?",
+        "count_choose": "कितने {things} हैं?",
+        "listen_match": "ध्यान से सुनो!"
+      },
+      "feedback": {
+        "correct": "शाबाश!",
+        "tryAgain": "फिर से कोशिश करो!",
+        "thisIs": "यह {letter} है।"
+      },
+      "things": {
+        "apple": "सेब",
+        "ball": "गेंदें",
+        "star": "तारे",
+        "fish": "मछलियाँ",
+        "flower": "फूल",
+        "balloon": "गुब्बारे",
+        "cat": "बिल्लियाँ",
+        "dog": "कुत्ते",
+        "elephant": "हाथी"
+      },
+      "thing": {
+        "apple": "सेब",
+        "ball": "गेंद",
+        "star": "तारा",
+        "fish": "मछली",
+        "flower": "फूल",
+        "balloon": "गुब्बारा",
+        "cat": "बिल्ली",
+        "dog": "कुत्ता",
+        "elephant": "हाथी"
+      }
+    },
+    "gu": {
+      "label": "ગુજરાતી",
+      "lists": {
+        "vowel": [
+          "અ",
+          "આ",
+          "ઇ",
+          "ઈ",
+          "ઉ",
+          "ઊ",
+          "ઋ",
+          "એ",
+          "ઐ",
+          "ઓ",
+          "ઔ",
+          "અં",
+          "અઃ"
+        ],
+        "consonant": [
+          "ક",
+          "ખ",
+          "ગ",
+          "ઘ",
+          "ચ",
+          "છ",
+          "જ",
+          "ઝ",
+          "ટ",
+          "ઠ",
+          "ડ",
+          "ઢ",
+          "ણ",
+          "ત",
+          "થ",
+          "દ",
+          "ધ",
+          "ન",
+          "પ",
+          "ફ",
+          "બ",
+          "ભ",
+          "મ",
+          "ય",
+          "ર",
+          "લ",
+          "વ",
+          "શ",
+          "ષ",
+          "સ",
+          "હ",
+          "ળ"
+        ],
+        "number": [
+          "૧",
+          "૨",
+          "૩",
+          "૪",
+          "૫",
+          "૬",
+          "૭",
+          "૮",
+          "૯",
+          "૧૦"
+        ]
+      },
+      "findFrom": [
+        "vowel",
+        "consonant",
+        "number"
+      ],
+      "sequenceFrom": [
+        "vowel",
+        "consonant",
+        "number"
+      ],
+      "digits": "૦૧૨૩૪૫૬૭૮૯",
+      "prompts": {
+        "letter_match": "કયું ચિત્ર {letter} થી શરૂ થાય છે?",
+        "find_letter": "અક્ષર શોધો",
+        "find_number": "અંક શોધો",
+        "find_say": "{letter} શોધો.",
+        "complete_sequence": "ખાલી જગ્યામાં શું આવશે?",
+        "count_choose": "કેટલા {things} છે?",
+        "listen_match": "ધ્યાનથી સાંભળો!"
+      },
+      "feedback": {
+        "correct": "શાબાશ!",
+        "tryAgain": "ફરી પ્રયત્ન કરો!",
+        "thisIs": "આ {letter} છે."
+      },
+      "things": {
+        "apple": "સફરજન",
+        "ball": "દડા",
+        "star": "તારા",
+        "fish": "માછલી",
+        "flower": "ફૂલ",
+        "balloon": "ફુગ્ગા",
+        "cat": "બિલાડી",
+        "dog": "કૂતરા",
+        "elephant": "હાથી"
+      },
+      "thing": {
+        "apple": "સફરજન",
+        "ball": "દડો",
+        "star": "તારો",
+        "fish": "માછલી",
+        "flower": "ફૂલ",
+        "balloon": "ફુગ્ગો",
+        "cat": "બિલાડી",
+        "dog": "કૂતરો",
+        "elephant": "હાથી"
+      }
+    }
+  }
+}

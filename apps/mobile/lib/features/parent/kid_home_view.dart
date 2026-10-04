@@ -9,6 +9,7 @@ import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/kid_ui.dart';
 import '../../core/widgets/squish.dart';
+import '../games/games_hub_view.dart';
 import '../notifications/inbox_controller.dart';
 import '../tracing_module/tracing_module_views.dart';
 import 'child_controller.dart';
@@ -151,17 +152,21 @@ class KidHome extends StatelessWidget {
                         _FeatureCard(feature: feature),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  const _SectionTitle('Play and learn'),
-                  const SizedBox(height: 10),
-                  ArtBanner(
-                    AppBanners.game,
-                    semanticLabel: 'Game — play activities from your books',
-                    onTap: () => Get.toNamed<void>(
-                      AppRoutes.activities,
-                      arguments: {'studentId': selected.id},
+                  // Only while the publisher has games on. Off removes the
+                  // banner outright: there is nothing behind it.
+                  if (child.gamesEnabled.value) ...[
+                    const SizedBox(height: 20),
+                    const _SectionTitle('Play and learn'),
+                    const SizedBox(height: 10),
+                    ArtBanner(
+                      AppBanners.game,
+                      semanticLabel: 'Games — play and learn',
+                      onTap: () => openGames(
+                        studentId: selected.id,
+                        childName: selected.firstName,
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 16),
                   _FeesCard(
                     due: due,

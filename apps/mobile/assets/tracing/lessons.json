@@ -1,247 +1,1087 @@
 {
-  "_about": "What a child sees and hears after tracing each letter or number. Keyed by the glyph exactly as the tracing activity sends it; a lowercase letter uses its capital. \"object\" names a picture in assets/tracing/objects/<object>.png and, optionally, a recording in assets/tracing/audio/<glyph>.mp3 (not played yet). Add Hindi or Gujarati letters the same way, keyed by the letter itself.",
+  "_about": "The one content mapping for tracing, keyed by the glyph exactly as the tracing activity sends it; a small English letter uses its capital. Numbers teach quantity: \"image\" is a picture of that many things, the same for every language, and only \"label\" (the number word) and \"phrase\" change. Letters teach a word in their own language; \"image\" is set only where a picture shows that word. \"say\" is spoken after tracing; \"audio\" may name a recording to play instead (none yet).",
   "glyphs": {
     "A": {
       "kind": "letter",
+      "language": "en",
       "word": "Apple",
-      "object": "apple",
+      "image": "assets/student_learning_ui_assets/icons/apple.svg",
       "say": "A for Apple. Apple starts with A."
     },
     "B": {
       "kind": "letter",
+      "language": "en",
       "word": "Ball",
-      "object": "ball",
+      "image": "assets/student_learning_ui_assets/icons/ball.svg",
       "say": "B for Ball. Ball starts with B."
     },
     "C": {
       "kind": "letter",
+      "language": "en",
       "word": "Cat",
-      "object": "cat",
+      "image": "assets/student_learning_ui_assets/icons/cat.svg",
       "say": "C for Cat. Cat starts with C."
     },
     "D": {
       "kind": "letter",
+      "language": "en",
       "word": "Dog",
-      "object": "dog",
+      "image": "assets/student_learning_ui_assets/icons/dog.svg",
       "say": "D for Dog. Dog starts with D."
     },
     "E": {
       "kind": "letter",
+      "language": "en",
       "word": "Elephant",
-      "object": "elephant",
+      "image": "assets/student_learning_ui_assets/icons/elephant.svg",
       "say": "E for Elephant. Elephant starts with E."
     },
     "F": {
       "kind": "letter",
+      "language": "en",
       "word": "Fish",
-      "object": "fish",
+      "image": "assets/student_learning_ui_assets/icons/fish.svg",
       "say": "F for Fish. Fish starts with F."
     },
     "G": {
       "kind": "letter",
+      "language": "en",
       "word": "Grapes",
-      "object": "grapes",
       "say": "G for Grapes. Grapes starts with G."
     },
     "H": {
       "kind": "letter",
-      "word": "Hat",
-      "object": "hat",
-      "say": "H for Hat. Hat starts with H."
+      "language": "en",
+      "word": "House",
+      "say": "H for House. House starts with H."
     },
     "I": {
       "kind": "letter",
+      "language": "en",
       "word": "Ice cream",
-      "object": "ice_cream",
       "say": "I for Ice cream. Ice cream starts with I."
     },
     "J": {
       "kind": "letter",
-      "word": "Jug",
-      "object": "jug",
-      "say": "J for Jug. Jug starts with J."
+      "language": "en",
+      "word": "Juice",
+      "say": "J for Juice. Juice starts with J."
     },
     "K": {
       "kind": "letter",
+      "language": "en",
       "word": "Kite",
-      "object": "kite",
       "say": "K for Kite. Kite starts with K."
     },
     "L": {
       "kind": "letter",
+      "language": "en",
       "word": "Lion",
-      "object": "lion",
       "say": "L for Lion. Lion starts with L."
     },
     "M": {
       "kind": "letter",
+      "language": "en",
       "word": "Mango",
-      "object": "mango",
       "say": "M for Mango. Mango starts with M."
     },
     "N": {
       "kind": "letter",
+      "language": "en",
       "word": "Nest",
-      "object": "nest",
       "say": "N for Nest. Nest starts with N."
     },
     "O": {
       "kind": "letter",
+      "language": "en",
       "word": "Orange",
-      "object": "orange",
       "say": "O for Orange. Orange starts with O."
     },
     "P": {
       "kind": "letter",
+      "language": "en",
       "word": "Parrot",
-      "object": "parrot",
       "say": "P for Parrot. Parrot starts with P."
     },
     "Q": {
       "kind": "letter",
+      "language": "en",
       "word": "Queen",
-      "object": "queen",
       "say": "Q for Queen. Queen starts with Q."
     },
     "R": {
       "kind": "letter",
+      "language": "en",
       "word": "Rabbit",
-      "object": "rabbit",
       "say": "R for Rabbit. Rabbit starts with R."
     },
     "S": {
       "kind": "letter",
+      "language": "en",
       "word": "Sun",
-      "object": "sun",
       "say": "S for Sun. Sun starts with S."
     },
     "T": {
       "kind": "letter",
+      "language": "en",
       "word": "Tree",
-      "object": "tree",
       "say": "T for Tree. Tree starts with T."
     },
     "U": {
       "kind": "letter",
+      "language": "en",
       "word": "Umbrella",
-      "object": "umbrella",
       "say": "U for Umbrella. Umbrella starts with U."
     },
     "V": {
       "kind": "letter",
+      "language": "en",
       "word": "Van",
-      "object": "van",
       "say": "V for Van. Van starts with V."
     },
     "W": {
       "kind": "letter",
-      "word": "Watch",
-      "object": "watch",
-      "say": "W for Watch. Watch starts with W."
+      "language": "en",
+      "word": "Watermelon",
+      "say": "W for Watermelon. Watermelon starts with W."
     },
     "X": {
       "kind": "letter",
+      "language": "en",
       "word": "Xylophone",
-      "object": "xylophone",
       "say": "X for Xylophone. Xylophone starts with X."
     },
     "Y": {
       "kind": "letter",
-      "word": "Yo-yo",
-      "object": "yo_yo",
-      "say": "Y for Yo-yo. Yo-yo starts with Y."
+      "language": "en",
+      "word": "Yak",
+      "say": "Y for Yak. Yak starts with Y."
     },
     "Z": {
       "kind": "letter",
+      "language": "en",
       "word": "Zebra",
-      "object": "zebra",
       "say": "Z for Zebra. Zebra starts with Z."
     },
     "0": {
       "kind": "number",
+      "language": "en",
       "count": 0,
-      "name": "zero",
+      "label": "Zero",
       "say": "Zero. Nothing at all."
     },
     "1": {
       "kind": "number",
+      "language": "en",
       "count": 1,
-      "name": "one",
-      "object": "apple",
-      "objectName": "apple",
+      "label": "One",
+      "phrase": "one apple",
+      "image": "assets/numbers/number_01_apple.png",
       "say": "One. One apple."
     },
     "2": {
       "kind": "number",
+      "language": "en",
       "count": 2,
-      "name": "two",
-      "object": "ball",
-      "objectName": "balls",
+      "label": "Two",
+      "phrase": "two balls",
+      "image": "assets/numbers/number_02_balls.png",
       "say": "Two. Two balls."
     },
     "3": {
       "kind": "number",
+      "language": "en",
       "count": 3,
-      "name": "three",
-      "object": "star",
-      "objectName": "stars",
+      "label": "Three",
+      "phrase": "three stars",
+      "image": "assets/numbers/number_03_stars.png",
       "say": "Three. Three stars."
     },
     "4": {
       "kind": "number",
+      "language": "en",
       "count": 4,
-      "name": "four",
-      "object": "fish",
-      "objectName": "fish",
+      "label": "Four",
+      "phrase": "four fish",
+      "image": "assets/numbers/number_04_fish.png",
       "say": "Four. Four fish."
     },
     "5": {
       "kind": "number",
+      "language": "en",
       "count": 5,
-      "name": "five",
-      "object": "flower",
-      "objectName": "flowers",
+      "label": "Five",
+      "phrase": "five flowers",
+      "image": "assets/numbers/number_05_flowers.png",
       "say": "Five. Five flowers."
     },
     "6": {
       "kind": "number",
+      "language": "en",
       "count": 6,
-      "name": "six",
-      "object": "balloon",
-      "objectName": "balloons",
+      "label": "Six",
+      "phrase": "six balloons",
+      "image": "assets/numbers/number_06_balloons.png",
       "say": "Six. Six balloons."
     },
     "7": {
       "kind": "number",
+      "language": "en",
       "count": 7,
-      "name": "seven",
-      "object": "butterfly",
-      "objectName": "butterflies",
-      "say": "Seven. Seven butterflies."
+      "label": "Seven",
+      "phrase": "seven pencils",
+      "image": "assets/numbers/number_07_pencils.png",
+      "say": "Seven. Seven pencils."
     },
     "8": {
       "kind": "number",
+      "language": "en",
       "count": 8,
-      "name": "eight",
-      "object": "duck",
-      "objectName": "ducks",
-      "say": "Eight. Eight ducks."
+      "label": "Eight",
+      "phrase": "eight cats",
+      "image": "assets/numbers/number_08_cats.png",
+      "say": "Eight. Eight cats."
     },
     "9": {
       "kind": "number",
+      "language": "en",
       "count": 9,
-      "name": "nine",
-      "object": "car",
-      "objectName": "cars",
-      "say": "Nine. Nine cars."
+      "label": "Nine",
+      "phrase": "nine books",
+      "image": "assets/numbers/number_09_books.png",
+      "say": "Nine. Nine books."
     },
     "10": {
       "kind": "number",
+      "language": "en",
       "count": 10,
-      "name": "ten",
-      "object": "crayon",
-      "objectName": "crayons",
-      "say": "Ten. Ten crayons."
+      "label": "Ten",
+      "phrase": "ten toy cars",
+      "image": "assets/numbers/number_10_cars.png",
+      "say": "Ten. Ten toy cars."
+    },
+    "१": {
+      "kind": "number",
+      "language": "hi",
+      "count": 1,
+      "label": "एक",
+      "phrase": "एक सेब",
+      "image": "assets/numbers/number_01_apple.png",
+      "say": "एक। एक सेब।"
+    },
+    "२": {
+      "kind": "number",
+      "language": "hi",
+      "count": 2,
+      "label": "दो",
+      "phrase": "दो गेंदें",
+      "image": "assets/numbers/number_02_balls.png",
+      "say": "दो। दो गेंदें।"
+    },
+    "३": {
+      "kind": "number",
+      "language": "hi",
+      "count": 3,
+      "label": "तीन",
+      "phrase": "तीन तारे",
+      "image": "assets/numbers/number_03_stars.png",
+      "say": "तीन। तीन तारे।"
+    },
+    "४": {
+      "kind": "number",
+      "language": "hi",
+      "count": 4,
+      "label": "चार",
+      "phrase": "चार मछलियाँ",
+      "image": "assets/numbers/number_04_fish.png",
+      "say": "चार। चार मछलियाँ।"
+    },
+    "५": {
+      "kind": "number",
+      "language": "hi",
+      "count": 5,
+      "label": "पाँच",
+      "phrase": "पाँच फूल",
+      "image": "assets/numbers/number_05_flowers.png",
+      "say": "पाँच। पाँच फूल।"
+    },
+    "६": {
+      "kind": "number",
+      "language": "hi",
+      "count": 6,
+      "label": "छह",
+      "phrase": "छह गुब्बारे",
+      "image": "assets/numbers/number_06_balloons.png",
+      "say": "छह। छह गुब्बारे।"
+    },
+    "७": {
+      "kind": "number",
+      "language": "hi",
+      "count": 7,
+      "label": "सात",
+      "phrase": "सात पेंसिलें",
+      "image": "assets/numbers/number_07_pencils.png",
+      "say": "सात। सात पेंसिलें।"
+    },
+    "८": {
+      "kind": "number",
+      "language": "hi",
+      "count": 8,
+      "label": "आठ",
+      "phrase": "आठ बिल्लियाँ",
+      "image": "assets/numbers/number_08_cats.png",
+      "say": "आठ। आठ बिल्लियाँ।"
+    },
+    "९": {
+      "kind": "number",
+      "language": "hi",
+      "count": 9,
+      "label": "नौ",
+      "phrase": "नौ किताबें",
+      "image": "assets/numbers/number_09_books.png",
+      "say": "नौ। नौ किताबें।"
+    },
+    "१०": {
+      "kind": "number",
+      "language": "hi",
+      "count": 10,
+      "label": "दस",
+      "phrase": "दस गाड़ियाँ",
+      "image": "assets/numbers/number_10_cars.png",
+      "say": "दस। दस गाड़ियाँ।"
+    },
+    "૧": {
+      "kind": "number",
+      "language": "gu",
+      "count": 1,
+      "label": "એક",
+      "phrase": "એક સફરજન",
+      "image": "assets/numbers/number_01_apple.png",
+      "say": "એક. એક સફરજન."
+    },
+    "૨": {
+      "kind": "number",
+      "language": "gu",
+      "count": 2,
+      "label": "બે",
+      "phrase": "બે દડા",
+      "image": "assets/numbers/number_02_balls.png",
+      "say": "બે. બે દડા."
+    },
+    "૩": {
+      "kind": "number",
+      "language": "gu",
+      "count": 3,
+      "label": "ત્રણ",
+      "phrase": "ત્રણ તારા",
+      "image": "assets/numbers/number_03_stars.png",
+      "say": "ત્રણ. ત્રણ તારા."
+    },
+    "૪": {
+      "kind": "number",
+      "language": "gu",
+      "count": 4,
+      "label": "ચાર",
+      "phrase": "ચાર માછલી",
+      "image": "assets/numbers/number_04_fish.png",
+      "say": "ચાર. ચાર માછલી."
+    },
+    "૫": {
+      "kind": "number",
+      "language": "gu",
+      "count": 5,
+      "label": "પાંચ",
+      "phrase": "પાંચ ફૂલ",
+      "image": "assets/numbers/number_05_flowers.png",
+      "say": "પાંચ. પાંચ ફૂલ."
+    },
+    "૬": {
+      "kind": "number",
+      "language": "gu",
+      "count": 6,
+      "label": "છ",
+      "phrase": "છ ફુગ્ગા",
+      "image": "assets/numbers/number_06_balloons.png",
+      "say": "છ. છ ફુગ્ગા."
+    },
+    "૭": {
+      "kind": "number",
+      "language": "gu",
+      "count": 7,
+      "label": "સાત",
+      "phrase": "સાત પેન્સિલ",
+      "image": "assets/numbers/number_07_pencils.png",
+      "say": "સાત. સાત પેન્સિલ."
+    },
+    "૮": {
+      "kind": "number",
+      "language": "gu",
+      "count": 8,
+      "label": "આઠ",
+      "phrase": "આઠ બિલાડી",
+      "image": "assets/numbers/number_08_cats.png",
+      "say": "આઠ. આઠ બિલાડી."
+    },
+    "૯": {
+      "kind": "number",
+      "language": "gu",
+      "count": 9,
+      "label": "નવ",
+      "phrase": "નવ પુસ્તક",
+      "image": "assets/numbers/number_09_books.png",
+      "say": "નવ. નવ પુસ્તક."
+    },
+    "૧૦": {
+      "kind": "number",
+      "language": "gu",
+      "count": 10,
+      "label": "દસ",
+      "phrase": "દસ ગાડી",
+      "image": "assets/numbers/number_10_cars.png",
+      "say": "દસ. દસ ગાડી."
+    },
+    "अ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "अनार",
+      "phrase": "अ से अनार",
+      "say": "अ से अनार।"
+    },
+    "आ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "आम",
+      "phrase": "आ से आम",
+      "say": "आ से आम।"
+    },
+    "इ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "इमली",
+      "phrase": "इ से इमली",
+      "say": "इ से इमली।"
+    },
+    "ई": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ईख",
+      "phrase": "ई से ईख",
+      "say": "ई से ईख।"
+    },
+    "उ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "उल्लू",
+      "phrase": "उ से उल्लू",
+      "say": "उ से उल्लू।"
+    },
+    "ऊ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ऊन",
+      "phrase": "ऊ से ऊन",
+      "say": "ऊ से ऊन।"
+    },
+    "ऋ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ऋषि",
+      "phrase": "ऋ से ऋषि",
+      "say": "ऋ से ऋषि।"
+    },
+    "ए": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "एड़ी",
+      "phrase": "ए से एड़ी",
+      "say": "ए से एड़ी।"
+    },
+    "ऐ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ऐनक",
+      "phrase": "ऐ से ऐनक",
+      "say": "ऐ से ऐनक।"
+    },
+    "ओ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ओखली",
+      "phrase": "ओ से ओखली",
+      "say": "ओ से ओखली।"
+    },
+    "औ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "औरत",
+      "phrase": "औ से औरत",
+      "say": "औ से औरत।"
+    },
+    "अं": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "अंगूर",
+      "phrase": "अं से अंगूर",
+      "say": "अं से अंगूर।"
+    },
+    "क": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "कबूतर",
+      "phrase": "क से कबूतर",
+      "say": "क से कबूतर।"
+    },
+    "ख": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "खरगोश",
+      "phrase": "ख से खरगोश",
+      "say": "ख से खरगोश।"
+    },
+    "ग": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "गेंद",
+      "phrase": "ग से गेंद",
+      "image": "assets/student_learning_ui_assets/icons/ball.svg",
+      "say": "ग से गेंद।"
+    },
+    "घ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "घड़ी",
+      "phrase": "घ से घड़ी",
+      "say": "घ से घड़ी।"
+    },
+    "च": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "चम्मच",
+      "phrase": "च से चम्मच",
+      "say": "च से चम्मच।"
+    },
+    "छ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "छतरी",
+      "phrase": "छ से छतरी",
+      "say": "छ से छतरी।"
+    },
+    "ज": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "जहाज़",
+      "phrase": "ज से जहाज़",
+      "say": "ज से जहाज़।"
+    },
+    "झ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "झंडा",
+      "phrase": "झ से झंडा",
+      "say": "झ से झंडा।"
+    },
+    "ट": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "टमाटर",
+      "phrase": "ट से टमाटर",
+      "say": "ट से टमाटर।"
+    },
+    "ठ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ठठेरा",
+      "phrase": "ठ से ठठेरा",
+      "say": "ठ से ठठेरा।"
+    },
+    "ड": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "डमरू",
+      "phrase": "ड से डमरू",
+      "say": "ड से डमरू।"
+    },
+    "ढ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ढोलक",
+      "phrase": "ढ से ढोलक",
+      "say": "ढ से ढोलक।"
+    },
+    "त": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "तरबूज़",
+      "phrase": "त से तरबूज़",
+      "say": "त से तरबूज़।"
+    },
+    "थ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "थरमस",
+      "phrase": "थ से थरमस",
+      "say": "थ से थरमस।"
+    },
+    "द": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "दवात",
+      "phrase": "द से दवात",
+      "say": "द से दवात।"
+    },
+    "ध": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "धनुष",
+      "phrase": "ध से धनुष",
+      "say": "ध से धनुष।"
+    },
+    "न": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "नल",
+      "phrase": "न से नल",
+      "say": "न से नल।"
+    },
+    "प": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "पतंग",
+      "phrase": "प से पतंग",
+      "say": "प से पतंग।"
+    },
+    "फ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "फूल",
+      "phrase": "फ से फूल",
+      "image": "assets/student_learning_ui_assets/icons/flower.svg",
+      "say": "फ से फूल।"
+    },
+    "ब": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "बिल्ली",
+      "phrase": "ब से बिल्ली",
+      "image": "assets/student_learning_ui_assets/icons/cat.svg",
+      "say": "ब से बिल्ली।"
+    },
+    "भ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "भालू",
+      "phrase": "भ से भालू",
+      "say": "भ से भालू।"
+    },
+    "म": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "मछली",
+      "phrase": "म से मछली",
+      "image": "assets/student_learning_ui_assets/icons/fish.svg",
+      "say": "म से मछली।"
+    },
+    "य": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "यज्ञ",
+      "phrase": "य से यज्ञ",
+      "say": "य से यज्ञ।"
+    },
+    "र": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "रथ",
+      "phrase": "र से रथ",
+      "say": "र से रथ।"
+    },
+    "ल": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "लट्टू",
+      "phrase": "ल से लट्टू",
+      "say": "ल से लट्टू।"
+    },
+    "व": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "वन",
+      "phrase": "व से वन",
+      "say": "व से वन।"
+    },
+    "श": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "शलगम",
+      "phrase": "श से शलगम",
+      "say": "श से शलगम।"
+    },
+    "ष": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "षट्कोण",
+      "phrase": "ष से षट्कोण",
+      "say": "ष से षट्कोण।"
+    },
+    "स": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "सेब",
+      "phrase": "स से सेब",
+      "image": "assets/student_learning_ui_assets/icons/apple.svg",
+      "say": "स से सेब।"
+    },
+    "ह": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "हाथी",
+      "phrase": "ह से हाथी",
+      "image": "assets/student_learning_ui_assets/icons/elephant.svg",
+      "say": "ह से हाथी।"
+    },
+    "क्ष": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "क्षत्रिय",
+      "phrase": "क्ष से क्षत्रिय",
+      "say": "क्ष से क्षत्रिय।"
+    },
+    "त्र": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "त्रिशूल",
+      "phrase": "त्र से त्रिशूल",
+      "say": "त्र से त्रिशूल।"
+    },
+    "ज्ञ": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "ज्ञानी",
+      "phrase": "ज्ञ से ज्ञानी",
+      "say": "ज्ञ से ज्ञानी।"
+    },
+    "श्र": {
+      "kind": "letter",
+      "language": "hi",
+      "word": "श्रमिक",
+      "phrase": "श्र से श्रमिक",
+      "say": "श्र से श्रमिक।"
+    },
+    "અ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "અનાર",
+      "phrase": "અ - અનાર",
+      "say": "અ. અનાર."
+    },
+    "આ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "આમ",
+      "phrase": "આ - આમ",
+      "say": "આ. આમ."
+    },
+    "ઇ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઇમલી",
+      "phrase": "ઇ - ઇમલી",
+      "say": "ઇ. ઇમલી."
+    },
+    "ઈ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઈંડું",
+      "phrase": "ઈ - ઈંડું",
+      "say": "ઈ. ઈંડું."
+    },
+    "ઉ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઉંટ",
+      "phrase": "ઉ - ઉંટ",
+      "say": "ઉ. ઉંટ."
+    },
+    "ઊ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઊન",
+      "phrase": "ઊ - ઊન",
+      "say": "ઊ. ઊન."
+    },
+    "ઋ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઋષિ",
+      "phrase": "ઋ - ઋષિ",
+      "say": "ઋ. ઋષિ."
+    },
+    "એ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "એડી",
+      "phrase": "એ - એડી",
+      "say": "એ. એડી."
+    },
+    "ઐ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઐરાવત",
+      "phrase": "ઐ - ઐરાવત",
+      "say": "ઐ. ઐરાવત."
+    },
+    "ઓ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઓશીકું",
+      "phrase": "ઓ - ઓશીકું",
+      "say": "ઓ. ઓશીકું."
+    },
+    "ઔ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઔષધ",
+      "phrase": "ઔ - ઔષધ",
+      "say": "ઔ. ઔષધ."
+    },
+    "અં": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "અંજીર",
+      "phrase": "અં - અંજીર",
+      "say": "અં. અંજીર."
+    },
+    "ક": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "કૂતરો",
+      "phrase": "ક - કૂતરો",
+      "image": "assets/student_learning_ui_assets/icons/dog.svg",
+      "say": "ક. કૂતરો."
+    },
+    "ખ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ખડિયો",
+      "phrase": "ખ - ખડિયો",
+      "say": "ખ. ખડિયો."
+    },
+    "ગ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ગણપતિ",
+      "phrase": "ગ - ગણપતિ",
+      "say": "ગ. ગણપતિ."
+    },
+    "ઘ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઘર",
+      "phrase": "ઘ - ઘર",
+      "say": "ઘ. ઘર."
+    },
+    "ચ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ચકલી",
+      "phrase": "ચ - ચકલી",
+      "say": "ચ. ચકલી."
+    },
+    "છ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "છત્રી",
+      "phrase": "છ - છત્રી",
+      "say": "છ. છત્રી."
+    },
+    "જ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "જમરૂખ",
+      "phrase": "જ - જમરૂખ",
+      "say": "જ. જમરૂખ."
+    },
+    "ઝ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઝાડ",
+      "phrase": "ઝ - ઝાડ",
+      "say": "ઝ. ઝાડ."
+    },
+    "ટ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ટામેટું",
+      "phrase": "ટ - ટામેટું",
+      "say": "ટ. ટામેટું."
+    },
+    "ઠ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઠળિયો",
+      "phrase": "ઠ - ઠળિયો",
+      "say": "ઠ. ઠળિયો."
+    },
+    "ડ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ડમરુ",
+      "phrase": "ડ - ડમરુ",
+      "say": "ડ. ડમરુ."
+    },
+    "ઢ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ઢોલ",
+      "phrase": "ઢ - ઢોલ",
+      "say": "ઢ. ઢોલ."
+    },
+    "ત": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "તલવાર",
+      "phrase": "ત - તલવાર",
+      "say": "ત. તલવાર."
+    },
+    "થ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "થાંભલો",
+      "phrase": "થ - થાંભલો",
+      "say": "થ. થાંભલો."
+    },
+    "દ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "દડો",
+      "phrase": "દ - દડો",
+      "image": "assets/student_learning_ui_assets/icons/ball.svg",
+      "say": "દ. દડો."
+    },
+    "ધ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ધજા",
+      "phrase": "ધ - ધજા",
+      "say": "ધ. ધજા."
+    },
+    "ન": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "નળ",
+      "phrase": "ન - નળ",
+      "say": "ન. નળ."
+    },
+    "પ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "પતંગ",
+      "phrase": "પ - પતંગ",
+      "say": "પ. પતંગ."
+    },
+    "ફ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ફૂલ",
+      "phrase": "ફ - ફૂલ",
+      "image": "assets/student_learning_ui_assets/icons/flower.svg",
+      "say": "ફ. ફૂલ."
+    },
+    "બ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "બિલાડી",
+      "phrase": "બ - બિલાડી",
+      "image": "assets/student_learning_ui_assets/icons/cat.svg",
+      "say": "બ. બિલાડી."
+    },
+    "ભ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ભમરડો",
+      "phrase": "ભ - ભમરડો",
+      "say": "ભ. ભમરડો."
+    },
+    "મ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "માછલી",
+      "phrase": "મ - માછલી",
+      "image": "assets/student_learning_ui_assets/icons/fish.svg",
+      "say": "મ. માછલી."
+    },
+    "ય": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "યજ્ઞ",
+      "phrase": "ય - યજ્ઞ",
+      "say": "ય. યજ્ઞ."
+    },
+    "ર": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "રથ",
+      "phrase": "ર - રથ",
+      "say": "ર. રથ."
+    },
+    "લ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "લસણ",
+      "phrase": "લ - લસણ",
+      "say": "લ. લસણ."
+    },
+    "વ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "વહાણ",
+      "phrase": "વ - વહાણ",
+      "say": "વ. વહાણ."
+    },
+    "શ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "શરણાઈ",
+      "phrase": "શ - શરણાઈ",
+      "say": "શ. શરણાઈ."
+    },
+    "ષ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ષટ્કોણ",
+      "phrase": "ષ - ષટ્કોણ",
+      "say": "ષ. ષટ્કોણ."
+    },
+    "સ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "સફરજન",
+      "phrase": "સ - સફરજન",
+      "image": "assets/student_learning_ui_assets/icons/apple.svg",
+      "say": "સ. સફરજન."
+    },
+    "હ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "હાથી",
+      "phrase": "હ - હાથી",
+      "image": "assets/student_learning_ui_assets/icons/elephant.svg",
+      "say": "હ. હાથી."
+    },
+    "ક્ષ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "ક્ષત્રિય",
+      "phrase": "ક્ષ - ક્ષત્રિય",
+      "say": "ક્ષ. ક્ષત્રિય."
+    },
+    "જ્ઞ": {
+      "kind": "letter",
+      "language": "gu",
+      "word": "જ્ઞાની",
+      "phrase": "જ્ઞ - જ્ઞાની",
+      "say": "જ્ઞ. જ્ઞાની."
     },
     "pattern-standing": {
       "kind": "pattern",

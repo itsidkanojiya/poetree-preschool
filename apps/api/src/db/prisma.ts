@@ -57,6 +57,7 @@ export const TENANT_MODELS = new Set<string>([
   'Certificate',
   'CertificateAward',
   'TracingProgress',
+  'GameSession',
   // Academic structure
   'AcademicYear',
   'Classroom',

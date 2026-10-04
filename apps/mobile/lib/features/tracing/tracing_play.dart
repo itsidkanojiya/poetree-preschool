@@ -833,8 +833,31 @@ class _GlyphPainter extends CustomPainter {
     final gap = math.max(1, (tube * 0.55 / (side * 0.01)).round());
     final dot = Paint()..color = _dot;
     if (trace.ordered) {
+      // Every third mark is an arrow, pointing the way the line is written,
+      // so the direction is on the path itself and not only at its start.
+      final arrow = line(_outline, math.max(2.5, tube * 0.07));
+      var n = 0;
       for (var i = trace.headIndex + gap; i < current.length; i += gap) {
-        canvas.drawCircle(_px(current[i]), tube * 0.13, dot);
+        n++;
+        final ahead = math.min(i + 1, current.length - 1);
+        final behind = math.max(i - 1, 0);
+        final along = current[ahead] - current[behind];
+        if (n % 3 == 0 && along.distance > 0) {
+          final d = along / along.distance;
+          final at = _px(current[i]);
+          final back = at - d * tube * 0.2;
+          final across = Offset(-d.dy, d.dx) * tube * 0.17;
+          final tip = at + d * tube * 0.12;
+          canvas.drawPath(
+            Path()
+              ..moveTo(back.dx + across.dx, back.dy + across.dy)
+              ..lineTo(tip.dx, tip.dy)
+              ..lineTo(back.dx - across.dx, back.dy - across.dy),
+            arrow,
+          );
+        } else {
+          canvas.drawCircle(_px(current[i]), tube * 0.13, dot);
+        }
       }
     } else {
       for (var s = 0; s < strokes.length; s++) {

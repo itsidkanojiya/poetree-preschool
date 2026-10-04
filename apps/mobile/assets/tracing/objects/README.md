@@ -1,45 +1,16 @@
-# Tracing object pictures
+# Tracing pictures
 
-The picture shown after a child traces a letter or number, one PNG per object,
-named exactly as below. Transparent background, square, about 512 x 512.
+Every picture a letter card, a number card or the "A for Apple" page shows is
+named explicitly in `../lessons.json`, the one content mapping, as `"image"`.
+Nothing is inferred from a word.
 
-Until a picture is here, the app shows the word itself (for letters) or counting
-bubbles (for numbers) instead, so nothing is ever broken or blank.
+- **Numbers** teach quantity. Their `"image"` is a picture of that many things,
+  from `assets/numbers/` — the same picture for 3, ३ and ૩. Only the number
+  word (`"label"`) and what the picture shows (`"phrase"`) change by language.
+- **Letters** teach a word in their own language. Their `"image"` is set only
+  where a picture shows that word (A — Apple, स — सेब, મ — માછલી). A letter
+  with no matching picture shows the letter and its word, never a stand-in.
 
-Expected files:
-
-- `apple.png`
-- `ball.png`
-- `balloon.png`
-- `butterfly.png`
-- `car.png`
-- `cat.png`
-- `crayon.png`
-- `dog.png`
-- `duck.png`
-- `elephant.png`
-- `fish.png`
-- `flower.png`
-- `grapes.png`
-- `hat.png`
-- `ice_cream.png`
-- `jug.png`
-- `kite.png`
-- `lion.png`
-- `mango.png`
-- `nest.png`
-- `orange.png`
-- `parrot.png`
-- `queen.png`
-- `rabbit.png`
-- `star.png`
-- `sun.png`
-- `tree.png`
-- `umbrella.png`
-- `van.png`
-- `watch.png`
-- `xylophone.png`
-- `yo_yo.png`
-- `zebra.png`
-
-Which letter or number uses which picture is in `../lessons.json`.
+To add a picture: put it in this folder (PNG, transparent or white background,
+about 512 × 512) or anywhere already listed under `assets:` in `pubspec.yaml`,
+and set `"image"` on the letter's entry in `../lessons.json`. No code change.

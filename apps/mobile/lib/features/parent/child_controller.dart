@@ -27,6 +27,10 @@ class ChildController extends GetxController {
   /// answer arrives, so the tile never shows and then vanishes.
   final tracingEnabled = false.obs;
 
+  /// Whether the publisher has the games switched on. False until the answer
+  /// arrives, so the banner never shows and then vanishes.
+  final gamesEnabled = false.obs;
+
   final isLoading = true.obs;
   final error = RxnString();
 
@@ -54,6 +58,21 @@ class ChildController extends GetxController {
     }
   }
 
+  /// Asked separately, like tracing: games that cannot be reached only hide
+  /// their banner.
+  Future<void> _loadGames(String studentId) async {
+    try {
+      final data = await api.get<Map<String, dynamic>>(
+        '/games',
+        query: {'studentId': studentId},
+      );
+      final games = data['games'] as List<dynamic>? ?? const [];
+      gamesEnabled.value = data['enabled'] == true && games.isNotEmpty;
+    } on DioException {
+      gamesEnabled.value = false;
+    }
+  }
+
   Future<void> load() async {
     final selected = child;
     if (selected == null) {
@@ -64,6 +83,7 @@ class ChildController extends GetxController {
     isLoading.value = true;
     error.value = null;
     unawaited(_loadTracing(selected.id));
+    unawaited(_loadGames(selected.id));
 
     final to = DateTime.now();
     final from = DateTime(to.year, to.month - 2, to.day);

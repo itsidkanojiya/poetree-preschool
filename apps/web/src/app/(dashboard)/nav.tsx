@@ -17,6 +17,7 @@ import {
   IconStudent,
   IconTeacher,
   IconTrace,
+  IconGame,
 } from '@/components/icons';
 
 interface NavItem {
@@ -47,6 +48,7 @@ const PUBLICATION_NAV: NavGroup[] = [
       { href: '/publication/questions', label: 'Questions', icon: <IconInbox size={18} /> },
       // The tracing module: its switch for every school, and each letter's video.
       { href: '/publication/tracing', label: 'Tracing', icon: <IconTrace size={18} /> },
+      { href: '/publication/games', label: 'Games', icon: <IconGame size={18} /> },
       { href: '/publication/usage', label: 'Usage', icon: <IconChart size={18} /> },
     ],
   },

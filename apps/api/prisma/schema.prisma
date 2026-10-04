@@ -308,6 +308,9 @@ model Publication {
   /// and closes its routes; the catalogue and every child's progress stay, so
   /// switching it back on loses nothing.
   tracingEnabled Boolean  @default(true)
+  /// The games module, for every school at once. Off hides it in the app and
+  /// closes its routes; each child's game history is kept.
+  gamesEnabled   Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -480,6 +483,7 @@ model School {
   certificates             Certificate[]
   certificateAwards        CertificateAward[]
   tracingProgress          TracingProgress[]
+  gameSessions             GameSession[]
 
   @@index([publicationId])
   @@index([organisationId])
@@ -887,6 +891,7 @@ model Student {
   reportCards         ReportCard[]
   certificateAwards   CertificateAward[]
   tracingProgress     TracingProgress[]
+  gameSessions        GameSession[]
 
   @@unique([schoolId, admissionNo])
   @@index([schoolId, status])
@@ -2582,4 +2587,50 @@ model TracingProgress {
   @@unique([studentId, itemId])
   @@index([schoolId, studentId])
   @@map("tracing_progress")
+}
+
+/// One of the learning games — Letter Match, Find the Letter and the rest.
+///
+/// The publisher's, like a tracing category: the same games for every school,
+/// each one switchable on its own. What a game asks is in the app's content
+/// data, not here; this is which games there are and whether each is on.
+model Game {
+  id        String  @id @default(cuid())
+  /// Stable name the app knows the game by: "letter_match".
+  key       String  @unique @db.VarChar(40)
+  name      String  @db.VarChar(80)
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("games")
+}
+
+/// One game played to the end by one child: how it went, in which language.
+model GameSession {
+  id        String @id @default(cuid())
+  schoolId  String
+  studentId String
+  gameKey   String @db.VarChar(40)
+  /// "en", "hi" or "gu".
+  language  String @db.VarChar(8)
+  /// Questions in the round.
+  total     Int
+  /// Answered right first time.
+  correct   Int
+  /// Wrong taps along the way. A child may try again, so this can exceed
+  /// total - correct.
+  wrong     Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, studentId])
+  @@index([studentId, gameKey, language])
+  @@map("game_sessions")
 }

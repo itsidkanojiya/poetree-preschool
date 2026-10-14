@@ -1,7 +1,14 @@
 import { Router } from 'express';
-import { idParamSchema, idSchema } from '@poetree/shared';
+import { z } from 'zod';
+import {
+  chooseFeePlanSchema,
+  idParamSchema,
+  idSchema,
+  setStudentPhotoSchema,
+  type ChooseFeePlanInput,
+} from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { params, validate } from '../middleware/validate.js';
+import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
@@ -9,6 +16,8 @@ import * as idCards from '../services/idCard.service.js';
 import * as gallery from '../services/gallery.service.js';
 import * as certificates from '../services/certificate.service.js';
 import * as results from '../services/result.service.js';
+import * as students from '../services/student.service.js';
+import * as feePlans from '../services/feePlan.service.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { studentName } from '../lib/names.js';
 
@@ -101,7 +110,12 @@ meRouter.get(
           id: student.id,
           fullName: studentName(student),
           admissionNo: student.admissionNo,
-          avatarUrl: student.avatarUrl,
+          // The photograph the school or the family set, as the office's own
+          // view reads it. The old avatarUrl column alone left every photo
+          // set since out of the parent app.
+          avatarUrl: student.photoFileId
+            ? `/api/v1/files/${student.photoFileId}`
+            : student.avatarUrl,
           rollNo: enrolment?.rollNo ?? null,
           // A child between enrolments still belongs to their parent, so they
           // appear with no class rather than vanishing from the app.
@@ -191,3 +205,74 @@ meRouter.get(
     res.json(await idCards.studentIdCardData(params<{ id: string }>(req).id));
   }),
 );
+
+/**
+ * A parent's photograph of their own child, from the app. Null takes it off.
+ * The office can still replace it from the portal, as before.
+ */
+meRouter.put(
+  '/children/:id/photo',
+  validate({ params: idParamSchema, body: setStudentPhotoSchema }),
+  asyncHandler(async (req, res) => {
+    if (req.auth!.role !== 'PARENT') {
+      throw ApiError.forbidden('Only a parent can set their child’s photograph here');
+    }
+    await students.setOwnChildPhoto(
+      params<{ id: string }>(req).id,
+      body<{ fileId: string | null }>(req).fileId,
+      req.auth!.userId,
+    );
+    res.status(204).end();
+  }),
+);
+
+/**
+ * How this child's fees can be paid this year: the plans the school offers
+ * them, what each comes to, and the one chosen.
+ */
+meRouter.get(
+  '/children/:id/fee-plan',
+  requirePermission('fee:read'),
+  validate({
+    params: idParamSchema,
+    query: z.object({ academicYearId: idSchema.optional() }),
+  }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await feePlans.planChoice(
+        params<{ id: string }>(req).id,
+        query<{ academicYearId?: string }>(req).academicYearId,
+      ),
+    );
+  }),
+);
+
+/**
+ * The family chooses a plan; its installments are billed there and then.
+ * Choosing twice returns the first choice — never a second schedule.
+ */
+meRouter.post(
+  '/children/:id/fee-plan',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema, body: chooseFeePlanSchema }),
+  asyncHandler(async (req, res) => {
+    if (req.auth!.role !== 'PARENT') {
+      throw ApiError.forbidden('The office sets a child’s plan from the portal');
+    }
+    res.json(
+      await feePlans.choosePlan(
+        params<{ id: string }>(req).id,
+        body<ChooseFeePlanInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/**
+ * Nothing else lives under /me. Said so here, rather than letting the request
+ * fall through to the School Admin routes mounted at the root — which answer
+ * "This action requires one of: SCHOOL_ADMIN, ORG_ADMIN", and told a parent
+ * whose app was newer than this server that they needed to be an admin.
+ */
+meRouter.use((_req, _res, next) => next(ApiError.notFound('Not found')));

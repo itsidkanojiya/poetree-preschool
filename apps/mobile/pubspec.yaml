@@ -87,6 +87,11 @@ dependencies:
   # redrawn: play, pause, sound, fullscreen, lock, check and star.
   flutter_svg: ^2.3.0
 
+  # A gallery photo, shared from the photo screen or saved to the phone's own
+  # gallery — what a family does with a picture of their child's sports day.
+  share_plus: ^12.0.2
+  gal: ^2.3.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -103,6 +108,13 @@ flutter:
     # Paths are named once, in lib/core/assets/app_assets.dart.
     - assets/images/icons/
     - assets/images/banners/
+    # The parent app's bottom bar: Home, Learning, Progress, Settings, each in
+    # an outline and a filled form.
+    - assets/images/bottom_nav/
+    # The parent app's Settings, Fees and Fee Details: the designer's icons,
+    # and the waving child from the home banners.
+    - assets/icons/school_fees/
+    - assets/images/characters/
     # Tracing: what each letter and number teaches once traced, and the
     # object pictures for it. See assets/tracing/objects/README.md.
     - assets/tracing/
@@ -118,6 +130,8 @@ flutter:
     - assets/numbers/
     # The learning cards' speaker, check and star.
     - assets/ui/
+    # The gallery's photo, video and album screens: the designer's line icons.
+    - assets/gallery_ui/icons/
     # The learning games: their content data, game icons and characters.
     - assets/games/
     - assets/games/icons/

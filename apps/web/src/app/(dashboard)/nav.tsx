@@ -18,6 +18,7 @@ import {
   IconTeacher,
   IconTrace,
   IconGame,
+  IconCloud,
 } from '@/components/icons';
 
 interface NavItem {
@@ -49,6 +50,8 @@ const PUBLICATION_NAV: NavGroup[] = [
       // The tracing module: its switch for every school, and each letter's video.
       { href: '/publication/tracing', label: 'Tracing', icon: <IconTrace size={18} /> },
       { href: '/publication/games', label: 'Games', icon: <IconGame size={18} /> },
+      // Poetree's Google sign-in, through which each school connects its own Drive.
+      { href: '/publication/google-drive', label: 'Google Drive', icon: <IconCloud size={18} /> },
       { href: '/publication/usage', label: 'Usage', icon: <IconChart size={18} /> },
     ],
   },

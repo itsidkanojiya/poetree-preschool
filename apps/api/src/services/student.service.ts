@@ -11,6 +11,7 @@ import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
+import { assertCanReadStudent } from './scope.service.js';
 import { getPlanLimits } from './plan.service.js';
 import { studentName } from '../lib/names.js';
 
@@ -388,4 +389,36 @@ export async function setStudentPhoto(
   });
 
   return getStudent(studentId);
+}
+
+/**
+ * A parent setting their own child's photograph from the app.
+ *
+ * Only their own child — anything else is "not found", as everywhere a parent
+ * reaches for a child that is not theirs — and only a picture they uploaded
+ * themselves, so a file id seen somewhere else cannot be pinned to a child.
+ * JPEG or PNG only: the photograph goes on the ID card, and the card cannot
+ * print a WebP.
+ */
+export async function setOwnChildPhoto(
+  studentId: string,
+  fileId: string | null,
+  actorUserId: string,
+): Promise<void> {
+  await assertCanReadStudent(studentId);
+
+  if (fileId) {
+    const file = await prisma.fileObject.findFirst({
+      where: { id: fileId, deletedAt: null },
+      select: { uploadedById: true, mimeType: true },
+    });
+    if (!file || file.uploadedById !== actorUserId) {
+      throw ApiError.badRequest('That file does not exist');
+    }
+    if (file.mimeType !== 'image/jpeg' && file.mimeType !== 'image/png') {
+      throw ApiError.badRequest('A photograph has to be a JPEG or PNG picture');
+    }
+  }
+
+  await setStudentPhoto(studentId, fileId, actorUserId);
 }

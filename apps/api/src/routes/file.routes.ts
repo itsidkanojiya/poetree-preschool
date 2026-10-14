@@ -17,6 +17,7 @@ import {
 import { stripImageMetadata } from '../lib/exif.js';
 import { guardianStudentIds, teacherClassroomIds } from '../services/scope.service.js';
 import { sendStoredFile } from '../lib/sendStoredFile.js';
+import { readFromSchoolDrive } from '../services/drive.service.js';
 
 export const fileRouter = Router();
 
@@ -280,13 +281,27 @@ fileRouter.get(
 
     const file = await prisma.fileObject.findFirst({
       where: { id: fileId },
-      select: { id: true, storageKey: true, mimeType: true, originalName: true, sizeBytes: true },
+      select: {
+        id: true,
+        schoolId: true,
+        storageKey: true,
+        thumbKey: true,
+        provider: true,
+        mimeType: true,
+        originalName: true,
+        sizeBytes: true,
+      },
     });
     if (!file) throw ApiError.notFound('File not found');
 
     await assertMayRead(fileId);
 
-    res.setHeader('Content-Type', file.mimeType);
+    // The small copy for a grid, when one was made — always a JPEG. The file
+    // itself when not, so asking for one is never an error.
+    const thumb = req.query.variant === 'thumb' && file.thumbKey !== null;
+    const storageKey = thumb ? file.thumbKey! : file.storageKey;
+
+    res.setHeader('Content-Type', thumb ? 'image/jpeg' : file.mimeType);
     // `inline` for images and PDFs a parent wants to look at; the filename is
     // quoted because a child's name may contain spaces.
     res.setHeader(
@@ -295,7 +310,15 @@ fileRouter.get(
     );
     res.setHeader('Cache-Control', 'private, max-age=300');
 
-    sendStoredFile(req, res, file, { fileId });
+    // In the school's own Google Drive: fetched with the school's token, now
+    // that this caller has been allowed it. Never a link to Drive — that
+    // would be a way to the photo that skips the check above.
+    if (file.provider === 'GOOGLE_DRIVE' && file.schoolId) {
+      res.end(await readFromSchoolDrive(file.schoolId, storageKey));
+      return;
+    }
+
+    sendStoredFile(req, res, { storageKey }, { fileId });
   }),
 );
 

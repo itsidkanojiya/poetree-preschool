@@ -33,6 +33,12 @@ export default async function FeesPage() {
         description="Raise invoices, take payments, and see who still owes."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <Link href="/school/fees/plans" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
+              Installment plans
+            </Link>
+            <Link href="/school/fees/follow-ups" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
+              Follow-ups
+            </Link>
             <Link href="/school/fees/invoices" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
               Generate invoices
             </Link>

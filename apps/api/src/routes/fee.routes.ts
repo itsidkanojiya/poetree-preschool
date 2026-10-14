@@ -1,14 +1,30 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { idParamSchema, idSchema } from '@poetree/shared';
+import {
+  chooseFeePlanSchema,
+  closeFeeFollowUpSchema,
+  feeReminderPolicySchema,
+  idParamSchema,
+  idSchema,
+  logFeeFollowUpSchema,
+  saveFeePlanSchema,
+  type ChooseFeePlanInput,
+  type CloseFeeFollowUpInput,
+  type FeeReminderPolicyInput,
+  type LogFeeFollowUpInput,
+  type SaveFeePlanInput,
+} from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { requireRole } from '../middleware/requireRole.js';
-import { body, params, validate } from '../middleware/validate.js';
+import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import * as fees from '../services/fee.service.js';
 import * as documents from '../services/document.service.js';
+import * as plans from '../services/feePlan.service.js';
+import * as followUps from '../services/feeFollowUp.service.js';
+import * as invoicePdf from '../services/feeInvoice.pdf.js';
 
 export const feeRouter = Router();
 
@@ -272,5 +288,158 @@ feeRouter.get(
   requireRole('SCHOOL_ADMIN', 'PUBLICATION_ADMIN'),
   asyncHandler(async (_req, res) => {
     res.json(await fees.outstandingReport());
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Installment plans                                                          */
+/* -------------------------------------------------------------------------- */
+
+const yearQuerySchema = z.object({ academicYearId: idSchema.optional() });
+
+/** The plans a school offers in a year, with what each comes to per class. */
+feeRouter.get(
+  '/plans',
+  requirePermission('fee:manage_structure'),
+  validate({ query: yearQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await plans.listPlans(query<{ academicYearId?: string }>(req).academicYearId));
+  }),
+);
+
+feeRouter.post(
+  '/plans',
+  requirePermission('fee:manage_structure'),
+  validate({ body: saveFeePlanSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await plans.savePlan(null, body<SaveFeePlanInput>(req), req.auth!.userId));
+  }),
+);
+
+feeRouter.put(
+  '/plans/:id',
+  requirePermission('fee:manage_structure'),
+  validate({ params: idParamSchema, body: saveFeePlanSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await plans.savePlan(id(req), body<SaveFeePlanInput>(req), req.auth!.userId));
+  }),
+);
+
+feeRouter.delete(
+  '/plans/:id',
+  requirePermission('fee:manage_structure'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await plans.deletePlan(id(req));
+    res.status(204).end();
+  }),
+);
+
+/** When the school reminds families: before, on, and after the due date. */
+feeRouter.get(
+  '/reminders',
+  requirePermission('fee:manage_structure'),
+  asyncHandler(async (_req, res) => {
+    res.json(await plans.reminderPolicy());
+  }),
+);
+
+feeRouter.put(
+  '/reminders',
+  requirePermission('fee:manage_structure'),
+  validate({ body: feeReminderPolicySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await plans.saveReminderPolicy(body<FeeReminderPolicyInput>(req), req.auth!.userId));
+  }),
+);
+
+/** A child's plan for a year, as the office sees it. */
+feeRouter.get(
+  '/students/:id/plan',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema, query: yearQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await plans.planChoice(id(req), query<{ academicYearId?: string }>(req).academicYearId));
+  }),
+);
+
+/**
+ * The office puts a child on a plan, or moves them to another. Paid and
+ * part-paid installments stay; unpaid ones are replaced.
+ */
+feeRouter.put(
+  '/students/:id/plan',
+  requirePermission('fee:generate_invoice'),
+  validate({ params: idParamSchema, body: chooseFeePlanSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await plans.changePlan(id(req), body<ChooseFeePlanInput>(req), req.auth!.userId));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* One installment                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** What it is for, line by line, and the money recorded against it. */
+feeRouter.get(
+  '/invoices/:id',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await fees.invoiceDetail(id(req)));
+  }),
+);
+
+/** The invoice as a document — for the office, or the child's own family. */
+feeRouter.get(
+  '/invoices/:id/pdf',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { buffer, filename } = await invoicePdf.feeInvoice(id(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(buffer);
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Following up unpaid installments                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Families behind on an installment, with who to call. */
+feeRouter.get(
+  '/overdue',
+  requirePermission('fee:record_payment'),
+  asyncHandler(async (_req, res) => {
+    res.json(await followUps.overdueFamilies());
+  }),
+);
+
+feeRouter.get(
+  '/follow-ups',
+  requirePermission('fee:record_payment'),
+  asyncHandler(async (_req, res) => {
+    res.json(await followUps.listFollowUps());
+  }),
+);
+
+feeRouter.post(
+  '/follow-ups',
+  requirePermission('fee:record_payment'),
+  validate({ body: logFeeFollowUpSchema }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(
+      await followUps.logFollowUp(body<LogFeeFollowUpInput>(req), req.auth!.userId),
+    );
+  }),
+);
+
+feeRouter.patch(
+  '/follow-ups/:id',
+  requirePermission('fee:record_payment'),
+  validate({ params: idParamSchema, body: closeFeeFollowUpSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await followUps.closeFollowUp(id(req), body<CloseFeeFollowUpInput>(req)));
   }),
 );

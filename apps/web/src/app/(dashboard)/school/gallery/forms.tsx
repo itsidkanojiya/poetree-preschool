@@ -1,20 +1,35 @@
 'use client';
 
 import { useActionState, useRef, useState, useTransition } from 'react';
-import type { ClassroomSummary, GalleryEventDetail } from '@poetree/shared';
-import { Field, FieldSet, FormError, Input, SubmitButton, Textarea } from '@/components/ui/form';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import type { ClassroomSummary, GalleryDriveStatus, GalleryEventDetail } from '@poetree/shared';
+import {
+  Button,
+  Field,
+  FieldSet,
+  FormError,
+  Input,
+  SubmitButton,
+  Textarea,
+} from '@/components/ui/form';
 import { ConfirmButton } from '@/components/ui/confirm-button';
 import { Toast } from '@/components/ui/toast';
 import {
+  addVideoAction,
+  connectDriveAction,
   createEventAction,
   deleteEventAction,
+  disconnectDriveAction,
+  moveToDriveAction,
   refreshEventAction,
   removePhotoAction,
+  removeVideoAction,
   updateEventAction,
   uploadPhotoAction,
   type GalleryState,
 } from './actions';
-import { shrinkForGallery } from './shrink';
+import { shrinkForGallery, thumbnailForGallery } from './shrink';
 
 const classLabel = (classroom: ClassroomSummary) =>
   `${classroom.classLevel.name} — ${classroom.section}`;
@@ -160,8 +175,18 @@ export function EditEventForm({
  * Choosing photos, shrinking each one here in the browser, and sending them one
  * at a time with a running count — a school uploads forty photos from a sports
  * day, and a single spinner for all forty tells them nothing.
+ *
+ * Each goes with a small copy for grids, made here too, so a parent scrolling
+ * an event downloads a few kilobytes a photo rather than a megabyte.
  */
-export function PhotoUploader({ eventId }: { eventId: string }) {
+export function PhotoUploader({
+  eventId,
+  blocked,
+}: {
+  eventId: string;
+  /** Why photos cannot be added yet — the school's Drive is not connected. */
+  blocked?: string | null;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -177,9 +202,11 @@ export function PhotoUploader({ eventId }: { eventId: string }) {
     for (const [index, file] of chosen.entries()) {
       try {
         const small = await shrinkForGallery(file);
+        const thumb = await thumbnailForGallery(small);
         const body = new FormData();
         // Named .jpg because that is what it now is, whatever it started as.
         body.append('photo', new File([small], toJpegName(file.name), { type: small.type }));
+        body.append('thumb', new File([thumb], 'small.jpg', { type: 'image/jpeg' }));
 
         const result = await uploadPhotoAction(eventId, body);
         if (result.error) failed.push(`${file.name}: ${result.error}`);
@@ -193,6 +220,20 @@ export function PhotoUploader({ eventId }: { eventId: string }) {
     setProgress(null);
     if (input.current) input.current.value = '';
     startTransition(() => refreshEventAction(eventId));
+  }
+
+  if (blocked) {
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-navy-200 px-6 py-8 text-center">
+        <p className="text-sm font-semibold text-navy-950">{blocked}</p>
+        <Link
+          href="/school/gallery"
+          className="mt-1 inline-block text-xs font-medium text-navy-700 underline"
+        >
+          Connect it on the Gallery page
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -273,7 +314,7 @@ export function PhotoGrid({ event }: { event: GalleryEventDetail }) {
             {/* A plain img: a picture from our own API through the portal's
                 authenticated attachment route. */}
             <img
-              src={`/attachments?id=${fileId}`}
+              src={`/attachments?id=${fileId}&variant=thumb`}
               alt={photo.caption ?? ''}
               className="aspect-square w-full object-cover"
               loading="lazy"
@@ -292,6 +333,216 @@ export function PhotoGrid({ event }: { event: GalleryEventDetail }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * A video by its YouTube link. The video stays on the school's own channel
+ * and plays from there; nothing of it is stored on Poetree.
+ */
+export function VideoForm({ eventId }: { eventId: string }) {
+  const [state, formAction] = useActionState<GalleryState, FormData>(
+    addVideoAction.bind(null, eventId),
+    {},
+  );
+  return (
+    <form action={formAction} className="space-y-4">
+      <FormError message={state.error} />
+      <Toast message={state.success} />
+
+      <Field
+        label="YouTube link"
+        required
+        hint="Upload the video to the school’s YouTube channel as Unlisted, then paste its link here."
+      >
+        <Input name="url" required placeholder="https://youtu.be/…" />
+      </Field>
+      <Field label="Caption" hint="Optional.">
+        <Input name="caption" maxLength={200} placeholder="Our Annual Day dance" />
+      </Field>
+
+      <SubmitButton pendingLabel="Adding…">Add video</SubmitButton>
+    </form>
+  );
+}
+
+/** The videos already in the event, each removable. */
+export function VideoGrid({ event }: { event: GalleryEventDetail }) {
+  if (event.videos.length === 0) {
+    return <p className="text-sm text-slate-500">No videos yet.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {event.videos.map((video) => (
+        <div key={video.id} className="group relative overflow-hidden rounded-xl bg-slate-100">
+          <a href={video.url} target="_blank" rel="noreferrer" className="block">
+            {/* YouTube's own still for the video. */}
+            <img
+              src={video.thumbnailUrl}
+              alt={video.caption ?? 'Video'}
+              className="aspect-video w-full object-cover"
+              loading="lazy"
+            />
+            <span className="absolute inset-0 grid place-items-center">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-black/60 text-white">
+                ▶
+              </span>
+            </span>
+          </a>
+          {video.caption && (
+            <p className="truncate px-2 py-1.5 text-xs text-slate-600">{video.caption}</p>
+          )}
+          <form
+            action={removeVideoAction.bind(null, event.id, video.id)}
+            className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+          >
+            <button
+              type="submit"
+              className="rounded-lg bg-white/90 px-2 py-1 text-xs font-medium text-rose-700 shadow"
+            >
+              Remove
+            </button>
+          </form>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The school's own Google Drive, where the gallery's photos are kept: connect
+ * it, see which account it is, move what is still on Poetree's server, or let
+ * it go.
+ */
+export function DriveCard({
+  status,
+  flash,
+}: {
+  status: GalleryDriveStatus;
+  /** What happened on the way back from Google, if anything. */
+  flash?: { tone: 'good' | 'bad'; message: string } | null;
+}) {
+  const [state, connect] = useActionState<GalleryState, FormData>(connectDriveAction, {});
+
+  const connectButton = (label: string) => (
+    <form action={connect}>
+      <SubmitButton pendingLabel="Opening Google…">{label}</SubmitButton>
+    </form>
+  );
+
+  return (
+    <div className="space-y-4">
+      {flash?.tone === 'bad' ? (
+        <FormError message={flash.message} />
+      ) : (
+        <Toast message={flash?.message} />
+      )}
+      <FormError message={state.error} />
+
+      {!status.connected && (
+        <>
+          <p className="text-sm text-slate-600">
+            Keep the gallery’s photos in your school’s own Google Drive. They use that Google
+            account’s storage — 15 GB comes free with every account — and families see them in the
+            app exactly as before. Use the school’s Google account, and the same one every time.
+          </p>
+          {connectButton('Connect Google Drive')}
+        </>
+      )}
+
+      {status.connected && status.broken && (
+        <>
+          <FormError
+            message={`Google stopped letting Poetree use ${status.email ?? 'the school’s'} Drive — access was removed in that Google account. Photos kept there will not load until you connect it again.`}
+          />
+          {connectButton('Connect again')}
+        </>
+      )}
+
+      {status.connected && !status.broken && (
+        <>
+          <p className="text-sm text-slate-600">
+            New photos go into <span className="font-semibold text-navy-950">{status.email}</span>
+            ’s Google Drive.{' '}
+            {status.folderUrl && (
+              <a
+                href={status.folderUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-navy-700 underline"
+              >
+                Open the folder
+              </a>
+            )}
+          </p>
+          <p className="text-xs text-slate-500">
+            If that Drive fills up, new photos cannot be added until space is freed or storage is
+            added to the Google account. Photos removed here go to the Drive’s bin.
+          </p>
+          {status.onServer > 0 && <MoveToDrive count={status.onServer} />}
+          <ConfirmButton
+            action={disconnectDriveAction}
+            label="Disconnect"
+            title="Disconnect Google Drive?"
+            body="The photos stay in your Drive, but families will not see them in the app until you connect the same Google account again. New photos cannot be added meanwhile."
+            confirmLabel="Disconnect"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Moves the photos still on Poetree's server into the Drive, a few at a time,
+ * with a running count. Every photo keeps its place and its link.
+ */
+function MoveToDrive({ count }: { count: number }) {
+  const router = useRouter();
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<{ moved: number; failed: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    let after: string | null = null;
+    let moved = 0;
+    let failed = 0;
+
+    do {
+      const { result, error: problem } = await moveToDriveAction(after);
+      if (!result) {
+        setError(problem ?? 'Could not move the photos.');
+        break;
+      }
+      moved += result.moved;
+      failed += result.failed;
+      setProgress({ moved, failed });
+      after = result.next;
+    } while (after);
+
+    setRunning(false);
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl bg-navy-50/60 p-3">
+      <p className="text-sm text-navy-950">
+        {count} {count === 1 ? 'photo is' : 'photos are'} still kept on Poetree’s server.
+      </p>
+      <FormError message={error} />
+      {progress && (
+        <p className="text-xs text-slate-600">
+          Moved {progress.moved}
+          {progress.failed > 0 ? ` · ${progress.failed} could not be moved` : ''}
+        </p>
+      )}
+      <Button type="button" variant="secondary" disabled={running} onClick={() => void run()}>
+        {running ? 'Moving…' : 'Move them to Google Drive'}
+      </Button>
     </div>
   );
 }

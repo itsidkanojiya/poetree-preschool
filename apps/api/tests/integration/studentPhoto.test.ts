@@ -162,4 +162,60 @@ describe.skipIf(!dbUp)('a child’s photograph', () => {
     const family = await api.get(`${BASE}/files/${photoId}`).set(auth(parentA));
     expect(family.status).toBe(404);
   });
+
+  describe('set by the family from the app', () => {
+    const fromApp = (session: Session, studentId: string, fileId: string | null) =>
+      api.put(`${BASE}/me/children/${studentId}/photo`).set(auth(session)).send({ fileId });
+
+    const upload = async (session: Session, name = 'me.png') =>
+      (await api.post(`${BASE}/files`).set(auth(session)).attach('file', TINY_PNG, name)).body
+        .id as string;
+
+    it('lets a parent set their own child’s photograph', async () => {
+      const mine = await upload(parentA);
+      const response = await fromApp(parentA, schoolA.studentId, mine);
+      expect(response.status).toBe(204);
+
+      // The office sees it on the record, the teacher on the register, and
+      // the family on their child.
+      const student = await api.get(`${BASE}/students/${schoolA.studentId}`).set(auth(adminA));
+      expect(student.body.avatarUrl).toBe(`/api/v1/files/${mine}`);
+      expect((await api.get(`${BASE}/files/${mine}`).set(auth(teacherA))).status).toBe(200);
+
+      const children = await api.get(`${BASE}/me/children`).set(auth(parentA));
+      expect(children.body[0].avatarUrl).toBe(`/api/v1/files/${mine}`);
+    });
+
+    it('keeps another family away from this child', async () => {
+      const classmate = await login(CLASSMATE_PHONE);
+      const theirs = await upload(classmate, 'theirs.png');
+      const response = await fromApp(classmate, schoolA.studentId, theirs);
+      expect(response.status).toBe(404);
+    });
+
+    it('takes only a picture the parent uploaded themselves', async () => {
+      const officeUpload = await upload(adminA, 'office.png');
+      const response = await fromApp(parentA, schoolA.studentId, officeUpload);
+      expect(response.status).toBe(400);
+    });
+
+    it('is for parents only', async () => {
+      const response = await fromApp(teacherA, schoolA.studentId, null);
+      expect(response.status).toBe(403);
+    });
+
+    it('answers an address it does not have as missing, not as admin-only', async () => {
+      const response = await api
+        .put(`${BASE}/me/children/${schoolA.studentId}/no-such-thing`)
+        .set(auth(parentA))
+        .send({});
+      expect(response.status).toBe(404);
+    });
+
+    it('can be taken off again by the family', async () => {
+      expect((await fromApp(parentA, schoolA.studentId, null)).status).toBe(204);
+      const student = await api.get(`${BASE}/students/${schoolA.studentId}`).set(auth(adminA));
+      expect(student.body.avatarUrl).toBeNull();
+    });
+  });
 });

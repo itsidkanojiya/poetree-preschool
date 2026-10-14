@@ -99,16 +99,7 @@ class ChildrenController extends GetxController {
     error.value = null;
 
     try {
-      final data = await api.get<List<dynamic>>('/me/children');
-      children.value = data
-          .whereType<Map<String, dynamic>>()
-          .map(Child.fromJson)
-          .toList();
-
-      if (children.isNotEmpty &&
-          !children.any((c) => c.id == selectedId.value)) {
-        selectedId.value = children.first.id;
-      }
+      await _fetch();
     } on DioException catch (e) {
       final data = e.response?.data;
       error.value = data is Map && data['error'] is Map
@@ -120,5 +111,49 @@ class ChildrenController extends GetxController {
     }
   }
 
+  Future<void> _fetch() async {
+    final data = await api.get<List<dynamic>>('/me/children');
+    children.value = data
+        .whereType<Map<String, dynamic>>()
+        .map(Child.fromJson)
+        .toList();
+
+    if (children.isNotEmpty && !children.any((c) => c.id == selectedId.value)) {
+      selectedId.value = children.first.id;
+    }
+  }
+
   void select(String id) => selectedId.value = id;
+
+  /// Sets a child's photograph from a picture on this phone, or takes it off
+  /// with null. Null back when it worked, else the reason it did not.
+  ///
+  /// Two steps like every attachment: the upload owns the bytes and strips
+  /// where the picture was taken; this then points the child at it. The list
+  /// refreshes quietly afterwards — the new face appears without the whole
+  /// screen going to a spinner.
+  Future<String?> setPhoto(String childId, String? filePath) async {
+    try {
+      String? fileId;
+      if (filePath != null) {
+        final uploaded = await api.upload<Map<String, dynamic>>(
+          '/files',
+          filePath,
+        );
+        fileId = uploaded['id'] as String;
+      }
+      await api.put<dynamic>(
+        '/me/children/$childId/photo',
+        body: {'fileId': fileId},
+      );
+      await _fetch();
+      return null;
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      return data is Map && data['error'] is Map
+          ? (data['error'] as Map)['message']?.toString() ??
+                'Could not save the photo.'
+          : 'Could not reach the school. Try again when you have signal.';
+    }
+  }
 }

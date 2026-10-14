@@ -1,4 +1,4 @@
-import { GALLERY_PHOTO_MAX_BYTES } from '@poetree/shared';
+import { GALLERY_PHOTO_MAX_BYTES, GALLERY_THUMB_MAX_BYTES } from '@poetree/shared';
 
 /**
  * A photograph made small enough for the gallery, in the browser, before it is
@@ -54,6 +54,37 @@ export async function shrinkForGallery(file: File): Promise<Blob> {
   }
 
   throw new Error('This photo could not be made small enough. Try a smaller one.');
+}
+
+/**
+ * The small copy grids show: 480 pixels on the long side, a few tens of
+ * kilobytes. Made from the photo as it will be sent, so the two always match.
+ * A parent scrolling an event downloads these, and only the photo they open.
+ */
+export async function thumbnailForGallery(photo: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(photo);
+
+  try {
+    const scale = Math.min(1, 480 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('This browser cannot resize photos.');
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    for (const quality of [0.8, 0.7, 0.6, 0.5]) {
+      const blob = await toJpeg(canvas, quality);
+      if (blob.size <= GALLERY_THUMB_MAX_BYTES) return blob;
+    }
+  } finally {
+    bitmap.close();
+  }
+
+  throw new Error('A small copy of this photo could not be made.');
 }
 
 /** Upright, whichever way the phone was held. */

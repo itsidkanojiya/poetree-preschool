@@ -179,6 +179,24 @@ enum PaymentStatus {
   REFUNDED
 }
 
+/// Where a call to a family about an unpaid installment stands. Overdue is not
+/// stored: it is a pending follow-up whose date has passed, read at the time.
+enum FeeFollowUpStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+/// What came of contacting a family about an unpaid installment.
+enum FeeFollowUpOutcome {
+  REACHED
+  NO_ANSWER
+  PROMISED_PAYMENT
+  REQUESTED_TIME
+  WRONG_NUMBER
+  OTHER
+}
+
 /// The interactive activity types Poetree publishes. Content is authored once
 /// at publication level and reused by every school.
 enum ActivityType {
@@ -265,6 +283,14 @@ enum FileVisibility {
   PUBLIC
 }
 
+/// Where a file's bytes are kept.
+enum FileProvider {
+  /// Under FILE_STORAGE_ROOT on this server.
+  LOCAL
+  /// In the school's own Google Drive, through its SchoolDriveConnection.
+  GOOGLE_DRIVE
+}
+
 enum StudentDocumentType {
   PHOTO
   BIRTH_CERTIFICATE
@@ -300,19 +326,30 @@ enum NotificationType {
 // ---------------------------------------------------------------------------
 
 model Publication {
-  id             String   @id @default(cuid())
-  name           String   @db.VarChar(160)
-  logoUrl        String?  @db.VarChar(500)
+  id             String  @id @default(cuid())
+  name           String  @db.VarChar(160)
+  logoUrl        String? @db.VarChar(500)
   settings       Json?
   /// The tracing module, for every school at once. Off hides it in the app
   /// and closes its routes; the catalogue and every child's progress stay, so
   /// switching it back on loses nothing.
-  tracingEnabled Boolean  @default(true)
+  tracingEnabled Boolean @default(true)
   /// The games module, for every school at once. Off hides it in the app and
   /// closes its routes; each child's game history is kept.
-  gamesEnabled   Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  gamesEnabled   Boolean @default(true)
+
+  /// Poetree's own Google sign-in, set by the Super Admin, which every school
+  /// uses to connect its own separate Google Drive for the gallery. One for the
+  /// whole platform: it says "this is Poetree" to Google, not which school.
+  /// None set: gallery photos stay on this server.
+  googleClientId           String?  @db.VarChar(255)
+  /// Sealed like the schools' tokens, so a copy of the database alone opens
+  /// nothing.
+  googleClientSecretSealed String?  @db.Text
+  /// The portal's callback page, exactly as registered with Google.
+  googleRedirectUri        String?  @db.VarChar(500)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   schools       School[]
   organisations Organisation[]
@@ -448,6 +485,12 @@ model School {
   feeStructureItems        FeeStructureItem[]
   feeConcessions           FeeConcession[]
   feeInvoices              FeeInvoice[]
+  feePlans                 FeePlan[]
+  feePlanInstallments      FeePlanInstallment[]
+  studentFeePlans          StudentFeePlan[]
+  feeReminderPolicy        FeeReminderPolicy?
+  feeReminderLogs          FeeReminderLog[]
+  feeFollowUps             FeeFollowUp[]
   feeInvoiceLines          FeeInvoiceLine[]
   payments                 Payment[]
   paymentAllocations       PaymentAllocation[]
@@ -475,6 +518,8 @@ model School {
   galleryEvents            GalleryEvent[]
   galleryEventClassrooms   GalleryEventClassroom[]
   galleryPhotos            GalleryPhoto[]
+  galleryVideos            GalleryVideo[]
+  driveConnection          SchoolDriveConnection?
   gradeLevels              GradeLevel[]
   terms                    Term[]
   reportAreas              ReportArea[]
@@ -636,6 +681,8 @@ model User {
   authoredNotices          Notice[]             @relation("NoticeAuthor")
   approvedConcessions      FeeConcession[]      @relation("ConcessionApprover")
   recordedPayments         Payment[]            @relation("PaymentRecorder")
+  feePlansChosen           StudentFeePlan[]     @relation("FeePlanChooser")
+  feeFollowUpsLogged       FeeFollowUp[]        @relation("FeeFollowUpLogger")
   timetableSlots           TimetableEntry[]     @relation("TimetableTeacher")
   noticeReads              NoticeRead[]
   uploadedFiles            FileObject[]         @relation("FileUploader")
@@ -887,6 +934,8 @@ model Student {
   skillProgress       StudentSkillProgress[]
   feeConcessions      FeeConcession[]
   feeInvoices         FeeInvoice[]
+  feePlans            StudentFeePlan[]
+  feeFollowUps        FeeFollowUp[]
   payments            Payment[]
   reportCards         ReportCard[]
   certificateAwards   CertificateAward[]
@@ -1003,6 +1052,8 @@ model AcademicYear {
   feeStructures      FeeStructure[]
   feeConcessions     FeeConcession[]
   feeInvoices        FeeInvoice[]
+  feePlans           FeePlan[]
+  studentFeePlans    StudentFeePlan[]
   timetablePeriods   TimetablePeriod[]
   timetableEntries   TimetableEntry[]
   terms              Term[]
@@ -1625,14 +1676,21 @@ model FeeInvoice {
   cancelledAt     DateTime?
   cancelledReason String?   @db.VarChar(200)
 
+  /// The installment plan this invoice is one installment of; null for an
+  /// invoice raised by period from the fee structure.
+  studentFeePlanId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school       School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  lines        FeeInvoiceLine[]
-  allocations  PaymentAllocation[]
+  school         School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student        Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  studentFeePlan StudentFeePlan?     @relation(fields: [studentFeePlanId], references: [id], onDelete: SetNull)
+  lines          FeeInvoiceLine[]
+  allocations    PaymentAllocation[]
+  reminderLogs   FeeReminderLog[]
+  followUps      FeeFollowUp[]
 
   /// Generation is idempotent on this key: re-running a month never
   /// double-charges a child.
@@ -1712,6 +1770,182 @@ model PaymentAllocation {
   @@unique([paymentId, invoiceId])
   @@index([schoolId, invoiceId])
   @@map("payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Fee installment plans, reminders and follow-ups
+//
+// An installment is an invoice like any other: payments, partial payments,
+// receipts and the parent's ledger all work on it unchanged. What is new is
+// how the invoices come to exist — from a plan the family chose — and what
+// happens around their due dates.
+// ---------------------------------------------------------------------------
+
+/// A way the school lets families spread a year's fees: Annual, Half-yearly,
+/// Quarterly, Monthly — whichever it offers, named as it likes.
+///
+/// No amounts are stored. Each child's come from their own fee structure and
+/// concessions, divided by the installments' weights, so the same "Quarterly"
+/// works for Nursery and Senior KG alike.
+model FeePlan {
+  id             String @id @default(cuid())
+  schoolId       String
+  academicYearId String
+
+  name      String  @db.VarChar(60)
+  isEnabled Boolean @default(true)
+
+  /// Class levels it is offered to. Empty: every class.
+  classLevelIds Json?
+  sortOrder     Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  installments FeePlanInstallment[]
+  selections   StudentFeePlan[]
+
+  @@index([schoolId, academicYearId])
+  @@map("fee_plans")
+}
+
+/// One installment of a plan: what it is called, when it falls due, and its
+/// share of the year's fee as a weight — 1, 1, 1 for three equal parts; 2, 1, 1
+/// for half up front. Weights rather than percentages, so a third is a third
+/// and not 33.33%.
+model FeePlanInstallment {
+  id       String @id @default(cuid())
+  schoolId String
+  planId   String
+
+  position Int
+  label    String   @db.VarChar(40)
+  dueDate  DateTime @db.Date
+  weight   Int      @default(1)
+
+  school School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  plan   FeePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, position])
+  @@index([schoolId])
+  @@map("fee_plan_installments")
+}
+
+/// The plan a child's fees are paid by this year. One per child per year: the
+/// database refuses a second, so a parent tapping Confirm twice gets the one
+/// schedule, not two.
+model StudentFeePlan {
+  id             String @id @default(cuid())
+  schoolId       String
+  studentId      String
+  academicYearId String
+  planId         String
+
+  chosenById   String
+  /// PARENT or the office role that set it.
+  chosenByRole String @db.VarChar(20)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  plan         FeePlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  chosenBy     User         @relation("FeePlanChooser", fields: [chosenById], references: [id], onDelete: Restrict)
+  invoices     FeeInvoice[]
+
+  @@unique([studentId, academicYearId])
+  @@index([schoolId, planId])
+  @@map("student_fee_plans")
+}
+
+/// When the school reminds families of an installment. One per school; the
+/// defaults apply until the office changes them.
+model FeeReminderPolicy {
+  id       String @id @default(cuid())
+  schoolId String @unique
+
+  enabled          Boolean @default(true)
+  /// Days before the due date to remind, e.g. [7, 3].
+  daysBefore       Json
+  onDueDate        Boolean @default(true)
+  /// Days after the due date before the first overdue reminder.
+  graceDays        Int     @default(0)
+  /// Then every this many days, at most overdueMaxCount times. 0: never.
+  overdueEveryDays Int     @default(7)
+  overdueMaxCount  Int     @default(3)
+
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("fee_reminder_policies")
+}
+
+/// A reminder sent about an installment. The unique key is what stops the
+/// same reminder going twice, however often the job runs or restarts.
+model FeeReminderLog {
+  id         String  @id @default(cuid())
+  schoolId   String
+  invoiceId  String
+  followUpId String?
+
+  /// "before-7", "due", "overdue-1", "followup-<id>".
+  reminderKey String @db.VarChar(80)
+  recipients  Int    @default(0)
+
+  sentAt DateTime @default(now())
+
+  school   School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoice  FeeInvoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  followUp FeeFollowUp? @relation(fields: [followUpId], references: [id], onDelete: SetNull)
+
+  @@unique([invoiceId, reminderKey])
+  @@index([schoolId, sentAt])
+  @@map("fee_reminder_logs")
+}
+
+/// The office's record of chasing an unpaid installment: who called, what
+/// came of it, and when to try again. A tap on Call is not a call made — a
+/// contact is recorded only when someone logs it.
+model FeeFollowUp {
+  id        String @id @default(cuid())
+  schoolId  String
+  studentId String
+  invoiceId String
+
+  /// When the contact was made, as the person logging it says.
+  contactedAt DateTime?
+  outcome     FeeFollowUpOutcome?
+  note        String?             @db.VarChar(300)
+
+  /// The next follow-up date.
+  followUpOn   DateTime @db.Date
+  /// Remind the family on that date too, if the installment is still unpaid.
+  remindParent Boolean  @default(true)
+
+  status         FeeFollowUpStatus @default(PENDING)
+  reminderSentAt DateTime?
+  closedAt       DateTime?
+  closedReason   String?           @db.VarChar(120)
+
+  loggedById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school    School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  invoice   FeeInvoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  loggedBy  User             @relation("FeeFollowUpLogger", fields: [loggedById], references: [id], onDelete: Restrict)
+  reminders FeeReminderLog[]
+
+  @@index([schoolId, status, followUpOn])
+  @@index([invoiceId])
+  @@map("fee_follow_ups")
 }
 
 // ---------------------------------------------------------------------------
@@ -1988,6 +2222,7 @@ model GalleryEvent {
   createdBy  User?                   @relation("GalleryEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
   classrooms GalleryEventClassroom[]
   photos     GalleryPhoto[]
+  videos     GalleryVideo[]
 
   @@index([schoolId, eventDate])
   @@map("gallery_events")
@@ -2195,6 +2430,71 @@ model GalleryEventClassroom {
   @@unique([eventId, classroomId])
   @@index([schoolId, classroomId])
   @@map("gallery_event_classrooms")
+}
+
+/// A video in an event: the school's own YouTube upload, by its link.
+///
+/// The video lives on YouTube and plays from there — nothing of it is stored
+/// here but the link. No unique index on videoId: YouTube ids are
+/// case-sensitive and this database's collation is not, so two different
+/// videos could collide. The service checks for a repeat in code.
+model GalleryVideo {
+  id       String @id @default(cuid())
+  schoolId String
+  eventId  String
+
+  /// The YouTube id, taken out of the link once.
+  videoId   String  @db.VarChar(32)
+  /// The link as pasted.
+  url       String  @db.VarChar(500)
+  caption   String? @db.VarChar(200)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  event  GalleryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  school School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, eventId, sortOrder])
+  @@index([eventId])
+  @@map("gallery_videos")
+}
+
+/// The school's own Google Drive, where its gallery photos are kept rather
+/// than on this server.
+///
+/// Connected by the school's administrator from the portal, with Google's
+/// narrowest Drive permission: this app sees only the files it made itself,
+/// never anything else in the school's Drive. Space is the school's own — a
+/// full Drive is theirs to clear or upgrade.
+///
+/// Families never touch Drive. The API checks who may see a photo, exactly as
+/// before, then fetches it from Drive itself; nothing is ever shared by link.
+model SchoolDriveConnection {
+  id       String @id @default(cuid())
+  schoolId String @unique
+
+  /// The Google account it was connected with, to show the office.
+  googleEmail String @db.VarChar(254)
+
+  /// Google's refresh token, sealed with DRIVE_TOKEN_KEY. Never leaves the API.
+  refreshTokenSealed String @db.Text
+
+  /// The folder made in their Drive on connecting, which the photos go in,
+  /// and one inside it for the small copies the app's grids show.
+  folderId      String @db.VarChar(128)
+  thumbFolderId String @db.VarChar(128)
+
+  /// Google refused the token — access removed from the Google account, or
+  /// its password changed. Photos stop loading until the office reconnects.
+  brokenAt DateTime?
+
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_drive_connections")
 }
 
 /// One photograph in an event. The bytes are a FileObject like any other
@@ -2430,7 +2730,8 @@ model FileObject {
   schoolId String?
 
   /// Path within the storage root. Generated UUID — a user-supplied filename
-  /// never reaches the filesystem.
+  /// never reaches the filesystem. For a file in Google Drive, the Drive
+  /// file's id.
   storageKey   String         @unique @db.VarChar(300)
   originalName String         @db.VarChar(255)
   mimeType     String         @db.VarChar(120)
@@ -2438,6 +2739,12 @@ model FileObject {
   checksum     String?        @db.VarChar(64)
   visibility   FileVisibility @default(PRIVATE)
   uploadedById String?
+
+  provider FileProvider @default(LOCAL)
+
+  /// A small copy for grids, kept wherever the file is (a Drive id, or a key
+  /// under the storage root). Null when none was made; the file stands in.
+  thumbKey String? @db.VarChar(300)
 
   /// Soft delete; a job purges the bytes after a grace period so a misclick is
   /// recoverable.

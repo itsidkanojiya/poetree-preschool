@@ -28,7 +28,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  * Resolved at call time rather than module load, because the layout differs
  * between `src` under tsx and `dist` after a build.
  */
-function fontFile(name: string): string | null {
+export function fontFile(name: string): string | null {
   const candidates = [
     path.resolve(HERE, '../../assets/fonts', name),
     path.resolve(HERE, '../../../assets/fonts', name),

@@ -145,7 +145,13 @@ class PushService extends GetxService {
     }
 
     if (page != null && Get.isRegistered<ChildController>()) {
-      openParentPage(page);
+      // A fee reminder opens the installment it is about.
+      openParentPage(
+        page,
+        invoiceId: entity == 'FeeInvoice'
+            ? message.data['entityId']?.toString()
+            : null,
+      );
     }
   }
 }

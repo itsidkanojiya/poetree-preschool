@@ -252,3 +252,9 @@ export const IconGame = (p: IconProps) => (
     <circle cx="17" cy="13" r=".6" fill="currentColor" />
   </Svg>
 );
+
+export const IconCloud = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.5 8.5Z" />
+  </Svg>
+);

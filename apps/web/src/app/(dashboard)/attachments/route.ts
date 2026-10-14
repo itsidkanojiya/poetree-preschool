@@ -43,7 +43,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   // authorisation models are deliberately separate on the API, so the caller
   // has to say which it wants rather than have this guess.
   const kind = request.nextUrl.searchParams.get('kind');
-  const path = kind === 'catalogue' ? `/catalogue/assets/${id}` : `/files/${id}`;
+  // A gallery grid asks for the small copy; the API sends the photo itself
+  // when none was made.
+  const variant = request.nextUrl.searchParams.get('variant') === 'thumb' ? '?variant=thumb' : '';
+  const path = kind === 'catalogue' ? `/catalogue/assets/${id}` : `/files/${id}${variant}`;
 
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
 

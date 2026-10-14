@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
@@ -8,10 +11,14 @@ import '../../core/audio/speech_service.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
+import '../fees/fees_ui.dart';
+import '../fees/fees_view.dart';
+import '../notifications/inbox_controller.dart';
 import '../notifications/inbox_view.dart';
 import 'child_controller.dart';
 import 'homework_detail_view.dart';
 import 'children_controller.dart';
+import 'parent_tab_bar.dart';
 import 'id_card_view.dart';
 import '../activities/book_shelf_view.dart';
 import '../animation/films_watched_card.dart';
@@ -71,7 +78,12 @@ class ParentHomeView extends StatelessWidget {
     final tab = children.tab.value;
 
     return Scaffold(
-      appBar: tab == ChildrenController.homeTab
+      // Home and Settings draw their own headers — the child's face and the
+      // bell — so they have no bar above them. The other tabs say where they
+      // are. Absent rather than empty: an empty bar still takes its height.
+      appBar:
+          tab == ChildrenController.homeTab ||
+              tab == ChildrenController.settingsTab
           ? null
           : AppBar(
               title: Text(switch (tab) {
@@ -110,9 +122,10 @@ class ParentHomeView extends StatelessWidget {
 
         return Column(
           children: [
-            // On the home tab the switcher sits inside the header instead.
+            // On Home and Settings the switcher sits inside the header instead.
             if (children.children.length > 1 &&
-                tab != ChildrenController.homeTab)
+                tab != ChildrenController.homeTab &&
+                tab != ChildrenController.settingsTab)
               _ChildSwitcher(children: children),
             Expanded(
               child: AsyncView(
@@ -135,39 +148,54 @@ class ParentHomeView extends StatelessWidget {
                     child: child,
                     children: children,
                   ),
-                  _ => _ProfileTab(child: child, children: children),
+                  _ => _ProfileTab(
+                    child: child,
+                    children: children,
+                    switcher: children.children.length > 1
+                        ? _ChildSwitcher(children: children)
+                        : null,
+                  ),
                 },
               ),
             ),
           ],
         );
       }),
-      bottomNavigationBar: Obx(
-        () => NavigationBar(
-          selectedIndex: children.tab.value,
-          onDestinationSelected: (index) => children.tab.value = index,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.school_outlined),
-              selectedIcon: Icon(Icons.school_rounded),
-              label: 'Learning',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.insights_outlined),
-              selectedIcon: Icon(Icons.insights_rounded),
-              label: 'Progress',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings_rounded),
-              label: 'Settings',
-            ),
-          ],
+      bottomNavigationBar: Builder(
+        builder: (context) => Obx(
+          // A phone gets the designed bar. Anything wider — a tablet, a big
+          // screen — keeps the standard one below, untouched.
+          () => MediaQuery.sizeOf(context).shortestSide < 600
+              ? ParentTabBar(
+                  selected: children.tab.value,
+                  onSelect: (index) => children.tab.value = index,
+                )
+              : NavigationBar(
+                  selectedIndex: children.tab.value,
+                  onDestinationSelected: (index) => children.tab.value = index,
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home_rounded),
+                      label: 'Home',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.school_outlined),
+                      selectedIcon: Icon(Icons.school_rounded),
+                      label: 'Learning',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.insights_outlined),
+                      selectedIcon: Icon(Icons.insights_rounded),
+                      label: 'Progress',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.settings_outlined),
+                      selectedIcon: Icon(Icons.settings_rounded),
+                      label: 'Settings',
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -208,10 +236,17 @@ class _LearnTab extends StatelessWidget {
 /// money one thumb away at all times in an app that is handed to a four-year-old
 /// to play in. It lives here with the rest of the office business.
 class _ProfileTab extends StatelessWidget {
-  const _ProfileTab({required this.child, required this.children});
+  const _ProfileTab({
+    required this.child,
+    required this.children,
+    this.switcher,
+  });
 
   final ChildController child;
   final ChildrenController children;
+
+  /// Which child, for a family with more than one.
+  final Widget? switcher;
 
   @override
   Widget build(BuildContext context) {
@@ -219,143 +254,531 @@ class _ProfileTab extends StatelessWidget {
     final selected = children.selected;
     final due = child.ledger.value?.outstandingInPaise ?? 0;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-      children: [
-        if (selected != null)
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+    return FeeBackdrop(
+      child: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+              children: [
+                const _SettingsHeader(),
+                ?switcher,
+                if (selected != null) ...[
+                  _ProfileCard(selected: selected, children: children),
+                  const SizedBox(height: 12),
+                ],
+                _MenuCard(
+                  icon: 'fees',
+                  color: FeeInk.rose,
+                  wash: const Color(0xFFFFEEF1),
+                  title: 'Fees',
+                  subtitle: due > 0
+                      ? '${_rupees(due)} due · View fee details'
+                      : 'View fee details and payment status',
+                  onTap: selected == null
+                      ? null
+                      : () => openFees(
+                          studentId: selected.id,
+                          childName: selected.firstName,
+                        ),
+                ),
+                _MenuCard(
+                  icon: 'notices',
+                  color: FeeInk.amber,
+                  wash: const Color(0xFFFFF6E5),
+                  title: 'Notices',
+                  subtitle: 'Announcements from the school',
+                  onTap: () => Get.to<void>(() => _NoticesPage(child: child)),
+                ),
+                if (selected?.classroomId != null) ...[
+                  _MenuCard(
+                    icon: 'timetable',
+                    color: FeeInk.sky,
+                    wash: const Color(0xFFEDF4FF),
+                    title: 'Timetable',
+                    subtitle: 'Your class schedule',
+                    onTap: () => Get.toNamed<void>(
+                      AppRoutes.timetable,
+                      arguments: {'classroomId': selected!.classroomId},
+                    ),
+                  ),
+                  _MenuCard(
+                    icon: 'class_stream',
+                    color: FeeInk.violet,
+                    wash: const Color(0xFFF3EEFF),
+                    title: 'Class Stream',
+                    subtitle: 'Updates, photos and materials',
+                    onTap: () => Get.toNamed<void>(
+                      AppRoutes.stream,
+                      arguments: {'classroomId': selected!.classroomId},
+                    ),
+                  ),
+                ],
+                if (selected != null) ...[
+                  _MenuCard(
+                    icon: 'id_card',
+                    color: FeeInk.mint,
+                    wash: const Color(0xFFEAFAF1),
+                    title: 'ID Card',
+                    subtitle: 'View your digital ID card',
+                    onTap: () => Get.to<void>(
+                      () => const IdCardView(),
+                      binding: BindingsBuilder(() {
+                        Get.put<IdCardController>(
+                          IdCardController(
+                            studentId: selected.id,
+                            childName: selected.firstName,
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  _MenuCard(
+                    icon: 'certificate',
+                    color: FeeInk.amber,
+                    wash: const Color(0xFFFFF7E6),
+                    title: 'Certificates',
+                    subtitle: 'Your achievements and awards',
+                    onTap: () => openParentPage(ParentPage.certificates),
+                  ),
+                ],
+                _MenuCard(
+                  icon: 'settings',
+                  color: const Color(0xFF6366F1),
+                  wash: const Color(0xFFF0EFFF),
+                  title: 'App Settings',
+                  subtitle: 'App appearance and preferences',
+                  onTap: () => Get.to<void>(() => const _SettingsPage()),
+                ),
+                const SizedBox(height: 10),
+                _SignOutButton(onPressed: auth.signOut),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Settings", a line under it, the child waving, and the bell.
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 168,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: 40,
+            top: 6,
+            bottom: 0,
+            child: Image.asset(
+              'assets/images/characters/waving_kid.png',
+              fit: BoxFit.contain,
+              excludeFromSemantics: true,
+            ),
+          ),
+          const Positioned(
+            left: 4,
+            top: 18,
+            right: 150,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Settings',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    color: FeeInk.ink,
+                    height: 1.1,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Manage your account and app preferences',
+                  style: TextStyle(fontSize: 15, color: Color(0xFF4A5180)),
+                ),
+              ],
+            ),
+          ),
+          const Positioned(right: 0, top: 6, child: _Bell()),
+        ],
+      ),
+    );
+  }
+}
+
+/// The bell, with how many messages are unread.
+class _Bell extends StatelessWidget {
+  const _Bell();
+
+  @override
+  Widget build(BuildContext context) {
+    void open() => Get.toNamed<void>(AppRoutes.inbox);
+    final bell = FeeIcon('notification', size: 26, color: Color(0xFF2747C8));
+    if (!Get.isRegistered<InboxController>()) {
+      return FeeRoundButton(label: 'Messages', onTap: open, child: bell);
+    }
+    final inbox = Get.find<InboxController>();
+    return Obx(() {
+      final count = inbox.unread.value;
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          FeeRoundButton(
+            label: count > 0 ? 'Messages, $count unread' : 'Messages',
+            onTap: open,
+            child: bell,
+          ),
+          if (count > 0)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 19),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5A1F),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : '$count',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
+  }
+}
+
+/// The child: their photo — tap it to change it — their name and class.
+class _ProfileCard extends StatelessWidget {
+  const _ProfileCard({required this.selected, required this.children});
+
+  final Child selected;
+  final ChildrenController children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE6EAF4)),
+        boxShadow: FeeInk.lift(),
+      ),
+      child: Row(
+        children: [
+          _ChildPhoto(child: selected, children: children),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selected.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: FeeInk.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (selected.classroomLabel != null)
+                      selected.classroomLabel!,
+                    'Tap the photo to change it',
+                  ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: FeeInk.muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One of Settings' rows: a tinted card, its icon on a soft tile, and a
+/// coloured arrow.
+class _MenuCard extends StatelessWidget {
+  const _MenuCard({
+    required this.icon,
+    required this.color,
+    required this.wash,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String icon;
+  final Color color;
+  final Color wash;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Semantics(
+        button: true,
+        label: '$title. $subtitle',
+        excludeSemantics: true,
+        child: Material(
+          color: wash,
+          borderRadius: BorderRadius.circular(24),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: color.withValues(alpha: 0.16)),
+              ),
               child: Row(
                 children: [
-                  InitialsAvatar(
-                    name: selected.fullName,
-                    radius: 26,
-                    photoPath: selected.photoPath,
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    alignment: Alignment.center,
+                    child: FeeIcon(icon, size: 28, color: color),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          selected.fullName,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        if (selected.classroomLabel != null)
-                          Text(
-                            selected.classroomLabel!,
-                            style: Theme.of(context).textTheme.bodySmall,
+                          title,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: FeeInk.ink,
                           ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            color: Color(0xFF4A5180),
+                          ),
+                        ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.75),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: const FeeIcon(
+                      'chevron_right',
+                      size: 18,
+                      color: Colors.white,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
-        const SizedBox(height: 16),
-
-        _ActionTile(
-          icon: Icons.receipt_long_rounded,
-          tone: due > 0 ? AppTheme.coral : AppTheme.leaf,
-          toneSoft: due > 0 ? AppTheme.coralSoft : AppTheme.leafSoft,
-          title: 'Fees',
-          subtitle: due > 0
-              ? '${_rupees(due)} due — please settle with the office'
-              : 'Nothing outstanding',
-          onTap: () => Get.to<void>(() => _FeesPage(child: child)),
         ),
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.campaign_rounded,
-          tone: AppTheme.apricot,
-          toneSoft: AppTheme.apricotSoft,
-          title: 'Notices',
-          subtitle: 'Announcements from the school',
-          onTap: () => Get.to<void>(() => _NoticesPage(child: child)),
-        ),
+      ),
+    );
+  }
+}
 
-        if (selected?.classroomId != null) ...[
-          const SizedBox(height: 10),
-          _ActionTile(
-            icon: Icons.schedule_rounded,
-            tone: AppTheme.sky,
-            toneSoft: AppTheme.skySoft,
-            title: 'Timetable',
-            subtitle:
-                'The week for ${selected!.classroomLabel ?? 'this class'}',
-            onTap: () => Get.toNamed<void>(
-              AppRoutes.timetable,
-              arguments: {'classroomId': selected.classroomId},
+class _SignOutButton extends StatelessWidget {
+  const _SignOutButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    const red = Color(0xFFF0442A);
+    return SizedBox(
+      height: 58,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: const Color(0xFFFFF7F5),
+          foregroundColor: red,
+          side: const BorderSide(color: red, width: 1.4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+        ),
+        icon: const Icon(Icons.logout_rounded, size: 24),
+        label: const Text(
+          'Sign Out',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+}
+
+/// The child's face, with a camera on it: tap to take or choose their
+/// photograph, or take it off. It is the face on the home page, the class
+/// register and the ID card, so the family can keep it up to date.
+class _ChildPhoto extends StatefulWidget {
+  const _ChildPhoto({required this.child, required this.children});
+
+  final Child child;
+  final ChildrenController children;
+
+  @override
+  State<_ChildPhoto> createState() => _ChildPhotoState();
+}
+
+class _ChildPhotoState extends State<_ChildPhoto> {
+  bool _saving = false;
+
+  Future<void> _change() async {
+    final hasPhoto = widget.child.photoPath != null;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(
+                '${widget.child.firstName}’s photo',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          _ActionTile(
-            icon: Icons.dynamic_feed_rounded,
-            tone: AppTheme.sky,
-            toneSoft: AppTheme.skySoft,
-            title: 'Class stream',
-            subtitle: 'Announcements and materials from the class',
-            onTap: () => Get.toNamed<void>(
-              AppRoutes.stream,
-              arguments: {'classroomId': selected.classroomId},
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(context, 'camera'),
             ),
-          ),
-        ],
-
-        const SizedBox(height: 10),
-        if (selected != null) ...[
-          const SizedBox(height: 10),
-          _ActionTile(
-            icon: Icons.badge_rounded,
-            tone: AppTheme.leaf,
-            toneSoft: AppTheme.leafSoft,
-            title: 'ID card',
-            subtitle: '${selected.firstName}’s card, as the school prints it',
-            onTap: () => Get.to<void>(
-              () => const IdCardView(),
-              binding: BindingsBuilder(() {
-                Get.put<IdCardController>(
-                  IdCardController(
-                    studentId: selected.id,
-                    childName: selected.firstName,
-                  ),
-                );
-              }),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, 'gallery'),
             ),
-          ),
-          const SizedBox(height: 10),
-          _ActionTile(
-            icon: Icons.workspace_premium_rounded,
-            tone: AppTheme.apricot,
-            toneSoft: AppTheme.apricotSoft,
-            title: 'Certificates',
-            subtitle: 'What ${selected.firstName} has been awarded',
-            onTap: () => openParentPage(ParentPage.certificates),
-          ),
-        ],
-
-        const SizedBox(height: 10),
-        _ActionTile(
-          icon: Icons.settings_rounded,
-          tone: AppTheme.sky,
-          toneSoft: AppTheme.skySoft,
-          title: 'Settings',
-          subtitle: 'How the app looks',
-          onTap: () => Get.to<void>(() => const _SettingsPage()),
+            if (hasPhoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('Remove photo'),
+                onTap: () => Navigator.pop(context, 'remove'),
+              ),
+            const SizedBox(height: 8),
+          ],
         ),
+      ),
+    );
+    if (choice == null || !mounted) return;
 
-        const SizedBox(height: 24),
-        OutlinedButton.icon(
-          onPressed: auth.signOut,
-          icon: const Icon(Icons.logout),
-          label: const Text('Sign out'),
+    String? path;
+    if (choice != 'remove') {
+      // A face, not a poster: small enough to send on a school's wifi and
+      // still sharp on the ID card.
+      final picked = await ImagePicker().pickImage(
+        source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1024,
+      );
+      if (picked == null || !mounted) return;
+      path = picked.path;
+    }
+
+    setState(() => _saving = true);
+    final failure = await widget.children.setPhoto(widget.child.id, path);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            failure ??
+                (path == null
+                    ? 'Photo removed.'
+                    : 'Photo saved. The school sees it too.'),
+          ),
         ),
-      ],
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: 'Change ${widget.child.firstName}’s photo',
+      child: GestureDetector(
+        onTap: _saving ? null : _change,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            InitialsAvatar(
+              name: widget.child.fullName,
+              radius: 30,
+              photoPath: widget.child.photoPath,
+            ),
+            if (_saving)
+              const Positioned.fill(
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.surface, width: 2),
+                ),
+                child: Icon(
+                  Icons.photo_camera_rounded,
+                  size: 15,
+                  color: colors.onPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -490,7 +913,7 @@ enum ParentPage {
 /// Public so the home page's cards and a push notification open the same
 /// screens: attendance and homework used to be tabs, and a notification set the
 /// tab. They are pages now, reached the same way from either door.
-void openParentPage(ParentPage page) {
+void openParentPage(ParentPage page, {String? invoiceId}) {
   final child = Get.find<ChildController>();
   final selected = Get.find<ChildrenController>().selected;
 
@@ -500,7 +923,15 @@ void openParentPage(ParentPage page) {
     case ParentPage.homework:
       Get.to<void>(() => _HomeworkPage(child: child));
     case ParentPage.fees:
-      Get.to<void>(() => _FeesPage(child: child));
+      if (selected != null) {
+        unawaited(
+          openFees(
+            studentId: selected.id,
+            childName: selected.firstName,
+            invoiceId: invoiceId,
+          ),
+        );
+      }
     case ParentPage.notices:
       Get.to<void>(() => _NoticesPage(child: child));
     case ParentPage.reportCards:
@@ -635,20 +1066,6 @@ class _ProgressTab extends StatelessWidget {
         ],
       );
     });
-  }
-}
-
-class _FeesPage extends StatelessWidget {
-  const _FeesPage({required this.child});
-
-  final ChildController child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Fees')),
-      body: _FeesTab(child: child),
-    );
   }
 }
 
@@ -1554,120 +1971,6 @@ class _HomeworkRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _FeesTab extends StatelessWidget {
-  const _FeesTab({required this.child});
-
-  final ChildController child;
-
-  /// Subscribed here, where the observable is actually read.
-  ///
-  /// This was wrapped in an `Obx` by its caller, and that closure read nothing
-  /// at all — it returned this widget, whose build runs later and outside the
-  /// closure's reactive scope. So the page never repainted when the ledger
-  /// arrived, and GetX had nothing to listen to.
-  @override
-  Widget build(BuildContext context) => Obx(() => _body(context));
-
-  Widget _body(BuildContext context) {
-    final ledger = child.ledger.value;
-
-    if (ledger == null || ledger.invoices.isEmpty) {
-      return ListView(
-        children: const [
-          SizedBox(height: 80),
-          Center(child: Text('No fee bills raised yet.')),
-        ],
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _LedgerLine(
-                  label: 'Billed',
-                  value: _rupees(ledger.billedInPaise),
-                ),
-                const SizedBox(height: 6),
-                _LedgerLine(label: 'Paid', value: _rupees(ledger.paidInPaise)),
-                const Divider(height: 20),
-                _LedgerLine(
-                  label: 'Outstanding',
-                  value: _rupees(ledger.outstandingInPaise),
-                  emphasise: true,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text('Bills', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        ...ledger.invoices.map(
-          (invoice) => Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              title: Text(
-                invoice.period.isEmpty ? invoice.invoiceNo : invoice.period,
-              ),
-              subtitle: Text(
-                '${invoice.invoiceNo} · due ${_day(invoice.dueDate)}',
-              ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _rupees(invoice.outstandingInPaise),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    invoice.status.toLowerCase(),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LedgerLine extends StatelessWidget {
-  const _LedgerLine({
-    required this.label,
-    required this.value,
-    this.emphasise = false,
-  });
-
-  final String label;
-  final String value;
-  final bool emphasise;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = emphasise
-        ? Theme.of(context).textTheme.titleMedium
-        : Theme.of(context).textTheme.bodyMedium;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: style),
-        Text(value, style: style),
-      ],
     );
   }
 }

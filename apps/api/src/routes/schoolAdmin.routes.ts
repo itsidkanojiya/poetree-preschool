@@ -1,8 +1,12 @@
-import { Router, type Request } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import {
   addGalleryPhotosSchema,
+  addGalleryVideoSchema,
+  connectGalleryDriveSchema,
   createGalleryEventSchema,
+  moveGalleryToDriveSchema,
   updateGalleryEventSchema,
   setStudentPhotoSchema,
   attachDocumentSchema,
@@ -31,6 +35,9 @@ import {
 } from '@poetree/shared';
 import type {
   AddGalleryPhotosInput,
+  AddGalleryVideoInput,
+  ConnectGalleryDriveInput,
+  MoveGalleryToDriveInput,
   CreateGalleryEventInput,
   UpdateGalleryEventInput,
   AttachDocumentInput,
@@ -56,7 +63,9 @@ import type {
   SetPasswordInput,
 } from '@poetree/shared';
 import { requireSchoolId } from '../context/requestContext.js';
+import { ApiError } from '../lib/apiError.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { tenantContext } from '../middleware/tenantContext.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
@@ -67,6 +76,7 @@ import * as parentService from '../services/parent.service.js';
 import * as passwordService from '../services/password.service.js';
 import * as registrationService from '../services/registration.service.js';
 import * as galleryService from '../services/gallery.service.js';
+import * as driveService from '../services/drive.service.js';
 import * as schoolService from '../services/school.service.js';
 import * as idCards from '../services/idCard.service.js';
 import * as studentService from '../services/student.service.js';
@@ -512,6 +522,133 @@ schoolAdminRouter.delete(
   asyncHandler(async (req, res) => {
     await galleryService.removePhoto(idOf(req));
     res.status(204).send();
+  }),
+);
+
+/**
+ * One photo, already shrunk by the portal, and the small copy it made for
+ * grids — straight into the event, and into the school's Google Drive when it
+ * has connected one.
+ *
+ * Capped a little above the 1 MB a photo may be, so an oversized one gets the
+ * service's plain answer rather than the upload library's.
+ */
+const galleryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 2 },
+}).fields([
+  { name: 'photo', maxCount: 1 },
+  { name: 'thumb', maxCount: 1 },
+]);
+
+function receiveGalleryPhoto(req: Request, res: Response, next: NextFunction): void {
+  galleryUpload(req, res, (error: unknown) => {
+    if (error instanceof multer.MulterError) {
+      next(
+        ApiError.badRequest(
+          error.code === 'LIMIT_FILE_SIZE'
+            ? 'That photo is larger than 1 MB. Upload it through the portal, which shrinks it first.'
+            : 'Send one photo, and its small copy, at a time',
+        ),
+      );
+      return;
+    }
+    next(error);
+  });
+}
+
+schoolAdminRouter.post(
+  '/gallery/events/:id/photos/upload',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema }),
+  receiveGalleryPhoto,
+  // Multer finishes outside the request's async context; see file.routes.ts.
+  tenantContext,
+  asyncHandler(async (req, res) => {
+    const files = req.files as Record<string, Express.Multer.File[] | undefined> | undefined;
+    const photo = files?.photo?.[0];
+    if (!photo) throw ApiError.badRequest('No photo was sent');
+
+    const created = await galleryService.uploadPhoto(
+      idOf(req),
+      { name: photo.originalname, bytes: photo.buffer, thumb: files?.thumb?.[0]?.buffer ?? null },
+      req.auth!.userId,
+    );
+    res.status(201).json(created);
+  }),
+);
+
+/** A video on the school's own YouTube channel, by its link. */
+schoolAdminRouter.post(
+  '/gallery/events/:id/videos',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema, body: addGalleryVideoSchema }),
+  asyncHandler(async (req, res) => {
+    const video = await galleryService.addVideo(idOf(req), body<AddGalleryVideoInput>(req));
+    res.status(201).json(video);
+  }),
+);
+
+schoolAdminRouter.delete(
+  '/gallery/videos/:id',
+  requirePermission('notice:manage'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await galleryService.removeVideo(idOf(req));
+    res.status(204).send();
+  }),
+);
+
+/**
+ * The school's own Google Drive, where its gallery photos are kept: whether it
+ * is connected, connecting it through Google's page, letting it go, and
+ * moving the photos already on this server into it.
+ */
+schoolAdminRouter.get(
+  '/gallery/drive',
+  requirePermission('notice:manage'),
+  asyncHandler(async (_req, res) => {
+    res.json(await driveService.driveStatus());
+  }),
+);
+
+schoolAdminRouter.post(
+  '/gallery/drive/connect',
+  requirePermission('notice:manage'),
+  asyncHandler(async (req, res) => {
+    res.json(await driveService.driveConnectUrl(req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.post(
+  '/gallery/drive/callback',
+  requirePermission('notice:manage'),
+  validate({ body: connectGalleryDriveSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await driveService.completeDriveConnect(
+        body<ConnectGalleryDriveInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+schoolAdminRouter.delete(
+  '/gallery/drive',
+  requirePermission('notice:manage'),
+  asyncHandler(async (req, res) => {
+    await driveService.disconnectDrive(req.auth!.userId);
+    res.status(204).send();
+  }),
+);
+
+schoolAdminRouter.post(
+  '/gallery/drive/move',
+  requirePermission('notice:manage'),
+  validate({ body: moveGalleryToDriveSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await driveService.moveGalleryToDrive(body<MoveGalleryToDriveInput>(req)));
   }),
 );
 

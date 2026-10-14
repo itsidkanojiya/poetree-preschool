@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import type { FeeInvoiceDetail, FeeLedgerEntry } from '@poetree/shared';
 import { prisma, type TenantTransactionClient } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -7,6 +8,7 @@ import { nextDocumentNumber } from './sequence.service.js';
 import { guardianStudentIds } from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
 import { studentName } from '../lib/names.js';
+import { installmentState, schoolToday } from '../lib/feeSchedule.js';
 
 /**
  * Fees.
@@ -150,7 +152,25 @@ export async function generateInvoices(
       select: { studentId: true },
     });
 
+    // A child on an installment plan is billed by it, the whole year at
+    // once. Billing them by period as well would charge them twice.
+    const onPlans = new Set(
+      (
+        await prisma.studentFeePlan.findMany({
+          where: {
+            academicYearId: input.academicYearId,
+            studentId: { in: enrolments.map((e) => e.studentId) },
+          },
+          select: { studentId: true },
+        })
+      ).map((p) => p.studentId),
+    );
+
     for (const enrolment of enrolments) {
+      if (onPlans.has(enrolment.studentId)) {
+        skipped += 1;
+        continue;
+      }
       const existing = await prisma.feeInvoice.findFirst({
         where: {
           studentId: enrolment.studentId,
@@ -372,6 +392,19 @@ export async function recordPayment(
       await settleInvoice(tx, allocation.invoiceId);
     }
 
+    // Follow-ups and their reminders stop the moment an installment is paid:
+    // a family who settled up is not to be called, or reminded, again.
+    const settled = await tx.feeInvoice.findMany({
+      where: { id: { in: plan.map((p) => p.invoiceId) }, status: 'PAID' },
+      select: { id: true },
+    });
+    if (settled.length > 0) {
+      await tx.feeFollowUp.updateMany({
+        where: { invoiceId: { in: settled.map((i) => i.id) }, status: 'PENDING' },
+        data: { status: 'CANCELLED', closedAt: new Date(), closedReason: 'Paid' },
+      });
+    }
+
     return { receiptNo, paymentId: payment.id };
   });
 
@@ -515,16 +548,7 @@ export async function cancelInvoice(
   });
 }
 
-export interface LedgerEntry {
-  invoiceNo: string;
-  periodLabel: string;
-  dueDate: string;
-  netInPaise: number;
-  paidInPaise: number;
-  outstandingInPaise: number;
-  status: string;
-  overdue: boolean;
-}
+export type LedgerEntry = FeeLedgerEntry;
 
 /** A child's fee card: what was billed, what was paid, what is still owed. */
 /**
@@ -550,6 +574,7 @@ export async function studentLedger(studentId: string): Promise<{
   invoices: LedgerEntry[];
   payments: Array<{ receiptNo: string; amountInPaise: number; paidOn: string; method: string }>;
   totals: { billed: number; paid: number; outstanding: number };
+  years: Array<{ id: string; name: string; isCurrent: boolean }>;
 }> {
   await assertMayReadLedger(studentId);
 
@@ -560,25 +585,45 @@ export async function studentLedger(studentId: string): Promise<{
   if (!student) throw ApiError.notFound('Student not found');
 
   const [invoices, payments] = await Promise.all([
-    prisma.feeInvoice.findMany({ where: { studentId }, orderBy: { dueDate: 'asc' } }),
+    prisma.feeInvoice.findMany({
+      where: { studentId },
+      orderBy: { dueDate: 'asc' },
+      include: { academicYear: { select: { id: true, name: true, isCurrent: true, startDate: true } } },
+    }),
     prisma.payment.findMany({ where: { studentId }, orderBy: { paidOn: 'desc' } }),
   ]);
 
-  const today = new Date();
+  const today = schoolToday(new Date());
   const entries: LedgerEntry[] = invoices.map((invoice) => {
     const outstanding = invoice.netInPaise - invoice.paidInPaise;
+    const dueDate = invoice.dueDate.toISOString().slice(0, 10);
+    const state = installmentState(
+      { status: invoice.status, netInPaise: invoice.netInPaise, paidInPaise: invoice.paidInPaise, dueDate },
+      today,
+    );
     return {
+      id: invoice.id,
       invoiceNo: invoice.invoiceNo,
       periodLabel: invoice.periodLabel,
-      dueDate: invoice.dueDate.toISOString().slice(0, 10),
+      academicYearId: invoice.academicYearId,
+      academicYearName: invoice.academicYear.name,
+      dueDate,
       netInPaise: invoice.netInPaise,
       paidInPaise: invoice.paidInPaise,
       outstandingInPaise: outstanding,
       status: invoice.status,
       // Derived, never stored.
-      overdue: outstanding > 0 && invoice.status !== 'CANCELLED' && invoice.dueDate < today,
+      state,
+      overdue: state === 'OVERDUE',
     };
   });
+
+  // The years this child has fees in, newest first, for the year filter.
+  const years = [
+    ...new Map(invoices.map((i) => [i.academicYear.id, i.academicYear])).values(),
+  ]
+    .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
+    .map((y) => ({ id: y.id, name: y.name, isCurrent: y.isCurrent }));
 
   const billed = entries
     .filter((e) => e.status !== 'CANCELLED')
@@ -594,6 +639,81 @@ export async function studentLedger(studentId: string): Promise<{
       method: p.method,
     })),
     totals: { billed, paid, outstanding: billed - paid },
+    years,
+  };
+}
+
+/**
+ * One installment as a family opens it: what it is for, line by line, and
+ * the money actually recorded against it. Nothing here is the client's say —
+ * the state is read from the payments.
+ */
+export async function invoiceDetail(invoiceId: string): Promise<FeeInvoiceDetail> {
+  const invoice = await prisma.feeInvoice.findFirst({
+    where: { id: invoiceId },
+    include: {
+      academicYear: { select: { name: true } },
+      lines: { orderBy: { amountInPaise: 'desc' } },
+      allocations: {
+        include: { payment: true },
+        orderBy: { payment: { paidOn: 'asc' } },
+      },
+      studentFeePlan: { select: { plan: { select: { name: true } } } },
+    },
+  });
+  if (!invoice) throw ApiError.notFound('Invoice not found');
+  await assertMayReadLedger(invoice.studentId);
+
+  // Its place in the plan: "2 of 4", counting the plan's live installments.
+  let plan: FeeInvoiceDetail['plan'] = null;
+  if (invoice.studentFeePlanId && invoice.studentFeePlan) {
+    const siblings = await prisma.feeInvoice.findMany({
+      where: { studentFeePlanId: invoice.studentFeePlanId, status: { not: 'CANCELLED' } },
+      orderBy: { dueDate: 'asc' },
+      select: { id: true },
+    });
+    const index = siblings.findIndex((s) => s.id === invoice.id);
+    plan = {
+      name: invoice.studentFeePlan.plan.name,
+      position: index >= 0 ? index + 1 : 0,
+      count: siblings.length,
+    };
+  }
+
+  const dueDate = invoice.dueDate.toISOString().slice(0, 10);
+  return {
+    id: invoice.id,
+    invoiceNo: invoice.invoiceNo,
+    periodLabel: invoice.periodLabel,
+    academicYearId: invoice.academicYearId,
+    academicYearName: invoice.academicYear.name,
+    issuedOn: invoice.issuedOn.toISOString().slice(0, 10),
+    dueDate,
+    status: invoice.status,
+    state: installmentState(
+      { status: invoice.status, netInPaise: invoice.netInPaise, paidInPaise: invoice.paidInPaise, dueDate },
+      schoolToday(new Date()),
+    ),
+    grossInPaise: invoice.grossInPaise,
+    discountInPaise: invoice.discountInPaise,
+    netInPaise: invoice.netInPaise,
+    paidInPaise: invoice.paidInPaise,
+    outstandingInPaise: invoice.netInPaise - invoice.paidInPaise,
+    lines: invoice.lines.map((line) => ({
+      description: line.description,
+      amountInPaise: line.amountInPaise,
+      discountInPaise: line.discountInPaise,
+    })),
+    payments: invoice.allocations.map((allocation) => ({
+      id: allocation.payment.id,
+      receiptNo: allocation.payment.receiptNo,
+      paidOn: allocation.payment.paidOn.toISOString().slice(0, 10),
+      method: allocation.payment.method,
+      reference: allocation.payment.reference,
+      amountInPaise: allocation.amountInPaise,
+      status: allocation.payment.status,
+    })),
+    plan,
   };
 }
 

@@ -37,6 +37,7 @@ import {
   gameKeyParamSchema,
   gamesSettingsSchema,
   updateGameSchema,
+  saveGoogleDriveSettingsSchema,
 } from '@poetree/shared';
 import type {
   CreateBookSubjectInput,
@@ -73,6 +74,7 @@ import type {
   GameKey,
   GamesSettingsInput,
   UpdateGameInput,
+  SaveGoogleDriveSettingsInput,
 } from '@poetree/shared';
 import multer from 'multer';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -95,6 +97,7 @@ import * as chapters from '../services/chapter.service.js';
 import * as questions from '../services/question.service.js';
 import * as tracing from '../services/tracing.service.js';
 import * as games from '../services/games.service.js';
+import * as drive from '../services/drive.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -926,5 +929,41 @@ publicationRouter.patch(
       req.auth!.userId,
     );
     res.json(await games.adminView());
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Google Drive — Poetree's Google sign-in, and each school's own Drive        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Set once for the whole platform: it tells Google "this is Poetree". Every
+ * school then connects its own, separate Google Drive through it from its
+ * Gallery page, and is listed here with the account it used.
+ */
+publicationRouter.get(
+  '/google-drive',
+  asyncHandler(async (_req, res) => {
+    res.json(await drive.googleDriveSettings());
+  }),
+);
+
+publicationRouter.put(
+  '/google-drive',
+  validate({ body: saveGoogleDriveSettingsSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await drive.saveGoogleDriveSettings(
+        body<SaveGoogleDriveSettingsInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+publicationRouter.delete(
+  '/google-drive',
+  asyncHandler(async (req, res) => {
+    res.json(await drive.clearGoogleDriveSettings(req.auth!.userId));
   }),
 );

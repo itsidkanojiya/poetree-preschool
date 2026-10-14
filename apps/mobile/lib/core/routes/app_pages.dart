@@ -17,6 +17,7 @@ import '../../features/auth/change_password_view.dart';
 import '../../features/auth/login_view.dart';
 import '../../features/auth/registration_controller.dart';
 import '../../features/auth/registration_view.dart';
+import '../../features/gallery/gallery_media_view.dart';
 import '../../features/gallery/gallery_view.dart';
 import '../../features/notifications/inbox_controller.dart';
 import '../../features/notifications/inbox_view.dart';

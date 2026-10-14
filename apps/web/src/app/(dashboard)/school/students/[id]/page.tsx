@@ -7,6 +7,7 @@ import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layo
 import { IconArrowLeft, IconChart, IconSpark } from '@/components/icons';
 import { formatDate } from '@/lib/format';
 import { AttachDocumentForm, RemoveDocumentButton, StudentPhotoForm } from './forms';
+import { FeePlanCard } from './fee-plan';
 
 const TYPE_LABELS: Record<string, string> = {
   PHOTO: 'Photograph',
@@ -171,6 +172,8 @@ export default async function StudentDetailPage({
         </div>
 
         <div className="space-y-5">
+          <FeePlanCard studentId={student.id} studentName={student.fullName} />
+
           <Card
             title="Documents"
             description="Certificates and paperwork. Private — only this school and this child’s guardians can open them."

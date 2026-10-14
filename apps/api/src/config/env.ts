@@ -88,8 +88,29 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((v) => v === 'true'),
+
+    /**
+     * Seals what Google gives Poetree — its client secret and each school's
+     * Drive token — before they are stored. Optional: without it the key is
+     * derived from JWT_REFRESH_SECRET, so nothing needs setting up. Set it (32
+     * random bytes, base64: openssl rand -base64 32) to keep the two apart;
+     * either way, changing it means the Super Admin enters the Google client
+     * secret again and every school connects its Drive again.
+     *
+     * Poetree's Google sign-in itself — client id, secret, redirect address —
+     * is set by the Super Admin in the portal, not here.
+     */
+    DRIVE_TOKEN_KEY: z.string().optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.DRIVE_TOKEN_KEY && Buffer.from(value.DRIVE_TOKEN_KEY, 'base64').length !== 32) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DRIVE_TOKEN_KEY'],
+        message: 'DRIVE_TOKEN_KEY must be 32 random bytes, base64 (openssl rand -base64 32)',
+      });
+    }
+
     if (value.JWT_ACCESS_SECRET === value.JWT_REFRESH_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

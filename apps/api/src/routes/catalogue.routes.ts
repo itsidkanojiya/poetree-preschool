@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { idParamSchema, idSchema } from '@poetree/shared';
+import { bookSubjectIdSchema, idParamSchema, idSchema } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { body, params, query, validate } from '../middleware/validate.js';
@@ -22,7 +22,7 @@ const watchedBodySchema = z.object({ studentId: idSchema });
 
 /** A subject's id, or `none` for the books nobody has filed yet. */
 const subjectQuerySchema = z.object({
-  subjectId: z.union([idSchema, z.literal('none')]).optional(),
+  subjectId: z.union([bookSubjectIdSchema, z.literal('none')]).optional(),
 });
 
 /**

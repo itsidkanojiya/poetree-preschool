@@ -357,6 +357,42 @@ describe.skipIf(!dbUp)('books to read and films to watch', () => {
       expect(cleared.body.icon).toBe('globe');
     });
   });
+  describe('the subjects the platform shipped with', () => {
+    it('can be edited, filed under and opened, though their ids are not cuids', async () => {
+      // As the 2026-09-27 migration seeded them: readable ids, not cuids.
+      await prismaUnscoped.bookSubject.create({
+        data: { id: 'subj_rhymes', code: 'RHYMES', name: 'Rhymes', icon: 'music', sortOrder: 7 },
+      });
+
+      const renamed = await api
+        .patch(`${BASE}/publication/book-subjects/subj_rhymes`)
+        .set(auth(publisher))
+        .send({ name: 'Rhymes and songs', icon: 'music' });
+      expect(renamed.status).toBe(200);
+
+      const filed = await api
+        .patch(`${BASE}/publication/books/${openBookId}`)
+        .set(auth(publisher))
+        .send({ name: 'English Book', subjectId: 'subj_rhymes' });
+      expect(filed.status).toBe(200);
+
+      for (const path of ['books', 'films']) {
+        const opened = await api
+          .get(`${BASE}/catalogue/children/${school.studentId}/${path}`)
+          .query({ subjectId: 'subj_rhymes' })
+          .set(auth(parent));
+        expect(opened.status, path).toBe(200);
+      }
+
+      // Still only ids: anything else is refused before it reaches a query.
+      const odd = await api
+        .patch(`${BASE}/publication/book-subjects/subj-rhymes;1`)
+        .set(auth(publisher))
+        .send({ name: 'Nope' });
+      expect(odd.status).toBe(400);
+    });
+  });
+
   describe('making a book’s PDF smaller', () => {
     async function upload(label: string): Promise<string> {
       const response = await api

@@ -12,6 +12,7 @@ import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { guardianStudentIds, teacherClassroomIds } from './scope.service.js';
 import { notifySafe } from './notification.service.js';
+import { schoolDays } from '../lib/schoolDay.js';
 
 /**
  * Who a published notice should reach.
@@ -160,6 +161,16 @@ export async function listNotices(query: ListNoticesQuery): Promise<Paginated<No
   if (query.type) where.type = query.type;
   if (query.status && context.role === 'SCHOOL_ADMIN') where.status = query.status;
   if (query.search) where.title = { contains: query.search };
+
+  // Narrowed within what this caller may see, never widened: an expired notice
+  // stays hidden from a parent whatever day they ask about.
+  const days = schoolDays(query.from, query.to);
+  if (days) {
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      { publishAt: { gte: days.start, lt: days.end } },
+    ];
+  }
 
   const [rows, total] = await Promise.all([
     prisma.notice.findMany({

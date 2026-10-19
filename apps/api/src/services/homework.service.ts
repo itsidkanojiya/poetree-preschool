@@ -26,6 +26,7 @@ import {
 } from './scope.service.js';
 import { guardianUserIdsFor, notifySafe } from './notification.service.js';
 import { studentName } from '../lib/names.js';
+import { schoolDays } from '../lib/schoolDay.js';
 
 /**
  * Tells the class's guardians that work has been set.
@@ -147,6 +148,21 @@ export async function listHomework(query: ListHomeworkQuery): Promise<Paginated<
   if (query.classroomId) where.classroomId = query.classroomId;
   if (query.status) where.status = query.status;
   if (query.search) where.title = { contains: query.search };
+
+  // A day's homework is what was set that day or is due that day: the parent's
+  // calendar asks for a month at a time and sorts it into days itself.
+  const days = schoolDays(query.from, query.to);
+  if (days) {
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      {
+        OR: [
+          { dueDate: { gte: days.firstDate, lte: days.lastDate } },
+          { assignedOn: { gte: days.start, lt: days.end } },
+        ],
+      },
+    ];
+  }
 
   const [rows, total] = await Promise.all([
     prisma.homework.findMany({

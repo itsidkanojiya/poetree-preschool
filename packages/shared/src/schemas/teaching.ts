@@ -52,6 +52,9 @@ export const updateHomeworkSchema = createHomeworkSchema
   .partial();
 export type UpdateHomeworkInput = z.infer<typeof updateHomeworkSchema>;
 
+/** A day on the school's calendar, as YYYY-MM-DD in the school's own time zone. */
+const schoolDaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-10-08');
+
 export const listHomeworkQuerySchema = paginationQuerySchema.extend({
   classroomId: idSchema.optional(),
   status: z.enum(PUBLISH_STATUSES).optional(),
@@ -62,6 +65,12 @@ export const listHomeworkQuerySchema = paginationQuerySchema.extend({
    * cannot answer it. Ignored unless the caller may read that child.
    */
   studentId: idSchema.optional(),
+  /**
+   * Only work set or due on these school days, both included — what a
+   * calendar shows for a month, or for one day.
+   */
+  from: schoolDaySchema.optional(),
+  to: schoolDaySchema.optional(),
 });
 export type ListHomeworkQuery = z.infer<typeof listHomeworkQuerySchema>;
 
@@ -210,6 +219,9 @@ export type CreateNoticeInput = z.infer<typeof createNoticeSchema>;
 export const listNoticesQuerySchema = paginationQuerySchema.extend({
   type: z.enum(NOTICE_TYPES).optional(),
   status: z.enum(PUBLISH_STATUSES).optional(),
+  /** Only notices published on these school days, both included. */
+  from: schoolDaySchema.optional(),
+  to: schoolDaySchema.optional(),
 });
 export type ListNoticesQuery = z.infer<typeof listNoticesQuerySchema>;
 

@@ -53,6 +53,19 @@ export const BOOK_SUBJECT_ICONS = [
 ] as const;
 export type BookSubjectIcon = (typeof BOOK_SUBJECT_ICONS)[number];
 
+/**
+ * A book subject's id.
+ *
+ * The eight subjects the platform shipped with were seeded by a migration with
+ * readable ids — subj_english, subj_maths — while every subject added since
+ * has a cuid. Both are real ids, and checking for a cuid alone refused every
+ * edit to the first eight and every book filed under them.
+ */
+export const bookSubjectIdSchema = z.union([
+  idSchema,
+  z.string().regex(/^subj_[a-z0-9_]{1,40}$/, 'Invalid id'),
+]);
+
 export const createBookSubjectSchema = z.object({
   name: z.string().trim().min(2).max(80),
   /** Derived from the name when not given. */
@@ -109,7 +122,7 @@ export const createBookSchema = z.object({
    * What the book is about. Optional so an unfiled book still saves — it shows
    * under "More books" in the app until somebody files it.
    */
-  subjectId: idSchema.nullish(),
+  subjectId: bookSubjectIdSchema.nullish(),
   classLevelId: idSchema,
   sortOrder: z.number().int().min(0).max(999).optional(),
   coverFileId: idSchema.nullish(),

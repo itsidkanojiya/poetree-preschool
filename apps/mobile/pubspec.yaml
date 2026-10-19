@@ -144,6 +144,9 @@ flutter:
     - assets/ui/
     # The gallery's photo, video and album screens: the designer's line icons.
     - assets/gallery_ui/icons/
+    # The attendance calendar and a day's details: status, homework and notice
+    # line icons, and the empty states.
+    - assets/attendance_ui/
     # The learning games: their content data, game icons and characters.
     - assets/games/
     - assets/games/icons/

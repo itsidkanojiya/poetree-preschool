@@ -7,6 +7,7 @@ import {
   assignSubscriptionSchema,
   createActivitySchema,
   BOOK_PDF_MAX_BYTES,
+  bookSubjectIdSchema,
   createBookSchema,
   createChapterSchema,
   reorderChaptersSchema,
@@ -78,6 +79,7 @@ import type {
   SaveGoogleDriveSettingsInput,
 } from '@poetree/shared';
 import multer from 'multer';
+import { z } from 'zod';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { ApiError } from '../lib/apiError.js';
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, sniffMime, storage, typeFor } from '../lib/storage.js';
@@ -508,7 +510,7 @@ publicationRouter.post(
 /** Never deleted, only switched off — its books fall back to "More books". */
 publicationRouter.patch(
   '/book-subjects/:id',
-  validate({ params: idParamSchema, body: updateBookSubjectSchema }),
+  validate({ params: z.object({ id: bookSubjectIdSchema }), body: updateBookSubjectSchema }),
   asyncHandler(async (req, res) => {
     res.json(
       await bookSubjects.updateBookSubject(

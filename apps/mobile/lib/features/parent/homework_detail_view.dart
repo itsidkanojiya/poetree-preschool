@@ -49,10 +49,20 @@ String _day(String iso) {
 /// sending work in updates this screen without a round trip through a
 /// navigator result.
 class HomeworkDetailPage extends StatelessWidget {
-  const HomeworkDetailPage({required this.child, required this.id, super.key});
+  const HomeworkDetailPage({
+    required this.child,
+    required this.id,
+    this.fallback,
+    super.key,
+  });
 
   final ChildController child;
   final String id;
+
+  /// The work as the opener already has it, for work older than the recent
+  /// list holds — a day opened from the attendance calendar weeks back. Sending
+  /// work in updates it in place, so this screen still shows the answer.
+  final HomeworkItem? fallback;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +72,8 @@ class HomeworkDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Homework')),
       body: Obx(() {
-        final item = child.homework.firstWhereOrNull((h) => h.id == id);
+        final item =
+            child.homework.firstWhereOrNull((h) => h.id == id) ?? fallback;
         if (item == null) {
           return const Center(child: Text('This work is no longer set.'));
         }

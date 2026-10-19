@@ -288,8 +288,8 @@ class _ProfileTab extends StatelessWidget {
                   icon: 'notices',
                   color: FeeInk.amber,
                   wash: const Color(0xFFFFF6E5),
-                  title: 'Notices',
-                  subtitle: 'Announcements from the school',
+                  title: 'Announcements',
+                  subtitle: 'News and reminders from the school',
                   onTap: () => Get.to<void>(() => _NoticesPage(child: child)),
                 ),
                 if (selected?.classroomId != null) ...[
@@ -1069,7 +1069,7 @@ class _ProgressTab extends StatelessWidget {
   }
 }
 
-/// Notices on their own page, reached from Profile.
+/// The school's announcements on their own page, reached from Settings.
 class _NoticesPage extends StatelessWidget {
   const _NoticesPage({required this.child});
 
@@ -1078,7 +1078,7 @@ class _NoticesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notices')),
+      appBar: AppBar(title: const Text('Announcements')),
       body: _NoticesTab(child: child),
     );
   }
@@ -1989,7 +1989,7 @@ class _NoticesTab extends StatelessWidget {
       return ListView(
         children: const [
           SizedBox(height: 80),
-          Center(child: Text('No notices from the school.')),
+          Center(child: Text('No announcements from the school yet.')),
         ],
       );
     }

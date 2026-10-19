@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 /// The parent app's bottom bar on a phone: Home, Learning, Progress, Settings.
 ///
-/// Drawn to the designer's bar — white, rounded along the top, a soft shadow;
-/// the chosen tab warm orange on a pale cream pill, the others a quiet
-/// blue-grey. Each tab is a quarter of the bar and the full height of it, so a
+/// Drawn to the designer's reference: a near-white bar, rounded along the
+/// top, with the friendly full-colour icons from that reference — the orange
+/// house, the cap, the rainbow bars, the blue gear. Each tab sits on its own
+/// soft pastel blob; the chosen one sits in a warm cream pill instead, its
+/// word in orange. Every tab is a quarter of the bar and its full height, so a
 /// small thumb cannot miss.
 ///
 /// It holds no selection of its own. [selected] is the shell's tab, the one a
@@ -23,10 +24,10 @@ class ParentTabBar extends StatelessWidget {
 
   /// In the shell's order: the index is the tab.
   static const _tabs = [
-    ('home', 'Home'),
-    ('learning', 'Learning'),
-    ('progress', 'Progress'),
-    ('settings', 'Settings'),
+    _TabArt('home', 'Home', Color(0xFFFFEFD9)),
+    _TabArt('learning', 'Learning', Color(0xFFECEBFD)),
+    _TabArt('progress', 'Progress', Color(0xFFE5F6EE)),
+    _TabArt('settings', 'Settings', Color(0xFFE6EFFD)),
   ];
 
   @override
@@ -35,17 +36,23 @@ class ParentTabBar extends StatelessWidget {
     final surface = dark
         ? Theme.of(context).navigationBarTheme.backgroundColor ??
               Theme.of(context).colorScheme.surface
-        : Colors.white;
+        : const Color(0xFFF8F9FE);
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border(
+          top: BorderSide(
+            color: dark ? Colors.white10 : Colors.white,
+            width: 1.5,
+          ),
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1D2560).withValues(alpha: dark ? 0.3 : 0.06),
-            blurRadius: 20,
-            offset: const Offset(0, -2),
+            color: const Color(0xFF1D2560).withValues(alpha: dark ? 0.3 : 0.07),
+            blurRadius: 24,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
@@ -55,14 +62,13 @@ class ParentTabBar extends StatelessWidget {
         // never flush to the edge on a phone that reports no inset.
         minimum: const EdgeInsets.only(bottom: 8),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 2),
           child: Row(
             children: [
-              for (final (index, (icon, label)) in _tabs.indexed)
+              for (final (index, art) in _tabs.indexed)
                 Expanded(
                   child: _Tab(
-                    icon: icon,
-                    label: label,
+                    art: art,
                     active: index == selected,
                     dark: dark,
                     onTap: () => onSelect(index),
@@ -76,73 +82,115 @@ class ParentTabBar extends StatelessWidget {
   }
 }
 
+/// A tab's picture, its word, and the pastel its blob is drawn in.
+class _TabArt {
+  const _TabArt(this.icon, this.label, this.blob);
+
+  /// The file in assets/images/bottom_nav, without `.png`.
+  final String icon;
+  final String label;
+  final Color blob;
+}
+
 class _Tab extends StatelessWidget {
   const _Tab({
-    required this.icon,
-    required this.label,
+    required this.art,
     required this.active,
     required this.dark,
     required this.onTap,
   });
 
-  final String icon;
-  final String label;
+  final _TabArt art;
   final bool active;
   final bool dark;
   final VoidCallback onTap;
 
   static const _orange = Color(0xFFF28C1B);
-  static const _cream = Color(0xFFFFF0DA);
-  static const _quiet = Color(0xFF7A86A8);
+  static const _quiet = Color(0xFF66729A);
   static const _quietDark = Color(0xFFA3AECB);
 
-  static const _motion = Duration(milliseconds: 220);
+  static const _motion = Duration(milliseconds: 240);
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? _orange : (dark ? _quietDark : _quiet);
+    final labelColor = active ? _orange : (dark ? _quietDark : _quiet);
 
     return Semantics(
       button: true,
       selected: active,
-      label: label,
+      label: art.label,
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 3),
           child: AnimatedContainer(
             duration: _motion,
             curve: Curves.easeOutCubic,
-            height: 66,
+            height: 84,
             decoration: BoxDecoration(
-              color: active
-                  ? (dark ? _orange.withValues(alpha: 0.18) : _cream)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(22),
+              // The chosen tab's warm pill; nothing behind the others.
+              gradient: active
+                  ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: dark
+                          ? [
+                              _orange.withValues(alpha: 0.22),
+                              _orange.withValues(alpha: 0.14),
+                            ]
+                          : const [Color(0xFFFFF4E4), Color(0xFFFFEBD0)],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: active && !dark
+                  ? [
+                      BoxShadow(
+                        color: _orange.withValues(alpha: 0.16),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedSwitcher(
-                  duration: _motion,
-                  transitionBuilder: (child, animation) => ScaleTransition(
-                    scale: Tween<double>(
-                      begin: 0.85,
-                      end: 1,
-                    ).animate(animation),
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
-                  child: SvgPicture.asset(
-                    'assets/images/bottom_nav/${active ? '${icon}_filled' : icon}.svg',
-                    key: ValueKey('$icon-$active'),
-                    width: 28,
-                    height: 28,
-                    // Through currentColor rather than a colour filter, so a
-                    // filled icon's own white — the hole in the gear — stays
-                    // white.
-                    theme: SvgTheme(currentColor: color),
+                SizedBox(
+                  width: 58,
+                  height: 48,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Each tab's own soft blob, giving way to the pill.
+                      AnimatedOpacity(
+                        duration: _motion,
+                        opacity: active ? 0 : 1,
+                        child: Container(
+                          width: 56,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: dark
+                                ? art.blob.withValues(alpha: 0.16)
+                                : art.blob,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                      ),
+                      AnimatedScale(
+                        duration: _motion,
+                        curve: Curves.easeOutBack,
+                        scale: active ? 1.1 : 1,
+                        child: Image.asset(
+                          'assets/images/bottom_nav/${art.icon}.png',
+                          width: 38,
+                          height: 38,
+                          filterQuality: FilterQuality.medium,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -155,11 +203,11 @@ class _Tab extends StatelessWidget {
                       fontFamily: Theme.of(
                         context,
                       ).textTheme.labelMedium?.fontFamily,
-                      fontSize: 12.5,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w600,
-                      color: color,
+                      fontSize: 13.5,
+                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                      color: labelColor,
                     ),
-                    child: Text(label, maxLines: 1),
+                    child: Text(art.label, maxLines: 1),
                   ),
                 ),
               ],

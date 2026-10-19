@@ -118,7 +118,7 @@ export default async function TeacherTodayPage() {
           )}
         </Card>
 
-        <Card title="Notices" className="xl:col-span-2">
+        <Card title="Announcements" className="xl:col-span-2">
           {notices.items.length === 0 ? (
             <EmptyState title="Nothing from the school office" />
           ) : (

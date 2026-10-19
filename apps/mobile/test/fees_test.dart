@@ -478,7 +478,7 @@ void main() {
         'Settings',
         'Aarav Shah',
         'Fees',
-        'Notices',
+        'Announcements',
         'Timetable',
         'Class Stream',
         'ID Card',

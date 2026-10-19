@@ -21,12 +21,12 @@ export default async function NoticesPage() {
   return (
     <>
       <PageHeader
-        title="Notices"
-        description="Announcements to parents, teachers, or specific classes."
+        title="Announcements"
+        description="News and reminders for parents, teachers, or specific classes."
         action={
           <Link href="/school/notices/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
             <IconPlus size={17} />
-            Write a notice
+            Write an announcement
           </Link>
         }
       />
@@ -37,7 +37,7 @@ export default async function NoticesPage() {
           description="Read counts show how many recipients have opened each one."
         >
           {notices.items.length === 0 ? (
-            <EmptyState title="No notices yet" description="Nothing has been sent to families yet." />
+            <EmptyState title="No announcements yet" description="Nothing has been sent to families yet." />
           ) : (
             <ul className="space-y-2.5">
               {notices.items.map((notice) => (

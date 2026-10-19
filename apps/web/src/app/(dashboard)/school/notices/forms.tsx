@@ -34,7 +34,7 @@ export function NewNoticeForm({ classrooms }: { classrooms: ClassroomSummary[] }
       <FormSuccess message={state.success} />
 
       {type === 'EMERGENCY' && (
-        <Notice tone="danger" title="Emergency notices bypass the daily digest">
+        <Notice tone="danger" title="Emergency announcements bypass the daily digest">
           This is pushed immediately rather than batched. Use it for something that genuinely
           cannot wait.
         </Notice>
@@ -88,7 +88,7 @@ export function NewNoticeForm({ classrooms }: { classrooms: ClassroomSummary[] }
         <Input name="title" required placeholder="Sports day on Friday" />
       </Field>
 
-      <Field label="Notice" required>
+      <Field label="Announcement" required>
         <Textarea name="body" rows={4} required placeholder="Please send children in sports uniform." />
       </Field>
 
@@ -109,7 +109,7 @@ export function NewNoticeForm({ classrooms }: { classrooms: ClassroomSummary[] }
         </label>
       </div>
 
-      <SubmitButton pendingLabel="Publishing…">Publish notice</SubmitButton>
+      <SubmitButton pendingLabel="Publishing…">Publish announcement</SubmitButton>
     </form>
   );
 }

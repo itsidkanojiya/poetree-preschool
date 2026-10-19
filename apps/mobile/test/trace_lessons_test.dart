@@ -42,7 +42,7 @@ void main() {
   });
 
   test('a picture is used only once it is really in the app', () {
-    const apple = 'assets/student_learning_ui_assets/icons/apple.svg';
+    const apple = 'assets/letters/en/apple.webp';
     final without = TraceLessons.from(shipped(), const {}).forGlyph('A');
     final withIt = TraceLessons.from(shipped(), {apple}).forGlyph('A');
 
@@ -50,25 +50,39 @@ void main() {
     expect(withIt.imagePath, apple);
   });
 
-  test('a letter has a picture only where one shows its word', () {
+  test('every letter has its own picture from the book', () {
     final glyphs = shipped();
+    final without = <String>[];
     for (final entry in glyphs.entries) {
       final value = entry.value as Map<String, dynamic>;
-      if (value['kind'] != 'letter' || value['image'] == null) continue;
-      final image = value['image'] as String;
-      // The pack names its pictures after what they show.
-      final shows = image.split('/').last.split('.').first;
-      const words = {
-        'apple': ['Apple', 'सेब', 'સફરજન'],
-        'ball': ['Ball', 'गेंद', 'દડો'],
-        'cat': ['Cat', 'बिल्ली', 'બિલાડી'],
-        'dog': ['Dog', 'કૂતરો'],
-        'elephant': ['Elephant', 'हाथी', 'હાથી'],
-        'fish': ['Fish', 'मछली', 'માછલી'],
-        'flower': ['फूल', 'ફૂલ'],
-      };
-      expect(words[shows], contains(value['word']), reason: entry.key);
+      if (value['kind'] != 'letter') continue;
+      final image = value['image'] as String?;
+      if (image == null) {
+        without.add(entry.key);
+        continue;
+      }
+      expect(File(image).existsSync(), isTrue, reason: entry.key);
+      final name = image.split('/').last.split('.').first;
+      if (value['language'] == 'en') {
+        // English pictures are named after what they show: X-mas Tree is
+        // xmas_tree.
+        final word = (value['word'] as String).toLowerCase();
+        expect(
+          name,
+          word.replaceAll('-', '').replaceAll(' ', '_'),
+          reason: entry.key,
+        );
+      } else {
+        // Hindi and Gujarati pictures are named after their letter's code
+        // points, so one letter can never show another's picture.
+        final points = entry.key.runes.map(
+          (c) => c.toRadixString(16).padLeft(4, '0'),
+        );
+        expect(name, 'u${points.join('_')}', reason: entry.key);
+      }
     }
+    // The Hindi book has no picture for श्र.
+    expect(without, ['श्र']);
   });
 
   test('a letter with no lesson still has something to say', () {
@@ -133,12 +147,12 @@ void main() {
 
     final hindi = lessons.forGlyph('अ');
     expect(hindi.language, 'hi');
-    expect(hindi.word, 'अनार');
-    expect(hindi.phrase, 'अ से अनार');
+    expect(hindi.word, 'अनानस');
+    expect(hindi.phrase, 'अ से अनानस');
 
     final gujarati = lessons.forGlyph('અ');
     expect(gujarati.language, 'gu');
-    expect(gujarati.word, 'અનાર');
+    expect(gujarati.word, 'અજગર');
 
     for (final glyph in [
       'अ',

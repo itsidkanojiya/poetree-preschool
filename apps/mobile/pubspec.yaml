@@ -119,6 +119,11 @@ flutter:
     # object pictures for it. See assets/tracing/objects/README.md.
     - assets/tracing/
     - assets/tracing/objects/
+    # Every letter's picture — A for Apple, अ से अनानस, અ - અજગર — from the
+    # school's English, Hindi and Gujarati books.
+    - assets/letters/en/
+    - assets/letters/hi/
+    - assets/letters/gu/
     # The tracing lesson screen's icons, from the designer's asset pack.
     - assets/tracing_ui/
     # The learning pack: category art, icons, and the pictures a letter is

@@ -17,10 +17,10 @@ export async function createNoticeAction(
   const audience = String(formData.get('audience') ?? 'ALL');
   const classroomIds = formData.getAll('classroomIds').map(String).filter(Boolean);
 
-  if (title.length < 2) return { error: 'Give the notice a title.' };
-  if (body.length < 2) return { error: 'Write the notice.' };
+  if (title.length < 2) return { error: 'Give the announcement a title.' };
+  if (body.length < 2) return { error: 'Write the announcement.' };
   if (audience === 'CLASSROOMS' && classroomIds.length === 0) {
-    return { error: 'Choose at least one class for a class-specific notice.' };
+    return { error: 'Choose at least one class for a class-specific announcement.' };
   }
 
   const expiresAt = String(formData.get('expiresAt') ?? '').trim();
@@ -41,7 +41,7 @@ export async function createNoticeAction(
       },
     });
   } catch (error) {
-    return { error: errorMessage(error, 'Could not publish the notice.') };
+    return { error: errorMessage(error, 'Could not publish the announcement.') };
   }
 
   revalidatePath('/school/notices');

@@ -5,162 +5,182 @@
       "kind": "letter",
       "language": "en",
       "word": "Apple",
-      "image": "assets/student_learning_ui_assets/icons/apple.svg",
+      "image": "assets/letters/en/apple.webp",
       "say": "A for Apple. Apple starts with A."
     },
     "B": {
       "kind": "letter",
       "language": "en",
       "word": "Ball",
-      "image": "assets/student_learning_ui_assets/icons/ball.svg",
+      "image": "assets/letters/en/ball.webp",
       "say": "B for Ball. Ball starts with B."
     },
     "C": {
       "kind": "letter",
       "language": "en",
       "word": "Cat",
-      "image": "assets/student_learning_ui_assets/icons/cat.svg",
+      "image": "assets/letters/en/cat.webp",
       "say": "C for Cat. Cat starts with C."
     },
     "D": {
       "kind": "letter",
       "language": "en",
       "word": "Dog",
-      "image": "assets/student_learning_ui_assets/icons/dog.svg",
+      "image": "assets/letters/en/dog.webp",
       "say": "D for Dog. Dog starts with D."
     },
     "E": {
       "kind": "letter",
       "language": "en",
       "word": "Elephant",
-      "image": "assets/student_learning_ui_assets/icons/elephant.svg",
+      "image": "assets/letters/en/elephant.webp",
       "say": "E for Elephant. Elephant starts with E."
     },
     "F": {
       "kind": "letter",
       "language": "en",
       "word": "Fish",
-      "image": "assets/student_learning_ui_assets/icons/fish.svg",
+      "image": "assets/letters/en/fish.webp",
       "say": "F for Fish. Fish starts with F."
     },
     "G": {
       "kind": "letter",
       "language": "en",
       "word": "Grapes",
+      "image": "assets/letters/en/grapes.webp",
       "say": "G for Grapes. Grapes starts with G."
     },
     "H": {
       "kind": "letter",
       "language": "en",
-      "word": "House",
-      "say": "H for House. House starts with H."
+      "word": "Hat",
+      "image": "assets/letters/en/hat.webp",
+      "say": "H for Hat. Hat starts with H."
     },
     "I": {
       "kind": "letter",
       "language": "en",
-      "word": "Ice cream",
-      "say": "I for Ice cream. Ice cream starts with I."
+      "word": "Inkpot",
+      "image": "assets/letters/en/inkpot.webp",
+      "say": "I for Inkpot. Inkpot starts with I."
     },
     "J": {
       "kind": "letter",
       "language": "en",
-      "word": "Juice",
-      "say": "J for Juice. Juice starts with J."
+      "word": "Joker",
+      "image": "assets/letters/en/joker.webp",
+      "say": "J for Joker. Joker starts with J."
     },
     "K": {
       "kind": "letter",
       "language": "en",
       "word": "Kite",
+      "image": "assets/letters/en/kite.webp",
       "say": "K for Kite. Kite starts with K."
     },
     "L": {
       "kind": "letter",
       "language": "en",
       "word": "Lion",
+      "image": "assets/letters/en/lion.webp",
       "say": "L for Lion. Lion starts with L."
     },
     "M": {
       "kind": "letter",
       "language": "en",
       "word": "Mango",
+      "image": "assets/letters/en/mango.webp",
       "say": "M for Mango. Mango starts with M."
     },
     "N": {
       "kind": "letter",
       "language": "en",
       "word": "Nest",
+      "image": "assets/letters/en/nest.webp",
       "say": "N for Nest. Nest starts with N."
     },
     "O": {
       "kind": "letter",
       "language": "en",
-      "word": "Orange",
-      "say": "O for Orange. Orange starts with O."
+      "word": "Owl",
+      "image": "assets/letters/en/owl.webp",
+      "say": "O for Owl. Owl starts with O."
     },
     "P": {
       "kind": "letter",
       "language": "en",
       "word": "Parrot",
+      "image": "assets/letters/en/parrot.webp",
       "say": "P for Parrot. Parrot starts with P."
     },
     "Q": {
       "kind": "letter",
       "language": "en",
       "word": "Queen",
+      "image": "assets/letters/en/queen.webp",
       "say": "Q for Queen. Queen starts with Q."
     },
     "R": {
       "kind": "letter",
       "language": "en",
       "word": "Rabbit",
+      "image": "assets/letters/en/rabbit.webp",
       "say": "R for Rabbit. Rabbit starts with R."
     },
     "S": {
       "kind": "letter",
       "language": "en",
       "word": "Sun",
+      "image": "assets/letters/en/sun.webp",
       "say": "S for Sun. Sun starts with S."
     },
     "T": {
       "kind": "letter",
       "language": "en",
-      "word": "Tree",
-      "say": "T for Tree. Tree starts with T."
+      "word": "Train",
+      "image": "assets/letters/en/train.webp",
+      "say": "T for Train. Train starts with T."
     },
     "U": {
       "kind": "letter",
       "language": "en",
       "word": "Umbrella",
+      "image": "assets/letters/en/umbrella.webp",
       "say": "U for Umbrella. Umbrella starts with U."
     },
     "V": {
       "kind": "letter",
       "language": "en",
       "word": "Van",
+      "image": "assets/letters/en/van.webp",
       "say": "V for Van. Van starts with V."
     },
     "W": {
       "kind": "letter",
       "language": "en",
-      "word": "Watermelon",
-      "say": "W for Watermelon. Watermelon starts with W."
+      "word": "Watch",
+      "image": "assets/letters/en/watch.webp",
+      "say": "W for Watch. Watch starts with W."
     },
     "X": {
       "kind": "letter",
       "language": "en",
-      "word": "Xylophone",
-      "say": "X for Xylophone. Xylophone starts with X."
+      "word": "X-mas Tree",
+      "image": "assets/letters/en/xmas_tree.webp",
+      "say": "X for X-mas Tree. X-mas Tree starts with X."
     },
     "Y": {
       "kind": "letter",
       "language": "en",
-      "word": "Yak",
-      "say": "Y for Yak. Yak starts with Y."
+      "word": "Yacht",
+      "image": "assets/letters/en/yacht.webp",
+      "say": "Y for Yacht. Yacht starts with Y."
     },
     "Z": {
       "kind": "letter",
       "language": "en",
       "word": "Zebra",
+      "image": "assets/letters/en/zebra.webp",
       "say": "Z for Zebra. Zebra starts with Z."
     },
     "0": {
@@ -443,14 +463,16 @@
     "अ": {
       "kind": "letter",
       "language": "hi",
-      "word": "अनार",
-      "phrase": "अ से अनार",
-      "say": "अ से अनार।"
+      "word": "अनानस",
+      "image": "assets/letters/hi/u0905.webp",
+      "phrase": "अ से अनानस",
+      "say": "अ से अनानस।"
     },
     "आ": {
       "kind": "letter",
       "language": "hi",
       "word": "आम",
+      "image": "assets/letters/hi/u0906.webp",
       "phrase": "आ से आम",
       "say": "आ से आम।"
     },
@@ -458,6 +480,7 @@
       "kind": "letter",
       "language": "hi",
       "word": "इमली",
+      "image": "assets/letters/hi/u0907.webp",
       "phrase": "इ से इमली",
       "say": "इ से इमली।"
     },
@@ -465,6 +488,7 @@
       "kind": "letter",
       "language": "hi",
       "word": "ईख",
+      "image": "assets/letters/hi/u0908.webp",
       "phrase": "ई से ईख",
       "say": "ई से ईख।"
     },
@@ -472,6 +496,7 @@
       "kind": "letter",
       "language": "hi",
       "word": "उल्लू",
+      "image": "assets/letters/hi/u0909.webp",
       "phrase": "उ से उल्लू",
       "say": "उ से उल्लू।"
     },
@@ -479,6 +504,7 @@
       "kind": "letter",
       "language": "hi",
       "word": "ऊन",
+      "image": "assets/letters/hi/u090a.webp",
       "phrase": "ऊ से ऊन",
       "say": "ऊ से ऊन।"
     },
@@ -486,280 +512,313 @@
       "kind": "letter",
       "language": "hi",
       "word": "ऋषि",
+      "image": "assets/letters/hi/u090b.webp",
       "phrase": "ऋ से ऋषि",
       "say": "ऋ से ऋषि।"
     },
     "ए": {
       "kind": "letter",
       "language": "hi",
-      "word": "एड़ी",
-      "phrase": "ए से एड़ी",
-      "say": "ए से एड़ी।"
+      "word": "एकता",
+      "image": "assets/letters/hi/u090f.webp",
+      "phrase": "ए से एकता",
+      "say": "ए से एकता।"
     },
     "ऐ": {
       "kind": "letter",
       "language": "hi",
-      "word": "ऐनक",
-      "phrase": "ऐ से ऐनक",
-      "say": "ऐ से ऐनक।"
+      "word": "ऐतिहासिक",
+      "image": "assets/letters/hi/u0910.webp",
+      "phrase": "ऐ से ऐतिहासिक",
+      "say": "ऐ से ऐतिहासिक।"
     },
     "ओ": {
       "kind": "letter",
       "language": "hi",
-      "word": "ओखली",
-      "phrase": "ओ से ओखली",
-      "say": "ओ से ओखली।"
+      "word": "ओस",
+      "image": "assets/letters/hi/u0913.webp",
+      "phrase": "ओ से ओस",
+      "say": "ओ से ओस।"
     },
     "औ": {
       "kind": "letter",
       "language": "hi",
-      "word": "औरत",
-      "phrase": "औ से औरत",
-      "say": "औ से औरत।"
+      "word": "औद्योगिक",
+      "image": "assets/letters/hi/u0914.webp",
+      "phrase": "औ से औद्योगिक",
+      "say": "औ से औद्योगिक।"
     },
     "अं": {
       "kind": "letter",
       "language": "hi",
       "word": "अंगूर",
+      "image": "assets/letters/hi/u0905_0902.webp",
       "phrase": "अं से अंगूर",
       "say": "अं से अंगूर।"
     },
     "क": {
       "kind": "letter",
       "language": "hi",
-      "word": "कबूतर",
-      "phrase": "क से कबूतर",
-      "say": "क से कबूतर।"
+      "word": "कमल",
+      "image": "assets/letters/hi/u0915.webp",
+      "phrase": "क से कमल",
+      "say": "क से कमल।"
     },
     "ख": {
       "kind": "letter",
       "language": "hi",
-      "word": "खरगोश",
-      "phrase": "ख से खरगोश",
-      "say": "ख से खरगोश।"
+      "word": "खरबूजा",
+      "image": "assets/letters/hi/u0916.webp",
+      "phrase": "ख से खरबूजा",
+      "say": "ख से खरबूजा।"
     },
     "ग": {
       "kind": "letter",
       "language": "hi",
-      "word": "गेंद",
-      "phrase": "ग से गेंद",
-      "image": "assets/student_learning_ui_assets/icons/ball.svg",
-      "say": "ग से गेंद।"
+      "word": "गगन",
+      "image": "assets/letters/hi/u0917.webp",
+      "phrase": "ग से गगन",
+      "say": "ग से गगन।"
     },
     "घ": {
       "kind": "letter",
       "language": "hi",
-      "word": "घड़ी",
-      "phrase": "घ से घड़ी",
-      "say": "घ से घड़ी।"
+      "word": "घोड़ा",
+      "image": "assets/letters/hi/u0918.webp",
+      "phrase": "घ से घोड़ा",
+      "say": "घ से घोड़ा।"
     },
     "च": {
       "kind": "letter",
       "language": "hi",
-      "word": "चम्मच",
-      "phrase": "च से चम्मच",
-      "say": "च से चम्मच।"
+      "word": "चूहा",
+      "image": "assets/letters/hi/u091a.webp",
+      "phrase": "च से चूहा",
+      "say": "च से चूहा।"
     },
     "छ": {
       "kind": "letter",
       "language": "hi",
-      "word": "छतरी",
-      "phrase": "छ से छतरी",
-      "say": "छ से छतरी।"
+      "word": "छल्ला",
+      "image": "assets/letters/hi/u091b.webp",
+      "phrase": "छ से छल्ला",
+      "say": "छ से छल्ला।"
     },
     "ज": {
       "kind": "letter",
       "language": "hi",
-      "word": "जहाज़",
-      "phrase": "ज से जहाज़",
-      "say": "ज से जहाज़।"
+      "word": "जानवर",
+      "image": "assets/letters/hi/u091c.webp",
+      "phrase": "ज से जानवर",
+      "say": "ज से जानवर।"
     },
     "झ": {
       "kind": "letter",
       "language": "hi",
-      "word": "झंडा",
-      "phrase": "झ से झंडा",
-      "say": "झ से झंडा।"
+      "word": "झोंपड़ी",
+      "image": "assets/letters/hi/u091d.webp",
+      "phrase": "झ से झोंपड़ी",
+      "say": "झ से झोंपड़ी।"
     },
     "ट": {
       "kind": "letter",
       "language": "hi",
-      "word": "टमाटर",
-      "phrase": "ट से टमाटर",
-      "say": "ट से टमाटर।"
+      "word": "टब",
+      "image": "assets/letters/hi/u091f.webp",
+      "phrase": "ट से टब",
+      "say": "ट से टब।"
     },
     "ठ": {
       "kind": "letter",
       "language": "hi",
-      "word": "ठठेरा",
-      "phrase": "ठ से ठठेरा",
-      "say": "ठ से ठठेरा।"
+      "word": "ठोस",
+      "image": "assets/letters/hi/u0920.webp",
+      "phrase": "ठ से ठोस",
+      "say": "ठ से ठोस।"
     },
     "ड": {
       "kind": "letter",
       "language": "hi",
-      "word": "डमरू",
-      "phrase": "ड से डमरू",
-      "say": "ड से डमरू।"
+      "word": "डोली",
+      "image": "assets/letters/hi/u0921.webp",
+      "phrase": "ड से डोली",
+      "say": "ड से डोली।"
     },
     "ढ": {
       "kind": "letter",
       "language": "hi",
       "word": "ढोलक",
+      "image": "assets/letters/hi/u0922.webp",
       "phrase": "ढ से ढोलक",
       "say": "ढ से ढोलक।"
     },
     "त": {
       "kind": "letter",
       "language": "hi",
-      "word": "तरबूज़",
-      "phrase": "त से तरबूज़",
-      "say": "त से तरबूज़।"
+      "word": "तितली",
+      "image": "assets/letters/hi/u0924.webp",
+      "phrase": "त से तितली",
+      "say": "त से तितली।"
     },
     "थ": {
       "kind": "letter",
       "language": "hi",
-      "word": "थरमस",
-      "phrase": "थ से थरमस",
-      "say": "थ से थरमस।"
+      "word": "थाना",
+      "image": "assets/letters/hi/u0925.webp",
+      "phrase": "थ से थाना",
+      "say": "थ से थाना।"
     },
     "द": {
       "kind": "letter",
       "language": "hi",
-      "word": "दवात",
-      "phrase": "द से दवात",
-      "say": "द से दवात।"
+      "word": "दादा",
+      "image": "assets/letters/hi/u0926.webp",
+      "phrase": "द से दादा",
+      "say": "द से दादा।"
     },
     "ध": {
       "kind": "letter",
       "language": "hi",
-      "word": "धनुष",
-      "phrase": "ध से धनुष",
-      "say": "ध से धनुष।"
+      "word": "धरती",
+      "image": "assets/letters/hi/u0927.webp",
+      "phrase": "ध से धरती",
+      "say": "ध से धरती।"
     },
     "न": {
       "kind": "letter",
       "language": "hi",
-      "word": "नल",
-      "phrase": "न से नल",
-      "say": "न से नल।"
+      "word": "नारियल",
+      "image": "assets/letters/hi/u0928.webp",
+      "phrase": "न से नारियल",
+      "say": "न से नारियल।"
     },
     "प": {
       "kind": "letter",
       "language": "hi",
-      "word": "पतंग",
-      "phrase": "प से पतंग",
-      "say": "प से पतंग।"
+      "word": "पान",
+      "image": "assets/letters/hi/u092a.webp",
+      "phrase": "प से पान",
+      "say": "प से पान।"
     },
     "फ": {
       "kind": "letter",
       "language": "hi",
-      "word": "फूल",
-      "phrase": "फ से फूल",
-      "image": "assets/student_learning_ui_assets/icons/flower.svg",
-      "say": "फ से फूल।"
+      "word": "फसल",
+      "image": "assets/letters/hi/u092b.webp",
+      "phrase": "फ से फसल",
+      "say": "फ से फसल।"
     },
     "ब": {
       "kind": "letter",
       "language": "hi",
-      "word": "बिल्ली",
-      "phrase": "ब से बिल्ली",
-      "image": "assets/student_learning_ui_assets/icons/cat.svg",
-      "say": "ब से बिल्ली।"
+      "word": "बस",
+      "image": "assets/letters/hi/u092c.webp",
+      "phrase": "ब से बस",
+      "say": "ब से बस।"
     },
     "भ": {
       "kind": "letter",
       "language": "hi",
       "word": "भालू",
+      "image": "assets/letters/hi/u092d.webp",
       "phrase": "भ से भालू",
       "say": "भ से भालू।"
     },
     "म": {
       "kind": "letter",
       "language": "hi",
-      "word": "मछली",
-      "phrase": "म से मछली",
-      "image": "assets/student_learning_ui_assets/icons/fish.svg",
-      "say": "म से मछली।"
+      "word": "मोर",
+      "image": "assets/letters/hi/u092e.webp",
+      "phrase": "म से मोर",
+      "say": "म से मोर।"
     },
     "य": {
       "kind": "letter",
       "language": "hi",
-      "word": "यज्ञ",
-      "phrase": "य से यज्ञ",
-      "say": "य से यज्ञ।"
+      "word": "यंत्र",
+      "image": "assets/letters/hi/u092f.webp",
+      "phrase": "य से यंत्र",
+      "say": "य से यंत्र।"
     },
     "र": {
       "kind": "letter",
       "language": "hi",
-      "word": "रथ",
-      "phrase": "र से रथ",
-      "say": "र से रथ।"
+      "word": "राजा",
+      "image": "assets/letters/hi/u0930.webp",
+      "phrase": "र से राजा",
+      "say": "र से राजा।"
     },
     "ल": {
       "kind": "letter",
       "language": "hi",
-      "word": "लट्टू",
-      "phrase": "ल से लट्टू",
-      "say": "ल से लट्टू।"
+      "word": "लिखना",
+      "image": "assets/letters/hi/u0932.webp",
+      "phrase": "ल से लिखना",
+      "say": "ल से लिखना।"
     },
     "व": {
       "kind": "letter",
       "language": "hi",
-      "word": "वन",
-      "phrase": "व से वन",
-      "say": "व से वन।"
+      "word": "वानर",
+      "image": "assets/letters/hi/u0935.webp",
+      "phrase": "व से वानर",
+      "say": "व से वानर।"
     },
     "श": {
       "kind": "letter",
       "language": "hi",
-      "word": "शलगम",
-      "phrase": "श से शलगम",
-      "say": "श से शलगम।"
+      "word": "शादी",
+      "image": "assets/letters/hi/u0936.webp",
+      "phrase": "श से शादी",
+      "say": "श से शादी।"
     },
     "ष": {
       "kind": "letter",
       "language": "hi",
-      "word": "षट्कोण",
-      "phrase": "ष से षट्कोण",
-      "say": "ष से षट्कोण।"
+      "word": "षडयंत्र",
+      "image": "assets/letters/hi/u0937.webp",
+      "phrase": "ष से षडयंत्र",
+      "say": "ष से षडयंत्र।"
     },
     "स": {
       "kind": "letter",
       "language": "hi",
       "word": "सेब",
+      "image": "assets/letters/hi/u0938.webp",
       "phrase": "स से सेब",
-      "image": "assets/student_learning_ui_assets/icons/apple.svg",
       "say": "स से सेब।"
     },
     "ह": {
       "kind": "letter",
       "language": "hi",
       "word": "हाथी",
+      "image": "assets/letters/hi/u0939.webp",
       "phrase": "ह से हाथी",
-      "image": "assets/student_learning_ui_assets/icons/elephant.svg",
       "say": "ह से हाथी।"
     },
     "क्ष": {
       "kind": "letter",
       "language": "hi",
-      "word": "क्षत्रिय",
-      "phrase": "क्ष से क्षत्रिय",
-      "say": "क्ष से क्षत्रिय।"
+      "word": "क्षतिग्रस्त",
+      "image": "assets/letters/hi/u0915_094d_0937.webp",
+      "phrase": "क्ष से क्षतिग्रस्त",
+      "say": "क्ष से क्षतिग्रस्त।"
     },
     "त्र": {
       "kind": "letter",
       "language": "hi",
-      "word": "त्रिशूल",
-      "phrase": "त्र से त्रिशूल",
-      "say": "त्र से त्रिशूल।"
+      "word": "त्रिमुख",
+      "image": "assets/letters/hi/u0924_094d_0930.webp",
+      "phrase": "त्र से त्रिमुख",
+      "say": "त्र से त्रिमुख।"
     },
     "ज्ञ": {
       "kind": "letter",
       "language": "hi",
-      "word": "ज्ञानी",
-      "phrase": "ज्ञ से ज्ञानी",
-      "say": "ज्ञ से ज्ञानी।"
+      "word": "ज्ञानवृक्ष",
+      "image": "assets/letters/hi/u091c_094d_091e.webp",
+      "phrase": "ज्ञ से ज्ञानवृक्ष",
+      "say": "ज्ञ से ज्ञानवृक्ष।"
     },
     "श्र": {
       "kind": "letter",
@@ -771,113 +830,128 @@
     "અ": {
       "kind": "letter",
       "language": "gu",
-      "word": "અનાર",
-      "phrase": "અ - અનાર",
-      "say": "અ. અનાર."
+      "word": "અજગર",
+      "image": "assets/letters/gu/u0a85.webp",
+      "phrase": "અ - અજગર",
+      "say": "અ. અજગર."
     },
     "આ": {
       "kind": "letter",
       "language": "gu",
-      "word": "આમ",
-      "phrase": "આ - આમ",
-      "say": "આ. આમ."
+      "word": "આંખ",
+      "image": "assets/letters/gu/u0a86.webp",
+      "phrase": "આ - આંખ",
+      "say": "આ. આંખ."
     },
     "ઇ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઇમલી",
-      "phrase": "ઇ - ઇમલી",
-      "say": "ઇ. ઇમલી."
+      "word": "ઇયળ",
+      "image": "assets/letters/gu/u0a87.webp",
+      "phrase": "ઇ - ઇયળ",
+      "say": "ઇ. ઇયળ."
     },
     "ઈ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઈંડું",
-      "phrase": "ઈ - ઈંડું",
-      "say": "ઈ. ઈંડું."
+      "word": "ઈંટ",
+      "image": "assets/letters/gu/u0a88.webp",
+      "phrase": "ઈ - ઈંટ",
+      "say": "ઈ. ઈંટ."
     },
     "ઉ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઉંટ",
-      "phrase": "ઉ - ઉંટ",
-      "say": "ઉ. ઉંટ."
+      "word": "ઉપહાર",
+      "image": "assets/letters/gu/u0a89.webp",
+      "phrase": "ઉ - ઉપહાર",
+      "say": "ઉ. ઉપહાર."
     },
     "ઊ": {
       "kind": "letter",
       "language": "gu",
       "word": "ઊન",
+      "image": "assets/letters/gu/u0a8a.webp",
       "phrase": "ઊ - ઊન",
       "say": "ઊ. ઊન."
     },
     "ઋ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઋષિ",
-      "phrase": "ઋ - ઋષિ",
-      "say": "ઋ. ઋષિ."
+      "word": "ઋતુ",
+      "image": "assets/letters/gu/u0a8b.webp",
+      "phrase": "ઋ - ઋતુ",
+      "say": "ઋ. ઋતુ."
     },
     "એ": {
       "kind": "letter",
       "language": "gu",
-      "word": "એડી",
-      "phrase": "એ - એડી",
-      "say": "એ. એડી."
+      "word": "એકતા",
+      "image": "assets/letters/gu/u0a8f.webp",
+      "phrase": "એ - એકતા",
+      "say": "એ. એકતા."
     },
     "ઐ": {
       "kind": "letter",
       "language": "gu",
       "word": "ઐરાવત",
+      "image": "assets/letters/gu/u0a90.webp",
       "phrase": "ઐ - ઐરાવત",
       "say": "ઐ. ઐરાવત."
     },
     "ઓ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઓશીકું",
-      "phrase": "ઓ - ઓશીકું",
-      "say": "ઓ. ઓશીકું."
+      "word": "ઓગણીસ",
+      "image": "assets/letters/gu/u0a93.webp",
+      "phrase": "ઓ - ઓગણીસ",
+      "say": "ઓ. ઓગણીસ."
     },
     "ઔ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઔષધ",
-      "phrase": "ઔ - ઔષધ",
-      "say": "ઔ. ઔષધ."
+      "word": "ઔરત",
+      "image": "assets/letters/gu/u0a94.webp",
+      "phrase": "ઔ - ઔરત",
+      "say": "ઔ. ઔરત."
     },
     "અં": {
       "kind": "letter",
       "language": "gu",
       "word": "અંજીર",
+      "image": "assets/letters/gu/u0a85_0a82.webp",
       "phrase": "અં - અંજીર",
       "say": "અં. અંજીર."
     },
     "ક": {
       "kind": "letter",
       "language": "gu",
-      "word": "કૂતરો",
-      "phrase": "ક - કૂતરો",
-      "image": "assets/student_learning_ui_assets/icons/dog.svg",
-      "say": "ક. કૂતરો."
+      "word": "કબૂતર",
+      "image": "assets/letters/gu/u0a95.webp",
+      "phrase": "ક - કબૂતર",
+      "say": "ક. કબૂતર."
     },
     "ખ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ખડિયો",
-      "phrase": "ખ - ખડિયો",
-      "say": "ખ. ખડિયો."
+      "word": "ખજૂર",
+      "image": "assets/letters/gu/u0a96.webp",
+      "phrase": "ખ - ખજૂર",
+      "say": "ખ. ખજૂર."
     },
     "ગ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ગણપતિ",
-      "phrase": "ગ - ગણપતિ",
-      "say": "ગ. ગણપતિ."
+      "word": "ગોળ",
+      "image": "assets/letters/gu/u0a97.webp",
+      "phrase": "ગ - ગોળ",
+      "say": "ગ. ગોળ."
     },
     "ઘ": {
       "kind": "letter",
       "language": "gu",
       "word": "ઘર",
+      "image": "assets/letters/gu/u0a98.webp",
       "phrase": "ઘ - ઘર",
       "say": "ઘ. ઘર."
     },
@@ -885,6 +959,7 @@
       "kind": "letter",
       "language": "gu",
       "word": "ચકલી",
+      "image": "assets/letters/gu/u0a9a.webp",
       "phrase": "ચ - ચકલી",
       "say": "ચ. ચકલી."
     },
@@ -892,91 +967,103 @@
       "kind": "letter",
       "language": "gu",
       "word": "છત્રી",
+      "image": "assets/letters/gu/u0a9b.webp",
       "phrase": "છ - છત્રી",
       "say": "છ. છત્રી."
     },
     "જ": {
       "kind": "letter",
       "language": "gu",
-      "word": "જમરૂખ",
-      "phrase": "જ - જમરૂખ",
-      "say": "જ. જમરૂખ."
+      "word": "જાંબુ",
+      "image": "assets/letters/gu/u0a9c.webp",
+      "phrase": "જ - જાંબુ",
+      "say": "જ. જાંબુ."
     },
     "ઝ": {
       "kind": "letter",
       "language": "gu",
       "word": "ઝાડ",
+      "image": "assets/letters/gu/u0a9d.webp",
       "phrase": "ઝ - ઝાડ",
       "say": "ઝ. ઝાડ."
     },
     "ટ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ટામેટું",
-      "phrase": "ટ - ટામેટું",
-      "say": "ટ. ટામેટું."
+      "word": "ટપાલી",
+      "image": "assets/letters/gu/u0a9f.webp",
+      "phrase": "ટ - ટપાલી",
+      "say": "ટ. ટપાલી."
     },
     "ઠ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઠળિયો",
-      "phrase": "ઠ - ઠળિયો",
-      "say": "ઠ. ઠળિયો."
+      "word": "ઠાકોરજી",
+      "image": "assets/letters/gu/u0aa0.webp",
+      "phrase": "ઠ - ઠાકોરજી",
+      "say": "ઠ. ઠાકોરજી."
     },
     "ડ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ડમરુ",
-      "phrase": "ડ - ડમરુ",
-      "say": "ડ. ડમરુ."
+      "word": "ડુંગળી",
+      "image": "assets/letters/gu/u0aa1.webp",
+      "phrase": "ડ - ડુંગળી",
+      "say": "ડ. ડુંગળી."
     },
     "ઢ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ઢોલ",
-      "phrase": "ઢ - ઢોલ",
-      "say": "ઢ. ઢોલ."
+      "word": "ઢગલો",
+      "image": "assets/letters/gu/u0aa2.webp",
+      "phrase": "ઢ - ઢગલો",
+      "say": "ઢ. ઢગલો."
     },
     "ત": {
       "kind": "letter",
       "language": "gu",
-      "word": "તલવાર",
-      "phrase": "ત - તલવાર",
-      "say": "ત. તલવાર."
+      "word": "તિતલી",
+      "image": "assets/letters/gu/u0aa4.webp",
+      "phrase": "ત - તિતલી",
+      "say": "ત. તિતલી."
     },
     "થ": {
       "kind": "letter",
       "language": "gu",
-      "word": "થાંભલો",
-      "phrase": "થ - થાંભલો",
-      "say": "થ. થાંભલો."
+      "word": "થડ",
+      "image": "assets/letters/gu/u0aa5.webp",
+      "phrase": "થ - થડ",
+      "say": "થ. થડ."
     },
     "દ": {
       "kind": "letter",
       "language": "gu",
-      "word": "દડો",
-      "phrase": "દ - દડો",
-      "image": "assets/student_learning_ui_assets/icons/ball.svg",
-      "say": "દ. દડો."
+      "word": "દાદા",
+      "image": "assets/letters/gu/u0aa6.webp",
+      "phrase": "દ - દાદા",
+      "say": "દ. દાદા."
     },
     "ધ": {
       "kind": "letter",
       "language": "gu",
       "word": "ધજા",
+      "image": "assets/letters/gu/u0aa7.webp",
       "phrase": "ધ - ધજા",
       "say": "ધ. ધજા."
     },
     "ન": {
       "kind": "letter",
       "language": "gu",
-      "word": "નળ",
-      "phrase": "ન - નળ",
-      "say": "ન. નળ."
+      "word": "નાળિયેર",
+      "image": "assets/letters/gu/u0aa8.webp",
+      "phrase": "ન - નાળિયેર",
+      "say": "ન. નાળિયેર."
     },
     "પ": {
       "kind": "letter",
       "language": "gu",
       "word": "પતંગ",
+      "image": "assets/letters/gu/u0aaa.webp",
       "phrase": "પ - પતંગ",
       "say": "પ. પતંગ."
     },
@@ -984,72 +1071,79 @@
       "kind": "letter",
       "language": "gu",
       "word": "ફૂલ",
+      "image": "assets/letters/gu/u0aab.webp",
       "phrase": "ફ - ફૂલ",
-      "image": "assets/student_learning_ui_assets/icons/flower.svg",
       "say": "ફ. ફૂલ."
     },
     "બ": {
       "kind": "letter",
       "language": "gu",
       "word": "બિલાડી",
+      "image": "assets/letters/gu/u0aac.webp",
       "phrase": "બ - બિલાડી",
-      "image": "assets/student_learning_ui_assets/icons/cat.svg",
       "say": "બ. બિલાડી."
     },
     "ભ": {
       "kind": "letter",
       "language": "gu",
-      "word": "ભમરડો",
-      "phrase": "ભ - ભમરડો",
-      "say": "ભ. ભમરડો."
+      "word": "ભાઈ",
+      "image": "assets/letters/gu/u0aad.webp",
+      "phrase": "ભ - ભાઈ",
+      "say": "ભ. ભાઈ."
     },
     "મ": {
       "kind": "letter",
       "language": "gu",
-      "word": "માછલી",
-      "phrase": "મ - માછલી",
-      "image": "assets/student_learning_ui_assets/icons/fish.svg",
-      "say": "મ. માછલી."
+      "word": "મોર",
+      "image": "assets/letters/gu/u0aae.webp",
+      "phrase": "મ - મોર",
+      "say": "મ. મોર."
     },
     "ય": {
       "kind": "letter",
       "language": "gu",
-      "word": "યજ્ઞ",
-      "phrase": "ય - યજ્ઞ",
-      "say": "ય. યજ્ઞ."
+      "word": "યાક",
+      "image": "assets/letters/gu/u0aaf.webp",
+      "phrase": "ય - યાક",
+      "say": "ય. યાક."
     },
     "ર": {
       "kind": "letter",
       "language": "gu",
-      "word": "રથ",
-      "phrase": "ર - રથ",
-      "say": "ર. રથ."
+      "word": "રમકડું",
+      "image": "assets/letters/gu/u0ab0.webp",
+      "phrase": "ર - રમકડું",
+      "say": "ર. રમકડું."
     },
     "લ": {
       "kind": "letter",
       "language": "gu",
-      "word": "લસણ",
-      "phrase": "લ - લસણ",
-      "say": "લ. લસણ."
+      "word": "લારી",
+      "image": "assets/letters/gu/u0ab2.webp",
+      "phrase": "લ - લારી",
+      "say": "લ. લારી."
     },
     "વ": {
       "kind": "letter",
       "language": "gu",
-      "word": "વહાણ",
-      "phrase": "વ - વહાણ",
-      "say": "વ. વહાણ."
+      "word": "વાઘ",
+      "image": "assets/letters/gu/u0ab5.webp",
+      "phrase": "વ - વાઘ",
+      "say": "વ. વાઘ."
     },
     "શ": {
       "kind": "letter",
       "language": "gu",
-      "word": "શરણાઈ",
-      "phrase": "શ - શરણાઈ",
-      "say": "શ. શરણાઈ."
+      "word": "શંખ",
+      "image": "assets/letters/gu/u0ab6.webp",
+      "phrase": "શ - શંખ",
+      "say": "શ. શંખ."
     },
     "ષ": {
       "kind": "letter",
       "language": "gu",
       "word": "ષટ્કોણ",
+      "image": "assets/letters/gu/u0ab7.webp",
       "phrase": "ષ - ષટ્કોણ",
       "say": "ષ. ષટ્કોણ."
     },
@@ -1057,31 +1151,33 @@
       "kind": "letter",
       "language": "gu",
       "word": "સફરજન",
+      "image": "assets/letters/gu/u0ab8.webp",
       "phrase": "સ - સફરજન",
-      "image": "assets/student_learning_ui_assets/icons/apple.svg",
       "say": "સ. સફરજન."
     },
     "હ": {
       "kind": "letter",
       "language": "gu",
-      "word": "હાથી",
-      "phrase": "હ - હાથી",
-      "image": "assets/student_learning_ui_assets/icons/elephant.svg",
-      "say": "હ. હાથી."
+      "word": "હંસ",
+      "image": "assets/letters/gu/u0ab9.webp",
+      "phrase": "હ - હંસ",
+      "say": "હ. હંસ."
     },
     "ક્ષ": {
       "kind": "letter",
       "language": "gu",
       "word": "ક્ષત્રિય",
+      "image": "assets/letters/gu/u0a95_0acd_0ab7.webp",
       "phrase": "ક્ષ - ક્ષત્રિય",
       "say": "ક્ષ. ક્ષત્રિય."
     },
     "જ્ઞ": {
       "kind": "letter",
       "language": "gu",
-      "word": "જ્ઞાની",
-      "phrase": "જ્ઞ - જ્ઞાની",
-      "say": "જ્ઞ. જ્ઞાની."
+      "word": "જ્ઞાન",
+      "image": "assets/letters/gu/u0a9c_0acd_0a9e.webp",
+      "phrase": "જ્ઞ - જ્ઞાન",
+      "say": "જ્ઞ. જ્ઞાન."
     },
     "pattern-standing": {
       "kind": "pattern",

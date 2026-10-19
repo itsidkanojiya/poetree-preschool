@@ -4,10 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
-import 'package:flutter/material.dart';
-
 import 'activity_models.dart';
-import 'animation_view.dart';
 
 /// The catalogue of activities a child can be offered.
 class ActivityListController extends GetxController {
@@ -38,10 +35,6 @@ class ActivityListController extends GetxController {
 
   /// Only what the app can actually render. An activity with no authored
   /// content must never be offered — a child tapping it would find nothing.
-  ///
-  /// Locked ones stay in the list: a book that disappeared until its film had
-  /// been watched would look like a book with nothing in it, and nobody would
-  /// find the film that opens it.
   List<ActivityDefinition> get playable => activities
       .where((a) => a.isPlayable)
       // Filtered here rather than by the API: the same request answers the
@@ -51,76 +44,10 @@ class ActivityListController extends GetxController {
       .where((a) => type == null || a.type == type)
       .toList();
 
-  /// Every chapter of this book that has a film, keyed by chapter id.
-  ///
-  /// Watched ones are kept, not dropped. A child who liked a film wants it
-  /// again, and a parent sitting down with them a week later has no other way
-  /// back to it — dropping it the moment it unlocked meant the only way to see
-  /// it twice was to never have seen it once.
-  final films =
-      <String, ({String videoId, String chapterName, bool isUnlocked})>{}.obs;
-
-  /// The film for the chapter being looked at, if it has one.
-  ({String videoId, String chapterName, bool isUnlocked})? get film =>
-      chapterId == null ? null : films[chapterId];
-
-  /// Tapping a locked page: the film that opens its chapter.
-  Future<void> openAnimation(
-    BuildContext context,
-    ActivityDefinition activity,
-  ) => playAnimation(context, activity.chapterId);
-
-  /// Opens the film that unlocks a chapter, then reloads on the way back so the
-  /// whole chapter opens at once rather than the one page they tapped.
-  Future<void> playAnimation(BuildContext context, String forChapterId) async {
-    final animation = films[forChapterId];
-    if (animation == null || studentId == null) return;
-
-    final watched = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => AnimationView.chapter(
-          videoId: animation.videoId,
-          chapterId: forChapterId,
-          chapterName: animation.chapterName,
-          studentId: studentId!,
-        ),
-      ),
-    );
-
-    if (watched == true) await load();
-  }
-
   @override
   void onInit() {
     super.onInit();
     unawaited(load());
-  }
-
-  Future<void> _loadAnimations() async {
-    if (bookId == null) {
-      films.clear();
-      return;
-    }
-
-    try {
-      final chapters = await api.get<List<dynamic>>(
-        '/catalogue/children/$studentId/books/$bookId/chapters',
-      );
-      films.value = {
-        for (final chapter in chapters.whereType<Map<String, dynamic>>())
-          if ((chapter['animation'] as Map<String, dynamic>?) != null)
-            chapter['id'] as String: (
-              videoId:
-                  (chapter['animation'] as Map<String, dynamic>)['videoId']
-                      as String,
-              chapterName: chapter['name'] as String? ?? 'This chapter',
-              isUnlocked: chapter['isUnlocked'] == true,
-            ),
-      };
-    } on DioException {
-      // A film that will not load must not take the page list down with it.
-      films.clear();
-    }
   }
 
   Future<void> load() async {
@@ -131,7 +58,6 @@ class ActivityListController extends GetxController {
       final data = await api.get<List<dynamic>>(
         '/progress/activities',
         query: {
-          // Named, so the answer says which of these this child may open yet.
           if (studentId != null) 'studentId': studentId,
           if (bookId != null) 'bookId': bookId,
         },
@@ -140,10 +66,6 @@ class ActivityListController extends GetxController {
           .whereType<Map<String, dynamic>>()
           .map(ActivityDefinition.fromJson)
           .toList();
-
-      // The films behind the locks, so tapping a locked activity has somewhere
-      // to go rather than being a dead end.
-      if (studentId != null) await _loadAnimations();
     } on DioException catch (e) {
       final payload = e.response?.data;
       error.value = payload is Map && payload['error'] is Map

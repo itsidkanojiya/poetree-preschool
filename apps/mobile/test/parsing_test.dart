@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/models/attached_file.dart';
-import 'package:poetree_school/features/activities/book_shelf_controller.dart';
-import 'package:poetree_school/features/activities/chapter_list_controller.dart';
+import 'package:poetree_school/features/books/books_controllers.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
 import 'package:poetree_school/features/teacher/homework_controller.dart';
@@ -372,7 +371,6 @@ void _shelfTests() {
       'name': 'EVS Book',
       'classLevel': {'name': 'Nursery'},
       'coverUrl': '/api/v1/catalogue/assets/f_1',
-      'isUnlocked': true,
     });
 
     // The trim that would otherwise 404 every cover on the shelf.
@@ -387,58 +385,37 @@ void _shelfTests() {
       'id': 'bk_2',
       'name': 'Phonics',
       'coverUrl': '',
-      'isUnlocked': true,
     });
 
     expect(book.coverPath, isNull);
-    expect(book.hasAnimation, isFalse);
   });
 
-  test('a book shows a badge only when a film inside is unwatched', () {
-    // The film belongs to a chapter now; the shelf only says there is one
-    // waiting somewhere inside.
-    final locked = ShelfBook.fromJson({
+  test('a book opens to read once its PDF is uploaded', () {
+    final book = ShelfBook.fromJson({
       'id': 'bk_3',
       'name': 'Numbers',
-      'filmsToWatch': 2,
-      'isUnlocked': false,
+      'pdf': {
+        'url': '/api/v1/catalogue/children/s1/books/bk_3/pdf',
+        'sizeBytes': 2048,
+        'version': 'f_7',
+      },
     });
-    expect(locked.hasAnimation, isTrue);
-    expect(locked.isUnlocked, isFalse);
 
-    // Nothing left to watch: nothing is being withheld, so no badge.
-    final open = ShelfBook.fromJson({'id': 'bk_4', 'name': 'Rhymes'});
-    expect(open.hasAnimation, isFalse);
-    expect(open.isUnlocked, isTrue);
+    expect(book.canRead, isTrue);
+    // Fetched through the client, whose base URL already ends in /api/v1.
+    expect(book.pdf!.path, '/catalogue/children/s1/books/bk_3/pdf');
+    expect(book.pdf!.version, 'f_7');
+    expect(book.pdf!.sizeBytes, 2048);
   });
 
-  test('a chapter picture is trimmed the same way a cover is', () {
-    final chapter = ShelfChapter.fromJson({
-      'id': 'ch_1',
-      'name': 'Living things',
-      'number': 1,
-      'coverUrl': '/api/v1/catalogue/assets/f_9',
-      'isUnlocked': true,
+  test('a book with no PDF yet is on the shelf but not ready to read', () {
+    final book = ShelfBook.fromJson({
+      'id': 'bk_4',
+      'name': 'Rhymes',
+      'pdf': null,
     });
 
-    expect(chapter.coverPath, '/catalogue/assets/f_9');
-    expect(chapter.hasFilm, isFalse);
-  });
-
-  test('a chapter with no picture parses to null, not an empty path', () {
-    // Most chapters have none, so this is the ordinary case rather than the
-    // edge one: an empty string would reach AuthedImage and draw a broken
-    // square where the chapter's number belongs.
-    final blank = ShelfChapter.fromJson({
-      'id': 'ch_2',
-      'name': 'Letters A to E',
-      'coverUrl': '',
-      'isUnlocked': true,
-    });
-    expect(blank.coverPath, isNull);
-
-    final absent = ShelfChapter.fromJson({'id': 'ch_3', 'name': 'Numbers'});
-    expect(absent.coverPath, isNull);
-    expect(absent.number, isNull);
+    expect(book.canRead, isFalse);
+    expect(book.pdf, isNull);
   });
 }

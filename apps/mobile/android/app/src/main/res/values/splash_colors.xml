@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The sky of the launch splash's picture. Android shows it from the tap
+         until Flutter's first frame, which opens on the same colour
+         (SplashGate.sky in lib/features/splash/splash_view.dart), so there is
+         no white flash on the way into the animation. -->
+    <color name="splash_sky">#91D1D8</color>
+</resources>

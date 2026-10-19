@@ -173,8 +173,9 @@ describe.skipIf(!dbUp)('subjects, books and the second film', () => {
     // The single film fills the main slot, and there is nothing to switch to.
     expect(onlyThreeD.animation.videoId).toBe('kJQP7kiw5Fk');
     expect(onlyThreeD.animation3d).toBeNull();
-    // It has a film, so its pages stay shut until it is watched.
-    expect(onlyThreeD.isUnlocked).toBe(false);
+    // A film no longer locks anything: its pages are open before it is watched.
+    expect(onlyThreeD.isUnlocked).toBe(true);
+    expect(onlyThreeD.isWatched).toBe(false);
   });
 
   it('marks a chapter watched, which is what completes it', async () => {

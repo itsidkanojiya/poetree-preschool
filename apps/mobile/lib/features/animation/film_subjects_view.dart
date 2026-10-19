@@ -7,15 +7,15 @@ import '../../core/theme/play_palette.dart';
 import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/squish.dart';
-import 'film_controllers.dart';
+import '../books/books_controllers.dart';
 import 'film_widgets.dart';
 
 /// 2D & 3D Animation: the first step, choosing a subject.
 ///
 /// A subject rather than a book first because that is how a child names what
-/// they want — "the English one" — and a subject has several books, one per
-/// term, which the next screen lays out.
-class FilmSubjectsView extends GetView<FilmSubjectsController> {
+/// they want — "the English one". The next screen is the subject's videos,
+/// all of them, book by book.
+class FilmSubjectsView extends GetView<SubjectsController> {
   const FilmSubjectsView({super.key});
 
   @override
@@ -28,13 +28,17 @@ class FilmSubjectsView extends GetView<FilmSubjectsController> {
         () => AsyncView(
           isLoading: controller.isLoading.value,
           error: controller.error.value,
-          isEmpty: controller.subjects.isEmpty,
+          isEmpty: controller.subjects.every((s) => s.filmCount == 0),
           onRetry: controller.load,
-          emptyTitle: 'No films yet',
+          emptyTitle: 'No videos yet',
           emptyMessage:
-              'Films arrive with your school’s books. They will appear here.',
+              'Videos arrive with your school’s books. They will appear here.',
           builder: (context) {
-            final subjects = controller.subjects;
+            // Only subjects with something to watch: a tile that opens onto
+            // nothing is a dead end for a child.
+            final subjects = controller.subjects
+                .where((s) => s.filmCount > 0)
+                .toList();
             final films = subjects.fold(0, (sum, s) => sum + s.filmCount);
             final watched = subjects.fold(0, (sum, s) => sum + s.filmsWatched);
 
@@ -81,7 +85,7 @@ class FilmSubjectsView extends GetView<FilmSubjectsController> {
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 24),
                         child: Text(
-                          'Tap a subject to see its books',
+                          'Tap a subject to see its videos',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall,
                         ),
@@ -100,7 +104,7 @@ class FilmSubjectsView extends GetView<FilmSubjectsController> {
 class _SubjectCard extends StatelessWidget {
   const _SubjectCard({required this.subject, required this.studentId});
 
-  final FilmSubject subject;
+  final ShelfSubject subject;
   final String? studentId;
 
   @override
@@ -110,11 +114,12 @@ class _SubjectCard extends StatelessWidget {
 
     return Squish(
       onTap: () => Get.toNamed<void>(
-        AppRoutes.filmBooks,
+        AppRoutes.filmVideos,
         arguments: {
           'studentId': studentId,
           'subjectId': subject.id,
           'subjectName': subject.name,
+          'art': subject.art,
         },
       ),
       child: Container(
@@ -136,12 +141,7 @@ class _SubjectCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SubjectBadge(
-                  icon: subject.icon,
-                  name: subject.name,
-                  tone: tone,
-                  size: 64,
-                ),
+                SubjectArtwork(subject: subject, tone: tone, size: 64),
                 const Spacer(),
                 if (subject.filmsToWatch > 0)
                   Container(
@@ -175,7 +175,9 @@ class _SubjectCard extends StatelessWidget {
               ),
             ),
             Text(
-              subject.bookCount == 1 ? '1 book' : '${subject.bookCount} books',
+              subject.filmCount == 1
+                  ? '1 video'
+                  : '${subject.filmCount} videos',
               style: theme.textTheme.bodySmall?.copyWith(color: tone.deep),
             ),
             const SizedBox(height: 8),
@@ -186,9 +188,7 @@ class _SubjectCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              subject.filmCount == 0
-                  ? 'No films yet'
-                  : '${subject.filmsWatched}/${subject.filmCount} films',
+              '${subject.filmsWatched} of ${subject.filmCount} watched',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: tone.deep,
                 fontWeight: FontWeight.w700,

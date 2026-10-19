@@ -19,7 +19,6 @@ void main() {
       chapterName: 'One to ten',
       chapterId: 'ch_1',
       bookId: 'bk_1',
-      isLocked: false,
       content: TracingContent(
         items: [
           for (var n = 1; n <= 10; n++)

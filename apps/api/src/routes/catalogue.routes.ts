@@ -71,6 +71,44 @@ catalogueRouter.get(
   }),
 );
 
+/**
+ * A subject's videos for this child, book by book — the 2D & 3D Animation
+ * screen's list, and the order its player steps through.
+ */
+catalogueRouter.get(
+  '/children/:id/films',
+  requirePermission('progress:read'),
+  validate({ params: idParamSchema, query: subjectQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const { subjectId } = query<{ subjectId?: string }>(req);
+    res.json(await books.filmsForChild(params<{ id: string }>(req).id, subjectId));
+  }),
+);
+
+/**
+ * A book's PDF, for reading in the app.
+ *
+ * Only for a book on this child's shelf. Private caching, and the file's id as
+ * its ETag: the app keeps a copy to read offline and asks again only when the
+ * book's `pdf.version` changes.
+ */
+catalogueRouter.get(
+  '/children/:id/books/:bookId/pdf',
+  requirePermission('progress:read'),
+  validate({ params: idParamSchema.extend({ bookId: idSchema }) }),
+  asyncHandler(async (req: Request, res) => {
+    const { id, bookId } = params<{ id: string; bookId: string }>(req);
+    const file = await books.bookPdfForChild(id, bookId);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('ETag', `"${file.id}"`);
+
+    sendStoredFile(req, res, file, { fileId: file.id, bookId });
+  }),
+);
+
 /** The chapters of one book, each with its film and whether it is watched. */
 catalogueRouter.get(
   '/children/:id/books/:bookId/chapters',
@@ -118,7 +156,9 @@ catalogueRouter.get(
     const fileId = params<{ id: string }>(req).id;
 
     const file = await prismaUnscoped.fileObject.findFirst({
-      where: { id: fileId, schoolId: null, deletedAt: null },
+      // Never a book's PDF: that is the book a school pays for, served only to
+      // a child whose school has it, by the route above.
+      where: { id: fileId, schoolId: null, deletedAt: null, bookPdfs: { none: {} } },
       select: { storageKey: true, mimeType: true, originalName: true },
     });
     if (!file) throw ApiError.notFound('Not found');

@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 import '../../core/api/api_service.dart';
 import '../../core/routes/app_pages.dart';
 import '../../core/theme/play_palette.dart';
-import 'film_controllers.dart';
+import '../books/books_controllers.dart';
 import 'film_widgets.dart';
 
 /// How many films a child has watched, subject by subject.
@@ -29,7 +29,7 @@ class FilmsWatchedCard extends StatefulWidget {
 }
 
 class _FilmsWatchedCardState extends State<FilmsWatchedCard> {
-  List<FilmSubject>? _subjects;
+  List<ShelfSubject>? _subjects;
   bool _failed = false;
 
   @override
@@ -48,7 +48,7 @@ class _FilmsWatchedCardState extends State<FilmsWatchedCard> {
         _failed = false;
         _subjects = rows
             .whereType<Map<String, dynamic>>()
-            .map(FilmSubject.fromJson)
+            .map(ShelfSubject.fromJson)
             .where((s) => s.filmCount > 0)
             .toList();
       });
@@ -84,7 +84,7 @@ class _FilmsWatchedCardState extends State<FilmsWatchedCard> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Films watched',
+                  'Videos watched',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -112,7 +112,7 @@ class _FilmsWatchedCardState extends State<FilmsWatchedCard> {
             const LinearProgressIndicator(color: Colors.white)
           else if (subjects.isEmpty)
             Text(
-              'No films in ${widget.childName}’s books yet.',
+              'No videos in ${widget.childName}’s books yet.',
               style: const TextStyle(color: Colors.white),
             )
           else ...[
@@ -193,7 +193,7 @@ class _FilmsWatchedCardState extends State<FilmsWatchedCard> {
                 },
                 style: TextButton.styleFrom(foregroundColor: Colors.white),
                 icon: const Icon(Icons.play_circle_fill_rounded),
-                label: const Text('Watch films'),
+                label: const Text('Watch videos'),
               ),
             ),
           ],

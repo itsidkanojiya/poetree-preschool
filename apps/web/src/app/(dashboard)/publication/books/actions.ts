@@ -166,3 +166,14 @@ export async function setBookCoverAction(
   revalidatePath('/publication/books');
   return { success: file instanceof File && file.size > 0 ? 'Cover saved.' : 'Cover removed.' };
 }
+
+/**
+ * Takes a book's PDF off. Children see "not ready to read yet" again.
+ *
+ * Uploading is not here: a printed book is larger than a server action may
+ * carry, so it goes through the book's /pdf route instead.
+ */
+export async function removeBookPdfAction(bookId: string): Promise<void> {
+  await apiFetch(`/publication/books/${bookId}/pdf`, { method: 'DELETE' });
+  revalidatePath(`/publication/books/${bookId}`);
+}

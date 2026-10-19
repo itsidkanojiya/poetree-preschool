@@ -30,9 +30,7 @@ class ActivityListView extends GetView<ActivityListController> {
       body: Obx(() {
         final playable = controller.playable;
 
-        // By chapter, which is what a book is divided into and what a film
-        // now introduces. The id travels with the heading so the film can sit
-        // above exactly the pages it opens.
+        // By chapter, which is what a book is divided into.
         final groups =
             <({String id, String title}), List<ActivityDefinition>>{};
         for (final activity in playable) {
@@ -55,16 +53,10 @@ class ActivityListView extends GetView<ActivityListController> {
           groups.putIfAbsent(key, () => []).add(activity);
         }
 
-        final film = controller.film;
-
         return AsyncView(
           isLoading: controller.isLoading.value,
           error: controller.error.value,
-          // A chapter with a film and nothing written yet is not empty: the
-          // film is the point of arriving here, and treating it as empty is
-          // what left a child looking at "nothing to play" with a video sitting
-          // one field away in the database.
-          isEmpty: playable.isEmpty && film == null,
+          isEmpty: playable.isEmpty,
           onRetry: controller.load,
           emptyTitle: 'Nothing to play yet',
           emptyMessage:
@@ -72,28 +64,6 @@ class ActivityListView extends GetView<ActivityListController> {
           builder: (context) => ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              // The film for this chapter, above everything it opens — which is
-              // the order the chapter is meant to be used in.
-              if (film != null) ...[
-                _FilmCard(
-                  title: film.chapterName,
-                  watched: film.isUnlocked,
-                  onPlay: () =>
-                      controller.playAnimation(context, controller.chapterId!),
-                ),
-                if (playable.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-                    child: Text(
-                      film.isUnlocked
-                          ? 'Nothing to do in this chapter yet.'
-                          : 'The things to do appear here once the film has been watched.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                    ),
-                  ),
-              ],
               for (final entry in groups.entries) ...[
                 // Only when several chapters are on screen at once. Inside one
                 // chapter the app bar already says which it is, and a heading
@@ -108,30 +78,16 @@ class ActivityListView extends GetView<ActivityListController> {
                       ),
                     ),
                   ),
-
-                // Across a whole book, each chapter's film sits above its own
-                // pages. Inside one chapter the film is already at the top of
-                // the screen, so it is not drawn twice.
-                if (controller.chapterId == null &&
-                    controller.films[entry.key.id] != null)
-                  _FilmCard(
-                    title: controller.films[entry.key.id]!.chapterName,
-                    watched: controller.films[entry.key.id]!.isUnlocked,
-                    onPlay: () =>
-                        controller.playAnimation(context, entry.key.id),
-                  ),
                 ...entry.value.map(
                   (activity) => _PageTile(
                     activity: activity,
-                    onTap: () => activity.isLocked
-                        ? controller.openAnimation(context, activity)
-                        : Get.toNamed<void>(
-                            AppRoutes.activityPlay,
-                            arguments: {
-                              'activity': activity,
-                              'studentId': controller.studentId,
-                            },
-                          ),
+                    onTap: () => Get.toNamed<void>(
+                      AppRoutes.activityPlay,
+                      arguments: {
+                        'activity': activity,
+                        'studentId': controller.studentId,
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -139,94 +95,6 @@ class ActivityListView extends GetView<ActivityListController> {
           ),
         );
       }),
-    );
-  }
-}
-
-/// The film that opens a chapter.
-///
-/// Two states, not one. Before it is watched it is an instruction — this comes
-/// first, and the pages open after it. Afterwards it stays, quieter, because a
-/// child who liked it wants it again and there is no other way back to it.
-class _FilmCard extends StatelessWidget {
-  const _FilmCard({
-    required this.title,
-    required this.watched,
-    required this.onPlay,
-  });
-
-  final String title;
-  final bool watched;
-  final VoidCallback onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: watched
-            ? colors.surfaceContainerHighest
-            : colors.primaryContainer,
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: onPlay,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: watched
-                        ? colors.onSurfaceVariant.withValues(alpha: 0.12)
-                        : colors.onPrimaryContainer.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    watched ? Icons.replay_rounded : Icons.play_arrow_rounded,
-                    size: 28,
-                    color: watched
-                        ? colors.onSurfaceVariant
-                        : colors.onPrimaryContainer,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        watched ? 'Watch it again' : 'Watch this first',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: watched
-                              ? colors.onSurface
-                              : colors.onPrimaryContainer,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        watched
-                            ? 'The film for $title.'
-                            : 'The film for $title. Everything below opens after it.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: watched
-                              ? colors.onSurfaceVariant
-                              : colors.onPrimaryContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -247,9 +115,7 @@ class _PageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final tone = toneFor(activity.title);
-    final locked = activity.isLocked;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -267,17 +133,15 @@ class _PageTile extends StatelessWidget {
             // A pastel wash with its own dark ink is readable whatever the
             // theme, because neither half depends on it — the same pairing the
             // shelf and the chapter list already use.
-            color: locked ? colors.surfaceContainerHighest : tone.wash,
+            color: tone.wash,
             borderRadius: BorderRadius.circular(22),
-            boxShadow: locked
-                ? null
-                : [
-                    BoxShadow(
-                      color: tone.deep.withValues(alpha: 0.10),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+            boxShadow: [
+              BoxShadow(
+                color: tone.deep.withValues(alpha: 0.10),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -286,16 +150,14 @@ class _PageTile extends StatelessWidget {
                 width: 54,
                 height: 54,
                 decoration: BoxDecoration(
-                  color: locked
-                      ? colors.surface
-                      : Colors.white.withValues(alpha: 0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 alignment: Alignment.center,
                 child: KidIcon(
-                  locked ? KidGlyph.film : glyphForActivity(activity.type),
+                  glyphForActivity(activity.type),
                   size: 30,
-                  color: locked ? colors.outline : tone.ink,
+                  color: tone.ink,
                 ),
               ),
               const SizedBox(width: 14),
@@ -308,29 +170,22 @@ class _PageTile extends StatelessWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         // Stated, never inherited — see the card colour above.
-                        color: locked ? colors.outline : tone.deep,
+                        color: tone.deep,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      locked
-                          // Not "locked": a four-year-old is being told what to
-                          // do next, not refused.
-                          ? 'Watch the film first'
-                          : activity.content!.isScored
+                      activity.content!.isScored
                           ? '${activity.content!.itemCount} questions'
                           : '${activity.content!.itemCount} cards to look at',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: locked ? colors.outline : tone.ink,
+                        color: tone.ink,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: locked ? colors.outline : tone.ink,
-              ),
+              Icon(Icons.chevron_right_rounded, color: tone.ink),
             ],
           ),
         ),

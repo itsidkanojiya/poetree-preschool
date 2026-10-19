@@ -20,7 +20,7 @@ import 'homework_detail_view.dart';
 import 'children_controller.dart';
 import 'parent_tab_bar.dart';
 import 'id_card_view.dart';
-import '../activities/book_shelf_view.dart';
+import '../books/book_subjects_view.dart';
 import '../animation/films_watched_card.dart';
 import '../results/certificates_view.dart';
 import '../results/report_cards_view.dart';
@@ -202,12 +202,11 @@ class ParentHomeView extends StatelessWidget {
   }
 }
 
-/// The books, in a tab of their own.
+/// The books, in a tab of their own: subjects first, then a subject's books,
+/// each opening to read as it was printed.
 ///
 /// This was a card on the home page, behind everything a parent reads first.
-/// It is the only thing in the app a child does, so it gets a place on the bar
-/// — and the shelf is the same one either way, which is why this is a shelf and
-/// not a copy of it.
+/// It is the only thing in the app a child does, so it gets a place on the bar.
 class _LearnTab extends StatelessWidget {
   const _LearnTab({required this.children});
 
@@ -220,9 +219,9 @@ class _LearnTab extends StatelessWidget {
       return const Center(child: Text('Choose a child first.'));
     }
 
-    // Rebuilt when the chosen child changes, so the shelf is always theirs:
+    // Rebuilt when the chosen child changes, so the books are always theirs:
     // two children at one school can be in different years with different books.
-    return BookShelfEmbedded(
+    return BookSubjectsEmbedded(
       key: ValueKey(selected.id),
       studentId: selected.id,
       childName: selected.firstName,

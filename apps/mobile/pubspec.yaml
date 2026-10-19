@@ -91,6 +91,8 @@ dependencies:
   # gallery — what a family does with a picture of their child's sports day.
   share_plus: ^12.0.2
   gal: ^2.3.3
+  lottie: ^3.6.1
+  pdfx: ^2.11.0
 
 dev_dependencies:
   flutter_test:
@@ -108,9 +110,14 @@ flutter:
     # Paths are named once, in lib/core/assets/app_assets.dart.
     - assets/images/icons/
     - assets/images/banners/
-    # The parent app's bottom bar: Home, Learning, Progress, Settings, each in
-    # an outline and a filled form.
+    # The parent app's bottom bar: Home, Learning, Progress, Settings, in the
+    # designer's full colour.
     - assets/images/bottom_nav/
+    # The launch splash: the logo zooming out among sparkles, over the sky and
+    # flowers. The logo is inside the animation; the picture is drawn by the
+    # screen so it fills any phone. See lib/features/splash/splash_view.dart.
+    - assets/animations/
+    - assets/images/magical_sky_flower_background.png
     # The parent app's Settings, Fees and Fee Details: the designer's icons,
     # and the waving child from the home banners.
     - assets/icons/school_fees/

@@ -96,7 +96,6 @@ class _TracingSessionViewState extends State<TracingSessionView> {
         chapterName: '',
         chapterId: '',
         bookId: '',
-        isLocked: false,
         content: TracingContent(items: [item.shape]),
       ),
       studentId: widget.controller.studentId,

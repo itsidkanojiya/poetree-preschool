@@ -10,7 +10,8 @@ export const metadata: Metadata = { title: 'Subjects · Poetree Admin' };
 /**
  * What books are filed under — English, Maths, EVS.
  *
- * In the app a child opens a subject, then one of its books, then a chapter.
+ * In the app a child opens a subject, then its books to read — and in 2D & 3D
+ * Animation, its videos.
  * A subject only appears to a child if they have a book in it, so adding one
  * here changes nothing in any school until a book is filed under it.
  */
@@ -21,7 +22,7 @@ export default async function SubjectsPage() {
     <>
       <PageHeader
         title="Subjects"
-        description="What the app groups books under. Children open a subject, then its books, then a chapter."
+        description="What the app groups books and videos under. Children open a subject, then its books to read — or, in 2D & 3D Animation, its videos."
       />
 
       <CatalogueTabs current="subjects" />
@@ -33,7 +34,7 @@ export default async function SubjectsPage() {
 
         <Card
           title="Subjects"
-          description="Switching one off keeps its books; they show under “More books” until filed elsewhere."
+          description="Click a subject’s square to give it a picture — children see it on the subject’s tile, in place of the icon. Switching one off keeps its books; they show under “More books” until filed elsewhere."
         >
           {subjects.length === 0 ? (
             <EmptyState

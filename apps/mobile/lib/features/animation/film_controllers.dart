@@ -5,42 +5,6 @@ import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
 import '../../core/assets/app_assets.dart';
-import '../activities/book_shelf_controller.dart';
-
-/// One subject on the films page — English, Maths, EVS — with how many films
-/// are inside its books and how many this child has still to watch.
-class FilmSubject {
-  FilmSubject({
-    required this.id,
-    required this.name,
-    required this.icon,
-    required this.bookCount,
-    required this.filmCount,
-    required this.filmsToWatch,
-  });
-
-  factory FilmSubject.fromJson(Map<String, dynamic> json) => FilmSubject(
-    id: json['id'] as String?,
-    name: json['name'] as String? ?? 'Books',
-    icon: json['icon'] as String? ?? 'book',
-    bookCount: (json['bookCount'] as num?)?.toInt() ?? 0,
-    filmCount: (json['filmCount'] as num?)?.toInt() ?? 0,
-    filmsToWatch: (json['filmsToWatch'] as num?)?.toInt() ?? 0,
-  );
-
-  /// Null for "More books" — books the publisher has not filed under a
-  /// subject yet. Asked for as `none`, so they are still reachable.
-  final String? id;
-  final String name;
-
-  /// One of the shared contract's BOOK_SUBJECT_ICONS.
-  final String icon;
-  final int bookCount;
-  final int filmCount;
-  final int filmsToWatch;
-
-  int get filmsWatched => filmCount - filmsToWatch;
-}
 
 /// One film, as the animation screens use it.
 class FilmVideo {
@@ -110,126 +74,64 @@ String _problem(DioException e, String fallback) {
       : 'Cannot reach the school right now.';
 }
 
-/// The subjects this child's books fall under.
-class FilmSubjectsController extends GetxController {
-  FilmSubjectsController({required this.studentId, required this.childName});
+/// One book's videos, in a subject's list.
+class FilmBookGroup {
+  FilmBookGroup({required this.id, required this.name, required this.films});
 
-  final String? studentId;
-  final String childName;
+  factory FilmBookGroup.fromJson(Map<String, dynamic> json) => FilmBookGroup(
+    id: json['id'] as String,
+    name: json['name'] as String? ?? 'Book',
+    films: (json['films'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(FilmChapter.fromJson)
+        .where((chapter) => chapter.hasFilm)
+        .toList(),
+  );
 
-  final subjects = <FilmSubject>[].obs;
-  final isLoading = true.obs;
-  final error = RxnString();
-
-  @override
-  void onInit() {
-    super.onInit();
-    unawaited(load());
-  }
-
-  Future<void> load() async {
-    if (studentId == null) {
-      isLoading.value = false;
-      return;
-    }
-
-    isLoading.value = true;
-    error.value = null;
-    try {
-      final rows = await api.get<List<dynamic>>(
-        '/catalogue/children/$studentId/subjects',
-      );
-      subjects.value = rows
-          .whereType<Map<String, dynamic>>()
-          .map(FilmSubject.fromJson)
-          .toList();
-    } on DioException catch (e) {
-      error.value = _problem(e, 'Could not load the subjects.');
-    } finally {
-      isLoading.value = false;
-    }
-  }
+  final String id;
+  final String name;
+  final List<FilmChapter> films;
 }
 
-/// The books of one subject — a subject has several, one per term or level.
-class FilmBooksController extends GetxController {
-  FilmBooksController({
+/// A subject's videos, book by book.
+///
+/// The list is also the running order: Next from the last video of one book
+/// goes on to the first of the next. And it is where "watched" lands — the
+/// player tells this controller the moment a video ends, so the list behind
+/// the player is already ticked when the child comes back to it.
+class FilmVideosController extends GetxController {
+  FilmVideosController({
     required this.studentId,
     required this.subjectId,
     required this.subjectName,
-  });
-
-  final String? studentId;
-
-  /// Null asks for the books filed under no subject.
-  final String? subjectId;
-  final String subjectName;
-
-  final books = <ShelfBook>[].obs;
-  final isLoading = true.obs;
-  final error = RxnString();
-
-  @override
-  void onInit() {
-    super.onInit();
-    unawaited(load());
-  }
-
-  Future<void> load() async {
-    if (studentId == null) {
-      isLoading.value = false;
-      return;
-    }
-
-    isLoading.value = true;
-    error.value = null;
-    try {
-      final rows = await api.get<List<dynamic>>(
-        '/catalogue/children/$studentId/books',
-        query: {'subjectId': subjectId ?? 'none'},
-      );
-      books.value = rows
-          .whereType<Map<String, dynamic>>()
-          .map(ShelfBook.fromJson)
-          .toList();
-    } on DioException catch (e) {
-      error.value = _problem(e, 'Could not load the books.');
-    } finally {
-      isLoading.value = false;
-    }
-  }
-}
-
-/// The chapters of one book, in the book's own order.
-///
-/// Also where "watched" lands: the player tells this controller the moment a
-/// film ends, so the list behind the player is already ticked when the child
-/// comes back to it, however many chapters they watched in a row.
-class FilmChaptersController extends GetxController {
-  FilmChaptersController({
-    required this.studentId,
-    required this.bookId,
-    required this.bookName,
     this.art = AppIcons.storybook,
   });
 
   final String? studentId;
-  final String? bookId;
-  final String bookName;
 
-  /// The book's subject picture, for chapters with no picture of their own.
+  /// Null asks for the videos in books filed under no subject.
+  final String? subjectId;
+  final String subjectName;
+
+  /// The subject's picture, for videos with no picture of their own.
   final String art;
 
-  final chapters = <FilmChapter>[].obs;
+  final books = <FilmBookGroup>[].obs;
   final isLoading = true.obs;
   final error = RxnString();
 
-  /// Only the chapters with a film — the running order the player steps
-  /// through with Previous and Next.
-  List<FilmChapter> get withFilms => chapters.where((c) => c.hasFilm).toList();
+  /// Every video in the subject, in the order the player steps through them.
+  List<FilmChapter> get withFilms => [for (final book in books) ...book.films];
 
-  int get watchedCount =>
-      chapters.where((c) => c.hasFilm && c.isWatched).length;
+  int get watchedCount => withFilms.where((c) => c.isWatched).length;
+
+  /// The book a video is from, for the player's title.
+  String bookNameOf(String chapterId) => books
+      .firstWhere(
+        (book) => book.films.any((c) => c.id == chapterId),
+        orElse: () => FilmBookGroup(id: '', name: subjectName, films: []),
+      )
+      .name;
 
   @override
   void onInit() {
@@ -238,7 +140,7 @@ class FilmChaptersController extends GetxController {
   }
 
   Future<void> load() async {
-    if (studentId == null || bookId == null) {
+    if (studentId == null) {
       isLoading.value = false;
       return;
     }
@@ -247,24 +149,26 @@ class FilmChaptersController extends GetxController {
     error.value = null;
     try {
       final rows = await api.get<List<dynamic>>(
-        '/catalogue/children/$studentId/books/$bookId/chapters',
+        '/catalogue/children/$studentId/films',
+        query: {'subjectId': subjectId ?? 'none'},
       );
-      chapters.value = rows
+      books.value = rows
           .whereType<Map<String, dynamic>>()
-          .map(FilmChapter.fromJson)
+          .map(FilmBookGroup.fromJson)
+          .where((book) => book.films.isNotEmpty)
           .toList();
     } on DioException catch (e) {
-      error.value = _problem(e, 'Could not open this book.');
+      error.value = _problem(e, 'Could not load the videos.');
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Ticks a chapter off without a round trip.
+  /// Ticks a video off without a round trip.
   void markWatched(String chapterId) {
-    for (final chapter in chapters) {
+    for (final chapter in withFilms) {
       if (chapter.id == chapterId) chapter.isWatched = true;
     }
-    chapters.refresh();
+    books.refresh();
   }
 }

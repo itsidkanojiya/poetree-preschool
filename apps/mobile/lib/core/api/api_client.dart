@@ -305,6 +305,25 @@ class ApiClient {
     return Uint8List.fromList(response.data ?? const []);
   }
 
+  /// Saves an authenticated file straight to disk, reporting progress.
+  ///
+  /// For files too large to hold in memory the way [bytes] does — a book's
+  /// PDF is tens of megabytes. Through the same interceptor, so a token that
+  /// expires on the way is refreshed and the download retried.
+  Future<void> download(
+    String path,
+    String savePath, {
+    void Function(int received, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    await _dio.download(
+      path,
+      savePath,
+      onReceiveProgress: onProgress,
+      cancelToken: cancelToken,
+    );
+  }
+
   Future<T> patch<T>(String path, {Object? body}) async {
     final response = await _dio.patch<T>(path, data: body);
     return response.data as T;

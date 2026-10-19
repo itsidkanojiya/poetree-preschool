@@ -58,6 +58,8 @@ export const createBookSubjectSchema = z.object({
   /** Derived from the name when not given. */
   code: bookCodeSchema.optional(),
   icon: z.enum(BOOK_SUBJECT_ICONS).default('book'),
+  /** An uploaded picture, drawn in place of the icon; null takes it off. */
+  pictureFileId: idSchema.nullish(),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });
 export type CreateBookSubjectInput = z.infer<typeof createBookSubjectSchema>;
@@ -73,6 +75,8 @@ export interface BookSubjectSummary {
   code: string;
   name: string;
   icon: BookSubjectIcon;
+  /** The uploaded picture, or null when the subject wears its icon. */
+  pictureUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   /** Books filed under it, across every standard. */
@@ -88,6 +92,8 @@ export interface SubjectForChild {
   id: string | null;
   name: string;
   icon: BookSubjectIcon;
+  /** The uploaded picture, drawn in place of the icon; null for most. */
+  pictureUrl: string | null;
   bookCount: number;
   /** Chapters with a film, across its books. */
   filmCount: number;
@@ -124,11 +130,33 @@ export interface BookSummary {
   sortOrder: number;
   isActive: boolean;
   coverUrl: string | null;
+  /** The book to read, as uploaded; null until the publisher uploads one. */
+  pdf: BookPdfFile | null;
   /** How many question types are filed under it. */
   activityCount: number;
   /** How many schools have it switched on. */
   schoolCount: number;
 }
+
+/** A book's PDF, as the publisher's screens describe it. */
+export interface BookPdfFile {
+  fileName: string;
+  sizeBytes: number;
+  /**
+   * Its size as uploaded, once it has been made smaller for phones. Null until
+   * then — it is done in the background a minute or so after the upload — or
+   * when it could not be made any smaller.
+   */
+  originalSizeBytes: number | null;
+  uploadedAt: string;
+}
+
+/**
+ * The largest book PDF the publisher may upload: a printed book with full-page
+ * pictures, rather than the 15 MB a school's own documents are held to. Keep in
+ * step with the book PDF location in infra/nginx.
+ */
+export const BOOK_PDF_MAX_BYTES = 50 * 1024 * 1024;
 
 /* -------------------------------------------------------------------------- */
 /* Entitlement                                                                */
@@ -156,15 +184,29 @@ export interface BookForChild {
   classLevel: { id: string; name: string };
   coverUrl: string | null;
   /**
-   * Films inside this book that this child has still to watch.
-   *
-   * The shelf says "there is something to watch in here"; the watching happens
-   * chapter by chapter once they are inside, because a chapter is what a book
-   * is actually divided into.
+   * The book to read. Null until the publisher uploads it, which the app says
+   * rather than opening onto nothing.
    */
+  pdf: BookPdfForChild | null;
+  /** Films inside this book that this child has still to watch. */
   filmsToWatch: number;
-  /** False while any film inside is still unwatched. */
+  /**
+   * Always true. Films used to lock a book's pages until watched; they no
+   * longer lock anything. Kept for app versions still on phones, which read it.
+   */
   isUnlocked: boolean;
+}
+
+/** A book's PDF, as a child's app fetches it. */
+export interface BookPdfForChild {
+  /** Served only to a child whose school has the book. */
+  url: string;
+  sizeBytes: number;
+  /**
+   * Changes whenever the publisher replaces the PDF, so an app that kept a
+   * copy for reading offline knows to fetch the new one.
+   */
+  version: string;
 }
 
 export interface SchoolBookRow {

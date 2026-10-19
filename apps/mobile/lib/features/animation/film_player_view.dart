@@ -11,6 +11,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../../core/api/api_service.dart';
 import '../../core/assets/app_assets.dart';
 import '../../core/widgets/art.dart';
+import '../books/books_controllers.dart';
 import 'chapter_done_view.dart';
 import 'film_controllers.dart';
 import 'film_widgets.dart';
@@ -21,8 +22,8 @@ const _channel = 'PoetreeFilm';
 /// Watches the real video element on YouTube's own embed page, and reports its
 /// position twice a second so our own controls can draw a progress bar.
 ///
-/// The same approach AnimationView proved: the embed page is loaded directly,
-/// so the `<video>` element is ours to read and to drive. Play, pause, seek and
+/// The embed page is loaded directly, so the `<video>` element is ours to
+/// read and to drive. Play, pause, seek and
 /// mute below are one line of script each against that element — YouTube's
 /// JavaScript player API is what could never be made to work here.
 ///
@@ -80,22 +81,22 @@ String _onVideo(String body) =>
 
 /// The animation player.
 ///
-/// Steps through one book's films in order: Previous and Next move between
-/// chapters, and when a film ends it is recorded as watched and the child is
-/// shown the chapter-complete screen, which carries on to the next one.
+/// Steps through one subject's videos in order: Previous and Next move between
+/// them, across books, and when one ends it is recorded as watched and the
+/// child is shown the chapter-complete screen, which carries on to the next.
 class FilmPlayerView extends StatefulWidget {
   const FilmPlayerView({
-    required this.chapters,
+    required this.videos,
     required this.playlist,
     required this.startIndex,
     this.start3d = false,
     super.key,
   });
 
-  /// The book's chapter list, told about each film watched.
-  final FilmChaptersController chapters;
+  /// The subject's video list, told about each video watched.
+  final FilmVideosController videos;
 
-  /// The chapters that have a film, in the book's order.
+  /// The subject's videos, in order.
   final List<FilmChapter> playlist;
   final int startIndex;
   final bool start3d;
@@ -198,8 +199,7 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
           '?autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=0'
           '&fs=0&iv_load_policy=3&disablekb=1',
         ),
-        // Without a referrer the embed page refuses with error 153. See
-        // AnimationView, where this was found.
+        // Without a referrer the embed page refuses with error 153.
         headers: const {'Referer': 'https://school.poetreepublications.com/'},
       ),
     );
@@ -371,7 +371,7 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
 
   /// Records the film as watched, then shows the chapter-complete screen.
   Future<void> _complete() async {
-    final studentId = widget.chapters.studentId;
+    final studentId = widget.videos.studentId;
     if (studentId == null) return;
 
     setState(() {
@@ -384,18 +384,18 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
         '/catalogue/chapters/${_chapter.id}/watched',
         body: {'studentId': studentId},
       );
-      widget.chapters.markWatched(_chapter.id);
+      widget.videos.markWatched(_chapter.id);
       _refreshBehind();
       if (!mounted) return;
       if (_fullscreen) await _setFullscreen(false);
       if (!mounted) return;
 
-      // Replaces the player, so Back from the finished screen is the chapter
-      // list rather than a film that already ended.
+      // Replaces the player, so Back from the finished screen is the video
+      // list rather than a video that already ended.
       unawaited(
         Get.off<void>(
           () => ChapterDoneView(
-            chapters: widget.chapters,
+            videos: widget.videos,
             playlist: widget.playlist,
             index: _index,
             was3d: _is3d,
@@ -414,14 +414,11 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
     }
   }
 
-  /// The screens behind this one count films still to watch; they are
-  /// refreshed quietly so their badges are right when the child goes back.
+  /// The subjects screen behind this one counts videos still to watch; it is
+  /// refreshed quietly so its badges are right when the child goes back.
   void _refreshBehind() {
-    if (Get.isRegistered<FilmBooksController>()) {
-      unawaited(Get.find<FilmBooksController>().load());
-    }
-    if (Get.isRegistered<FilmSubjectsController>()) {
-      unawaited(Get.find<FilmSubjectsController>().load());
+    if (Get.isRegistered<SubjectsController>()) {
+      unawaited(Get.find<SubjectsController>().load());
     }
   }
 
@@ -458,7 +455,7 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      widget.chapters.bookName,
+                      widget.videos.bookNameOf(_chapter.id),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],

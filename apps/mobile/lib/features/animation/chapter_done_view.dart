@@ -4,26 +4,25 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../core/routes/app_pages.dart';
 import 'film_controllers.dart';
 import 'film_player_view.dart';
 import 'film_widgets.dart';
 
 /// "Chapter complete!" — shown when a film ends.
 ///
-/// Carries on to the next chapter by itself after a short countdown, which is
-/// what a four-year-old expects of a screen of stories; a grown-up can stop it,
-/// go on at once, or open the chapter's activities instead.
+/// Carries on to the next video by itself after a short countdown, which is
+/// what a four-year-old expects of a screen of stories; a grown-up can stop it
+/// or go on at once.
 class ChapterDoneView extends StatefulWidget {
   const ChapterDoneView({
-    required this.chapters,
+    required this.videos,
     required this.playlist,
     required this.index,
     required this.was3d,
     super.key,
   });
 
-  final FilmChaptersController chapters;
+  final FilmVideosController videos;
   final List<FilmChapter> playlist;
   final int index;
   final bool was3d;
@@ -77,26 +76,11 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
     unawaited(
       Get.off<void>(
         () => FilmPlayerView(
-          chapters: widget.chapters,
+          videos: widget.videos,
           playlist: widget.playlist,
           startIndex: widget.index + 1,
           start3d: widget.was3d,
         ),
-      ),
-    );
-  }
-
-  void _activities() {
-    _stop();
-    unawaited(
-      Get.toNamed<void>(
-        AppRoutes.activities,
-        arguments: {
-          'studentId': widget.chapters.studentId,
-          'bookId': widget.chapters.bookId,
-          'bookName': widget.chapters.bookName,
-          'chapterId': _done.id,
-        },
       ),
     );
   }
@@ -112,7 +96,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final next = _next;
-    final watched = widget.chapters.watchedCount;
+    final watched = widget.videos.watchedCount;
     final total = widget.playlist.length;
 
     return Scaffold(
@@ -133,7 +117,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                   onPressed: () => Get.back<void>(),
                   icon: const Icon(Icons.close_rounded),
                   color: Colors.white,
-                  tooltip: 'Back to chapters',
+                  tooltip: 'Back to the videos',
                 ),
               ),
               Expanded(
@@ -177,7 +161,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                       child: Column(
                         children: [
                           Text(
-                            '$watched of $total films in ${widget.chapters.bookName}',
+                            '$watched of $total videos in ${widget.videos.subjectName}',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
@@ -217,7 +201,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                           ),
                         ),
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Next chapter'),
+                        label: const Text('Next video'),
                       ),
                       if (_autoAdvance)
                         TextButton(
@@ -229,7 +213,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                         ),
                     ] else ...[
                       Text(
-                        'That was the last film in this book. Well done!',
+                        'That was the last video in ${widget.videos.subjectName}. Well done!',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: Colors.white,
@@ -243,20 +227,9 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                           foregroundColor: FilmColors.violet,
                           minimumSize: const Size.fromHeight(54),
                         ),
-                        child: const Text('Back to chapters'),
+                        child: const Text('Back to the videos'),
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: _activities,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white70),
-                        minimumSize: const Size.fromHeight(50),
-                      ),
-                      icon: const Icon(Icons.extension_rounded),
-                      label: const Text('Play this chapter’s activities'),
-                    ),
                   ],
                 ),
               ),
@@ -323,9 +296,7 @@ class _NextCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  secondsLeft != null
-                      ? 'Up next in $secondsLeft…'
-                      : 'Up next · Chapter $number',
+                  secondsLeft != null ? 'Up next in $secondsLeft…' : 'Up next',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: FilmColors.pink,
                     fontWeight: FontWeight.w700,

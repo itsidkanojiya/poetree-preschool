@@ -4,6 +4,7 @@ import type {
   BookSubjectIcon,
   BookSummary,
   ChapterForChild,
+  FilmBookForChild,
   SubjectForChild,
   CreateBookInput,
   SchoolBookRow,
@@ -18,6 +19,9 @@ import { assertCatalogueAssets } from './question.service.js';
 import { ApiError } from '../lib/apiError.js';
 import { slugCode, uniqueCode } from '../lib/code.js';
 import { writeAuditLog } from './audit.service.js';
+import { compressPdf, inBackground } from '../lib/compress.js';
+import { logger } from '../lib/logger.js';
+import { storage } from '../lib/storage.js';
 
 /**
  * Books, and which school has which.
@@ -31,6 +35,7 @@ import { writeAuditLog } from './audit.service.js';
 const bookInclude = {
   classLevel: { select: { id: true, name: true } },
   subject: { select: { id: true, name: true } },
+  pdf: { select: { originalName: true, sizeBytes: true, createdAt: true } },
   _count: { select: { activities: true, schools: true } },
 } satisfies Prisma.BookInclude;
 
@@ -53,6 +58,14 @@ function toSummary(row: BookRow, enabledSchools: number): BookSummary {
     sortOrder: row.sortOrder,
     isActive: row.isActive,
     coverUrl: row.coverFileId ? `/api/v1/catalogue/assets/${row.coverFileId}` : null,
+    pdf: row.pdf
+      ? {
+          fileName: row.pdf.originalName,
+          sizeBytes: row.pdf.sizeBytes,
+          originalSizeBytes: row.pdfOriginalSizeBytes,
+          uploadedAt: row.pdf.createdAt.toISOString(),
+        }
+      : null,
     activityCount: row._count.activities,
     schoolCount: enabledSchools,
   };
@@ -326,18 +339,10 @@ export async function seedEntitlementsForSchool(
   });
 }
 
-
 /* -------------------------------------------------------------------------- */
-/* The animation, and what it unlocks                                         */
+/* A child's books and films                                                  */
 /* -------------------------------------------------------------------------- */
 
-/**
- * The books this child may open, and whether each is unlocked yet.
- *
- * A book with no animation is unlocked from the start — a book that has no
- * video does not lock itself, which matters because most of the catalogue has
- * none and locking it all would empty the app.
- */
 /**
  * The standard a child is in, by way of the class they sit in this year.
  *
@@ -381,9 +386,14 @@ export async function subjectsForChild(studentId: string): Promise<SubjectForChi
 
   const subjects = await prismaUnscoped.bookSubject.findMany({
     where: { id: { in: books.flatMap((book) => (book.subject ? [book.subject.id] : [])) } },
-    select: { id: true, sortOrder: true },
+    select: { id: true, sortOrder: true, pictureFileId: true },
   });
   const order = new Map(subjects.map((subject) => [subject.id, subject.sortOrder]));
+  const pictures = new Map(subjects.map((subject) => [subject.id, subject.pictureFileId]));
+  const pictureOf = (subjectId: string | undefined): string | null => {
+    const fileId = subjectId ? pictures.get(subjectId) : null;
+    return fileId ? `/api/v1/catalogue/assets/${fileId}` : null;
+  };
 
   const groups = new Map<string, SubjectForChild>();
   for (const book of books) {
@@ -392,6 +402,7 @@ export async function subjectsForChild(studentId: string): Promise<SubjectForChi
       id: book.subject?.id ?? null,
       name: book.subject?.name ?? 'More books',
       icon: book.subject?.icon ?? 'book',
+      pictureUrl: pictureOf(book.subject?.id),
       bookCount: 0,
       filmCount: 0,
       filmsToWatch: 0,
@@ -447,6 +458,7 @@ export async function booksForChild(
       include: {
         classLevel: { select: { id: true, name: true } },
         subject: { select: { id: true, name: true, icon: true } },
+        pdf: { select: { id: true, sizeBytes: true } },
       },
       orderBy: [{ classLevel: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     }),
@@ -489,11 +501,148 @@ export async function booksForChild(
         : null,
       classLevel: book.classLevel,
       coverUrl: book.coverFileId ? `/api/v1/catalogue/assets/${book.coverFileId}` : null,
+      pdf: book.pdf
+        ? {
+            url: `/api/v1/catalogue/children/${studentId}/books/${book.id}/pdf`,
+            sizeBytes: book.pdf.sizeBytes,
+            version: book.pdf.id,
+          }
+        : null,
       /** How many films inside are still to watch. Zero means nothing waiting. */
       filmsToWatch: films.filter((id) => !seen.has(id)).length,
-      isUnlocked: films.every((id) => seen.has(id)),
+      isUnlocked: true,
     };
   });
+}
+
+/**
+ * A subject's films for one child, book by book.
+ *
+ * The books are the child's own shelf under that subject, in its order, and
+ * each book's films in the book's running order — which makes the list the
+ * order the player steps through, across books, without being told.
+ */
+export async function filmsForChild(
+  studentId: string,
+  subjectId?: string,
+): Promise<FilmBookForChild[]> {
+  const books = await booksForChild(studentId, subjectId);
+  if (books.length === 0) return [];
+
+  const [chapters, watched] = await Promise.all([
+    prismaUnscoped.chapter.findMany({
+      where: {
+        bookId: { in: books.map((book) => book.id) },
+        isActive: true,
+        OR: [{ animationUrl: { not: null } }, { animation3dUrl: { not: null } }],
+      },
+      select: {
+        id: true,
+        bookId: true,
+        name: true,
+        number: true,
+        animationUrl: true,
+        animation3dUrl: true,
+        coverFileId: true,
+      },
+      orderBy: { sortOrder: 'asc' },
+    }),
+    prismaUnscoped.chapterAnimationView.findMany({
+      where: { studentId },
+      select: { chapterId: true },
+    }),
+  ]);
+  const seen = new Set(watched.map((row) => row.chapterId));
+
+  return books.flatMap((book) => {
+    const films = chapters
+      .filter((chapter) => chapter.bookId === book.id)
+      .map((chapter) => toChapterForChild(chapter, seen))
+      // A link that is not a YouTube video is not a film the app can play.
+      .filter((chapter) => chapter.animation !== null);
+    return films.length > 0
+      ? [{ id: book.id, name: book.name, coverUrl: book.coverUrl, films }]
+      : [];
+  });
+}
+
+/**
+ * A book's PDF, for a child whose school has the book.
+ *
+ * The same shelf rules as the books list — the school bought it, it is active,
+ * and it is for this child's year — so a PDF can never be reached by id alone
+ * for a book the child would not see.
+ */
+export async function bookPdfForChild(
+  studentId: string,
+  bookId: string,
+): Promise<{ storageKey: string; originalName: string; id: string }> {
+  const books = await booksForChild(studentId);
+  if (!books.some((book) => book.id === bookId && book.pdf !== null)) {
+    throw ApiError.notFound('Book not found');
+  }
+
+  return bookPdfFile(bookId);
+}
+
+/** A book's PDF file, for the publisher's own screens. */
+export async function bookPdfFile(
+  bookId: string,
+): Promise<{ storageKey: string; originalName: string; id: string }> {
+  const book = await prismaUnscoped.book.findUnique({
+    where: { id: bookId },
+    select: {
+      pdf: { select: { id: true, storageKey: true, originalName: true, deletedAt: true } },
+    },
+  });
+  if (!book?.pdf || book.pdf.deletedAt) throw ApiError.notFound('This book has no PDF');
+
+  return book.pdf;
+}
+
+/**
+ * Puts a PDF on a book, or takes it off with `null`.
+ *
+ * The file it replaces is marked deleted rather than left lying about: it was
+ * only ever reachable as this book's PDF, and an orphan nobody can see is just
+ * disk.
+ */
+export async function setBookPdf(
+  bookId: string,
+  fileId: string | null,
+  actorUserId: string,
+): Promise<BookSummary> {
+  const existing = await prismaUnscoped.book.findUnique({
+    where: { id: bookId },
+    select: { name: true, pdfFileId: true },
+  });
+  if (!existing) throw ApiError.notFound('Book not found');
+
+  await prismaUnscoped.$transaction(async (tx) => {
+    await tx.book.update({
+      where: { id: bookId },
+      data: { pdfFileId: fileId, pdfOriginalSizeBytes: null },
+    });
+    if (existing.pdfFileId && existing.pdfFileId !== fileId) {
+      await tx.fileObject.update({
+        where: { id: existing.pdfFileId },
+        data: { deletedAt: new Date() },
+      });
+    }
+  });
+
+  await writeAuditLog({
+    action: 'BOOK_UPDATED',
+    entity: 'Book',
+    entityId: bookId,
+    schoolId: null,
+    actorUserId,
+    before: { name: existing.name, pdf: existing.pdfFileId !== null },
+    after: { pdf: fileId !== null },
+  });
+
+  const rows = await listBooks();
+  return rows.find((row) => row.id === bookId)!;
 }
 
 /**
@@ -574,44 +723,111 @@ export async function chaptersForChild(
 
   const seen = new Set(watched.map((row) => row.chapterId));
 
-  return chapters.map((chapter) => {
-    const animation = toAnimation(chapter.animationUrl);
-    const animation3d = toAnimation(chapter.animation3dUrl);
-    const isWatched = seen.has(chapter.id);
-    return {
-      id: chapter.id,
-      name: chapter.name,
-      number: chapter.number,
-      // A chapter whose only film is the 3D one still has a film. The 2D slot
-      // is filled from it rather than left empty, so the app never shows "no
-      // film" for a chapter that has one.
-      animation: animation ?? animation3d,
-      animation3d: animation ? animation3d : null,
-      coverUrl: chapter.coverFileId ? `/api/v1/catalogue/assets/${chapter.coverFileId}` : null,
-      isWatched,
-      isUnlocked: (animation === null && animation3d === null) || isWatched,
-    };
-  });
+  return chapters.map((chapter) => toChapterForChild(chapter, seen));
 }
 
-/** The chapters this child has still to watch, for locking their pages. */
-export async function lockedChapterIdsFor(studentId: string): Promise<Set<string>> {
-  const schoolId = requireSchoolId();
+/**
+ * What makes a book's PDF smaller. An object so tests can put something in its
+ * place that needs neither Ghostscript nor a minute.
+ */
+export const pdfCompressor = { compress: compressPdf };
 
-  const [withFilm, watched] = await Promise.all([
-    prismaUnscoped.chapter.findMany({
-      where: {
-        isActive: true,
-        OR: [{ animationUrl: { not: null } }, { animation3dUrl: { not: null } }],
-      },
-      select: { id: true },
-    }),
-    prismaUnscoped.chapterAnimationView.findMany({
-      where: { studentId, schoolId },
-      select: { chapterId: true },
-    }),
-  ]);
+/**
+ * Makes a book's PDF smaller for phones, after the upload has been answered.
+ *
+ * A large book takes Ghostscript a minute or more, which is far too long to
+ * hold the publisher's upload open for.
+ */
+export function compressBookPdfLater(bookId: string, fileId: string): void {
+  inBackground(() => compressBookPdf(bookId, fileId));
+}
 
-  const seen = new Set(watched.map((row) => row.chapterId));
-  return new Set(withFilm.map((chapter) => chapter.id).filter((id) => !seen.has(id)));
+/**
+ * Swaps a book's PDF for a smaller copy of itself.
+ *
+ * Only when it is really smaller — a few percent is not worth a new version
+ * that every phone downloads again — and only while that file is still the
+ * book's PDF: one replaced while this ran keeps its replacement. The original
+ * goes, like any PDF a book stops using; the publisher has it on their own
+ * computer.
+ */
+export async function compressBookPdf(
+  bookId: string,
+  fileId: string,
+  compress: (path: string) => Promise<Buffer | null> = pdfCompressor.compress,
+): Promise<'replaced' | 'kept' | 'superseded'> {
+  const file = await prismaUnscoped.fileObject.findUnique({
+    where: { id: fileId },
+    select: { storageKey: true, originalName: true, sizeBytes: true, uploadedById: true },
+  });
+  if (!file) return 'superseded';
+
+  const smaller = await compress(storage.locate(file.storageKey));
+  if (!smaller || smaller.length > file.sizeBytes * 0.95) return 'kept';
+
+  const stored = await storage.put({
+    schoolId: null,
+    originalName: file.originalName,
+    bytes: smaller,
+  });
+  const record = await prismaUnscoped.fileObject.create({
+    data: {
+      schoolId: null,
+      storageKey: stored.key,
+      originalName: file.originalName,
+      mimeType: 'application/pdf',
+      sizeBytes: stored.sizeBytes,
+      checksum: stored.checksum,
+      uploadedById: file.uploadedById,
+      visibility: 'PRIVATE',
+    },
+    select: { id: true },
+  });
+
+  const swapped = await prismaUnscoped.book.updateMany({
+    where: { id: bookId, pdfFileId: fileId },
+    data: { pdfFileId: record.id, pdfOriginalSizeBytes: file.sizeBytes },
+  });
+  const now = new Date();
+  if (swapped.count === 0) {
+    await prismaUnscoped.fileObject.update({ where: { id: record.id }, data: { deletedAt: now } });
+    return 'superseded';
+  }
+
+  await prismaUnscoped.fileObject.update({ where: { id: fileId }, data: { deletedAt: now } });
+  logger.info('Made a book PDF smaller', {
+    bookId,
+    from: file.sizeBytes,
+    to: stored.sizeBytes,
+  });
+  return 'replaced';
+}
+
+/** A chapter row as the app reads it, given the chapters this child watched. */
+function toChapterForChild(
+  chapter: {
+    id: string;
+    name: string;
+    number: number | null;
+    animationUrl: string | null;
+    animation3dUrl: string | null;
+    coverFileId: string | null;
+  },
+  watched: Set<string>,
+): ChapterForChild {
+  const animation = toAnimation(chapter.animationUrl);
+  const animation3d = toAnimation(chapter.animation3dUrl);
+  return {
+    id: chapter.id,
+    name: chapter.name,
+    number: chapter.number,
+    // A chapter whose only film is the 3D one still has a film. The 2D slot
+    // is filled from it rather than left empty, so the app never shows "no
+    // film" for a chapter that has one.
+    animation: animation ?? animation3d,
+    animation3d: animation ? animation3d : null,
+    coverUrl: chapter.coverFileId ? `/api/v1/catalogue/assets/${chapter.coverFileId}` : null,
+    isWatched: watched.has(chapter.id),
+    isUnlocked: true,
+  };
 }

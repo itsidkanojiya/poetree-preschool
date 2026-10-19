@@ -7,6 +7,7 @@ import type {
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
 import { slugCode, uniqueCode } from '../lib/code.js';
+import { assertCatalogueAssets } from './question.service.js';
 
 /**
  * The subjects books are filed under — English, Maths, EVS.
@@ -23,6 +24,7 @@ function toSummary(row: {
   code: string;
   name: string;
   icon: string;
+  pictureFileId: string | null;
   sortOrder: number;
   isActive: boolean;
   _count: { books: number };
@@ -32,6 +34,7 @@ function toSummary(row: {
     code: row.code,
     name: row.name,
     icon: row.icon as BookSubjectIcon,
+    pictureUrl: row.pictureFileId ? `/api/v1/catalogue/assets/${row.pictureFileId}` : null,
     sortOrder: row.sortOrder,
     isActive: row.isActive,
     bookCount: row._count.books,
@@ -61,6 +64,8 @@ export async function createBookSubject(
     throw ApiError.conflict(`Subject code "${code}" is already taken`, { field: 'code' });
   }
 
+  await assertCatalogueAssets([input.pictureFileId]);
+
   const last = await prismaUnscoped.bookSubject.findFirst({
     orderBy: { sortOrder: 'desc' },
     select: { sortOrder: true },
@@ -71,6 +76,7 @@ export async function createBookSubject(
       code,
       name: input.name,
       icon: input.icon,
+      pictureFileId: input.pictureFileId ?? null,
       sortOrder: input.sortOrder ?? (last?.sortOrder ?? 0) + 1,
     },
     include: withCount,
@@ -88,11 +94,14 @@ export async function updateBookSubject(
   });
   if (!existing) throw ApiError.notFound('Subject not found');
 
+  await assertCatalogueAssets([input.pictureFileId]);
+
   const row = await prismaUnscoped.bookSubject.update({
     where: { id },
     data: {
       name: input.name,
       icon: input.icon,
+      pictureFileId: input.pictureFileId,
       sortOrder: input.sortOrder,
       isActive: input.isActive,
     },

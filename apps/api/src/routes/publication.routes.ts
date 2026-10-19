@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import {
   createBookSubjectSchema,
   updateBookSubjectSchema,
@@ -6,6 +6,7 @@ import {
   updateOrganisationSchema,
   assignSubscriptionSchema,
   createActivitySchema,
+  BOOK_PDF_MAX_BYTES,
   createBookSchema,
   createChapterSchema,
   reorderChaptersSchema,
@@ -81,7 +82,10 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { ApiError } from '../lib/apiError.js';
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, sniffMime, storage, typeFor } from '../lib/storage.js';
 import { stripImageMetadata } from '../lib/exif.js';
+import { compressPicture } from '../lib/compress.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { tenantContext } from '../middleware/tenantContext.js';
+import { sendStoredFile } from '../lib/sendStoredFile.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
@@ -454,17 +458,22 @@ publicationRouter.post(
       );
     }
 
-    // Stripped like every other upload. Publisher artwork is unlikely to carry
-    // a home address, but the rule is cheaper to keep than to reason about.
-    const bytes = stripImageMetadata(file.buffer, mime);
-    const stored = await storage.put({ schoolId: null, originalName: file.originalname, bytes });
+    // Made smaller for the phones that will download it, looking the same.
+    // Compressed first, so a photo's "this way up" is applied before its
+    // metadata goes; one kept as uploaded is stripped like every other upload.
+    // Publisher artwork is unlikely to carry a home address, but the rule is
+    // cheaper to keep than to reason about.
+    const picture = await compressPicture({ bytes: file.buffer, mime, name: file.originalname });
+    const bytes =
+      picture.bytes === file.buffer ? stripImageMetadata(file.buffer, mime) : picture.bytes;
+    const stored = await storage.put({ schoolId: null, originalName: picture.name, bytes });
 
     const record = await prismaUnscoped.fileObject.create({
       data: {
         schoolId: null,
         storageKey: stored.key,
-        originalName: file.originalname.slice(0, 200),
-        mimeType: mime,
+        originalName: picture.name.slice(0, 200),
+        mimeType: picture.mime,
         sizeBytes: stored.sizeBytes,
         checksum: stored.checksum,
         uploadedById: req.auth!.userId,
@@ -541,6 +550,101 @@ publicationRouter.patch(
         req.auth!.userId,
       ),
     );
+  }),
+);
+
+/**
+ * A book's PDF: the book a child reads in the app.
+ *
+ * Its own upload rather than `/assets`: a printed book with full-page pictures
+ * is far larger than the 15 MB a school's documents are held to, and it is
+ * never artwork — it is served only to a child whose school has the book.
+ */
+const bookPdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: BOOK_PDF_MAX_BYTES, files: 1 },
+}).single('file');
+
+function receiveBookPdf(req: Request, res: Response, next: NextFunction): void {
+  bookPdfUpload(req, res, (error: unknown) => {
+    if (error instanceof multer.MulterError) {
+      next(
+        ApiError.badRequest(
+          error.code === 'LIMIT_FILE_SIZE'
+            ? `A book's PDF may be at most ${BOOK_PDF_MAX_BYTES / (1024 * 1024)} MB`
+            : 'Send one PDF at a time',
+        ),
+      );
+      return;
+    }
+    next(error);
+  });
+}
+
+publicationRouter.post(
+  '/books/:id/pdf',
+  validate({ params: idParamSchema }),
+  receiveBookPdf,
+  // Multer finishes outside the request's async context; see file.routes.ts.
+  tenantContext,
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file) throw ApiError.badRequest('No file was uploaded');
+    // By content, never by the name or the Content-Type the client sent.
+    if (sniffMime(file.buffer) !== 'application/pdf') {
+      throw ApiError.badRequest('A book has to be uploaded as a PDF');
+    }
+
+    const bookId = params<{ id: string }>(req).id;
+    const stored = await storage.put({
+      schoolId: null,
+      originalName: file.originalname,
+      bytes: file.buffer,
+    });
+    const record = await prismaUnscoped.fileObject.create({
+      data: {
+        schoolId: null,
+        storageKey: stored.key,
+        originalName: file.originalname.slice(0, 200),
+        mimeType: 'application/pdf',
+        sizeBytes: stored.sizeBytes,
+        checksum: stored.checksum,
+        uploadedById: req.auth!.userId,
+        visibility: 'PRIVATE',
+      },
+      select: { id: true },
+    });
+
+    res.json(await books.setBookPdf(bookId, record.id, req.auth!.userId));
+    // After the answer: the publisher's page shows the smaller size on its next
+    // load.
+    books.compressBookPdfLater(bookId, record.id);
+  }),
+);
+
+publicationRouter.delete(
+  '/books/:id/pdf',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await books.setBookPdf(params<{ id: string }>(req).id, null, req.auth!.userId));
+  }),
+);
+
+/** The PDF as uploaded, so the publisher can check it is the right book. */
+publicationRouter.get(
+  '/books/:id/pdf',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req: Request, res) => {
+    const file = await books.bookPdfFile(params<{ id: string }>(req).id);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${file.originalName.replace(/[^\w.\- ]/g, '_')}"`,
+    );
+    res.setHeader('Cache-Control', 'private, no-store');
+
+    sendStoredFile(req, res, file, { fileId: file.id });
   }),
 );
 

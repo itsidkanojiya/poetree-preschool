@@ -2059,34 +2059,45 @@ model Skill {
 /// Reader — which is why the app shows the books under a subject before the
 /// chapters under a book.
 model BookSubject {
-  id        String  @id @default(cuid())
-  code      String  @unique @db.VarChar(40)
-  name      String  @db.VarChar(80)
+  id            String  @id @default(cuid())
+  code          String  @unique @db.VarChar(40)
+  name          String  @db.VarChar(80)
   /// Which picture the app draws for it. A short key rather than an uploaded
   /// image, so a subject added in the admin panel looks right on day one.
-  icon      String  @default("book") @db.VarChar(30)
-  sortOrder Int     @default(0)
-  isActive  Boolean @default(true)
+  icon          String  @default("book") @db.VarChar(30)
+  /// A picture uploaded for it, drawn in the app in place of [icon]. Null for
+  /// most: the icon is what a subject wears until somebody uploads one.
+  pictureFileId String? @db.VarChar(191)
+  sortOrder     Int     @default(0)
+  isActive      Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  books Book[]
+  books   Book[]
+  picture FileObject? @relation("BookSubjectPicture", fields: [pictureFileId], references: [id], onDelete: SetNull)
 
   @@map("book_subjects")
 }
 
 model Book {
-  id           String  @id @default(cuid())
-  code         String  @unique @db.VarChar(40)
-  name         String  @db.VarChar(120)
+  id                   String  @id @default(cuid())
+  code                 String  @unique @db.VarChar(40)
+  name                 String  @db.VarChar(120)
   /// Null for a book nobody has filed yet. It still appears on the shelf, under
   /// "More books", rather than vanishing because a dropdown was left empty.
-  subjectId    String?
-  classLevelId String
-  sortOrder    Int     @default(0)
-  coverFileId  String? @db.VarChar(191)
-  isActive     Boolean @default(true)
+  subjectId            String?
+  classLevelId         String
+  sortOrder            Int     @default(0)
+  coverFileId          String? @db.VarChar(191)
+  /// The book itself, as a PDF a child reads in the app. Null until the
+  /// publisher uploads one. Never served as catalogue artwork: only to a child
+  /// whose school has the book.
+  pdfFileId            String? @db.VarChar(191)
+  /// The PDF's size as uploaded, once it has been made smaller; null until
+  /// then, or when it could not be made any smaller.
+  pdfOriginalSizeBytes Int?
+  isActive             Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2095,6 +2106,7 @@ model Book {
   /// SetNull: retiring a subject must not delete the books filed under it.
   subject    BookSubject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   cover      FileObject?    @relation("BookCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  pdf        FileObject?    @relation("BookPdf", fields: [pdfFileId], references: [id], onDelete: SetNull)
   activities ActivityBook[]
   chapters   Chapter[]
   schools    SchoolBook[]
@@ -2756,6 +2768,8 @@ model FileObject {
   signedSchools            School[]                  @relation("SchoolSignature")
   signedUsers              User[]                    @relation("UserSignature")
   bookCovers               Book[]                    @relation("BookCover")
+  bookPdfs                 Book[]                    @relation("BookPdf")
+  subjectPictures          BookSubject[]             @relation("BookSubjectPicture")
   chapterCovers            Chapter[]                 @relation("ChapterCover")
   questionPrompts          ActivityQuestion[]        @relation("QuestionPrompt")
   optionImages             QuestionOption[]          @relation("OptionImage")

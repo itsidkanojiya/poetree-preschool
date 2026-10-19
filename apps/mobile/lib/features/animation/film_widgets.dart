@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/assets/app_assets.dart';
 import '../../core/theme/play_palette.dart';
 import '../../core/widgets/art.dart';
+import '../../core/widgets/authed_image.dart';
+import '../books/books_controllers.dart';
 
 /// The picture for a subject, from the asset pack, on a white tile.
 ///
@@ -42,6 +44,55 @@ class SubjectBadge extends StatelessWidget {
       child: ArtIcon(
         SubjectArt.forSubject(icon: icon, name: name),
         size: size * 0.84,
+      ),
+    );
+  }
+}
+
+/// A subject's picture on its tile: the one the publisher uploaded, or, until
+/// they do, its [SubjectBadge].
+class SubjectArtwork extends StatelessWidget {
+  const SubjectArtwork({
+    required this.subject,
+    required this.tone,
+    this.size = 56,
+    super.key,
+  });
+
+  final ShelfSubject subject;
+  final PlayTone tone;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final picture = subject.picturePath;
+    if (picture == null) {
+      return SubjectBadge(
+        icon: subject.icon,
+        name: subject.name,
+        tone: tone,
+        size: size,
+      );
+    }
+
+    final radius = BorderRadius.circular(size * 0.3);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: tone.deep.withValues(alpha: 0.16),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: AuthedImage(path: picture, fit: BoxFit.cover),
       ),
     );
   }
@@ -135,8 +186,8 @@ class FilmProgressCard extends StatelessWidget {
             total == 0
                 ? emptyText
                 : allDone
-                ? 'All $total films watched — well done!'
-                : '$done of $total films watched',
+                ? 'All $total videos watched — well done!'
+                : '$done of $total videos watched',
             style: theme.textTheme.bodySmall,
           ),
           if (total > 0) ...[

@@ -23,6 +23,16 @@ import '../routes/app_pages.dart';
 class PushService extends GetxService {
   bool _started = false;
 
+  /// Completes once the app's first screen is up. Start-up, push included,
+  /// runs behind the splash, so the notification that launched the app can be
+  /// read before there is anywhere to open it.
+  final _appShown = Completer<void>();
+
+  /// Called by the app when its first screen is on.
+  void appShown() {
+    if (!_appShown.isCompleted) _appShown.complete();
+  }
+
   /// Registers this device and starts listening.
   ///
   /// Called after sign-in rather than at startup: the token belongs to a user,
@@ -64,9 +74,12 @@ class PushService extends GetxService {
         (message) => unawaited(_openFrom(message)),
       );
 
-      // A notification that launched the app from cold.
+      // A notification that launched the app from cold, opened once the app
+      // is past its splash.
       final initial = await messaging.getInitialMessage();
-      if (initial != null) unawaited(_openFrom(initial));
+      if (initial != null) {
+        unawaited(_appShown.future.then((_) => _openFrom(initial)));
+      }
     } on Object catch (error) {
       debugPrint('Push setup failed, continuing without it: $error');
     }

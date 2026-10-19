@@ -2,16 +2,13 @@ import 'package:get/get.dart';
 
 import '../../features/activities/activity_controller.dart';
 import '../../features/activities/activity_list_view.dart';
-import '../../features/activities/book_shelf_controller.dart';
-import '../../features/activities/chapter_list_controller.dart';
-import '../../features/activities/chapter_list_view.dart';
-import '../../features/activities/book_shelf_view.dart';
 import '../../features/activities/activity_models.dart';
 import '../../features/activities/activity_play_view.dart';
-import '../../features/animation/film_books_view.dart';
-import '../../features/animation/film_chapters_view.dart';
 import '../../features/animation/film_controllers.dart';
 import '../../features/animation/film_subjects_view.dart';
+import '../../features/animation/film_videos_view.dart';
+import '../../features/books/book_shelf_view.dart';
+import '../../features/books/books_controllers.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/change_password_view.dart';
 import '../../features/auth/login_view.dart';
@@ -103,16 +100,16 @@ class AppRoutes {
   static const stream = '/stream';
   static const teacherHomework = '/teacher/homework';
   static const roster = '/teacher/class';
+
+  /// Books: subject → book → read. The subjects are the Learning tab.
   static const books = '/books';
-  static const chapters = '/chapters';
   static const activities = '/activities';
   static const activityPlay = '/activities/play';
   static const blocked = '/blocked';
 
-  /// 2D & 3D Animation: subject → book → chapter → film.
+  /// 2D & 3D Animation: subject → its videos → play.
   static const filmSubjects = '/films';
-  static const filmBooks = '/films/books';
-  static const filmChapters = '/films/chapters';
+  static const filmVideos = '/films/videos';
 
   /// School events → one event's photos.
   static const gallery = '/gallery';
@@ -123,8 +120,8 @@ class FilmSubjectsBinding extends Bindings {
   @override
   void dependencies() {
     final args = Get.arguments as Map<String, dynamic>? ?? const {};
-    Get.put<FilmSubjectsController>(
-      FilmSubjectsController(
+    Get.put<SubjectsController>(
+      SubjectsController(
         studentId: args['studentId'] as String?,
         childName: args['childName'] as String? ?? '',
       ),
@@ -132,29 +129,15 @@ class FilmSubjectsBinding extends Bindings {
   }
 }
 
-class FilmBooksBinding extends Bindings {
+class FilmVideosBinding extends Bindings {
   @override
   void dependencies() {
     final args = Get.arguments as Map<String, dynamic>? ?? const {};
-    Get.put<FilmBooksController>(
-      FilmBooksController(
+    Get.put<FilmVideosController>(
+      FilmVideosController(
         studentId: args['studentId'] as String?,
         subjectId: args['subjectId'] as String?,
-        subjectName: args['subjectName'] as String? ?? 'Books',
-      ),
-    );
-  }
-}
-
-class FilmChaptersBinding extends Bindings {
-  @override
-  void dependencies() {
-    final args = Get.arguments as Map<String, dynamic>? ?? const {};
-    Get.put<FilmChaptersController>(
-      FilmChaptersController(
-        studentId: args['studentId'] as String?,
-        bookId: args['bookId'] as String?,
-        bookName: args['bookName'] as String? ?? 'Book',
+        subjectName: args['subjectName'] as String? ?? 'Videos',
         art: args['art'] as String? ?? AppIcons.storybook,
       ),
     );
@@ -201,20 +184,6 @@ class ActivityListBinding extends Bindings {
   }
 }
 
-class ChapterListBinding extends Bindings {
-  @override
-  void dependencies() {
-    final args = Get.arguments as Map<String, dynamic>? ?? const {};
-    Get.put<ChapterListController>(
-      ChapterListController(
-        studentId: args['studentId'] as String?,
-        bookId: args['bookId'] as String?,
-        bookName: args['bookName'] as String? ?? 'Book',
-      ),
-    );
-  }
-}
-
 class BookShelfBinding extends Bindings {
   @override
   void dependencies() {
@@ -222,7 +191,8 @@ class BookShelfBinding extends Bindings {
     Get.put<BookShelfController>(
       BookShelfController(
         studentId: args['studentId'] as String?,
-        childName: args['childName'] as String? ?? '',
+        subjectId: args['subjectId'] as String?,
+        subjectName: args['subjectName'] as String? ?? 'Books',
       ),
     );
   }
@@ -359,11 +329,6 @@ final appPages = <GetPage<dynamic>>[
     binding: BookShelfBinding(),
   ),
   GetPage<void>(
-    name: AppRoutes.chapters,
-    page: () => const ChapterListView(),
-    binding: ChapterListBinding(),
-  ),
-  GetPage<void>(
     name: AppRoutes.activities,
     page: () => const ActivityListView(),
     binding: ActivityListBinding(),
@@ -379,14 +344,9 @@ final appPages = <GetPage<dynamic>>[
     binding: FilmSubjectsBinding(),
   ),
   GetPage<void>(
-    name: AppRoutes.filmBooks,
-    page: () => const FilmBooksView(),
-    binding: FilmBooksBinding(),
-  ),
-  GetPage<void>(
-    name: AppRoutes.filmChapters,
-    page: () => const FilmChaptersView(),
-    binding: FilmChaptersBinding(),
+    name: AppRoutes.filmVideos,
+    page: () => const FilmVideosView(),
+    binding: FilmVideosBinding(),
   ),
   GetPage<void>(
     name: AppRoutes.gallery,

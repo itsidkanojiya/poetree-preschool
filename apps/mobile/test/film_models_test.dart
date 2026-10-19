@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poetree_school/features/animation/film_controllers.dart';
+import 'package:poetree_school/features/books/books_controllers.dart';
 import 'package:poetree_school/features/gallery/gallery_view.dart';
 
 void main() {
@@ -42,7 +43,7 @@ void main() {
   });
 
   test('"More books" has no subject id, and counts what is left', () {
-    final subject = FilmSubject.fromJson({
+    final subject = ShelfSubject.fromJson({
       'id': null,
       'name': 'More books',
       'icon': 'book',
@@ -53,6 +54,43 @@ void main() {
 
     expect(subject.id, isNull);
     expect(subject.filmsWatched, 2);
+    expect(subject.picturePath, isNull);
+  });
+
+  test('a subject with a picture wears it, fetched through our client', () {
+    final subject = ShelfSubject.fromJson({
+      'id': 'evs',
+      'name': 'EVS',
+      'icon': 'globe',
+      'pictureUrl': '/api/v1/catalogue/assets/p1',
+      'bookCount': 1,
+      'filmCount': 0,
+      'filmsToWatch': 0,
+    });
+
+    // Our base URL already ends in /api/v1.
+    expect(subject.picturePath, '/catalogue/assets/p1');
+  });
+
+  test('a subject lists only the videos it can play, book by book', () {
+    final book = FilmBookGroup.fromJson({
+      'id': 'b1',
+      'name': 'EVS Book 1',
+      'coverUrl': null,
+      'films': [
+        {
+          'id': 'c1',
+          'name': 'Leaves',
+          'animation': {'videoId': 'aaaaaaaaaaa', 'url': 'https://youtu.be/a'},
+          'isWatched': false,
+        },
+        // A link that never became a playable video.
+        {'id': 'c2', 'name': 'Roots', 'animation': null},
+      ],
+    });
+
+    expect(book.name, 'EVS Book 1');
+    expect(book.films.map((c) => c.id), ['c1']);
   });
 
   test('gallery photos are fetched through our own file route', () {

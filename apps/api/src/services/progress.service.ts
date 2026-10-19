@@ -4,7 +4,6 @@ import { ApiError } from '../lib/apiError.js';
 import { guardianStudentIds } from './scope.service.js';
 import { closeHomeworkForActivity } from './homework.service.js';
 import { composeContent, upconvertStoredContent } from './question.service.js';
-import { lockedChapterIdsFor } from './book.service.js';
 import { logger } from '../lib/logger.js';
 import { studentName } from '../lib/names.js';
 
@@ -372,23 +371,10 @@ export async function listActivities(options?: {
   });
 
   /**
-   * Which chapters this child still has to watch.
-   *
-   * Locked pages are returned rather than hidden. A chapter that vanished until
-   * a video had been watched would look like a chapter with nothing in it, and
-   * the child would never find the film that opens it.
-   */
-  const locked = options?.studentId
-    ? await lockedChapterIdsFor(options.studentId)
-    : new Set<string>();
-
-  /**
    * The book the child opened, for pages that belong to every book.
    *
    * Those have no link rows to read a name from, so without this they arrive
-   * saying they are in no book at all — and a page in no book is never locked,
-   * which would quietly let an every-book page skip the film that gates the
-   * book it was opened from.
+   * saying they are in no book at all.
    */
   const asked = options?.bookId
     ? await prismaUnscoped.book.findUnique({
@@ -416,7 +402,9 @@ export async function listActivities(options?: {
       return {
         ...row,
         book,
-        isLocked: row.chapterId !== null && locked.has(row.chapterId),
+        // Films no longer lock a chapter's pages. Still sent, as never locked,
+        // for app versions on phones that read it.
+        isLocked: false,
         contentJson:
           (await composeContent({ id: row.id, type: row.type })) ??
           upconvertStoredContent(row.contentJson),

@@ -28,6 +28,12 @@ const nextConfig = {
       // client_max_body_size in infra/nginx.
       bodySizeLimit: '16mb',
     },
+    // Every request passes the middleware, and with middleware present Next
+    // keeps only the first 10 MB of a request body — silently, so a larger
+    // upload arrives cut short. A book's PDF goes up to 50 MB through its own
+    // route (see the book PDF location in infra/nginx), so this is that plus
+    // the form around it. Keep in step with BOOK_PDF_MAX_BYTES.
+    middlewareClientMaxBodySize: '52mb',
   },
 };
 

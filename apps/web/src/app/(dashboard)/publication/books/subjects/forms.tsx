@@ -7,6 +7,7 @@ import { Toast } from '@/components/ui/toast';
 import {
   createSubjectAction,
   setSubjectActiveAction,
+  setSubjectPictureAction,
   updateSubjectAction,
   type SubjectState,
 } from './actions';
@@ -83,6 +84,8 @@ export function SubjectRow({ subject }: { subject: BookSubjectSummary }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 py-2.5">
+      <SubjectPicture subject={subject} />
+
       <form action={formAction} className="flex flex-1 flex-wrap items-center gap-2">
         <span className="w-56">
           <Input
@@ -120,5 +123,75 @@ export function SubjectRow({ subject }: { subject: BookSubjectSummary }) {
         </button>
       </form>
     </div>
+  );
+}
+
+/**
+ * The subject's picture, as the app's tile shows it: click the square to choose
+ * one, and it is uploaded at once. Without one the app draws the icon chosen
+ * beside it, so a subject nobody has drawn yet still has a proper tile.
+ */
+function SubjectPicture({ subject }: { subject: BookSubjectSummary }) {
+  const [state, formAction, pending] = useActionState<SubjectState, FormData>(
+    setSubjectPictureAction.bind(null, subject.id),
+    {},
+  );
+  const fileId = subject.pictureUrl?.split('/').pop();
+
+  return (
+    <form action={formAction} className="relative shrink-0">
+      <label
+        className="group relative grid h-12 w-12 cursor-pointer place-items-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-navy-950/10"
+        title={fileId ? 'Change the picture' : 'Add a picture'}
+      >
+        {fileId ? (
+          /* A plain img, like a book's cover: one small picture from our own
+             API, through the proxy that carries the token. */
+          <img
+            src={`/attachments?kind=catalogue&id=${fileId}`}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="text-center text-[10px] leading-tight text-slate-400">
+            Add
+            <br />
+            picture
+          </span>
+        )}
+        <span
+          className={`absolute inset-0 place-items-center bg-navy-950/45 text-[10px] font-medium text-white ${
+            pending ? 'grid' : 'hidden group-hover:grid'
+          }`}
+        >
+          {pending ? 'Saving…' : fileId ? 'Change' : 'Add'}
+        </span>
+        <input
+          type="file"
+          name="picture"
+          accept="image/png,image/jpeg,image/webp"
+          className="sr-only"
+          disabled={pending}
+          aria-label={`Picture for ${subject.name}`}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        />
+      </label>
+
+      {fileId && !pending && (
+        <button
+          type="submit"
+          name="remove"
+          value="1"
+          title="Remove the picture"
+          aria-label={`Remove the picture of ${subject.name}`}
+          className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white text-xs leading-none text-slate-500 shadow ring-1 ring-navy-950/10 hover:text-rose-600"
+        >
+          ×
+        </button>
+      )}
+
+      <Toast message={state.error} tone="bad" />
+      <Toast message={state.success} />
+    </form>
   );
 }

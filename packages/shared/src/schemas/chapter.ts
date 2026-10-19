@@ -64,7 +64,7 @@ export interface ChapterSummary {
   bookId: string;
   name: string;
   number: number | null;
-  /** Null when there is no film, in which case the chapter is open from the start. */
+  /** Null when there is no film. */
   animation: BookAnimation | null;
   /** The 3D version, when there is one. */
   animation3d: BookAnimation | null;
@@ -96,8 +96,25 @@ export interface ChapterForChild {
   coverUrl: string | null;
   /** True once this child has watched either film to the end. */
   isWatched: boolean;
-  /** Pages open — true when there is no film, or it has been watched. */
+  /**
+   * Always true: films no longer lock a chapter's pages. Kept for app versions
+   * still on phones, which read it.
+   */
   isUnlocked: boolean;
+}
+
+/**
+ * One book's films, for a subject's video list.
+ *
+ * A subject's videos come book by book in the shelf's order, and each book's in
+ * its own running order, so the list is also the order the player steps
+ * through. Only books with at least one film appear.
+ */
+export interface FilmBookForChild {
+  id: string;
+  name: string;
+  coverUrl: string | null;
+  films: ChapterForChild[];
 }
 
 /** For the pickers: every chapter, with the book it belongs to. */

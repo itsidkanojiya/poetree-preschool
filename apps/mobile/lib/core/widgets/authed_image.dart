@@ -92,16 +92,30 @@ class _AuthedImageState extends State<AuthedImage> {
         height: widget.height,
         child: InkWell(
           onTap: _load,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.refresh_rounded, size: 20, color: colors.outline),
-              const SizedBox(height: 4),
-              Text(
-                'Tap to retry',
-                style: TextStyle(fontSize: 11, color: colors.outline),
+          // Shrunk rather than cut in a small frame — a 64-point thumbnail
+          // cannot hold the icon and the words at full size.
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.refresh_rounded,
+                      size: 20,
+                      color: colors.outline,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap to retry',
+                      style: TextStyle(fontSize: 11, color: colors.outline),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       );

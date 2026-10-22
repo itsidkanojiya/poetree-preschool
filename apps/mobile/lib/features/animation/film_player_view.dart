@@ -90,8 +90,13 @@ class FilmPlayerView extends StatefulWidget {
     required this.playlist,
     required this.startIndex,
     this.start3d = false,
+    this.onActivities,
     super.key,
   });
+
+  /// Set when the video is a chapter's way into its activities: the finished
+  /// screen then leads there instead of on to the next video.
+  final VoidCallback? onActivities;
 
   /// The subject's video list, told about each video watched.
   final FilmVideosController videos;
@@ -399,6 +404,7 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
             playlist: widget.playlist,
             index: _index,
             was3d: _is3d,
+            onActivities: widget.onActivities,
           ),
           transition: Transition.fadeIn,
         ),

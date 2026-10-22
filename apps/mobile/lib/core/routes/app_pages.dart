@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../features/activities/activity_controller.dart';
 import '../../features/activities/activity_list_view.dart';
 import '../../features/activities/activity_models.dart';
+import '../../features/activities/activity_places.dart';
 import '../../features/activities/activity_play_view.dart';
 import '../../features/animation/film_controllers.dart';
 import '../../features/animation/film_subjects_view.dart';
@@ -204,10 +205,15 @@ class ActivityPlayBinding extends Bindings {
   @override
   void dependencies() {
     final args = Get.arguments as Map<String, dynamic>? ?? const {};
+    final studentId = args['studentId'] as String;
     Get.put<ActivityPlayController>(
       ActivityPlayController(
         activity: args['activity'] as ActivityDefinition,
-        studentId: args['studentId'] as String,
+        studentId: studentId,
+        // Every book activity keeps the child's place, wherever it was opened.
+        places: ActivityPlaces(studentId),
+        startAt: args['startAt'] as SavedPlace?,
+        onDone: args['onDone'] as void Function()?,
       ),
     );
   }

@@ -48,6 +48,20 @@ progressRouter.post(
   }),
 );
 
+/**
+ * The child finished an activity with no score — flashcards looked through to
+ * the end. Scored activities are recorded by their attempt instead.
+ */
+progressRouter.post(
+  '/activities/:id/completed',
+  requirePermission('progress:record'),
+  validate({ params: idParamSchema, body: z.object({ studentId: idSchema }) }),
+  asyncHandler(async (req, res) => {
+    const { studentId } = body<{ studentId: string }>(req);
+    res.json(await progress.recordCompletion(id(req), studentId));
+  }),
+);
+
 progressRouter.get(
   '/students/:id',
   requirePermission('progress:read'),

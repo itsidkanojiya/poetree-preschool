@@ -464,6 +464,7 @@ model School {
   principalSignatureFile   FileObject?               @relation("SchoolSignature", fields: [principalSignatureFileId], references: [id], onDelete: SetNull)
   books                    SchoolBook[]
   animationViews           ChapterAnimationView[]
+  activityCompletions      ActivityCompletion[]
   users                    User[]
   teacherProfiles          TeacherProfile[]
   parentProfiles           ParentProfile[]
@@ -931,6 +932,7 @@ model Student {
   homeworkSubmissions HomeworkSubmission[]
   activityAttempts    ActivityAttempt[]
   animationViews      ChapterAnimationView[]
+  activityCompletions ActivityCompletion[]
   skillProgress       StudentSkillProgress[]
   feeConcessions      FeeConcession[]
   feeInvoices         FeeInvoice[]
@@ -2557,13 +2559,14 @@ model LearningActivity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  books      ActivityBook[]
-  skill      Skill              @relation(fields: [skillId], references: [id], onDelete: Restrict)
-  classLevel ClassLevel?        @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
-  attempts   ActivityAttempt[]
-  questions  ActivityQuestion[]
-  homework   Homework[]
-  chapter    Chapter?           @relation(fields: [chapterId], references: [id])
+  books       ActivityBook[]
+  skill       Skill                @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  classLevel  ClassLevel?          @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  attempts    ActivityAttempt[]
+  completions ActivityCompletion[]
+  questions   ActivityQuestion[]
+  homework    Homework[]
+  chapter     Chapter?             @relation(fields: [chapterId], references: [id])
 
   @@index([skillId])
   @@index([chapterId])
@@ -2646,6 +2649,29 @@ model QuestionOption {
 
   @@index([questionId, sortOrder])
   @@map("question_options")
+}
+
+/// That a child finished an activity, whether or not it had a score.
+///
+/// Kept apart from ActivityAttempt on purpose. An attempt is a score, and the
+/// skills figures are built from scores; a flashcard has none, and recording a
+/// perfect one for looking at pictures would inflate every figure. This only
+/// says "done" — what a chapter counts towards being finished. Written once:
+/// done is done, however often the child plays it again.
+model ActivityCompletion {
+  id          String   @id @default(cuid())
+  schoolId    String
+  studentId   String
+  activityId  String
+  completedAt DateTime @default(now())
+
+  school   School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student  Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  activity LearningActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, activityId])
+  @@index([schoolId, studentId])
+  @@map("activity_completions")
 }
 
 model ActivityAttempt {

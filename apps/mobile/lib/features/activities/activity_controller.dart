@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
 import 'activity_models.dart';
+import 'activity_places.dart';
 
 /// The catalogue of activities a child can be offered.
 class ActivityListController extends GetxController {
@@ -88,6 +89,9 @@ class ActivityPlayController extends GetxController {
     required this.activity,
     required this.studentId,
     this.recorder,
+    this.places,
+    this.startAt,
+    this.onDone,
   });
 
   final ActivityDefinition activity;
@@ -97,6 +101,68 @@ class ActivityPlayController extends GetxController {
   /// the tracing module's letters, which are not a book's activity. Returns
   /// false when the record did not reach the school.
   final Future<bool> Function(int correct, int total)? recorder;
+
+  /// Where this child left their activities, so leaving one part-way does not
+  /// lose it. Null keeps nothing — the tracing module keeps its own.
+  final ActivityPlaces? places;
+
+  /// The place to carry on from, when the opener already has it; otherwise
+  /// it is looked up in [places].
+  final SavedPlace? startAt;
+
+  /// Told the moment the child reaches the end, before anything is sent — so
+  /// the chapter behind shows it done without waiting for the school.
+  final void Function()? onDone;
+
+  @override
+  void onInit() {
+    super.onInit();
+    final known = startAt;
+    if (known != null) {
+      _carryOn(known);
+    } else if (places != null) {
+      unawaited(_lookUpPlace());
+    }
+  }
+
+  Future<void> _lookUpPlace() async {
+    final place = await places!.read(activity.id);
+    // Only if the child has not already started while it was being found.
+    if (place != null && index.value == 0 && correct.value == 0) {
+      _carryOn(place);
+    }
+  }
+
+  /// Picks up where the child left off — unless the activity has changed
+  /// shape since, in which case the place no longer means anything.
+  void _carryOn(SavedPlace place) {
+    if (place.index <= 0 || place.index >= total) return;
+    index.value = place.index;
+    correct.value = place.correct.clamp(0, place.index);
+    traced.addAll(place.traced.where((item) => item < total));
+  }
+
+  /// Saved on moving to the next item, never mid-item: an answer given and
+  /// then abandoned is answered again on return, and never counted twice.
+  void _keepPlace() {
+    final store = places;
+    if (store == null) return;
+    unawaited(
+      store.save(
+        activity.id,
+        SavedPlace(
+          index: index.value,
+          correct: correct.value,
+          traced: traced.toSet(),
+        ),
+      ),
+    );
+  }
+
+  void _forgetPlace() {
+    final store = places;
+    if (store != null) unawaited(store.clear(activity.id));
+  }
 
   final index = 0.obs;
   final correct = 0.obs;
@@ -150,6 +216,7 @@ class ActivityPlayController extends GetxController {
   /// Records that this number was traced well enough, and unlocks the next.
   void traceAccepted() {
     if (traced.add(index.value)) correct.value += 1;
+    _keepPlace();
     // Held so the page can show it is done and offer the way on. Tracing has
     // no wrong answer to reveal — an attempt that misses simply is not
     // accepted — so this only ever becomes true.
@@ -162,6 +229,7 @@ class ActivityPlayController extends GetxController {
     if (item < 0 || item >= total || !isUnlocked(item)) return;
 
     index.value = item;
+    _keepPlace();
     // Re-tracing a finished number starts it clean rather than showing it
     // already ticked, which would be a page with nothing to do on it.
     chosen.value = null;
@@ -207,20 +275,28 @@ class ActivityPlayController extends GetxController {
 
     if (isLast) {
       isFinished.value = true;
+      _forgetPlace();
+      onDone?.call();
       unawaited(_record());
       return;
     }
 
     index.value += 1;
+    _keepPlace();
   }
 
   /// Sends the attempt.
   ///
-  /// Unscored activities are not sent at all: a flashcard produces no
-  /// judgement, and posting a perfect score for looking at a picture would
-  /// inflate every mastery figure built on top of it.
+  /// Unscored activities send no attempt: a flashcard produces no judgement,
+  /// and posting a perfect score for looking at a picture would inflate every
+  /// mastery figure built on top of it. They say only that they were finished,
+  /// which is what a chapter counts.
   Future<void> _record() async {
-    if (!isScored || total == 0) return;
+    if (total == 0) return;
+    if (!isScored) {
+      if (recorder == null) await _markFinished();
+      return;
+    }
 
     isSaving.value = true;
     saveFailed.value = false;
@@ -251,9 +327,22 @@ class ActivityPlayController extends GetxController {
     }
   }
 
+  Future<void> _markFinished() async {
+    try {
+      await api.post<dynamic>(
+        '/progress/activities/${activity.id}/completed',
+        body: {'studentId': studentId},
+      );
+    } on DioException {
+      // The chapter already shows it done; the next visit reads the school's
+      // own answer, and playing it again sends it again.
+    }
+  }
+
   Future<void> retrySave() => _record();
 
   void restart() {
+    _forgetPlace();
     index.value = 0;
     correct.value = 0;
     chosen.value = null;

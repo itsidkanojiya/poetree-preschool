@@ -16,6 +16,7 @@ class ActivityDefinition {
     required this.chapterId,
     required this.bookId,
     this.content,
+    this.isDone = false,
   });
 
   factory ActivityDefinition.fromJson(Map<String, dynamic> json) {
@@ -32,6 +33,8 @@ class ActivityDefinition {
       chapterName: chapter?['name'] as String? ?? '',
       chapterId: chapter?['id'] as String? ?? '',
       bookId: book?['id'] as String? ?? '',
+      // Sent only when a child was named; anything else is not done yet.
+      isDone: json['completedByChild'] == true,
       content: ActivityContent.tryParse(
         json['contentJson'] as Map<String, dynamic>?,
       ),
@@ -60,6 +63,10 @@ class ActivityDefinition {
   final ActivityContent? content;
 
   bool get isPlayable => content != null && content!.itemCount > 0;
+
+  /// Whether this child has finished it, scored or not. Mutable so finishing
+  /// it shows at once, before the school's answer comes back.
+  bool isDone;
 }
 
 /// One of three shapes: something to trace, something to choose, or something

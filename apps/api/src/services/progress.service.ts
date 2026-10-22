@@ -1,7 +1,7 @@
 import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
-import { guardianStudentIds } from './scope.service.js';
+import { assertCanReadStudent, guardianStudentIds } from './scope.service.js';
 import { closeHomeworkForActivity } from './homework.service.js';
 import { composeContent, upconvertStoredContent } from './question.service.js';
 import { logger } from '../lib/logger.js';
@@ -66,28 +66,8 @@ export async function recordAttempt(input: RecordAttemptInput): Promise<SkillPro
     throw ApiError.badRequest('Correct answers cannot exceed the number of questions');
   }
 
-  // Resolve through the scoped client so a child at another school cannot be
-  // credited with an attempt.
-  const student = await prisma.student.findFirst({
-    where: { id: input.studentId },
-    select: { id: true },
-  });
-  if (!student) throw ApiError.notFound('Student not found');
-
-  // Within a school, a parent may only record for their own children. Holding
-  // progress:record says they may record; it says nothing about for whom.
-  const context = getRequestContext();
-  if (context?.role === 'PARENT') {
-    const mine = await guardianStudentIds();
-    if (!mine.includes(input.studentId)) throw ApiError.notFound('Student not found');
-  }
-
-  // Activities are publication-owned, so they are read unscoped.
-  const activity = await prismaUnscoped.learningActivity.findFirst({
-    where: { id: input.activityId, isActive: true },
-    select: { id: true, skillId: true },
-  });
-  if (!activity) throw ApiError.badRequest('That activity does not exist');
+  await assertMayRecordFor(input.studentId);
+  const activity = await activeActivity(input.activityId);
 
   const year = await prisma.academicYear.findFirst({
     where: { isCurrent: true },
@@ -107,6 +87,8 @@ export async function recordAttempt(input: RecordAttemptInput): Promise<SkillPro
       resultJson: (input.resultJson ?? undefined) as never,
     },
   });
+  // Finishing with a score is finishing: the chapter counts it as done.
+  await markDone(schoolId, input.studentId, input.activityId);
 
   // The ERP half: homework that *was* this activity closes itself. Best
   // effort — a child who has finished their work must not see an error because
@@ -128,6 +110,64 @@ export async function recordAttempt(input: RecordAttemptInput): Promise<SkillPro
   }
 
   return recomputeSkill(schoolId, input.studentId, activity.skillId, year.id);
+}
+
+/**
+ * Records that a child may be credited by the caller: the child is at this
+ * school, and a parent is crediting their own child. Holding progress:record
+ * says they may record; it says nothing about for whom.
+ */
+async function assertMayRecordFor(studentId: string): Promise<void> {
+  // Resolved through the scoped client, so a child at another school cannot be
+  // credited with anything.
+  const student = await prisma.student.findFirst({
+    where: { id: studentId },
+    select: { id: true },
+  });
+  if (!student) throw ApiError.notFound('Student not found');
+
+  const context = getRequestContext();
+  if (context?.role === 'PARENT') {
+    const mine = await guardianStudentIds();
+    if (!mine.includes(studentId)) throw ApiError.notFound('Student not found');
+  }
+}
+
+/** An activity a child may be credited with. Publication-owned, so unscoped. */
+async function activeActivity(activityId: string): Promise<{ id: string; skillId: string }> {
+  const activity = await prismaUnscoped.learningActivity.findFirst({
+    where: { id: activityId, isActive: true },
+    select: { id: true, skillId: true },
+  });
+  if (!activity) throw ApiError.badRequest('That activity does not exist');
+  return activity;
+}
+
+/** Done is done: written once, however often the activity is played again. */
+async function markDone(schoolId: string, studentId: string, activityId: string): Promise<void> {
+  await prismaUnscoped.activityCompletion.upsert({
+    where: { studentId_activityId: { studentId, activityId } },
+    create: { schoolId, studentId, activityId },
+    update: {},
+  });
+}
+
+/**
+ * Records that a child finished an activity that has no score — a set of
+ * flashcards, looked through to the end.
+ *
+ * Scored activities need not call this: their attempt records it. Nothing here
+ * touches the skills figures, which are built from scores alone.
+ */
+export async function recordCompletion(
+  activityId: string,
+  studentId: string,
+): Promise<{ completed: true }> {
+  const schoolId = requireSchoolId();
+  await assertMayRecordFor(studentId);
+  await activeActivity(activityId);
+  await markDone(schoolId, studentId, activityId);
+  return { completed: true };
 }
 
 /**
@@ -323,10 +363,13 @@ export async function classroomProgress(classroomId: string): Promise<ClassroomP
 export async function listActivities(options?: {
   classLevelId?: string;
   bookId?: string;
-  /** When given, each activity says whether this child may open it yet. */
+  /** When given, each activity says whether this child has finished it. */
   studentId?: string;
 }) {
   const schoolId = requireSchoolId();
+  // Whether a child has finished something is theirs to know, and their
+  // family's and teachers' — nobody else's.
+  if (options?.studentId) await assertCanReadStudent(options.studentId);
 
   const entitled = await prismaUnscoped.schoolBook.findMany({
     where: { schoolId, enabled: true },
@@ -383,6 +426,20 @@ export async function listActivities(options?: {
       })
     : null;
 
+  const finished = options?.studentId
+    ? new Set(
+        (
+          await prismaUnscoped.activityCompletion.findMany({
+            where: {
+              studentId: options.studentId,
+              activityId: { in: rows.map((row) => row.id) },
+            },
+            select: { activityId: true },
+          })
+        ).map((row) => row.activityId),
+      )
+    : null;
+
   return Promise.all(
     rows.map(async (row) => {
       /**
@@ -402,9 +459,11 @@ export async function listActivities(options?: {
       return {
         ...row,
         book,
-        // Films no longer lock a chapter's pages. Still sent, as never locked,
-        // for app versions on phones that read it.
+        // Films no longer lock a chapter's pages here. Still sent, as never
+        // locked, for app versions on phones that read it.
         isLocked: false,
+        // Null when no child was named.
+        completedByChild: finished ? finished.has(row.id) : null,
         contentJson:
           (await composeContent({ id: row.id, type: row.type })) ??
           upconvertStoredContent(row.contentJson),

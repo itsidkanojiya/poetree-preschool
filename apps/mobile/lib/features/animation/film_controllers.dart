@@ -5,6 +5,8 @@ import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
 import '../../core/assets/app_assets.dart';
+import '../activities/activity_models.dart';
+import '../activities/activity_places.dart';
 
 /// One film, as the animation screens use it.
 class FilmVideo {
@@ -93,12 +95,16 @@ class FilmBookGroup {
   final List<FilmChapter> films;
 }
 
-/// A subject's videos, book by book.
+/// A subject's videos, book by book, and each chapter's activities.
 ///
 /// The list is also the running order: Next from the last video of one book
-/// goes on to the first of the next. And it is where "watched" lands — the
-/// player tells this controller the moment a video ends, so the list behind
-/// the player is already ticked when the child comes back to it.
+/// goes on to the first of the next. And it is where "watched" and "done"
+/// land — the player and the activities tell this controller the moment they
+/// end, so the screens behind are already ticked when the child comes back.
+///
+/// A chapter is watched, then its activities are done: the video opens the
+/// activities the first time, and the chapter is finished when every one of
+/// them is done. Both are kept by the school for each child.
 class FilmVideosController extends GetxController {
   FilmVideosController({
     required this.studentId,
@@ -119,6 +125,36 @@ class FilmVideosController extends GetxController {
   final books = <FilmBookGroup>[].obs;
   final isLoading = true.obs;
   final error = RxnString();
+
+  /// Each chapter's activities, in the book's order, with whether this child
+  /// has finished each. Keyed by chapter id.
+  final activities = <String, List<ActivityDefinition>>{}.obs;
+  final activitiesLoading = false.obs;
+  final activitiesError = RxnString();
+
+  /// Where this child left activities part-way, by activity id.
+  final places = <String, SavedPlace>{}.obs;
+
+  late final ActivityPlaces? _places = studentId == null
+      ? null
+      : ActivityPlaces(studentId!);
+
+  /// Whether the activities have been asked for and answered.
+  bool get activitiesKnown =>
+      !activitiesLoading.value && activitiesError.value == null;
+
+  List<ActivityDefinition> activitiesOf(String chapterId) =>
+      activities[chapterId] ?? const [];
+
+  int doneIn(String chapterId) =>
+      activitiesOf(chapterId).where((a) => a.isDone).length;
+
+  /// Watched, and every activity done — or watched, when there are none.
+  bool isComplete(FilmChapter chapter) =>
+      chapter.isWatched && activitiesOf(chapter.id).every((a) => a.isDone);
+
+  FilmChapter? chapterById(String chapterId) =>
+      withFilms.firstWhereOrNull((c) => c.id == chapterId);
 
   /// Every video in the subject, in the order the player steps through them.
   List<FilmChapter> get withFilms => [for (final book in books) ...book.films];
@@ -162,6 +198,62 @@ class FilmVideosController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+    if (error.value == null) await loadActivities();
+  }
+
+  /// Each book's activities for this child, sorted into its chapters.
+  ///
+  /// One request per book in the subject — usually one or two — answering
+  /// every chapter at once, with whether this child has finished each.
+  Future<void> loadActivities() async {
+    if (studentId == null || books.isEmpty) return;
+    activitiesLoading.value = true;
+    activitiesError.value = null;
+    try {
+      final chapterIds = {for (final c in withFilms) c.id};
+      final lists = await Future.wait([
+        for (final book in books)
+          api.get<List<dynamic>>(
+            '/progress/activities',
+            query: {'studentId': studentId, 'bookId': book.id},
+          ),
+      ]);
+      final byChapter = <String, List<ActivityDefinition>>{};
+      for (final rows in lists) {
+        for (final row in rows.whereType<Map<String, dynamic>>()) {
+          final activity = ActivityDefinition.fromJson(row);
+          // Only what the app can play, and only in a chapter on this list.
+          if (!activity.isPlayable ||
+              !chapterIds.contains(activity.chapterId)) {
+            continue;
+          }
+          final list = byChapter.putIfAbsent(activity.chapterId, () => []);
+          if (list.every((a) => a.id != activity.id)) list.add(activity);
+        }
+      }
+      activities.value = byChapter;
+      places.value = await _places?.all() ?? {};
+    } on DioException catch (e) {
+      activitiesError.value = _problem(e, 'Could not load the activities.');
+    } finally {
+      activitiesLoading.value = false;
+    }
+  }
+
+  /// Shows an activity done at once, before the school's answer comes back.
+  void markActivityDone(String activityId) {
+    for (final list in activities.values) {
+      for (final activity in list) {
+        if (activity.id == activityId) activity.isDone = true;
+      }
+    }
+    places.remove(activityId);
+    activities.refresh();
+  }
+
+  /// Re-reads where the child left off, after they come back from one.
+  Future<void> refreshPlaces() async {
+    places.value = await _places?.all() ?? {};
   }
 
   /// Ticks a video off without a round trip.

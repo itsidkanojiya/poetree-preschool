@@ -19,8 +19,13 @@ class ChapterDoneView extends StatefulWidget {
     required this.playlist,
     required this.index,
     required this.was3d,
+    this.onActivities,
     super.key,
   });
+
+  /// Set when the video opened a chapter's activities: they are what comes
+  /// next, rather than the next video.
+  final VoidCallback? onActivities;
 
   final FilmVideosController videos;
   final List<FilmChapter> playlist;
@@ -45,7 +50,8 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
   bool _autoAdvance = true;
 
   FilmChapter get _done => widget.playlist[widget.index];
-  FilmChapter? get _next => widget.index < widget.playlist.length - 1
+  FilmChapter? get _next =>
+      widget.onActivities == null && widget.index < widget.playlist.length - 1
       ? widget.playlist[widget.index + 1]
       : null;
 
@@ -80,6 +86,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
           playlist: widget.playlist,
           startIndex: widget.index + 1,
           start3d: widget.was3d,
+          onActivities: widget.onActivities,
         ),
       ),
     );
@@ -136,7 +143,9 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      'Chapter complete!',
+                      widget.onActivities != null
+                          ? 'Video watched!'
+                          : 'Chapter complete!',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         color: Colors.white,
@@ -161,7 +170,7 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                       child: Column(
                         children: [
                           Text(
-                            '$watched of $total videos in ${widget.videos.subjectName}',
+                            '$watched of $total ${total == 1 ? 'video' : 'videos'} in ${widget.videos.subjectName}',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
@@ -180,7 +189,32 @@ class _ChapterDoneViewState extends State<ChapterDoneView>
                     ),
                     const SizedBox(height: 24),
 
-                    if (next != null) ...[
+                    if (widget.onActivities != null) ...[
+                      Text(
+                        'The activities are open now!',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: widget.onActivities,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: FilmColors.violet,
+                          minimumSize: const Size.fromHeight(54),
+                          textStyle: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        icon: const Icon(Icons.extension_rounded),
+                        label: const Text('Start the activities'),
+                      ),
+                    ] else if (next != null) ...[
                       _NextCard(
                         next: next,
                         number: widget.index + 2,

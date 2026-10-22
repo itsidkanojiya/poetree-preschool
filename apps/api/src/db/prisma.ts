@@ -77,6 +77,8 @@ export const TENANT_MODELS = new Set<string>([
   'SchoolBook',
   // Which child has watched which book's animation.
   'ChapterAnimationView',
+  // Which child has finished which activity, scored or not.
+  'ActivityCompletion',
   'SchoolHoliday',
   // Attendance
   'AttendanceSession',

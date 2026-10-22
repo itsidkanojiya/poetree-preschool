@@ -95,13 +95,25 @@ class _Card {
 
   factory _Card.from(Map<String, dynamic> data) {
     String? text(String key) => data[key]?.toString();
+    // The API answers with paths rooted at the domain, and our base URL
+    // already ends in /api/v1 — the same trim every other file path needs.
+    // Without it the photograph and the logo were asked for at
+    // /api/v1/api/v1/files/…, and the card showed "Tap to retry" where the
+    // child's face belonged.
+    String? file(String key) {
+      final path = text(key);
+      return path == null || path.isEmpty
+          ? null
+          : path.replaceFirst('/api/v1', '');
+    }
+
     final hex = text('primaryColor')?.replaceFirst('#', '');
     final value = int.tryParse(hex ?? '', radix: 16);
 
     return _Card(
       layout: text('layout') ?? 'CLASSIC',
       schoolName: text('schoolName') ?? '',
-      schoolLogo: text('schoolLogoUrl'),
+      schoolLogo: file('schoolLogoUrl'),
       schoolAddress: text('schoolAddress'),
       schoolPhone: text('schoolPhone'),
       brand: value == null
@@ -112,7 +124,7 @@ class _Card {
       classroom: text('classroom'),
       batch: text('batch'),
       dateOfBirth: text('dateOfBirth'),
-      photo: text('photoUrl'),
+      photo: file('photoUrl'),
       bloodGroup: text('bloodGroup'),
       guardianName: text('guardianName'),
       guardianPhone: text('guardianPhone'),

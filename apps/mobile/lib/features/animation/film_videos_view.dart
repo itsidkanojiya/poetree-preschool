@@ -8,6 +8,7 @@ import '../../core/widgets/async_view.dart';
 import '../../core/widgets/authed_image.dart';
 import '../../core/widgets/squish.dart';
 import 'film_controllers.dart';
+import 'film_chapter_view.dart';
 import 'film_player_view.dart';
 import 'film_widgets.dart';
 
@@ -77,7 +78,10 @@ class FilmVideosView extends GetView<FilmVideosController> {
                         chapter: chapter,
                         position: index + 1,
                         art: controller.art,
-                        onPlay: () => openFilm(controller, chapter.id),
+                        activities: controller.activitiesOf(chapter.id).length,
+                        done: controller.doneIn(chapter.id),
+                        complete: controller.isComplete(chapter),
+                        onPlay: () => openChapter(controller, chapter),
                       ),
                       const SizedBox(height: 12),
                     ],
@@ -91,6 +95,24 @@ class FilmVideosView extends GetView<FilmVideosController> {
       ),
     );
   }
+}
+
+/// Opens a chapter.
+///
+/// One with activities opens onto them — and plays its video first, the
+/// first time, because the video is what opens them. One with none simply
+/// plays, carrying on to the next video as before. While the activities are
+/// still on their way it opens the chapter, which waits for them.
+void openChapter(FilmVideosController videos, FilmChapter chapter) {
+  final hasActivities = videos.activitiesOf(chapter.id).isNotEmpty;
+  if (hasActivities || !videos.activitiesKnown) {
+    Get.to<void>(
+      () => FilmChapterView(videos: videos, chapterId: chapter.id),
+      preventDuplicates: true,
+    );
+    return;
+  }
+  openFilm(videos, chapter.id);
 }
 
 /// Opens the player at one video of the subject the controller holds.
@@ -109,11 +131,21 @@ class _ChapterCard extends StatelessWidget {
     required this.chapter,
     required this.position,
     required this.art,
+    required this.activities,
+    required this.done,
+    required this.complete,
     required this.onPlay,
   });
 
   final FilmChapter chapter;
   final int position;
+
+  /// How many activities the chapter has, and how many this child has done.
+  final int activities;
+  final int done;
+
+  /// Watched, and every activity done.
+  final bool complete;
 
   /// The subject's picture, for a chapter with none of its own.
   final String art;
@@ -217,6 +249,13 @@ class _ChapterCard extends StatelessWidget {
                         const FilmTag('3D', color: FilmColors.violet),
                       if (chapter.isWatched)
                         const FilmTag('Watched', color: FilmColors.mint),
+                      if (activities > 0)
+                        complete
+                            ? const FilmTag('Completed', color: FilmColors.mint)
+                            : FilmTag(
+                                '$done/$activities activities',
+                                color: FilmColors.violet,
+                              ),
                     ],
                   ),
                 ],
@@ -235,7 +274,10 @@ class _ChapterCard extends StatelessWidget {
                 ),
               ),
               child: Icon(
-                chapter.isWatched
+                // Watched with activities: the way in is to the activities.
+                chapter.isWatched && activities > 0
+                    ? Icons.extension_rounded
+                    : chapter.isWatched
                     ? Icons.replay_rounded
                     : Icons.play_arrow_rounded,
                 color: Colors.white,

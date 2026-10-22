@@ -38,7 +38,13 @@ interface OptionDraft {
 }
 
 /**
- * Reads the four option slots off the form.
+ * The most option slots a form shows: four to pick one from, six for "tap all
+ * the …". The API says which a question type allows.
+ */
+const OPTION_SLOTS = 6;
+
+/**
+ * Reads the option slots off the form.
  *
  * A slot with nothing in it is not an option — an author filling two of four is
  * writing a two-choice question, not leaving two blank squares for a child to
@@ -50,7 +56,7 @@ async function readOptions(formData: FormData): Promise<OptionDraft[]> {
   const correct = new Set(formData.getAll('correct').map(String));
   const drafts: OptionDraft[] = [];
 
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < OPTION_SLOTS; index += 1) {
     const text = String(formData.get(`option-${index}-text`) ?? '').trim();
     const glyph = String(formData.get(`option-${index}-glyph`) ?? '').trim();
     const keep = String(formData.get(`option-${index}-fileId`) ?? '').trim();
@@ -74,6 +80,19 @@ async function readOptions(formData: FormData): Promise<OptionDraft[]> {
   return drafts;
 }
 
+/**
+ * The picture above the question: a new upload, or the one chosen from the
+ * library (or kept). Undefined when the form has no such field, which leaves
+ * the question's picture as it is.
+ */
+async function readPromptPicture(formData: FormData): Promise<string | null | undefined> {
+  const upload = formData.get('prompt-image');
+  if (upload instanceof File && upload.size > 0) return uploadCatalogueAsset(upload);
+  if (!formData.has('prompt-fileId')) return undefined;
+  const chosen = String(formData.get('prompt-fileId') ?? '').trim();
+  return chosen === '' ? null : chosen;
+}
+
 export async function addQuestionAction(
   activityId: string,
   _prev: QuestionState,
@@ -84,12 +103,7 @@ export async function addQuestionAction(
 
   try {
     const options = await readOptions(formData);
-
-    const promptPicture = formData.get('prompt-image');
-    const promptFileId =
-      promptPicture instanceof File && promptPicture.size > 0
-        ? await uploadCatalogueAsset(promptPicture)
-        : null;
+    const promptFileId = (await readPromptPicture(formData)) ?? null;
 
     await apiFetch(`/publication/activities/${activityId}/questions`, {
       method: 'POST',
@@ -125,6 +139,7 @@ export async function updateQuestionAction(
       body: {
         say: String(formData.get('say') ?? '').trim(),
         promptGlyph: String(formData.get('promptGlyph') ?? '').trim() || null,
+        promptFileId: await readPromptPicture(formData),
         strokes: readStrokes(formData),
         options,
       },
@@ -158,7 +173,7 @@ export async function moveQuestionAction(
   neighbourId: string,
 ): Promise<void> {
   const questions = await apiFetch<Array<{ id: string; sortOrder: number }>>(
-    `/publication/question-types/${activityId}/questions`,
+    `/publication/activities/${activityId}/questions`,
   );
 
   const mine = questions.find((row) => row.id === questionId);

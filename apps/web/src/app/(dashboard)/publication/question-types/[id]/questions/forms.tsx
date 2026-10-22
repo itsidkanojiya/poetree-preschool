@@ -5,6 +5,7 @@ import { TRACING_PATTERNS, type QuestionRow } from '@poetree/shared';
 import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
 import { ConfirmButton } from '@/components/ui/confirm-button';
 import { Notice } from '@/components/ui/layout';
+import { PictureField } from '@/components/picture-library';
 import {
   addQuestionAction,
   deleteQuestionAction,
@@ -55,28 +56,21 @@ function OptionSlot({
         )}
       </div>
 
-      {option?.imageUrl && (
-        <div className="mb-2 flex items-center gap-2">
-          {/* Catalogue artwork through the proxy, so the cookie's token can be
-              attached — the asset route is authenticated like everything else. */}
-          <img
-            src={`/attachments?kind=catalogue&id=${option.imageUrl.split('/').pop()}`}
-            alt=""
-            className="h-12 w-12 rounded-lg object-contain ring-1 ring-navy-950/10"
-          />
-          <span className="text-xs text-slate-500">Replace by choosing a new picture</span>
-        </div>
-      )}
-      <input type="hidden" name={`option-${index}-fileId`} value={optionFileId(option)} />
-
       <div className="space-y-2">
-        <Input type="file" name={`option-${index}-image`} accept="image/png,image/jpeg,image/webp" />
+        {/* From the library, or uploaded: the same apple is chosen again on the
+            next page rather than uploaded again. */}
+        <PictureField
+          fileIdName={`option-${index}-fileId`}
+          uploadName={`option-${index}-image`}
+          currentId={optionFileId(option) || null}
+          compact
+        />
         <div className="flex gap-2">
           <Input
             name={`option-${index}-glyph`}
             defaultValue={option?.glyph ?? ''}
-            placeholder="Emoji"
-            className="w-24"
+            placeholder="Emoji or 3"
+            className="w-28"
           />
           <Input
             name={`option-${index}-text`}
@@ -90,8 +84,30 @@ function OptionSlot({
 }
 
 function optionFileId(option?: QuestionRow['options'][number]): string {
-  const url = option?.imageUrl;
+  return fileIdOf(option?.imageUrl);
+}
+
+/** The bare id out of `/api/v1/catalogue/assets/<id>`. */
+function fileIdOf(url: string | null | undefined): string {
   return url ? (url.split('/').pop() ?? '') : '';
+}
+
+/**
+ * The picture shown above a question. Not a <Field>: that is a <label>, and a
+ * label around several buttons sends a click anywhere in it to the first.
+ */
+function PromptPicture({ currentId }: { currentId?: string | null }) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-navy-950">
+        Picture above the question
+      </span>
+      <PictureField fileIdName="prompt-fileId" uploadName="prompt-image" currentId={currentId} />
+      <span className="mt-1.5 block text-xs text-slate-500">
+        Optional. Choose one already in the library, or upload a new one.
+      </span>
+    </div>
+  );
 }
 
 /** The patterns, offered as the author types; any letter can still be typed. */
@@ -141,9 +157,7 @@ export function AddQuestionForm({
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Picture above the question" hint="Optional.">
-          <Input type="file" name="prompt-image" accept="image/png,image/jpeg,image/webp" />
-        </Field>
+        <PromptPicture />
         <Field
           label={tracing ? 'The letter, number or pattern' : 'or an emoji'}
           hint={
@@ -234,15 +248,18 @@ export function EditQuestionForm({
         <Input name="say" required defaultValue={question.say} />
       </Field>
 
-      <Field label="Emoji above the question">
-        <Input
-          name="promptGlyph"
-          defaultValue={question.promptGlyph ?? ''}
-          placeholder={tracing ? 'A' : '🍎'}
-          list={tracing ? 'tracing-glyphs' : undefined}
-        />
-        {tracing && <TracingGlyphList />}
-      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {!tracing && <PromptPicture currentId={fileIdOf(question.promptImageUrl) || null} />}
+        <Field label={tracing ? 'The letter, number or pattern' : 'or an emoji above the question'}>
+          <Input
+            name="promptGlyph"
+            defaultValue={question.promptGlyph ?? ''}
+            placeholder={tracing ? 'A' : '🍎'}
+            list={tracing ? 'tracing-glyphs' : undefined}
+          />
+          {tracing && <TracingGlyphList />}
+        </Field>
+      </div>
 
       {tracing ? (
         <TracePathNote />

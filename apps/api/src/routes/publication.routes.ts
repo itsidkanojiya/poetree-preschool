@@ -40,8 +40,10 @@ import {
   gamesSettingsSchema,
   updateGameSchema,
   saveGoogleDriveSettingsSchema,
+  pictureLibraryQuerySchema,
 } from '@poetree/shared';
 import type {
+  PictureLibraryQuery,
   CreateBookSubjectInput,
   UpdateBookSubjectInput,
   CreateOrganisationInput,
@@ -83,8 +85,6 @@ import { z } from 'zod';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { ApiError } from '../lib/apiError.js';
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, sniffMime, storage, typeFor } from '../lib/storage.js';
-import { stripImageMetadata } from '../lib/exif.js';
-import { compressPicture } from '../lib/compress.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { sendStoredFile } from '../lib/sendStoredFile.js';
@@ -104,6 +104,7 @@ import * as questions from '../services/question.service.js';
 import * as tracing from '../services/tracing.service.js';
 import * as games from '../services/games.service.js';
 import * as drive from '../services/drive.service.js';
+import * as pictures from '../services/pictureLibrary.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -429,12 +430,38 @@ publicationRouter.put(
 /* -------------------------------------------------------------------------- */
 
 /**
+ * The picture library: every catalogue picture, to be chosen again instead of
+ * uploaded again.
+ */
+publicationRouter.get(
+  '/assets',
+  validate({ query: pictureLibraryQuerySchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await pictures.listLibrary(query<PictureLibraryQuery>(req)));
+  }),
+);
+
+/**
+ * Brings the app's own letter and number pictures — an apple for A, four fish
+ * for 4 — into the library. Safe to run again: nothing is added twice.
+ */
+publicationRouter.post(
+  '/assets/app-pictures',
+  asyncHandler(async (req, res) => {
+    res.json(await pictures.importAppPictures(req.auth!.userId));
+  }),
+);
+
+/**
  * Uploads a picture for the catalogue.
  *
  * Separate from POST /files, which stamps the caller's school onto every row
  * and would throw for a Super Admin who has no school at all. These are
  * publication-owned — schoolId NULL — because the same apple is shown to every
  * child at every school that bought the book.
+ *
+ * The same picture uploaded again is answered with the one already held (200,
+ * `reused`), rather than stored twice.
  */
 publicationRouter.post(
   '/assets',
@@ -460,31 +487,14 @@ publicationRouter.post(
       );
     }
 
-    // Made smaller for the phones that will download it, looking the same.
-    // Compressed first, so a photo's "this way up" is applied before its
-    // metadata goes; one kept as uploaded is stripped like every other upload.
-    // Publisher artwork is unlikely to carry a home address, but the rule is
-    // cheaper to keep than to reason about.
-    const picture = await compressPicture({ bytes: file.buffer, mime, name: file.originalname });
-    const bytes =
-      picture.bytes === file.buffer ? stripImageMetadata(file.buffer, mime) : picture.bytes;
-    const stored = await storage.put({ schoolId: null, originalName: picture.name, bytes });
-
-    const record = await prismaUnscoped.fileObject.create({
-      data: {
-        schoolId: null,
-        storageKey: stored.key,
-        originalName: picture.name.slice(0, 200),
-        mimeType: picture.mime,
-        sizeBytes: stored.sizeBytes,
-        checksum: stored.checksum,
-        uploadedById: req.auth!.userId,
-        visibility: 'PUBLIC',
-      },
-      select: { id: true, originalName: true, mimeType: true, sizeBytes: true },
+    // Made smaller for the phones that will download it, looking the same,
+    // and stripped of a camera's metadata — see storePicture.
+    const picture = await pictures.storePicture({
+      bytes: file.buffer,
+      name: file.originalname,
+      uploadedById: req.auth!.userId,
     });
-
-    res.status(201).json({ ...record, url: `/api/v1/catalogue/assets/${record.id}` });
+    res.status(picture.reused ? 200 : 201).json(picture);
   }),
 );
 

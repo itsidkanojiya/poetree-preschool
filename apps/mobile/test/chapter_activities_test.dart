@@ -336,6 +336,43 @@ void main() {
       expect(find.text('Chapter completed!'), findsNothing);
     });
 
+    testWidgets('never holds a tracing page — tracing is a module of its own', (
+      tester,
+    ) async {
+      final videos = await open(
+        tester,
+        watched: true,
+        activities: [
+          _activity('a1', 'Circles', done: true),
+          _activity(
+            't1',
+            'Trace the I',
+            content: {
+              'kind': 'TRACING',
+              'items': [
+                {
+                  'glyph': 'I',
+                  'say': 'Trace the letter I.',
+                  'strokes': [
+                    [
+                      {'x': 0.5, 'y': 0.1},
+                      {'x': 0.5, 'y': 0.9},
+                    ],
+                  ],
+                },
+              ],
+            },
+          ),
+        ],
+      );
+
+      expect(find.text('Trace the I'), findsNothing);
+      expect(videos.activitiesOf('c1').map((a) => a.id), ['a1']);
+      // Not waiting on it: the one activity there is, is done.
+      expect(find.text('1 of 1 done'), findsOneWidget);
+      expect(videos.isComplete(videos.chapterById('c1')!), isTrue);
+    });
+
     testWidgets('is finished only when every activity is done', (tester) async {
       final videos = await open(
         tester,

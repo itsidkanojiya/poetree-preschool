@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/kid_icons.dart';
 import '../../core/widgets/authed_image.dart';
+import '../../core/widgets/sticker_text.dart';
 import '../../core/letterforms/glyph_text.dart';
 import 'activity_controller.dart';
 import 'activity_models.dart';
@@ -29,7 +30,7 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
       appBar: AppBar(
         title: Text(controller.activity.title),
         // Where they are, in numbers a parent can read over the child's
-        // shoulder: "3 / 10".
+        // shoulder: "3 / 10" — in the tracing lesson's sticker numbers.
         actions: [
           Obx(
             () => controller.isFinished.value || controller.total == 0
@@ -37,11 +38,9 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
                 : Padding(
                     padding: const EdgeInsets.only(right: 16),
                     child: Center(
-                      child: Text(
-                        '${controller.index.value + 1} / ${controller.total}',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      child: _Count(
+                        controller.index.value + 1,
+                        controller.total,
                       ),
                     ),
                   ),
@@ -123,7 +122,7 @@ class _ChoiceStep extends StatelessWidget {
               ),
             )
           else if (item.glyph != null)
-            GlyphText(item.glyph!, size: 56),
+            _Prompt(item.glyph!, size: 56),
           const SizedBox(height: 12),
           Text(
             item.say,
@@ -219,7 +218,7 @@ class _MultiChoiceStep extends StatelessWidget {
               ),
             )
           else if (item.glyph != null)
-            GlyphText(item.glyph!, size: 52),
+            _Prompt(item.glyph!, size: 52),
           const SizedBox(height: 12),
           Text(
             item.say,
@@ -366,6 +365,11 @@ class _DragStep extends StatelessWidget {
                             height: 110,
                             fit: BoxFit.contain,
                           )
+                        : item.glyph != null && StickerText.fits(item.glyph!)
+                        ? Opacity(
+                            opacity: 0.45,
+                            child: StickerText(item.glyph!, size: 64),
+                          )
                         : item.glyph != null
                         ? GlyphText(
                             item.glyph!,
@@ -478,7 +482,7 @@ class _CardStep extends StatelessWidget {
               ),
             )
           else if (item.glyph != null)
-            GlyphText(item.glyph!, size: 96),
+            _Prompt(item.glyph!, size: 96),
           const SizedBox(height: 20),
           Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 12),
@@ -560,11 +564,16 @@ class _Finished extends StatelessWidget {
 
           // Shown to the adult, and phrased as an achievement rather than a
           // mark. No child is told they scored two out of five.
-          Text(
+          _Sentence(
             scored
-                ? 'Got ${controller.correct.value} of ${controller.total} right.'
-                : 'Looked at all ${controller.total} of them.',
-            textAlign: TextAlign.center,
+                ? [
+                    'Got ',
+                    controller.correct.value,
+                    ' of ',
+                    controller.total,
+                    ' right.',
+                  ]
+                : ['Looked at all ', controller.total, ' of them.'],
             style: Theme.of(context).textTheme.titleMedium,
           ),
 
@@ -618,7 +627,20 @@ class _Option extends StatelessWidget {
       );
     }
 
-    // A letter or number in the school's handwriting; an emoji or a word as
+    // A number or a letter as the tracing lesson draws it — counting
+    // answers, numbered and lettered tiles — whether the question gave it as
+    // a glyph or as text.
+    final sticker = media.glyph ?? media.text;
+    if (sticker != null && StickerText.fits(sticker)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: FittedBox(child: StickerText(sticker, size: 64)),
+        ),
+      );
+    }
+
+    // Anything else the school's letterforms draw; an emoji or a word as
     // text.
     if (media.glyph != null) {
       return Center(
@@ -645,4 +667,77 @@ class _Option extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The letter or number a question is about, as a sticker; anything the
+/// sticker does not draw, in the school's letterforms as before.
+class _Prompt extends StatelessWidget {
+  const _Prompt(this.glyph, {required this.size});
+
+  final String glyph;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => StickerText.fits(glyph)
+      ? StickerText(glyph, size: size * 1.15)
+      : GlyphText(glyph, size: size);
+}
+
+/// "3 / 10": the question they are on, and how many there are.
+class _Count extends StatelessWidget {
+  const _Count(this.at, this.of);
+
+  final int at;
+  final int of;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Question $at of $of',
+    excludeSemantics: true,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        StickerText('$at', size: 26),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            '/',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+          ),
+        ),
+        StickerText('$of', size: 20, colour: const Color(0xFF4C7FF0)),
+      ],
+    ),
+  );
+}
+
+/// A sentence with its numbers as stickers: words are strings, numbers ints.
+class _Sentence extends StatelessWidget {
+  const _Sentence(this.parts, {this.style});
+
+  final List<Object> parts;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: parts.join(),
+    excludeSemantics: true,
+    child: Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final part in parts)
+          part is int
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: StickerText('$part', size: 40),
+                )
+              : Text('$part', style: style),
+      ],
+    ),
+  );
 }

@@ -223,7 +223,10 @@ class FilmVideosController extends GetxController {
         for (final row in rows.whereType<Map<String, dynamic>>()) {
           final activity = ActivityDefinition.fromJson(row);
           // Only what the app can play, and only in a chapter on this list.
+          // Tracing is a module of its own, not one of a chapter's activities:
+          // a chapter never waits on, or counts, a tracing page.
           if (!activity.isPlayable ||
+              activity.type == 'TRACING' ||
               !chapterIds.contains(activity.chapterId)) {
             continue;
           }

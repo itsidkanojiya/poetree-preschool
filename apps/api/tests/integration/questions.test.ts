@@ -18,6 +18,15 @@ const TINY_PNG = Buffer.from(
   'base64',
 );
 
+/**
+ * Another picture. The same bytes uploaded twice are one picture in the
+ * library, and the ball must not turn out to be the apple.
+ */
+const BALL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64',
+);
+
 describe.skipIf(!dbUp)('questions with pictures', () => {
   let baseline: Baseline;
   let school: TestSchool;
@@ -87,7 +96,7 @@ describe.skipIf(!dbUp)('questions with pictures', () => {
     const ball = await api
       .post(`${BASE}/publication/assets`)
       .set(auth(publisher))
-      .attach('file', TINY_PNG, 'ball.png');
+      .attach('file', BALL_PNG, 'ball.png');
     ballId = ball.body.id as string;
 
     // And one that belongs to the school, which must never reach the catalogue.

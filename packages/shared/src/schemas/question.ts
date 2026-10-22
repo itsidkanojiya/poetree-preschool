@@ -32,7 +32,8 @@ export const createQuestionSchema = z.object({
     .min(1)
     .max(6)
     .nullish(),
-  options: z.array(optionSchema).max(4).optional(),
+  /** Four at most to pick one from; six for "tap all the …" — the service says which. */
+  options: z.array(optionSchema).max(6).optional(),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;

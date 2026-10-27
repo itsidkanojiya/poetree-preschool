@@ -204,6 +204,11 @@ export interface BookForChild {
   /** Films inside this book that this child has still to watch. */
   filmsToWatch: number;
   /**
+   * Activities filed in this book that a child can play. A book with these and
+   * no PDF yet still opens — onto its activities — instead of reading "Soon".
+   */
+  activityCount: number;
+  /**
    * Always true. Films used to lock a book's pages until watched; they no
    * longer lock anything. Kept for app versions still on phones, which read it.
    */

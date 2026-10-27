@@ -44,6 +44,9 @@ class ActivityListController extends GetxController {
       // a school's wifi than a shorter response body.
       .where((a) => chapterId == null || a.chapterId == chapterId)
       .where((a) => type == null || a.type == type)
+      // A book opened from the shelf: its activities, not the tracing pages,
+      // which are the Tracing module's.
+      .where((a) => bookId == null || type != null || a.type != 'TRACING')
       .toList();
 
   @override

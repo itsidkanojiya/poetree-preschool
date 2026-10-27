@@ -83,7 +83,11 @@ export function SubjectRow({ subject }: { subject: BookSubjectSummary }) {
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-2.5">
+    <div
+      className={`flex flex-wrap items-center gap-2 py-2.5 transition-opacity ${
+        subject.isActive ? '' : 'opacity-60'
+      }`}
+    >
       <SubjectPicture subject={subject} />
 
       <form action={formAction} className="flex flex-1 flex-wrap items-center gap-2">
@@ -110,19 +114,48 @@ export function SubjectRow({ subject }: { subject: BookSubjectSummary }) {
 
       {/* Switched off, never deleted: its books show under "More books" until
           they are filed somewhere else. */}
-      <form action={setSubjectActiveAction.bind(null, subject.id, !subject.isActive)}>
-        <button
-          type="submit"
-          className={`rounded-lg px-2.5 py-1 text-xs font-medium ring-1 transition-colors ${
-            subject.isActive
-              ? 'text-slate-600 ring-navy-200 hover:bg-navy-50'
-              : 'text-leaf-800 ring-leaf-300 hover:bg-leaf-50'
-          }`}
-        >
-          {subject.isActive ? 'Switch off' : 'Switch on'}
-        </button>
-      </form>
+      <SubjectSwitch subject={subject} />
     </div>
+  );
+}
+
+/**
+ * On or off, as a switch that shows which it is: green and "Shown" while
+ * children see the subject, grey and "Hidden" when it is off. One click
+ * changes it. A submit button drawn as a switch, so there is no state here to
+ * fall out of step with the school's.
+ */
+function SubjectSwitch({ subject }: { subject: BookSubjectSummary }) {
+  const on = subject.isActive;
+  return (
+    <form
+      action={setSubjectActiveAction.bind(null, subject.id, !on)}
+      className="ml-auto flex items-center gap-2.5"
+    >
+      <span
+        className={`w-14 text-right text-xs font-medium ${on ? 'text-leaf-800' : 'text-slate-500'}`}
+      >
+        {on ? 'Shown' : 'Hidden'}
+      </span>
+      <button
+        type="submit"
+        role="switch"
+        aria-checked={on}
+        aria-label={`Show ${subject.name} in the app`}
+        title={on ? `Hide ${subject.name} from the app` : `Show ${subject.name} in the app`}
+        className={`relative h-7 w-12 shrink-0 rounded-full ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 ${
+          on
+            ? 'bg-leaf-600 ring-leaf-600 hover:bg-leaf-700'
+            : 'bg-slate-200 ring-navy-950/10 hover:bg-slate-300'
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
+            on ? 'left-6' : 'left-1'
+          }`}
+        />
+      </button>
+    </form>
   );
 }
 

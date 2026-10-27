@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type {
   BookForChild,
   BookSubjectIcon,
@@ -115,8 +115,7 @@ export async function createBook(
     input.code ??
     (await uniqueCode(
       slugCode(level.code, input.name),
-      async (candidate) =>
-        (await prismaUnscoped.book.count({ where: { code: candidate } })) > 0,
+      async (candidate) => (await prismaUnscoped.book.count({ where: { code: candidate } })) > 0,
     ));
 
   const clash = await prismaUnscoped.book.findUnique({
@@ -228,7 +227,10 @@ export async function booksForSchoolAdmin(schoolId: string): Promise<SchoolBookR
       },
       orderBy: [{ classLevel: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     }),
-    prismaUnscoped.schoolBook.findMany({ where: { schoolId }, select: { bookId: true, enabled: true } }),
+    prismaUnscoped.schoolBook.findMany({
+      where: { schoolId },
+      select: { bookId: true, enabled: true },
+    }),
   ]);
 
   const enabledFor = new Map(entitlements.map((row) => [row.bookId, row.enabled]));
@@ -491,6 +493,26 @@ export async function booksForChild(
     filmsByBook.set(chapter.bookId, [...(filmsByBook.get(chapter.bookId) ?? []), chapter.id]);
   }
 
+  /**
+   * How many activities each book holds, so a book with no PDF yet still opens
+   * onto them rather than reading "Soon". Its own pages only — the ones filed
+   * in every book would make every book look full — and only pages with
+   * something written on them. Tracing is a module of its own.
+   */
+  const pages = await prismaUnscoped.activityBook.groupBy({
+    by: ['bookId'],
+    where: {
+      bookId: { in: books.map((book) => book.id) },
+      activity: {
+        isActive: true,
+        type: { not: 'TRACING' },
+        OR: [{ questions: { some: { isActive: true } } }, { contentJson: { not: Prisma.DbNull } }],
+      },
+    },
+    _count: { _all: true },
+  });
+  const pagesByBook = new Map(pages.map((row) => [row.bookId, row._count._all]));
+
   return books.map((book) => {
     const films = filmsByBook.get(book.id) ?? [];
     return {
@@ -510,6 +532,7 @@ export async function booksForChild(
         : null,
       /** How many films inside are still to watch. Zero means nothing waiting. */
       filmsToWatch: films.filter((id) => !seen.has(id)).length,
+      activityCount: pagesByBook.get(book.id) ?? 0,
       isUnlocked: true,
     };
   });

@@ -417,5 +417,22 @@ void _shelfTests() {
 
     expect(book.canRead, isFalse);
     expect(book.pdf, isNull);
+    // Nor anything to play, from a server that does not count them.
+    expect(book.hasActivities, isFalse);
+    expect(book.isEmpty, isTrue);
+  });
+
+  test('a book with activities but no PDF yet is not "Soon"', () {
+    final book = ShelfBook.fromJson({
+      'id': 'bk_5',
+      'name': 'Sample book',
+      'pdf': null,
+      'activityCount': 29,
+    });
+
+    expect(book.canRead, isFalse);
+    expect(book.hasActivities, isTrue);
+    expect(book.activityCount, 29);
+    expect(book.isEmpty, isFalse);
   });
 }

@@ -40,6 +40,7 @@ class _Api implements HttpClientAdapter {
       '/catalogue/children/s1/subjects' => _subjects,
       '/catalogue/children/s1/books' => _books,
       '/catalogue/children/s1/films' => _films,
+      '/progress/activities' => const <Object>[],
       _ => null,
     };
     return ResponseBody.fromString(
@@ -91,6 +92,7 @@ const _books = [
       'sizeBytes': 1024,
       'version': 'f1',
     },
+    'activityCount': 4,
   },
   {
     'id': 'b2',
@@ -98,6 +100,15 @@ const _books = [
     'classLevel': {'name': 'Nursery'},
     'subject': {'id': 'evs', 'name': 'EVS', 'icon': 'globe'},
     'pdf': null,
+    'activityCount': 0,
+  },
+  {
+    'id': 'b3',
+    'name': 'Sample book',
+    'classLevel': {'name': 'Nursery'},
+    'subject': {'id': 'evs', 'name': 'EVS', 'icon': 'globe'},
+    'pdf': null,
+    'activityCount': 29,
   },
 ];
 
@@ -181,15 +192,33 @@ void main() {
       expect(api.asked, contains('/catalogue/children/s1/books?evs'));
       expect(find.text('EVS Book 1'), findsOneWidget);
       expect(find.text('EVS Book 2'), findsOneWidget);
+      expect(find.text('Sample book'), findsOneWidget);
       expect(find.text('Read'), findsOneWidget);
       expect(find.text('Soon'), findsOneWidget);
+      // No PDF yet, but activities to play: not "Soon".
+      expect(find.text('Play'), findsOneWidget);
 
-      // A book with no PDF yet says so, rather than opening onto nothing.
+      // A book with neither says so, rather than opening onto nothing.
       await tester.tap(find.text('EVS Book 2'));
       await _settle(tester);
-      expect(find.textContaining('not ready to read yet'), findsOneWidget);
+      expect(find.textContaining('not ready yet'), findsOneWidget);
       await tester.pump(const Duration(seconds: 4));
       await _settle(tester);
+
+      // A book with both asks which.
+      await tester.tap(find.text('EVS Book 1'));
+      await _settle(tester);
+      expect(find.text('Read the book'), findsOneWidget);
+      expect(find.text('Play the 4 activities'), findsOneWidget);
+      Get.back<void>();
+      await _settle(tester);
+
+      // A book with only activities opens straight onto them.
+      await tester.tap(find.text('Sample book'));
+      await _settle(tester);
+      expect(api.asked, contains('/progress/activities?'));
+      expect(Get.currentRoute, AppRoutes.activities);
+      expect(find.text('Sample book'), findsOneWidget);
     },
   );
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/routes/app_pages.dart';
 import '../../core/theme/play_palette.dart';
 import '../../core/widgets/art.dart';
 import '../../core/widgets/async_view.dart';
@@ -43,8 +44,10 @@ class BookShelfView extends GetView<BookShelfController> {
                 childAspectRatio: 0.62,
               ),
               itemCount: controller.books.length,
-              itemBuilder: (context, index) =>
-                  _BookTile(book: controller.books[index]),
+              itemBuilder: (context, index) => _BookTile(
+                book: controller.books[index],
+                studentId: controller.studentId,
+              ),
             ),
           ),
         ),
@@ -54,20 +57,43 @@ class BookShelfView extends GetView<BookShelfController> {
 }
 
 class _BookTile extends StatelessWidget {
-  const _BookTile({required this.book});
+  const _BookTile({required this.book, required this.studentId});
 
   final ShelfBook book;
+  final String? studentId;
 
+  void _read() => Get.to<void>(() => BookReaderView(book: book));
+
+  /// The book's activities, chapter by chapter.
+  void _play() => Get.toNamed<void>(
+    AppRoutes.activities,
+    arguments: {
+      'studentId': studentId,
+      'bookId': book.id,
+      'bookName': book.name,
+    },
+  );
+
+  /// Whatever the book has: its pages to read, its activities to play, a
+  /// choice of the two — or, with neither yet, a word that it is coming.
   void _open() {
-    if (book.canRead) {
-      Get.to<void>(() => BookReaderView(book: book));
+    if (book.canRead && book.hasActivities) {
+      Get.bottomSheet<void>(
+        _ReadOrPlay(book: book, onRead: _read, onPlay: _play),
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+      );
       return;
     }
+    if (book.canRead) return _read();
+    if (book.hasActivities) return _play();
     Get
       ..closeAllSnackbars()
       ..snackbar(
         book.name,
-        'This book is not ready to read yet. It will open here soon.',
+        'This book is not ready yet. It will open here soon.',
         snackPosition: SnackPosition.BOTTOM,
         margin: const EdgeInsets.all(16),
       );
@@ -105,7 +131,7 @@ class _BookTile extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     Opacity(
-                      opacity: book.canRead ? 1 : 0.55,
+                      opacity: book.isEmpty ? 0.55 : 1,
                       child: book.coverPath != null
                           ? AuthedImage(
                               path: book.coverPath!,
@@ -122,8 +148,14 @@ class _BookTile extends StatelessWidget {
                       child: _Badge(
                         icon: book.canRead
                             ? Icons.menu_book_rounded
+                            : book.hasActivities
+                            ? Icons.extension_rounded
                             : Icons.hourglass_top_rounded,
-                        label: book.canRead ? 'Read' : 'Soon',
+                        label: book.canRead
+                            ? 'Read'
+                            : book.hasActivities
+                            ? 'Play'
+                            : 'Soon',
                         color: tone.deep,
                       ),
                     ),
@@ -188,6 +220,109 @@ class _Badge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A book with both: read its pages, or play its activities.
+class _ReadOrPlay extends StatelessWidget {
+  const _ReadOrPlay({
+    required this.book,
+    required this.onRead,
+    required this.onPlay,
+  });
+
+  final ShelfBook book;
+  final VoidCallback onRead;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              book.name,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _Choice(
+              icon: Icons.menu_book_rounded,
+              label: 'Read the book',
+              colour: const Color(0xFF3B82F6),
+              onTap: () {
+                Get.back<void>();
+                onRead();
+              },
+            ),
+            const SizedBox(height: 12),
+            _Choice(
+              icon: Icons.extension_rounded,
+              label: book.activityCount == 1
+                  ? 'Play the activity'
+                  : 'Play the ${book.activityCount} activities',
+              colour: const Color(0xFFF59E0B),
+              onTap: () {
+                Get.back<void>();
+                onPlay();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Choice extends StatelessWidget {
+  const _Choice({
+    required this.icon,
+    required this.label,
+    required this.colour,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color colour;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: colour.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Icon(icon, color: colour, size: 28),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: colour),
+            ],
+          ),
+        ),
       ),
     );
   }

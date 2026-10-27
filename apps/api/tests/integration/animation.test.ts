@@ -154,6 +154,9 @@ describe.skipIf(!dbUp)('books to read and films to watch', () => {
       // Still counted, for the badge; no longer a lock.
       expect(filmedBook.filmsToWatch).toBe(1);
       expect(filmedBook.isUnlocked).toBe(true);
+      // Its page to play, so it opens even with no PDF to read.
+      expect(filmedBook.activityCount).toBe(1);
+      expect(shelf.body.find((b: { id: string }) => b.id === openBookId).activityCount).toBe(1);
 
       const chapters = await api
         .get(`${BASE}/catalogue/children/${school.studentId}/books/${filmedBookId}/chapters`)

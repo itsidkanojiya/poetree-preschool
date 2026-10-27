@@ -98,6 +98,7 @@ class ShelfBook {
     this.subjectName,
     this.subjectIcon,
     this.pdf,
+    this.activityCount = 0,
   });
 
   factory ShelfBook.fromJson(Map<String, dynamic> json) {
@@ -118,6 +119,8 @@ class ShelfBook {
       subjectName: subject?['name'] as String?,
       subjectIcon: subject?['icon'] as String?,
       pdf: BookPdf.fromJson(json['pdf']),
+      // Absent from an older school server: then only the PDF decides.
+      activityCount: (json['activityCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -138,6 +141,15 @@ class ShelfBook {
   final BookPdf? pdf;
 
   bool get canRead => pdf != null;
+
+  /// Activities filed in this book. A book with these opens onto them even
+  /// before its PDF is uploaded.
+  final int activityCount;
+
+  bool get hasActivities => activityCount > 0;
+
+  /// Nothing to read and nothing to play yet: the shelf says "Soon".
+  bool get isEmpty => !canRead && !hasActivities;
 
   /// The picture drawn when there is no cover: the subject's own, or failing
   /// that whatever the book's name suggests.

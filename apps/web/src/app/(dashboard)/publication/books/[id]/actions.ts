@@ -127,7 +127,7 @@ export async function createChapterAction(
   }
 
   revalidatePath(`/publication/books/${bookId}`);
-  return { success: 'Added. File the book’s pages into it from the question type screen.' };
+  return { success: 'Added. File the book’s pages into it from the activity type screen.' };
 }
 
 export async function renameChapterAction(

@@ -66,11 +66,13 @@ describe.skipIf(!dbUp)('certificates', () => {
         title: 'Star of the Month',
         body: 'for always being kind',
         design: 'STARS',
+        category: 'BEHAVIOUR',
         issuedOn: '2026-10-01',
         studentIds: [school.studentId],
       });
     expect(created.status).toBe(201);
     expect(created.body.status).toBe('DRAFT');
+    expect(created.body.category).toBe('BEHAVIOUR');
     expect(created.body.recipients).toHaveLength(1);
     expect(created.body.recipients[0].number).toBeNull();
     certificateId = created.body.id;
@@ -114,10 +116,35 @@ describe.skipIf(!dbUp)('certificates', () => {
       .set(auth(parent));
     expect(list.body).toHaveLength(1);
     expect(list.body[0].title).toBe('Star of the Month');
+    // What the app sorts and colours it by.
+    expect(list.body[0].category).toBe('BEHAVIOUR');
 
     const copy = await pdf(api.get(`${BASE}/certificates/awards/${awardId}/pdf`).set(auth(parent)));
     expect(copy.status).toBe(200);
     expect(isPdf(copy.body)).toBe(true);
+  });
+
+  it('is an achievement unless the office says otherwise', async () => {
+    const plain = await api
+      .post(`${BASE}/certificates`)
+      .set(auth(admin))
+      .send({ title: 'Sports Day', issuedOn: '2026-10-03' });
+    expect(plain.status).toBe(201);
+    expect(plain.body.category).toBe('ACHIEVEMENT');
+
+    const changed = await api
+      .patch(`${BASE}/certificates/${plain.body.id}`)
+      .set(auth(admin))
+      .send({ category: 'TEST' });
+    expect(changed.body.category).toBe('TEST');
+
+    const wrong = await api
+      .patch(`${BASE}/certificates/${plain.body.id}`)
+      .set(auth(admin))
+      .send({ category: 'SPORTS' });
+    expect(wrong.status).toBe(400);
+
+    await api.delete(`${BASE}/certificates/${plain.body.id}`).set(auth(admin));
   });
 
   it('cannot be changed once issued', async () => {

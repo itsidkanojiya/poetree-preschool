@@ -16,10 +16,48 @@ const optionSchema = z
     /** An uploaded catalogue asset. */
     fileId: idSchema.nullish(),
     isCorrect: z.boolean().optional(),
+    /** Sort into Groups: which basket the card belongs in, from 0. */
+    groupIndex: z.number().int().min(0).max(2).nullish(),
+    /** Match the Pairs: the partner on the right. */
+    matchText: z.string().trim().min(1).max(80).nullish(),
+    matchGlyph: z.string().trim().min(1).max(16).nullish(),
+    matchFileId: idSchema.nullish(),
+    /** Match the Pairs: the partner is this option's own picture, as a shadow. */
+    matchShadow: z.boolean().optional(),
   })
   .refine((value) => Boolean(value.text ?? value.glyph ?? value.fileId), {
     message: 'An option needs a picture, an emoji or some text',
   });
+
+/** A basket in Sort into Groups. */
+const sortGroupInputSchema = z.object({
+  label: z.string().trim().min(1).max(30),
+  glyph: z.string().trim().min(1).max(16).nullish(),
+  fileId: idSchema.nullish(),
+});
+
+/**
+ * What a question needs beyond its options, by type. Each type reads only its
+ * own fields; the API says, beside the question, when one is missing.
+ */
+export const questionSettingsSchema = z.object({
+  /** Count and Colour: how many to colour, and how many to show. */
+  target: z.number().int().min(1).max(20).nullish(),
+  shown: z.number().int().min(1).max(20).nullish(),
+  /** Sort into Groups: two or three baskets. */
+  groups: z.array(sortGroupInputSchema).max(3).nullish(),
+  /** Fill the Gap: the row, gaps in brackets — "1 2 [3] 4 [5]". */
+  row: z.string().trim().min(1).max(120).nullish(),
+  /** Fill the Gap: wrong tiles to offer, space-separated. Chosen for you when empty. */
+  extras: z.string().trim().max(40).nullish(),
+  /** Find the Letter: what to find — "D d". */
+  targets: z.string().trim().min(1).max(20).nullish(),
+  /** Find the Letter: everything in the grid, space-separated. */
+  grid: z.string().trim().min(1).max(200).nullish(),
+  /** Rhyme or Story: the words, a line to a line. */
+  lines: z.string().trim().min(1).max(2400).nullish(),
+});
+export type QuestionSettings = z.infer<typeof questionSettingsSchema>;
 
 export const createQuestionSchema = z.object({
   /** Read aloud. The child cannot read it themselves, and that is the point. */
@@ -32,8 +70,9 @@ export const createQuestionSchema = z.object({
     .min(1)
     .max(6)
     .nullish(),
-  /** Four at most to pick one from; six for "tap all the …" — the service says which. */
-  options: z.array(optionSchema).max(6).optional(),
+  /** Four at most to pick one from, eight to find them all, nine cards to sort, five pairs — the service says which. */
+  options: z.array(optionSchema).max(9).optional(),
+  settings: questionSettingsSchema.nullish(),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
@@ -50,6 +89,29 @@ export interface QuestionOptionRow {
   imageUrl: string | null;
   isCorrect: boolean;
   sortOrder: number;
+  groupIndex: number | null;
+  matchText: string | null;
+  matchGlyph: string | null;
+  matchImageUrl: string | null;
+  matchShadow: boolean;
+}
+
+/** A basket as the editor shows it: the picture as a path, like an option's. */
+export interface SortGroupRow {
+  label: string;
+  glyph: string | null;
+  imageUrl: string | null;
+}
+
+export interface QuestionSettingsRow {
+  target: number | null;
+  shown: number | null;
+  groups: SortGroupRow[];
+  row: string | null;
+  extras: string | null;
+  targets: string | null;
+  grid: string | null;
+  lines: string | null;
 }
 
 /** A question with the page and book it belongs to, for the flat list. */
@@ -69,6 +131,7 @@ export interface QuestionRow {
   strokes: Array<Array<{ x: number; y: number }>> | null;
   isActive: boolean;
   options: QuestionOptionRow[];
+  settings: QuestionSettingsRow;
   /**
    * Why a child will never see this question.
    *

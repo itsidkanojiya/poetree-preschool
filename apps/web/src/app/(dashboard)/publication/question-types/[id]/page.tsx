@@ -7,7 +7,7 @@ import { IconArrowLeft } from '@/components/icons';
 import { formatDate } from '@/lib/format';
 import { ActivityLiveSwitch, EditActivityForm } from '../forms';
 
-export const metadata: Metadata = { title: 'Activity · Poetree Admin' };
+export const metadata: Metadata = { title: 'Activity type · Poetree Admin' };
 
 interface Skill {
   id: string;
@@ -54,7 +54,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
           >
             <IconArrowLeft size={16} />
-            All question types
+            All activity types
           </Link>
         }
         title={activity.title}
@@ -69,7 +69,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
       </div>
 
       <div className="grid max-w-5xl items-start gap-4 lg:grid-cols-2">
-        <Card title="The question type">
+        <Card title="The activity type">
           <EditActivityForm
             activity={activity}
             content={JSON.stringify(activity.content ?? {}, null, 2)}
@@ -82,20 +82,20 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
 
         <div className="space-y-4">
           <Card
-            title="Questions"
+            title="Activities"
             description="What a child actually answers. A page with none of these reaches nobody."
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-slate-600">
                 {activity.itemCount === 0
                   ? 'Nothing written yet.'
-                  : `${activity.itemCount} ${activity.itemCount === 1 ? 'question' : 'questions'}.`}
+                  : `${activity.itemCount} ${activity.itemCount === 1 ? 'activity' : 'activities'}.`}
               </p>
               <Link
                 href={`/publication/question-types/${activity.id}/questions`}
                 className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-navy-800"
               >
-                {activity.itemCount === 0 ? 'Write the questions' : 'Edit the questions'}
+                {activity.itemCount === 0 ? 'Write the activities' : 'Edit the activities'}
               </Link>
             </div>
           </Card>

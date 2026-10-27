@@ -35,6 +35,7 @@ export async function createCertificateAction(
         title: text(formData, 'title'),
         body: text(formData, 'body') ?? '',
         design: text(formData, 'design'),
+        category: text(formData, 'category'),
         issuedOn: text(formData, 'issuedOn'),
       },
     });
@@ -58,6 +59,7 @@ export async function updateCertificateAction(
         title: text(formData, 'title'),
         body: text(formData, 'body') ?? '',
         design: text(formData, 'design'),
+        category: text(formData, 'category'),
         issuedOn: text(formData, 'issuedOn'),
       },
     });

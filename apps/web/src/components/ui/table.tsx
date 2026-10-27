@@ -3,6 +3,8 @@ import Link from 'next/link';
 
 export interface Column {
   label: string;
+  /** Drawn in the header instead of the label — a select-all checkbox. */
+  content?: ReactNode;
   /** Right-aligns and switches the column to tabular figures so digits line up. */
   numeric?: boolean;
   /** Header is present for screen readers but visually hidden (action columns). */
@@ -34,7 +36,8 @@ export function THead({ columns }: { columns: Array<string | Column> }) {
                 col.numeric ? 'text-right' : ''
               }`}
             >
-              {col.hidden ? <span className="sr-only">{col.label}</span> : col.label}
+              {col.content ??
+                (col.hidden ? <span className="sr-only">{col.label}</span> : col.label)}
             </th>
           );
         })}

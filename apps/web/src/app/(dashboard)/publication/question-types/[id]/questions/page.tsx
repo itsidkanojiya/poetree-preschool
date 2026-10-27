@@ -1,13 +1,13 @@
 import Link from 'next/link';
-import { isMultiAnswer, isScored, type ActivityContent } from '@poetree/shared';
 import type { Metadata } from 'next';
 import type { CatalogueActivity, QuestionRow } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { AddQuestionForm, EditQuestionForm, QuestionControls } from './forms';
+import { editorDescription } from './editors/kinds';
 
-export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
+export const metadata: Metadata = { title: 'Activities · Poetree Admin' };
 
 /**
  * The questions on one page of a book.
@@ -24,9 +24,6 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
     apiFetch<QuestionRow[]>(`/publication/activities/${id}/questions`),
   ]);
 
-  const scored = isScored(activity.type as ActivityContent['kind']);
-  const multi = isMultiAnswer(activity.type as ActivityContent['kind']);
-  const tracing = activity.type === 'TRACING';
   const broken = questions.filter((question) => question.problem !== null);
 
   return (
@@ -39,20 +36,20 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
       </Link>
 
       <PageHeader
-        title="Questions"
+        title="Activities"
         description={`${activity.title}${activity.book ? ` · ${activity.book.name}` : ''}`}
       />
 
       {broken.length > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          {broken.length === 1 ? 'One question is' : `${broken.length} questions are`} not being
+          {broken.length === 1 ? 'One activity is' : `${broken.length} activities are`} not being
           shown to children: {broken.map((question) => question.problem).join('; ')}.
         </div>
       )}
 
       {questions.length === 0 ? (
         <p className="mb-6 text-sm text-amber-700">
-          Nothing written yet, so this page reaches nobody. Add the first question below.
+          Nothing written yet, so this page reaches nobody. Add the first activity below.
         </p>
       ) : (
         <div className="mb-6 space-y-4">
@@ -77,36 +74,15 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
                 />
               </div>
 
-              <EditQuestionForm
-                activityId={id}
-                question={question}
-                scored={scored}
-                tracing={tracing}
-                multi={multi}
-              />
+              <EditQuestionForm activityId={id} question={question} type={activity.type} />
             </Card>
           ))}
         </div>
       )}
 
       <div className="max-w-3xl">
-        <Card
-          title="Add a question"
-          description={
-            tracing
-              ? 'Draw the path a child follows with their finger.'
-              : scored
-                ? 'A picture, an emoji or a word on each choice. Tick the right one.'
-                : 'Something to look at. Nothing to get wrong.'
-          }
-        >
-          <AddQuestionForm
-            activityId={id}
-            scored={scored}
-            tracing={tracing}
-            multi={multi}
-            count={questions.length}
-          />
+        <Card title="Add an activity" description={editorDescription(activity.type)}>
+          <AddQuestionForm activityId={id} type={activity.type} count={questions.length} />
         </Card>
       </div>
     </>

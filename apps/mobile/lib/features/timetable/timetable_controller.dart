@@ -34,6 +34,7 @@ class Slot {
     required this.dayOfWeek,
     required this.periodId,
     this.subject,
+    this.subjectId,
     this.teacher,
     this.room,
     this.classroomLabel,
@@ -47,6 +48,7 @@ class Slot {
     dayOfWeek: (json['dayOfWeek'] as num).toInt(),
     periodId: json['periodId'] as String,
     subject: (json['subject'] as Map<String, dynamic>?)?['name'] as String?,
+    subjectId: (json['subject'] as Map<String, dynamic>?)?['id'] as String?,
     teacher: (json['teacher'] as Map<String, dynamic>?)?['name'] as String?,
     room: (json['room'] as Map<String, dynamic>?)?['name'] as String?,
   );
@@ -70,6 +72,9 @@ class Slot {
   final int dayOfWeek;
   final String periodId;
   final String? subject;
+
+  /// Which subject it is, where the API says; the name stands in otherwise.
+  final String? subjectId;
   final String? teacher;
   final String? room;
   final String? classroomLabel;
@@ -158,6 +163,13 @@ class TimetableController extends GetxController {
   List<Slot> teacherDay(int dayOfWeek) =>
       slots.where((s) => s.dayOfWeek == dayOfWeek).toList()
         ..sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? ''));
+
+  /// Every subject in the week, in a steady order, so each keeps one colour
+  /// on every day it appears and no two share one.
+  List<String> get subjects => {
+    for (final slot in slots)
+      if (slot.subject != null) slot.subjectId ?? slot.subject!,
+  }.toList()..sort();
 
   /// Days that actually have something on them, so an empty Saturday does not
   /// take up a third of a phone screen.

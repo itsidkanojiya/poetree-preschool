@@ -7,7 +7,7 @@ import type {
   SchoolProfile,
   StudentSummary,
 } from '@poetree/shared';
-import { CERTIFICATE_DESIGN_LABELS } from '@poetree/shared';
+import { CERTIFICATE_CATEGORY_LABELS, CERTIFICATE_DESIGN_LABELS } from '@poetree/shared';
 import { apiFetch, ApiRequestError } from '@/lib/api';
 import { formatDate } from '@/lib/format';
 import { Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
@@ -61,7 +61,7 @@ export default async function CertificatePage({
         <PageHeader
           eyebrow={back}
           title={certificate.title}
-          description={`${CERTIFICATE_DESIGN_LABELS[certificate.design]} · dated ${formatDate(certificate.issuedOn)} · issued ${formatDate(certificate.issuedAt)}`}
+          description={`${CERTIFICATE_CATEGORY_LABELS[certificate.category]} · ${CERTIFICATE_DESIGN_LABELS[certificate.design]} · dated ${formatDate(certificate.issuedOn)} · issued ${formatDate(certificate.issuedAt)}`}
           action={
             live.length > 0 ? (
               <a

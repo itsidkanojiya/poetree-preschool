@@ -211,6 +211,12 @@ enum ActivityType {
   FLASHCARD
   RHYME
   STORY
+  ODD_ONE_OUT
+  LETTER_HUNT
+  MATCH_PAIRS
+  SORT_GROUPS
+  COUNT_OUT
+  FILL_GAP
 }
 
 enum PublishStatus {
@@ -275,6 +281,13 @@ enum CertificateDesign {
   STARS
   PLAYFUL
   ELEGANT
+}
+
+/// What a certificate is for: how a family's app sorts and colours it.
+enum CertificateCategory {
+  ACHIEVEMENT
+  TEST
+  BEHAVIOUR
 }
 
 enum FileVisibility {
@@ -2384,13 +2397,14 @@ model ReportCardGrade {
 /// One certificate, many children: each gets their own award with their own
 /// number. Null issuedAt is a draft that no family can see yet.
 model Certificate {
-  id             String            @id @default(cuid())
+  id             String              @id @default(cuid())
   schoolId       String
   academicYearId String?
-  title          String            @db.VarChar(120)
+  title          String              @db.VarChar(120)
   /// The line under the child's name: "for her wonderful drawing at the art fair".
-  body           String            @db.VarChar(400)
-  design         CertificateDesign @default(CLASSIC)
+  body           String              @db.VarChar(400)
+  design         CertificateDesign   @default(CLASSIC)
+  category       CertificateCategory @default(ACHIEVEMENT)
   issuedOn       DateTime
   createdById    String?
   issuedAt       DateTime?
@@ -2614,6 +2628,9 @@ model ActivityQuestion {
   promptFileId String? @db.VarChar(191)
   /// Tracing paths: arrays of normalised coordinates, which nobody queries.
   strokesJson  Json?
+  /// What a question needs beyond its options, by type: the number to colour,
+  /// the row with its gaps, the letters to find, the baskets to sort into.
+  settingsJson Json?
   isActive     Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -2641,11 +2658,21 @@ model QuestionOption {
   fileId     String? @db.VarChar(191)
   isCorrect  Boolean @default(false)
 
+  /// Sort into Groups: which basket the card goes in, from 0.
+  groupIndex  Int?
+  /// Match the Pairs: the partner on the right.
+  matchText   String? @db.VarChar(80)
+  matchGlyph  String? @db.VarChar(16)
+  matchFileId String? @db.VarChar(191)
+  /// Match the Pairs: the partner is this option's own picture, as a shadow.
+  matchShadow Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  question ActivityQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  file     FileObject?      @relation("OptionImage", fields: [fileId], references: [id], onDelete: SetNull)
+  question  ActivityQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  file      FileObject?      @relation("OptionImage", fields: [fileId], references: [id], onDelete: SetNull)
+  matchFile FileObject?      @relation("OptionMatchImage", fields: [matchFileId], references: [id], onDelete: SetNull)
 
   @@index([questionId, sortOrder])
   @@map("question_options")
@@ -2799,6 +2826,7 @@ model FileObject {
   chapterCovers            Chapter[]                 @relation("ChapterCover")
   questionPrompts          ActivityQuestion[]        @relation("QuestionPrompt")
   optionImages             QuestionOption[]          @relation("OptionImage")
+  optionMatchImages        QuestionOption[]          @relation("OptionMatchImage")
   studentPhotos            Student[]                 @relation("StudentPhoto")
   galleryPhotos            GalleryPhoto[]            @relation("GalleryPhotoFile")
   uploadedBy               User?                     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)

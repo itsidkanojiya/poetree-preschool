@@ -245,6 +245,19 @@ export type ReportCardStatus = (typeof REPORT_CARD_STATUSES)[number];
 export const CERTIFICATE_DESIGNS = ['CLASSIC', 'STARS', 'PLAYFUL', 'ELEGANT'] as const;
 export type CertificateDesign = (typeof CERTIFICATE_DESIGNS)[number];
 
+/**
+ * What a certificate is for, which is how a family's app sorts and colours
+ * them: gold for an achievement, blue for a test, pink for behaviour.
+ */
+export const CERTIFICATE_CATEGORIES = ['ACHIEVEMENT', 'TEST', 'BEHAVIOUR'] as const;
+export type CertificateCategory = (typeof CERTIFICATE_CATEGORIES)[number];
+
+export const CERTIFICATE_CATEGORY_LABELS: Record<CertificateCategory, string> = {
+  ACHIEVEMENT: 'Achievement',
+  TEST: 'Test',
+  BEHAVIOUR: 'Behaviour',
+};
+
 export const CERTIFICATE_DESIGN_LABELS: Record<CertificateDesign, string> = {
   CLASSIC: 'Classic border',
   STARS: 'Stars',

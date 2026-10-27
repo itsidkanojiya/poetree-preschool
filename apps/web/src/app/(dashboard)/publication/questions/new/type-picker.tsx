@@ -30,7 +30,7 @@ export function TypePicker({
   }
 
   return (
-    <Field label="Question type" required hint="The instruction this question is printed under.">
+    <Field label="Activity type" required hint="The instruction this activity is printed under.">
       <Select
         defaultValue={chosenId ?? ''}
         onChange={(event) => {

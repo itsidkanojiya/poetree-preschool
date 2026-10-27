@@ -244,7 +244,7 @@ export function DeleteChapterButton({ chapter }: { chapter: ChapterSummary }) {
       // said here rather than the button hidden.
       body={
         chapter.activityCount > 0
-          ? `${chapter.activityCount} question ${
+          ? `${chapter.activityCount} activity ${
               chapter.activityCount === 1 ? 'type is' : 'types are'
             } filed under this chapter, so this will be refused until they move. Nothing is lost by trying.`
           : 'The chapter goes. Nothing is filed under it, so nothing else changes.'

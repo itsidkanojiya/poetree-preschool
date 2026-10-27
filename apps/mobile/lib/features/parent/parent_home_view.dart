@@ -7,8 +7,6 @@ import 'package:intl/intl.dart';
 
 import '../../core/routes/app_pages.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/audio/speech_service.dart';
-import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/auth_controller.dart';
 import '../fees/fees_ui.dart';
@@ -23,6 +21,8 @@ import 'id_card_view.dart';
 import '../books/book_subjects_view.dart';
 import '../animation/films_watched_card.dart';
 import '../results/certificates_view.dart';
+import '../announcements/announcements_view.dart';
+import '../settings/settings_view.dart';
 import '../attendance/attendance_calendar_view.dart';
 import '../results/report_cards_view.dart';
 import 'kid_home_view.dart';
@@ -274,7 +274,8 @@ class _ProfileTab extends StatelessWidget {
                   wash: const Color(0xFFFFF6E5),
                   title: 'Announcements',
                   subtitle: 'News and reminders from the school',
-                  onTap: () => Get.to<void>(() => _NoticesPage(child: child)),
+                  onTap: () =>
+                      Get.to<void>(() => AnnouncementsView(child: child)),
                 ),
                 if (selected?.classroomId != null) ...[
                   _MenuCard(
@@ -334,7 +335,7 @@ class _ProfileTab extends StatelessWidget {
                   wash: const Color(0xFFF0EFFF),
                   title: 'App Settings',
                   subtitle: 'App appearance and preferences',
-                  onTap: () => Get.to<void>(() => const _SettingsPage()),
+                  onTap: () => Get.to<void>(() => const SettingsView()),
                 ),
                 const SizedBox(height: 10),
                 _SignOutButton(onPressed: auth.signOut),
@@ -767,120 +768,6 @@ class _ChildPhotoState extends State<_ChildPhoto> {
   }
 }
 
-/// Settings, which is the theme and nothing else so far.
-///
-/// A page rather than a switch buried in Profile: there will be more than one
-/// setting eventually, and a family looking for "how do I stop it being black"
-/// looks for Settings.
-class _SettingsPage extends StatelessWidget {
-  const _SettingsPage();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Get.find<ThemeController>();
-    final voice = Get.isRegistered<SpeechService>()
-        ? Get.find<SpeechService>()
-        : null;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-        children: [
-          if (voice != null) ...[
-            Text('Sound', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Text(
-              'The app reads each activity out loud, for children who cannot '
-              'read it themselves.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            Obx(
-              () => Card(
-                margin: EdgeInsets.zero,
-                child: SwitchListTile(
-                  value: voice.isOn.value,
-                  onChanged: (on) => voice.setOn(on),
-                  secondary: Icon(
-                    voice.isOn.value
-                        ? Icons.volume_up_rounded
-                        : Icons.volume_off_rounded,
-                  ),
-                  title: const Text('Read activities aloud'),
-                  subtitle: Text(
-                    voice.isOn.value
-                        // Said plainly: a room of twenty phones all saying
-                        // "well done" at once is a real place.
-                        ? 'Turn this off in a classroom'
-                        : 'The app stays silent',
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          Text('Appearance', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          Text(
-            'The app opens light. Choose dark if you prefer it, or let your '
-            'phone decide.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-
-          // Obx here rather than around a returned widget: the tiles read
-          // `mode`, so this is where the subscription has to be.
-          Obx(
-            () => Card(
-              margin: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  // Tap the row, not a small circle beside it. Radio's own
-                  // tile wants a RadioGroup ancestor in this Flutter version,
-                  // and a tick on the chosen row says the same thing with a
-                  // target a thumb can actually hit.
-                  for (final option in ThemeMode.values)
-                    ListTile(
-                      onTap: () => theme.choose(option),
-                      leading: Icon(
-                        switch (option) {
-                          ThemeMode.light => Icons.light_mode_rounded,
-                          ThemeMode.dark => Icons.dark_mode_rounded,
-                          ThemeMode.system => Icons.phone_android_rounded,
-                        },
-                        color: theme.mode.value == option
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      title: Text(switch (option) {
-                        ThemeMode.light => 'Light',
-                        ThemeMode.dark => 'Dark',
-                        ThemeMode.system => 'Match my phone',
-                      }),
-                      subtitle: Text(switch (option) {
-                        ThemeMode.light => 'Warm paper, the way it was drawn',
-                        ThemeMode.dark => 'Easier at bedtime',
-                        ThemeMode.system => 'Follows your phone’s setting',
-                      }),
-                      trailing: theme.mode.value == option
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          : null,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Fees on their own page, reached from Profile.
 /// Where a card on the home page, or a notification, can take a parent.
 enum ParentPage {
@@ -917,7 +804,7 @@ void openParentPage(ParentPage page, {String? invoiceId}) {
         );
       }
     case ParentPage.notices:
-      Get.to<void>(() => _NoticesPage(child: child));
+      Get.to<void>(() => AnnouncementsView(child: child));
     case ParentPage.reportCards:
       if (selected != null) _openReportCards(selected);
     case ParentPage.certificates:
@@ -1036,21 +923,6 @@ class _ProgressTab extends StatelessWidget {
         ],
       );
     });
-  }
-}
-
-/// The school's announcements on their own page, reached from Settings.
-class _NoticesPage extends StatelessWidget {
-  const _NoticesPage({required this.child});
-
-  final ChildController child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Announcements')),
-      body: _NoticesTab(child: child),
-    );
   }
 }
 
@@ -1539,78 +1411,6 @@ class _HomeworkRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _NoticesTab extends StatelessWidget {
-  const _NoticesTab({required this.child});
-
-  final ChildController child;
-
-  /// See [_FeesTab.build] — same reason, same fix.
-  @override
-  Widget build(BuildContext context) => Obx(() => _body(context));
-
-  Widget _body(BuildContext context) {
-    if (child.notices.isEmpty) {
-      return ListView(
-        children: const [
-          SizedBox(height: 80),
-          Center(child: Text('No announcements from the school yet.')),
-        ],
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: child.notices.length,
-      itemBuilder: (context, index) {
-        final notice = child.notices[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          color: notice.isEmergency
-              ? Theme.of(context).colorScheme.errorContainer
-              : null,
-          child: ListTile(
-            // Opening it is what tells the school it has been seen — the
-            // answer to "who has not read this" for an emergency notice.
-            onTap: () => child.markNoticeRead(notice),
-            leading: notice.pinned
-                ? const Icon(Icons.push_pin_outlined)
-                : notice.isEmergency
-                ? const Icon(Icons.warning_amber)
-                : const Icon(Icons.campaign_outlined),
-            title: Row(
-              children: [
-                Expanded(child: Text(notice.title)),
-                if (!notice.readByMe)
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(notice.body),
-                const SizedBox(height: 4),
-                Text(
-                  _day(notice.publishAt),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

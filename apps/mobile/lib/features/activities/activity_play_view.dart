@@ -8,17 +8,26 @@ import '../../core/widgets/sticker_text.dart';
 import '../../core/letterforms/glyph_text.dart';
 import 'activity_controller.dart';
 import 'activity_models.dart';
+import 'steps/count_out_step.dart';
+import 'steps/fill_gap_step.dart';
+import 'steps/letter_hunt_step.dart';
+import 'steps/match_pairs_step.dart';
+import 'steps/rhyme_step.dart';
+import 'steps/sort_groups_step.dart';
+import 'steps/step_kit.dart';
 import '../tracing/tracing_play.dart';
 
 /// A child doing one activity.
 ///
-/// Designed for two to six year olds who cannot read: every prompt is a
-/// sentence for the adult beside them plus something to look at, targets are
-/// large, and there is exactly one right answer per question because ambiguity
-/// at this age reads as failure.
+/// Designed for two to six year olds who cannot read: every question is read
+/// aloud and comes with something to look at, targets are large, and a wrong
+/// tap earns one gentle "try again" before the answer is shown.
 ///
 /// There is no timer and no score shown during play. The number is for the
 /// teacher afterwards, not for the child now.
+///
+/// The top and the end are the same for every type; the middle is the type's
+/// own screen — the ones made from the Pre-Primary books are in `steps/`.
 class ActivityPlayView extends GetView<ActivityPlayController> {
   const ActivityPlayView({super.key});
 
@@ -32,6 +41,16 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
         // Where they are, in numbers a parent can read over the child's
         // shoulder: "3 / 10" — in the tracing lesson's sticker numbers.
         actions: [
+          // The question again, as often as it is wanted.
+          Obx(
+            () => controller.isFinished.value || controller.total == 0
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: 'Hear the question',
+                    onPressed: controller.sayQuestion,
+                    icon: const Icon(Icons.volume_up_rounded),
+                  ),
+          ),
           Obx(
             () => controller.isFinished.value || controller.total == 0
                 ? const SizedBox.shrink()
@@ -63,7 +82,41 @@ class ActivityPlayView extends GetView<ActivityPlayController> {
           return _Finished(controller: controller);
         }
 
+        // Keyed by the question, so a screen that keeps its own state — pairs
+        // joined, cards sorted — starts clean on the next one.
+        final at = controller.index.value;
+        final key = ValueKey('question-$at');
+
         return switch (content) {
+          MatchPairsContent c => MatchPairsStep(
+            key: key,
+            controller: controller,
+            item: c.items[at],
+          ),
+          SortGroupsContent c => SortGroupsStep(
+            key: key,
+            controller: controller,
+            item: c.items[at],
+          ),
+          CountOutContent c => CountOutStep(
+            key: key,
+            controller: controller,
+            item: c.items[at],
+          ),
+          FillGapContent c => FillGapStep(
+            key: key,
+            controller: controller,
+            item: c.items[at],
+          ),
+          LetterHuntContent c => LetterHuntStep(
+            key: key,
+            controller: controller,
+            item: c.items[at],
+          ),
+          // A rhyme or story with its words: read along, a line at a time.
+          CardContent c
+              when c.kind != 'FLASHCARD' && c.items[at].lines.isNotEmpty =>
+            RhymeStep(key: key, controller: controller, item: c.items[at]),
           // Drag and drop carries the same content as a tap question; what
           // changes is how the child gets the answer there.
           ChoiceContent c when c.kind == 'DRAG_DROP' => _DragStep(
@@ -133,50 +186,51 @@ class _ChoiceStep extends StatelessWidget {
 
           Expanded(
             child: GridView.count(
-              crossAxisCount: item.options.length > 2 ? 3 : 2,
+              // Four as two by two: a row of three and one alone looks like
+              // the odd one out before anyone has looked.
+              crossAxisCount: item.options.length == 3 ? 3 : 2,
               childAspectRatio: 1,
               mainAxisSpacing: 14,
               crossAxisSpacing: 14,
               children: List.generate(item.options.length, (option) {
                 final isChosen = chosen == option;
                 final isAnswer = option == item.answer;
+                final shake = controller.shake.value;
 
-                // After a tap, the right answer is always shown — including
+                // After the answer, the right one is always shown — including
                 // when they got it wrong. Being told only "no" teaches nothing.
-                final colour = chosen == null
-                    ? Theme.of(context).colorScheme.surfaceContainerHighest
-                    : isAnswer
-                    ? const Color(0xFFDCFCE7)
-                    : isChosen
-                    ? const Color(0xFFFEE2E2)
-                    : Theme.of(context).colorScheme.surfaceContainerHighest;
-
-                return Material(
-                  color: colour,
-                  borderRadius: BorderRadius.circular(20),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => controller.answer(option, item.answer),
-                    child: _Option(media: item.options[option]),
-                  ),
+                return PlayTile(
+                  look: chosen == null
+                      ? TileLook.idle
+                      : isAnswer
+                      ? TileLook.right
+                      : isChosen
+                      ? TileLook.wrong
+                      : TileLook.idle,
+                  shake: shake != null && shake.option == option
+                      ? shake.count
+                      : 0,
+                  onTap: () => controller.answer(option, item.answer),
+                  child: _Option(media: item.options[option]),
                 );
               }),
             ),
           ),
 
           if (chosen != null) ...[
-            Text(
+            StepFeedback(
               controller.wasCorrect.value == true
                   ? 'Yes! Well done.'
                   : 'Nearly — this one is right.',
-              style: Theme.of(context).textTheme.titleMedium,
+              good: controller.wasCorrect.value == true,
             ),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: controller.next,
               child: Text(controller.isLast ? 'Finish' : 'Next'),
             ),
-          ],
+          ] else if (controller.misses.value > 0)
+            const StepFeedback('Not that one. Try again!', good: false),
         ],
       ),
     );

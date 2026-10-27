@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CertificateSummary, SchoolProfile } from '@poetree/shared';
+import { CERTIFICATE_CATEGORY_LABELS } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { formatDate } from '@/lib/format';
 import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
@@ -38,6 +39,7 @@ export default async function CertificatesPage() {
                 columns={[
                   { label: 'Design', hidden: true },
                   'Certificate',
+                  'For',
                   'Date',
                   { label: 'Children', numeric: true },
                   'Status',
@@ -57,6 +59,7 @@ export default async function CertificatesPage() {
                         <TPrimary sub={certificate.body || undefined}>{certificate.title}</TPrimary>
                       </Link>
                     </TCell>
+                    <TCell>{CERTIFICATE_CATEGORY_LABELS[certificate.category]}</TCell>
                     <TCell>{formatDate(certificate.issuedOn)}</TCell>
                     <TCell numeric>{certificate.recipientCount}</TCell>
                     <TCell>

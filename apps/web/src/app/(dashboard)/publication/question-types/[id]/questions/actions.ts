@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
+import type { QuestionSettings } from '@poetree/shared';
 import { uploadCatalogueAsset } from '@/lib/catalogue-assets';
+import { hasSettings, isChoiceType } from './editors/kinds';
 
 export interface QuestionState {
   error?: string;
@@ -30,18 +32,63 @@ function readStrokes(formData: FormData): Array<Array<{ x: number; y: number }>>
   }
 }
 
-interface OptionDraft {
+/** One picture, emoji or word, as an editor slot sends it. */
+interface Media {
   text?: string;
   glyph?: string;
-  fileId?: string | null;
+  fileId: string | null;
+}
+
+interface OptionDraft extends Media {
   isCorrect: boolean;
+  groupIndex?: number | null;
+  matchText?: string;
+  matchGlyph?: string;
+  matchFileId?: string | null;
+  matchShadow?: boolean;
+}
+
+/** The most slots each editor shows. The API says how many a type allows. */
+const OPTION_SLOTS = 8;
+const PAIR_SLOTS = 5;
+const BASKET_SLOTS = 3;
+const CARD_SLOTS = 9;
+
+/** A text field, trimmed; empty when the form has no such field. */
+function field(formData: FormData, name: string): string {
+  return String(formData.get(name) ?? '').trim();
+}
+
+/** A text setting: null when empty, so the API stores nothing for it. */
+function textSetting(formData: FormData, name: string): string | null {
+  return field(formData, name) || null;
+}
+
+/** A number setting: null when empty or not a number. */
+function numberSetting(formData: FormData, name: string): number | null {
+  const value = Number.parseInt(field(formData, name), 10);
+  return Number.isNaN(value) ? null : value;
 }
 
 /**
- * The most option slots a form shows: four to pick one from, six for "tap all
- * the …". The API says which a question type allows.
+ * One slot read back: the picture uploaded now, or the one chosen from the
+ * library or kept; the emoji or number; the word.
  */
-const OPTION_SLOTS = 6;
+async function readMedia(formData: FormData, prefix: string): Promise<Media> {
+  const text = field(formData, `${prefix}-text`);
+  const glyph = field(formData, `${prefix}-glyph`);
+  const keep = field(formData, `${prefix}-fileId`);
+  const picture = formData.get(`${prefix}-image`);
+
+  let fileId: string | null = keep === '' ? null : keep;
+  if (picture instanceof File && picture.size > 0) {
+    fileId = await uploadCatalogueAsset(picture);
+  }
+
+  return { text: text || undefined, glyph: glyph || undefined, fileId };
+}
+
+const isEmpty = (media: Media): boolean => !media.text && !media.glyph && !media.fileId;
 
 /**
  * Reads the option slots off the form.
@@ -57,27 +104,112 @@ async function readOptions(formData: FormData): Promise<OptionDraft[]> {
   const drafts: OptionDraft[] = [];
 
   for (let index = 0; index < OPTION_SLOTS; index += 1) {
-    const text = String(formData.get(`option-${index}-text`) ?? '').trim();
-    const glyph = String(formData.get(`option-${index}-glyph`) ?? '').trim();
-    const keep = String(formData.get(`option-${index}-fileId`) ?? '').trim();
-    const picture = formData.get(`option-${index}-image`);
-
-    let fileId: string | null = keep === '' ? null : keep;
-    if (picture instanceof File && picture.size > 0) {
-      fileId = await uploadCatalogueAsset(picture);
-    }
-
-    if (text === '' && glyph === '' && fileId === null) continue;
-
-    drafts.push({
-      text: text === '' ? undefined : text,
-      glyph: glyph === '' ? undefined : glyph,
-      fileId,
-      isCorrect: correct.has(String(index)),
-    });
+    const media = await readMedia(formData, `option-${index}`);
+    if (isEmpty(media)) continue;
+    drafts.push({ ...media, isCorrect: correct.has(String(index)) });
   }
 
   return drafts;
+}
+
+/**
+ * Match the Pairs: each filled pair, left side as the option and right side as
+ * its partner. A pair with nothing on either side is an unused slot; one with
+ * a left side only is kept, so the API can say what it is missing.
+ */
+async function readPairs(formData: FormData): Promise<OptionDraft[]> {
+  const pairs: OptionDraft[] = [];
+
+  for (let index = 0; index < PAIR_SLOTS; index += 1) {
+    const left = await readMedia(formData, `pair-${index}-left`);
+    const right = await readMedia(formData, `pair-${index}-right`);
+    const shadow = formData.has(`pair-${index}-shadow`);
+    if (isEmpty(left) && isEmpty(right) && !shadow) continue;
+
+    pairs.push({
+      ...left,
+      isCorrect: false,
+      matchText: right.text,
+      matchGlyph: right.glyph,
+      matchFileId: right.fileId,
+      matchShadow: shadow,
+    });
+  }
+
+  return pairs;
+}
+
+/**
+ * Sort into Groups: the named baskets, and the cards with the basket each
+ * goes in. A basket slot left empty is skipped, so the cards' choices are
+ * renumbered to the baskets that exist; a card pointed at an empty slot is
+ * sent with no basket, and the API says so beside the question.
+ */
+async function readSort(formData: FormData): Promise<{
+  groups: Array<{ label: string; glyph: string | null; fileId: string | null }>;
+  cards: OptionDraft[];
+}> {
+  const groups: Array<{ label: string; glyph: string | null; fileId: string | null }> = [];
+  const renumbered = new Map<number, number>();
+
+  for (let slot = 0; slot < BASKET_SLOTS; slot += 1) {
+    const basket = await readMedia(formData, `group-${slot}`);
+    if (isEmpty(basket)) continue;
+    if (!basket.text) throw new Error(`Give basket ${slot + 1} a name, like Healthy or Day.`);
+    renumbered.set(slot, groups.length);
+    groups.push({ label: basket.text, glyph: basket.glyph ?? null, fileId: basket.fileId });
+  }
+
+  const cards: OptionDraft[] = [];
+  for (let index = 0; index < CARD_SLOTS; index += 1) {
+    const card = await readMedia(formData, `card-${index}`);
+    if (isEmpty(card)) continue;
+    const slot = Number.parseInt(field(formData, `card-${index}-group`), 10);
+    cards.push({ ...card, isCorrect: false, groupIndex: renumbered.get(slot) ?? null });
+  }
+
+  return { groups, cards };
+}
+
+/**
+ * The question as the API takes it, read for the type the form was laid out
+ * for. Only the type's own fields are read: a rhyme has no options, a pair has
+ * no right answer to tick.
+ */
+async function readQuestion(formData: FormData) {
+  const kind = field(formData, 'kind');
+
+  let options: OptionDraft[] = [];
+  let settings: QuestionSettings | undefined;
+
+  if (isChoiceType(kind)) {
+    options = await readOptions(formData);
+  } else if (kind === 'MATCH_PAIRS') {
+    options = await readPairs(formData);
+  } else if (kind === 'SORT_GROUPS') {
+    const sorted = await readSort(formData);
+    options = sorted.cards;
+    settings = { groups: sorted.groups };
+  } else if (kind === 'COUNT_OUT') {
+    settings = {
+      target: numberSetting(formData, 'target'),
+      shown: numberSetting(formData, 'shown'),
+    };
+  } else if (kind === 'FILL_GAP') {
+    settings = { row: textSetting(formData, 'row'), extras: textSetting(formData, 'extras') };
+  } else if (kind === 'LETTER_HUNT') {
+    settings = { targets: textSetting(formData, 'targets'), grid: textSetting(formData, 'grid') };
+  } else if (kind === 'RHYME' || kind === 'STORY') {
+    settings = { lines: textSetting(formData, 'lines') };
+  }
+
+  return {
+    say: field(formData, 'say'),
+    promptGlyph: field(formData, 'promptGlyph') || null,
+    strokes: readStrokes(formData),
+    options,
+    ...(settings && hasSettings(kind) ? { settings } : {}),
+  };
 }
 
 /**
@@ -102,22 +234,16 @@ export async function addQuestionAction(
   if (say.length < 1) return { error: 'Say what the child has to do.' };
 
   try {
-    const options = await readOptions(formData);
+    const question = await readQuestion(formData);
     const promptFileId = (await readPromptPicture(formData)) ?? null;
 
     await apiFetch(`/publication/activities/${activityId}/questions`, {
       method: 'POST',
       redirectOnAuthFailure: false,
-      body: {
-        say,
-        promptGlyph: String(formData.get('promptGlyph') ?? '').trim() || null,
-        promptFileId,
-        strokes: readStrokes(formData),
-        options,
-      },
+      body: { ...question, promptFileId },
     });
   } catch (error) {
-    return { error: errorMessage(error, 'Could not add the question.') };
+    return { error: errorMessage(error, 'Could not add the activity.') };
   }
 
   revalidatePath(`/publication/question-types/${activityId}/questions`);
@@ -131,21 +257,15 @@ export async function updateQuestionAction(
   formData: FormData,
 ): Promise<QuestionState> {
   try {
-    const options = await readOptions(formData);
+    const question = await readQuestion(formData);
 
     await apiFetch(`/publication/questions/${questionId}`, {
       method: 'PATCH',
       redirectOnAuthFailure: false,
-      body: {
-        say: String(formData.get('say') ?? '').trim(),
-        promptGlyph: String(formData.get('promptGlyph') ?? '').trim() || null,
-        promptFileId: await readPromptPicture(formData),
-        strokes: readStrokes(formData),
-        options,
-      },
+      body: { ...question, promptFileId: await readPromptPicture(formData) },
     });
   } catch (error) {
-    return { error: errorMessage(error, 'Could not save the question.') };
+    return { error: errorMessage(error, 'Could not save the activity.') };
   }
 
   revalidatePath(`/publication/question-types/${activityId}/questions`);

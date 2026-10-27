@@ -2,10 +2,16 @@ import Link from 'next/link';
 import {
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_LABELS,
+  AUTHORED_ACTIVITY_TYPES,
+  type ActivityType,
   type ChapterOption,
   type StandardSummary,
 } from '@poetree/shared';
 import { Input, Select } from '@/components/ui/form';
+
+const OLDER_TYPES = ACTIVITY_TYPES.filter(
+  (type) => !(AUTHORED_ACTIVITY_TYPES as readonly ActivityType[]).includes(type),
+);
 
 /** Only what the picker shows — so any book-shaped row can be passed in. */
 export interface BookChoice {
@@ -74,11 +80,20 @@ export function TypeFilterBar({
 
         <Select name="type" defaultValue={filters.type ?? ''} aria-label="Played as">
           <option value="">Played any way</option>
-          {ACTIVITY_TYPES.map((type) => (
+          {AUTHORED_ACTIVITY_TYPES.map((type) => (
             <option key={type} value={type}>
               {ACTIVITY_TYPE_LABELS[type].label}
             </option>
           ))}
+          {/* No longer offered when writing a page, but pages of these types
+              still exist and still need finding. */}
+          <optgroup label="Older types">
+            {OLDER_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {ACTIVITY_TYPE_LABELS[type].label}
+              </option>
+            ))}
+          </optgroup>
         </Select>
       </div>
 

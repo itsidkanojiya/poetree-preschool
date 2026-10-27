@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { isMultiAnswer, isScored, type ActivityContent } from '@poetree/shared';
 import type { Metadata } from 'next';
 import type { QuestionRow, QuestionWithContext } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
@@ -10,7 +9,7 @@ import {
   QuestionControls,
 } from '../../question-types/[id]/questions/forms';
 
-export const metadata: Metadata = { title: 'Question · Poetree Admin' };
+export const metadata: Metadata = { title: 'Activity · Poetree Admin' };
 
 /**
  * One question, on its own.
@@ -32,9 +31,6 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
   );
 
   const index = siblings.findIndex((row) => row.id === id);
-  const scored = isScored(question.activity.type as ActivityContent['kind']);
-  const tracing = question.activity.type === 'TRACING';
-  const multi = isMultiAnswer(question.activity.type as ActivityContent['kind']);
   const previous = siblings[index - 1];
   const next = siblings[index + 1];
 
@@ -49,10 +45,10 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
           >
             <IconArrowLeft size={16} />
-            All questions
+            All activities
           </Link>
         }
-        title={index >= 0 ? `Question ${index + 1} of ${siblings.length}` : 'Question'}
+        title={index >= 0 ? `Activity ${index + 1} of ${siblings.length}` : 'Activity'}
         description={where || undefined}
         action={
           question.problem ? (
@@ -66,7 +62,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
       <div className="max-w-3xl space-y-4">
         <Card
           title={question.activity.title}
-          description="The instruction this question is printed under."
+          description="The instruction this activity is printed under."
           action={
             <Link
               href={`/publication/question-types/${question.activity.id}/questions`}
@@ -88,9 +84,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
           <EditQuestionForm
             activityId={question.activity.id}
             question={siblings[index] ?? (question as unknown as QuestionRow)}
-            scored={scored}
-            tracing={tracing}
-            multi={multi}
+            type={question.activity.type}
           />
         </Card>
 
@@ -101,7 +95,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
               className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-900 hover:underline"
             >
               <IconArrowLeft size={16} />
-              Previous question
+              Previous activity
             </Link>
           ) : (
             <span />
@@ -112,7 +106,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ id: s
               href={`/publication/questions/${next.id}`}
               className="text-sm font-medium text-navy-900 hover:underline"
             >
-              Next question →
+              Next activity →
             </Link>
           )}
         </div>

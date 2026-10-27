@@ -40,6 +40,12 @@ const KIND_FOR_TYPE: Record<string, ActivityContent['kind']> = {
   FLASHCARD: 'FLASHCARD',
   RHYME: 'RHYME',
   STORY: 'STORY',
+  ODD_ONE_OUT: 'ODD_ONE_OUT',
+  LETTER_HUNT: 'LETTER_HUNT',
+  MATCH_PAIRS: 'MATCH_PAIRS',
+  SORT_GROUPS: 'SORT_GROUPS',
+  COUNT_OUT: 'COUNT_OUT',
+  FILL_GAP: 'FILL_GAP',
 };
 
 const activityInclude = {

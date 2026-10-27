@@ -1,15 +1,15 @@
 import Link from 'next/link';
-import { isMultiAnswer, isScored, type ActivityContent } from '@poetree/shared';
 import type { Metadata } from 'next';
 import type { CatalogueActivity, QuestionRow } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, Notice, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { AddQuestionForm } from '../../question-types/[id]/questions/forms';
+import { editorDescription } from '../../question-types/[id]/questions/editors/kinds';
 import { allActivities } from '../all-activities';
 import { TypePicker } from './type-picker';
 
-export const metadata: Metadata = { title: 'Add a question · Poetree Admin' };
+export const metadata: Metadata = { title: 'Add an activity · Poetree Admin' };
 
 /**
  * Writing a question, without leaving Questions.
@@ -46,18 +46,18 @@ export default async function NewQuestionPage({
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
           >
             <IconArrowLeft size={16} />
-            All questions
+            All activities
           </Link>
         }
-        title="Add a question"
-        description="Every question is printed under an instruction. Choose the one this belongs to."
+        title="Add an activity"
+        description="Every activity is printed under an instruction. Choose the one this belongs to."
       />
 
       <div className="max-w-3xl space-y-4">
         {types.items.length === 0 ? (
           <EmptyState
-            title="No question types yet"
-            description="A question is written under an instruction, so there has to be one to write it under."
+            title="No activity types yet"
+            description="An activity is written under an instruction, so there has to be one to write it under."
           />
         ) : (
           <Card title="Which page is it on?">
@@ -68,15 +68,7 @@ export default async function NewQuestionPage({
         {activity && existing && (
           <Card
             title={activity.title}
-            description={
-              activity.type === 'TRACING'
-                ? 'Draw the path a child follows with their finger.'
-                : isScored(activity.type as ActivityContent['kind'])
-                  ? isMultiAnswer(activity.type as ActivityContent['kind'])
-                    ? 'A picture, an emoji or a word on each choice. Tick every right one.'
-                    : 'A picture, an emoji or a word on each choice. Tick the right one.'
-                  : 'Something to look at. Nothing to get wrong.'
-            }
+            description={editorDescription(activity.type)}
             action={
               <Link
                 href={`/publication/question-types/${activity.id}/questions`}
@@ -88,9 +80,7 @@ export default async function NewQuestionPage({
           >
             <AddQuestionForm
               activityId={activity.id}
-              scored={isScored(activity.type as ActivityContent['kind'])}
-              tracing={activity.type === 'TRACING'}
-              multi={isMultiAnswer(activity.type as ActivityContent['kind'])}
+              type={activity.type}
               count={existing.length}
             />
           </Card>
@@ -98,7 +88,7 @@ export default async function NewQuestionPage({
 
         {!chosen && types.items.length > 0 && (
           <Notice tone="info" title="Pick a page first">
-            What a question looks like depends on it — a tracing question is a drawn path, a
+            What an activity looks like depends on it — a tracing activity is a drawn path, a
             matching one is a list of choices.
           </Notice>
         )}

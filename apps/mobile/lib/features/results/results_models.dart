@@ -159,6 +159,7 @@ class ChildCertificate {
     required this.design,
     required this.issuedOn,
     required this.number,
+    this.category = 'ACHIEVEMENT',
   });
 
   factory ChildCertificate.fromJson(Map<String, dynamic> json) =>
@@ -169,6 +170,9 @@ class ChildCertificate {
         design: json['design'] as String? ?? 'CLASSIC',
         issuedOn: DateTime.tryParse(json['issuedOn'] as String? ?? ''),
         number: json['number'] as String?,
+        // Older schools' certificates, from before there was a category,
+        // were all awards for doing something well.
+        category: json['category'] as String? ?? 'ACHIEVEMENT',
       );
 
   final String awardId;
@@ -179,6 +183,9 @@ class ChildCertificate {
   final String design;
   final DateTime? issuedOn;
   final String? number;
+
+  /// ACHIEVEMENT, TEST or BEHAVIOUR: how the list sorts and colours it.
+  final String category;
 }
 
 /* -------------------------------------------------------------------------- */

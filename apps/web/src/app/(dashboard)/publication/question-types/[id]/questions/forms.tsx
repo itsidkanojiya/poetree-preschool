@@ -1,11 +1,9 @@
 'use client';
 
 import { useActionState } from 'react';
-import { TRACING_PATTERNS, type QuestionRow } from '@poetree/shared';
-import { Field, FormError, FormSuccess, Input, SubmitButton } from '@/components/ui/form';
+import type { QuestionRow } from '@poetree/shared';
+import { FormError, FormSuccess, SubmitButton } from '@/components/ui/form';
 import { ConfirmButton } from '@/components/ui/confirm-button';
-import { Notice } from '@/components/ui/layout';
-import { PictureField } from '@/components/picture-library';
 import {
   addQuestionAction,
   deleteQuestionAction,
@@ -13,129 +11,23 @@ import {
   updateQuestionAction,
   type QuestionState,
 } from './actions';
+import { QuestionFields } from './editors';
 
 /**
- * One option slot: a picture, an emoji or a word, and a way to mark it right.
+ * A new question on a page.
  *
- * Slots are always shown and the empty ones are ignored on save — an author
- * filling two is writing a two-choice question, which is what most preschool
- * pages are.
- *
- * A radio where exactly one answer is right, a checkbox where several may be.
- * The control is the explanation: nobody has to be told that a page called
- * "tap all the animals" allows more than one.
+ * What it asks for depends on how the page is played — options to tick, pairs
+ * to join, baskets to sort into, a number to colour — and `QuestionFields`
+ * lays that out from the activity's type.
  */
-function OptionSlot({
-  index,
-  option,
-  scored,
-  multi,
-}: {
-  index: number;
-  option?: QuestionRow['options'][number];
-  scored: boolean;
-  multi: boolean;
-}) {
-  return (
-    <div className="rounded-xl p-3 ring-1 ring-navy-950/[0.08]">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          {index + 1}
-        </span>
-        {scored && (
-          <label className="flex items-center gap-1.5 text-xs text-slate-600">
-            <input
-              type={multi ? 'checkbox' : 'radio'}
-              name="correct"
-              value={index}
-              defaultChecked={option?.isCorrect}
-              className={`h-3.5 w-3.5 border-navy-300 text-navy-900 ${multi ? 'rounded' : ''}`}
-            />
-            {multi ? 'A right answer' : 'Right answer'}
-          </label>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        {/* From the library, or uploaded: the same apple is chosen again on the
-            next page rather than uploaded again. */}
-        <PictureField
-          fileIdName={`option-${index}-fileId`}
-          uploadName={`option-${index}-image`}
-          currentId={optionFileId(option) || null}
-          compact
-        />
-        <div className="flex gap-2">
-          <Input
-            name={`option-${index}-glyph`}
-            defaultValue={option?.glyph ?? ''}
-            placeholder="Emoji or 3"
-            className="w-28"
-          />
-          <Input
-            name={`option-${index}-text`}
-            defaultValue={option?.text ?? ''}
-            placeholder="or a word"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function optionFileId(option?: QuestionRow['options'][number]): string {
-  return fileIdOf(option?.imageUrl);
-}
-
-/** The bare id out of `/api/v1/catalogue/assets/<id>`. */
-function fileIdOf(url: string | null | undefined): string {
-  return url ? (url.split('/').pop() ?? '') : '';
-}
-
-/**
- * The picture shown above a question. Not a <Field>: that is a <label>, and a
- * label around several buttons sends a click anywhere in it to the first.
- */
-function PromptPicture({ currentId }: { currentId?: string | null }) {
-  return (
-    <div>
-      <span className="mb-1.5 block text-sm font-medium text-navy-950">
-        Picture above the question
-      </span>
-      <PictureField fileIdName="prompt-fileId" uploadName="prompt-image" currentId={currentId} />
-      <span className="mt-1.5 block text-xs text-slate-500">
-        Optional. Choose one already in the library, or upload a new one.
-      </span>
-    </div>
-  );
-}
-
-/** The patterns, offered as the author types; any letter can still be typed. */
-function TracingGlyphList() {
-  return (
-    <datalist id="tracing-glyphs">
-      {TRACING_PATTERNS.map((pattern) => (
-        <option key={pattern.key} value={pattern.key}>
-          {pattern.label}
-        </option>
-      ))}
-    </datalist>
-  );
-}
-
 export function AddQuestionForm({
   activityId,
-  scored,
-  tracing,
-  multi,
+  type,
   count,
 }: {
   activityId: string;
-  scored: boolean;
-  /** Tracing is scored, but there is nothing to choose between. */
-  tracing: boolean;
-  /** More than one option may be marked right. Multiple choice alone. */
-  multi: boolean;
+  /** The activity's type: how a child plays every question on the page. */
+  type: string;
   count: number;
 }) {
   const [state, formAction] = useActionState<QuestionState, FormData>(
@@ -148,91 +40,23 @@ export function AddQuestionForm({
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
 
-      <Field
-        label="What the child has to do"
-        required
-        hint="Read aloud by the app. Written for the adult sitting beside them."
-      >
-        <Input name="say" required placeholder="Circle the apple" />
-      </Field>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <PromptPicture />
-        <Field
-          label={tracing ? 'The letter, number or pattern' : 'or an emoji'}
-          hint={
-            tracing
-              ? 'English, Hindi or Gujarati — A, क, ક, 7, ૭ — or pick a pattern. The path comes with it.'
-              : 'Shown large, above the choices.'
-          }
-        >
-          <Input
-            name="promptGlyph"
-            placeholder={tracing ? 'A' : '🍎'}
-            list={tracing ? 'tracing-glyphs' : undefined}
-          />
-        </Field>
-        {tracing && <TracingGlyphList />}
-      </div>
-
-      {tracing ? (
-        <TracePathNote />
-      ) : (
-        scored && (
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              What they choose between
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {(multi ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((index) => (
-                <OptionSlot key={index} index={index} scored={scored} multi={multi} />
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {multi
-                ? 'Tick every answer that is right. Leave the slots you do not need empty.'
-                : 'Tick the one that is right. Leave the slots you do not need empty.'}
-            </p>
-          </div>
-        )
-      )}
+      <QuestionFields type={type} />
 
       <SubmitButton pendingLabel="Adding…">
-        {count === 0 ? 'Add the first question' : 'Add another question'}
+        {count === 0 ? 'Add the first activity' : 'Add another activity'}
       </SubmitButton>
     </form>
-  );
-}
-
-/**
- * What used to be a drawing canvas.
- *
- * Authors drew each path by hand, one question at a time, which is how the
- * shipped letters came to be straight-line skeletons — a B with no bumps, a
- * two shaped like a Z. An "a" is the same "a" in every book and every school,
- * so it is built in and there is nothing here to get wrong.
- */
-function TracePathNote() {
-  return (
-    <Notice tone="info" title="The path is built in">
-      A child traces the standard shape for the letter or number above, in the
-      order it is written. Nothing to draw.
-    </Notice>
   );
 }
 
 export function EditQuestionForm({
   activityId,
   question,
-  scored,
-  tracing,
-  multi,
+  type,
 }: {
   activityId: string;
   question: QuestionRow;
-  scored: boolean;
-  tracing: boolean;
-  multi: boolean;
+  type: string;
 }) {
   const [state, formAction] = useActionState<QuestionState, FormData>(
     updateQuestionAction.bind(null, activityId, question.id),
@@ -244,43 +68,10 @@ export function EditQuestionForm({
       <FormError message={state.error} />
       <FormSuccess message={state.success} />
 
-      <Field label="What the child has to do" required>
-        <Input name="say" required defaultValue={question.say} />
-      </Field>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {!tracing && <PromptPicture currentId={fileIdOf(question.promptImageUrl) || null} />}
-        <Field label={tracing ? 'The letter, number or pattern' : 'or an emoji above the question'}>
-          <Input
-            name="promptGlyph"
-            defaultValue={question.promptGlyph ?? ''}
-            placeholder={tracing ? 'A' : '🍎'}
-            list={tracing ? 'tracing-glyphs' : undefined}
-          />
-          {tracing && <TracingGlyphList />}
-        </Field>
-      </div>
-
-      {tracing ? (
-        <TracePathNote />
-      ) : (
-        scored && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(multi ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((index) => (
-              <OptionSlot
-                key={index}
-                index={index}
-                option={question.options[index]}
-                scored={scored}
-                multi={multi}
-              />
-            ))}
-          </div>
-        )
-      )}
+      <QuestionFields type={type} question={question} />
 
       <SubmitButton variant="secondary" pendingLabel="Saving…">
-        Save this question
+        Save this activity
       </SubmitButton>
     </form>
   );
@@ -319,13 +110,13 @@ export function QuestionControls({
       <ConfirmButton
         action={deleteQuestionAction.bind(null, activityId, question.id)}
         label="Remove"
-        title="Remove this question?"
+        title="Remove this activity?"
         body={
           question.say
             ? `“${question.say}” goes, along with its choices, its picture and any strokes drawn for it. There is no undo.`
-            : 'This question goes, along with its choices, its picture and any strokes drawn for it. There is no undo.'
+            : 'This activity goes, along with its choices, its picture and any strokes drawn for it. There is no undo.'
         }
-        confirmLabel="Remove the question"
+        confirmLabel="Remove the activity"
       />
     </div>
   );

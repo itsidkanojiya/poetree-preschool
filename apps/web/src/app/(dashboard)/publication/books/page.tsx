@@ -30,7 +30,7 @@ export default async function BooksPage() {
     <>
       <PageHeader
         title="Books"
-        description="Each one belongs to a standard and holds the questions children play."
+        description="Each one belongs to a standard and holds the activities children play."
         action={
           <Link
             href="/publication/books/new"
@@ -65,7 +65,7 @@ export default async function BooksPage() {
                 '',
                 'Book',
                 'Standard',
-                { label: 'Question types', numeric: true },
+                { label: 'Activity types', numeric: true },
                 { label: 'Schools', numeric: true },
                 'State',
               ]}

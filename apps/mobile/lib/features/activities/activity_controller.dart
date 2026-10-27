@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/audio/speech_service.dart';
 import 'activity_models.dart';
 import 'activity_places.dart';
 
@@ -123,7 +124,30 @@ class ActivityPlayController extends GetxController {
     } else if (places != null) {
       unawaited(_lookUpPlace());
     }
+    // Each question is read out as it comes up: the child cannot read it.
+    ever(index, (_) => sayQuestion());
   }
+
+  @override
+  void onReady() {
+    super.onReady();
+    sayQuestion();
+  }
+
+  SpeechService? get _voice =>
+      Get.isRegistered<SpeechService>() ? Get.find<SpeechService>() : null;
+
+  /// Reads the question in front of the child — when it opens, and again
+  /// whenever the speaker is tapped.
+  void sayQuestion() {
+    final content = activity.content;
+    if (content == null || isFinished.value || index.value >= total) return;
+    unawaited(_voice?.say(content.sayAt(index.value)));
+  }
+
+  void _praise() => unawaited(_voice?.wellDone());
+
+  void _tryAgain() => unawaited(_voice?.say('Try again.'));
 
   Future<void> _lookUpPlace() async {
     final place = await places!.read(activity.id);
@@ -175,6 +199,14 @@ class ActivityPlayController extends GetxController {
   final chosen = RxnInt();
   final wasCorrect = RxnBool();
 
+  /// Wrong taps on the question in front of the child. The first earns a
+  /// gentle "try again"; the second shows the answer and moves on.
+  final misses = 0.obs;
+
+  /// The option just tapped wrongly, with a count that changes each time so
+  /// the same tile can shake twice.
+  final shake = Rxn<({int option, int count})>();
+
   int get total => activity.content?.itemCount ?? 0;
 
   bool get isScored => activity.content?.isScored ?? false;
@@ -183,17 +215,42 @@ class ActivityPlayController extends GetxController {
 
   /// Records a tap and shows whether it was right.
   ///
-  /// Answers are only counted once per item. A child re-tapping is a child
-  /// exploring, not a second wrong answer, and counting it would quietly punish
-  /// curiosity.
+  /// A first wrong tap is not the end of the question: the tile shakes and the
+  /// child tries again, as the workbook's teacher would let them. A second
+  /// wrong tap shows the right answer, because being told only "no" teaches
+  /// nothing. Only a right answer at the first try counts in the score.
   void answer(int option, int expected) {
     if (chosen.value != null) return;
 
-    chosen.value = option;
     final right = option == expected;
+    if (!right && misses.value == 0) {
+      misses.value = 1;
+      shake.value = (option: option, count: (shake.value?.count ?? 0) + 1);
+      _tryAgain();
+      return;
+    }
+
+    chosen.value = option;
+    wasCorrect.value = right;
+    if (right) {
+      if (misses.value == 0) correct.value += 1;
+      _praise();
+    }
+  }
+
+  /// One of the book activities' questions, finished on its own screen: every
+  /// pair matched, every card sorted, every gap filled. Right only when the
+  /// child got there without a mistake.
+  void finishItem({required bool right}) {
+    if (chosen.value != null) return;
+    chosen.value = 0;
     wasCorrect.value = right;
     if (right) correct.value += 1;
+    _praise();
   }
+
+  /// A mistake made inside one of those screens, for the gentle voice.
+  void missed() => _tryAgain();
 
   /// Which options are ticked so far on a multiple-choice question.
   ///
@@ -232,8 +289,14 @@ class ActivityPlayController extends GetxController {
     _keepPlace();
     // Re-tracing a finished number starts it clean rather than showing it
     // already ticked, which would be a page with nothing to do on it.
+    _clearQuestion();
+  }
+
+  void _clearQuestion() {
     chosen.value = null;
     wasCorrect.value = null;
+    misses.value = 0;
+    shake.value = null;
     picked.clear();
   }
 
@@ -269,9 +332,7 @@ class ActivityPlayController extends GetxController {
   }
 
   void next() {
-    chosen.value = null;
-    wasCorrect.value = null;
-    picked.clear();
+    _clearQuestion();
 
     if (isLast) {
       isFinished.value = true;
@@ -345,8 +406,7 @@ class ActivityPlayController extends GetxController {
     _forgetPlace();
     index.value = 0;
     correct.value = 0;
-    chosen.value = null;
-    wasCorrect.value = null;
+    _clearQuestion();
     isFinished.value = false;
     saveFailed.value = false;
   }

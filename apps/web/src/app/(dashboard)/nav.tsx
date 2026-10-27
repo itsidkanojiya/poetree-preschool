@@ -43,10 +43,10 @@ const PUBLICATION_NAV: NavGroup[] = [
       { href: '/publication/books', label: 'Books', icon: <IconPlan size={18} /> },
       {
         href: '/publication/question-types',
-        label: 'Question types',
+        label: 'Activity types',
         icon: <IconSpark size={18} />,
       },
-      { href: '/publication/questions', label: 'Questions', icon: <IconInbox size={18} /> },
+      { href: '/publication/questions', label: 'Activities', icon: <IconInbox size={18} /> },
       // The tracing module: its switch for every school, and each letter's video.
       { href: '/publication/tracing', label: 'Tracing', icon: <IconTrace size={18} /> },
       { href: '/publication/games', label: 'Games', icon: <IconGame size={18} /> },

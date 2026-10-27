@@ -23,8 +23,47 @@ export const ACTIVITY_TYPES = [
   'FLASHCARD',
   'RHYME',
   'STORY',
+  // From the Pre-Primary books: what their pages ask a child to do.
+  'ODD_ONE_OUT',
+  'LETTER_HUNT',
+  'MATCH_PAIRS',
+  'SORT_GROUPS',
+  'COUNT_OUT',
+  'FILL_GAP',
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+/**
+ * The types an author chooses from, in the order the picker shows them.
+ *
+ * Matching, Counting, Sorting, Colouring and Drag and drop are missing on
+ * purpose: each of them played as "tap the one right answer", so they are all
+ * Pick the Right One now, and the real matching and sorting the books ask for
+ * are the new types. Tracing is missing because it is a module of its own,
+ * never a chapter's activity. All of them still play wherever they exist.
+ */
+export const AUTHORED_ACTIVITY_TYPES = [
+  'FLASHCARD',
+  'SINGLE_CHOICE',
+  'ODD_ONE_OUT',
+  'MULTIPLE_CHOICE',
+  'LETTER_HUNT',
+  'MATCH_PAIRS',
+  'SORT_GROUPS',
+  'COUNT_OUT',
+  'FILL_GAP',
+  'RHYME',
+  'STORY',
+] as const satisfies readonly ActivityType[];
+
+/** Types that are now Pick the Right One. Kept so what exists still plays. */
+export const FOLDED_ACTIVITY_TYPES = [
+  'MATCHING',
+  'COUNTING',
+  'SORTING',
+  'COLOURING',
+  'DRAG_DROP',
+] as const satisfies readonly ActivityType[];
 
 /**
  * What each one is called on screen, and what it means.
@@ -36,17 +75,53 @@ export type ActivityType = (typeof ACTIVITY_TYPES)[number];
  * does not say which to reach for.
  */
 export const ACTIVITY_TYPE_LABELS: Record<ActivityType, { label: string; hint: string }> = {
-  SINGLE_CHOICE: { label: 'Single choice', hint: 'Tap the one right answer.' },
-  MULTIPLE_CHOICE: { label: 'Multiple choice', hint: 'Tap every right answer, then done.' },
-  MATCHING: { label: 'Matching', hint: 'Match one thing to another.' },
-  TRACING: { label: 'Tracing', hint: 'Trace a letter, number or shape with a finger.' },
-  COUNTING: { label: 'Counting', hint: 'Count what is shown, then tap the number.' },
-  SORTING: { label: 'Sorting', hint: 'Choose which group something belongs to.' },
-  COLOURING: { label: 'Colouring', hint: 'Choose the right colour.' },
-  DRAG_DROP: { label: 'Drag and drop', hint: 'Drag the answer into place instead of tapping it.' },
-  FLASHCARD: { label: 'Flashcard', hint: 'Look and listen. Nothing to get wrong.' },
-  RHYME: { label: 'Rhyme', hint: 'A rhyme or song to play.' },
-  STORY: { label: 'Story', hint: 'A story read to the child.' },
+  FLASHCARD: {
+    label: 'Look & Learn',
+    hint: 'Cards to look at and hear: a letter and its word, a number and its count. Nothing to get wrong.',
+  },
+  SINGLE_CHOICE: {
+    label: 'Pick the Right One',
+    hint: 'One right answer out of 2–4: the first letter of a picture, the bigger animal, the plate with 2 cookies.',
+  },
+  ODD_ONE_OUT: {
+    label: 'Odd One Out',
+    hint: 'A row of 3–4 pictures; tap the one that is different.',
+  },
+  MULTIPLE_CHOICE: {
+    label: 'Find Them All',
+    hint: 'Tap every one that fits, then Done: the pet animals, the pictures that start with B.',
+  },
+  LETTER_HUNT: {
+    label: 'Find the Letter',
+    hint: 'Find every D and d in a grid of letters, or every 7 on the train.',
+  },
+  MATCH_PAIRS: {
+    label: 'Match the Pairs',
+    hint: 'Join each one to its partner: animal to shadow or baby, picture to letter, fingers to number.',
+  },
+  SORT_GROUPS: {
+    label: 'Sort into Groups',
+    hint: 'Put each card in its basket: healthy or junk, day or night, land, water or air.',
+  },
+  COUNT_OUT: {
+    label: 'Count and Colour',
+    hint: 'Colour exactly N of the pictures shown: "colour 11 balls".',
+  },
+  FILL_GAP: {
+    label: 'Fill the Gap',
+    hint: 'Complete the row: missing numbers, the alphabet train, the first letter of a word.',
+  },
+  RHYME: { label: 'Rhyme', hint: 'A rhyme to say along with, read a line at a time.' },
+  STORY: { label: 'Story', hint: 'A short story read to the child, with its moral.' },
+  TRACING: {
+    label: 'Tracing',
+    hint: 'The Tracing module teaches writing; not a chapter activity.',
+  },
+  MATCHING: { label: 'Matching (old)', hint: 'Plays as Pick the Right One.' },
+  COUNTING: { label: 'Counting (old)', hint: 'Plays as Pick the Right One.' },
+  SORTING: { label: 'Sorting (old)', hint: 'Plays as Pick the Right One.' },
+  COLOURING: { label: 'Colouring (old)', hint: 'Plays as Pick the Right One.' },
+  DRAG_DROP: { label: 'Drag and drop (old)', hint: 'Plays as Pick the Right One, dragged.' },
 };
 
 /**
@@ -58,10 +133,7 @@ const activityCodeSchema = z
   .trim()
   .min(3)
   .max(40)
-  .regex(
-    /^[A-Z][A-Z0-9_]{2,39}$/,
-    'Use capitals, digits and underscores, e.g. TRACE_LETTER_A',
-  );
+  .regex(/^[A-Z][A-Z0-9_]{2,39}$/, 'Use capitals, digits and underscores, e.g. TRACE_LETTER_A');
 
 export const createActivitySchema = z.object({
   /** Derived from the title when not given. */

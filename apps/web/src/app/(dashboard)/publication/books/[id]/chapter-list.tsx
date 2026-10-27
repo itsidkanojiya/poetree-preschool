@@ -122,7 +122,7 @@ export function ChapterList({
                   <Pill tone="neutral">Nothing written yet</Pill>
                 ) : (
                   <Pill tone="brand">
-                    {chapter.questionCount} {chapter.questionCount === 1 ? 'question' : 'questions'}
+                    {chapter.questionCount} {chapter.questionCount === 1 ? 'activity' : 'activities'}
                   </Pill>
                 )}
                 <DeleteChapterButton chapter={chapter} />
@@ -140,7 +140,7 @@ export function ChapterList({
                       {page.title}
                     </Link>
                     <span className="text-xs text-slate-500">
-                      {page.itemCount} {page.itemCount === 1 ? 'question' : 'questions'}
+                      {page.itemCount} {page.itemCount === 1 ? 'activity' : 'activities'}
                     </span>
                   </li>
                 ))}

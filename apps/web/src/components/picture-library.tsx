@@ -241,7 +241,7 @@ function LibraryDialog({
                   <p className="text-sm text-slate-600">
                     {search
                       ? `No pictures called “${search.trim()}”.`
-                      : 'No pictures yet. Every picture uploaded for a question will be here to use again.'}
+                      : 'No pictures yet. Every picture uploaded for an activity will be here to use again.'}
                   </p>
                 </div>
               </div>

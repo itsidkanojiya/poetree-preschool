@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { CERTIFICATE_DESIGNS, type CertificateDesign } from '../enums.js';
+import {
+  CERTIFICATE_CATEGORIES,
+  CERTIFICATE_DESIGNS,
+  type CertificateCategory,
+  type CertificateDesign,
+} from '../enums.js';
 import { idSchema } from './common.js';
 
 /**
@@ -15,6 +20,7 @@ export const createCertificateSchema = z.object({
   /** The line under the child's name. */
   body: z.string().trim().max(400).default(''),
   design: z.enum(CERTIFICATE_DESIGNS).default('CLASSIC'),
+  category: z.enum(CERTIFICATE_CATEGORIES).default('ACHIEVEMENT'),
   issuedOn: z.coerce.date(),
   studentIds: z.array(idSchema).max(500).default([]),
 });
@@ -24,6 +30,7 @@ export const updateCertificateSchema = z.object({
   title: z.string().trim().min(2).max(120).optional(),
   body: z.string().trim().max(400).optional(),
   design: z.enum(CERTIFICATE_DESIGNS).optional(),
+  category: z.enum(CERTIFICATE_CATEGORIES).optional(),
   issuedOn: z.coerce.date().optional(),
 });
 export type UpdateCertificateInput = z.infer<typeof updateCertificateSchema>;
@@ -42,6 +49,7 @@ export interface CertificateSummary {
   title: string;
   body: string;
   design: CertificateDesign;
+  category: CertificateCategory;
   issuedOn: string;
   issuedAt: string | null;
   status: 'DRAFT' | 'ISSUED';
@@ -68,6 +76,7 @@ export interface ChildCertificate {
   title: string;
   body: string;
   design: CertificateDesign;
+  category: CertificateCategory;
   issuedOn: string;
   number: string | null;
 }

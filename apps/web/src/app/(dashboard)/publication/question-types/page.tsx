@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { ACTIVITY_TYPE_LABELS, type ActivityType } from '@poetree/shared';
 import type {
   CatalogueActivity,
   ChapterOption,
@@ -12,7 +13,7 @@ import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui
 import { TypeFilterBar } from './filters';
 import { IconPlus } from '@/components/icons';
 
-export const metadata: Metadata = { title: 'Question types · Poetree Admin' };
+export const metadata: Metadata = { title: 'Activity types · Poetree Admin' };
 
 interface BookOption {
   id: string;
@@ -61,15 +62,15 @@ export default async function ActivitiesPage({
   return (
     <>
       <PageHeader
-        title="Question types"
-        description="A page of a book — “Circle the correct letter” — and the questions under it."
+        title="Activity types"
+        description="A page of a book — “Circle the correct letter” — and the activities under it."
         action={
           <Link
             href="/publication/question-types/new"
             className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
           >
             <IconPlus size={17} />
-            Add question type
+            Add activity type
           </Link>
         }
       />
@@ -78,30 +79,30 @@ export default async function ActivitiesPage({
 
       {unplayable > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          {unplayable === 1 ? 'One question type has' : `${unplayable} question types have`} no
-          questions a child can answer, so {unplayable === 1 ? 'it is' : 'they are'} invisible in
-          the app. Open one to add questions.
+          {unplayable === 1 ? 'One activity type has' : `${unplayable} activity types have`} no
+          activities a child can do, so {unplayable === 1 ? 'it is' : 'they are'} invisible in the
+          app. Open one to add activities.
         </div>
       )}
 
       <Card>
         {activities.items.length === 0 ? (
           <EmptyState
-            title="No question types yet"
-            description="Add the first one — “Circle the correct letter”, say — then write its questions."
+            title="No activity types yet"
+            description="Add the first one — “Circle the correct letter”, say — then write its activities."
           />
         ) : (
           <>
             <Table>
               <THead
                 columns={[
-                  'Question type',
+                  'Activity type',
                   'Played as',
                   'Book',
                   'Chapter',
                   'Skill',
                   'Level',
-                  { label: 'Questions', numeric: true },
+                  { label: 'Activities', numeric: true },
                   { label: 'Played', numeric: true },
                   'State',
                 ]}
@@ -117,7 +118,10 @@ export default async function ActivitiesPage({
                         <TPrimary sub={activity.code}>{activity.title}</TPrimary>
                       </Link>
                     </TCell>
-                    <TCell>{titleCase(activity.type)}</TCell>
+                    <TCell>
+                      {ACTIVITY_TYPE_LABELS[activity.type as ActivityType]?.label ??
+                        titleCase(activity.type)}
+                    </TCell>
                     <TCell>
                       {activity.book ? (
                         activity.book.name
@@ -145,7 +149,7 @@ export default async function ActivitiesPage({
                     <TCell numeric>{activity.attemptCount}</TCell>
                     <TCell>
                       {!activity.isPlayable ? (
-                        <Pill tone="neutral">No questions</Pill>
+                        <Pill tone="neutral">No activities</Pill>
                       ) : activity.isActive ? (
                         <Pill tone="brand">Live</Pill>
                       ) : (

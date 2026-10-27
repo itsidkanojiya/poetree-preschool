@@ -403,6 +403,8 @@ class NoticeItem {
     required this.publishAt,
     required this.pinned,
     required this.readByMe,
+    this.classroomLabels = const [],
+    this.attachmentCount = 0,
   });
 
   factory NoticeItem.fromJson(Map<String, dynamic> json) => NoticeItem(
@@ -413,6 +415,10 @@ class NoticeItem {
     publishAt: json['publishAt'] as String,
     pinned: json['pinned'] as bool? ?? false,
     readByMe: json['readByMe'] as bool? ?? false,
+    classroomLabels: (json['classroomLabels'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .toList(),
+    attachmentCount: (json['attachmentCount'] as num?)?.toInt() ?? 0,
   );
 
   final String id;
@@ -425,6 +431,12 @@ class NoticeItem {
   /// Mutable: set optimistically when the parent opens it, so the tick appears
   /// without waiting for the round trip.
   bool readByMe;
+
+  /// The classes it was sent to; empty when it went to the whole school.
+  final List<String> classroomLabels;
+
+  /// Files the school attached. Families cannot open them in the app yet.
+  final int attachmentCount;
 
   bool get isEmergency => type == 'EMERGENCY';
 }

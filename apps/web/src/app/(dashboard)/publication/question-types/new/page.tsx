@@ -5,7 +5,7 @@ import { Card, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { NewActivityForm } from '../forms';
 
-export const metadata: Metadata = { title: 'Add a question type · Poetree Admin' };
+export const metadata: Metadata = { title: 'Add an activity type · Poetree Admin' };
 
 interface Skill {
   id: string;
@@ -43,11 +43,11 @@ export default async function NewActivityPage() {
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
           >
             <IconArrowLeft size={16} />
-            All question types
+            All activity types
           </Link>
         }
-        title="Add a question type"
-        description="The instruction at the top of a page — “Circle the correct letter”. Its questions are written next."
+        title="Add an activity type"
+        description="The instruction at the top of a page — “Circle the correct letter”. Its activities are written next."
       />
       <div className="max-w-3xl">
         <Card>

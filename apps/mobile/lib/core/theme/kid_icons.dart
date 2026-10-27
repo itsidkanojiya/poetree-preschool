@@ -369,7 +369,13 @@ KidGlyph glyphForActivity(String type) => switch (type) {
   'FLASHCARD' => KidGlyph.cards,
   'RHYME' => KidGlyph.song,
   'STORY' => KidGlyph.story,
-  'SINGLE_CHOICE' || 'MULTIPLE_CHOICE' => KidGlyph.choose,
+  'SINGLE_CHOICE' || 'MULTIPLE_CHOICE' || 'ODD_ONE_OUT' => KidGlyph.choose,
   'DRAG_DROP' => KidGlyph.drag,
+  // The Pre-Primary books' activities, drawn with the glyph nearest to what
+  // the child does.
+  'MATCH_PAIRS' => KidGlyph.match,
+  'SORT_GROUPS' => KidGlyph.sort,
+  'COUNT_OUT' => KidGlyph.colour,
+  'FILL_GAP' || 'LETTER_HUNT' => KidGlyph.choose,
   _ => KidGlyph.book,
 };

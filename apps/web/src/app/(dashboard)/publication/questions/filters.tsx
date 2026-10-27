@@ -80,8 +80,8 @@ export function QuestionFilterBar({
           ))}
         </Select>
 
-        <Select name="activityId" defaultValue={filters.activityId ?? ''} aria-label="Question type">
-          <option value="">Every question type</option>
+        <Select name="activityId" defaultValue={filters.activityId ?? ''} aria-label="Activity type">
+          <option value="">Every activity type</option>
           {types.map((type) => (
             <option key={type.id} value={type.id}>
               {type.title}

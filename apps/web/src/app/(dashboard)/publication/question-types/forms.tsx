@@ -1,7 +1,11 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, type CatalogueActivity } from '@poetree/shared';
+import {
+  ACTIVITY_TYPE_LABELS,
+  AUTHORED_ACTIVITY_TYPES,
+  type CatalogueActivity,
+} from '@poetree/shared';
 import {
   Field,
   FieldSet,
@@ -80,7 +84,7 @@ function BookPicker({
   return (
     <Field
       label="Books"
-      hint="A question type in no book reaches nobody — schools are given books, not loose pages."
+      hint="An activity type in no book reaches nobody — schools are given books, not loose pages."
     >
       <label className="mb-3 flex items-start gap-2.5 rounded-xl bg-navy-50/60 p-3 text-sm text-navy-950 ring-1 ring-navy-950/[0.06]">
         <input
@@ -169,7 +173,9 @@ export function NewActivityForm({
             value={type}
             onChange={(event) => setType(event.target.value)}
           >
-            {ACTIVITY_TYPES.map((option) => (
+            {/* Only the types worth choosing now: the old ones that all played as
+                "tap one" are Pick the Right One, and tracing is its own module. */}
+            {AUTHORED_ACTIVITY_TYPES.map((option) => (
               <option key={option} value={option}>
                 {ACTIVITY_TYPE_LABELS[option].label}
               </option>
@@ -207,7 +213,7 @@ export function NewActivityForm({
           top of a page; its questions are written on their own screen, one at a
           time, with pictures and a stroke pad — which is where somebody who has
           never seen JSON can actually write them. */}
-      <SubmitButton pendingLabel="Saving…">Add question type</SubmitButton>
+      <SubmitButton pendingLabel="Saving…">Add activity type</SubmitButton>
     </form>
   );
 }
@@ -324,7 +330,7 @@ function RawContentField({
         Stored content
       </summary>
       <p className="mt-2 text-xs text-slate-500">
-        Written before questions had a screen of their own. Editing the questions
+        Written before activities had a screen of their own. Editing the activities
         replaces this.
       </p>
       <Textarea

@@ -43,6 +43,7 @@ function toSummary(row: {
   title: string;
   body: string;
   design: CertificateSummary['design'];
+  category: CertificateSummary['category'];
   issuedOn: Date;
   issuedAt: Date | null;
   createdAt: Date;
@@ -53,6 +54,7 @@ function toSummary(row: {
     title: row.title,
     body: row.body,
     design: row.design,
+    category: row.category,
     issuedOn: row.issuedOn.toISOString(),
     issuedAt: row.issuedAt?.toISOString() ?? null,
     status: row.issuedAt ? 'ISSUED' : 'DRAFT',
@@ -159,6 +161,7 @@ export async function createCertificate(
       title: input.title,
       body: input.body,
       design: input.design,
+      category: input.category,
       issuedOn: input.issuedOn,
       createdById: actorUserId,
       awards: { create: studentIds.map((studentId) => ({ schoolId, studentId })) },
@@ -305,6 +308,7 @@ export async function certificatesForChild(studentId: string): Promise<ChildCert
     title: award.certificate.title,
     body: award.certificate.body,
     design: award.certificate.design,
+    category: award.certificate.category,
     issuedOn: award.certificate.issuedOn.toISOString(),
     number: award.number,
   }));

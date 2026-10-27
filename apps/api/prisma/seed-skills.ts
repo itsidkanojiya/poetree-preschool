@@ -30,7 +30,11 @@ const SKILLS: SkillSeed[] = [
     activities: [
       { code: 'TRACE_A_E', title: 'Trace letters A to E', type: 'TRACING' },
       { code: 'TRACE_F_J', title: 'Trace letters F to J', type: 'TRACING' },
-      { code: 'MATCH_LETTER_PICTURE', title: 'Match the letter to the picture', type: 'MATCHING' },
+      {
+        code: 'MATCH_LETTER_PICTURE',
+        title: 'Match the letter to the picture',
+        type: 'SINGLE_CHOICE',
+      },
     ],
   },
   {
@@ -47,7 +51,7 @@ const SKILLS: SkillSeed[] = [
     sortOrder: 30,
     activities: [
       { code: 'TRACE_1_10', title: 'Trace numbers 1 to 10', type: 'TRACING' },
-      { code: 'COUNT_OBJECTS', title: 'Count the objects', type: 'COUNTING' },
+      { code: 'COUNT_OBJECTS', title: 'Count the objects', type: 'SINGLE_CHOICE' },
     ],
   },
   {
@@ -56,8 +60,8 @@ const SKILLS: SkillSeed[] = [
     level: 'PLAY_GROUP',
     sortOrder: 40,
     activities: [
-      { code: 'MATCH_SHAPES', title: 'Match the shapes', type: 'MATCHING' },
-      { code: 'SORT_SHAPES', title: 'Sort shapes into boxes', type: 'SORTING' },
+      { code: 'MATCH_SHAPES', title: 'Match the shapes', type: 'SINGLE_CHOICE' },
+      { code: 'SORT_SHAPES', title: 'Sort shapes into boxes', type: 'SINGLE_CHOICE' },
     ],
   },
   {
@@ -66,8 +70,8 @@ const SKILLS: SkillSeed[] = [
     level: 'PLAY_GROUP',
     sortOrder: 50,
     activities: [
-      { code: 'MATCH_COLOURS', title: 'Match the colours', type: 'MATCHING' },
-      { code: 'COLOUR_THE_FRUIT', title: 'Colour the fruit', type: 'COLOURING' },
+      { code: 'MATCH_COLOURS', title: 'Match the colours', type: 'SINGLE_CHOICE' },
+      { code: 'COLOUR_THE_FRUIT', title: 'Colour the fruit', type: 'SINGLE_CHOICE' },
     ],
   },
   {

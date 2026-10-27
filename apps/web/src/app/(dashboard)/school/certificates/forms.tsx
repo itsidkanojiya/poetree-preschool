@@ -2,12 +2,14 @@
 
 import { useActionState, useState } from 'react';
 import {
+  CERTIFICATE_CATEGORIES,
+  CERTIFICATE_CATEGORY_LABELS,
   CERTIFICATE_DESIGNS,
   CERTIFICATE_DESIGN_LABELS,
   type CertificateDesign,
   type CertificateDetail,
 } from '@poetree/shared';
-import { Field, FormError, Input, SubmitButton, Textarea } from '@/components/ui/form';
+import { Field, FormError, Input, Select, SubmitButton, Textarea } from '@/components/ui/form';
 import { Toast } from '@/components/ui/toast';
 import { CertificateThumb } from '@/components/certificates/thumb';
 import {
@@ -106,6 +108,19 @@ export function CertificateForm({
           />
         </Field>
       </div>
+
+      <Field
+        label="What it is for"
+        hint="Sorts and colours it in the family’s app: gold, blue or pink."
+      >
+        <Select name="category" defaultValue={certificate?.category ?? 'ACHIEVEMENT'}>
+          {CERTIFICATE_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {CERTIFICATE_CATEGORY_LABELS[category]}
+            </option>
+          ))}
+        </Select>
+      </Field>
 
       <Field label="The line under the child’s name" hint="Optional. Up to 400 characters.">
         <Textarea

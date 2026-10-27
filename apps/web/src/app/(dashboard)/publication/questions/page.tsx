@@ -12,9 +12,10 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { QuestionFilterBar } from './filters';
 import { allActivities } from './all-activities';
+import { BulkBar, RowCheck, SelectAll, SelectionProvider } from './selection';
 import { IconPlus } from '@/components/icons';
 
-export const metadata: Metadata = { title: 'Questions · Poetree Admin' };
+export const metadata: Metadata = { title: 'Activities · Poetree Admin' };
 
 /**
  * Every question in the catalogue.
@@ -72,11 +73,11 @@ export default async function QuestionsPage({
   return (
     <>
       <PageHeader
-        title="Questions"
+        title="Activities"
         description={
           Object.values(filters).some(Boolean)
-            ? `${questions.total} ${questions.total === 1 ? 'question' : 'questions'} match. Click one to open and edit it.`
-            : 'Every question in the catalogue. Click one to open and edit it.'
+            ? `${questions.total} ${questions.total === 1 ? 'activity' : 'activities'} match. Click one to open and edit it.`
+            : 'Every activity in the catalogue. Click one to open and edit it.'
         }
         action={
           <Link
@@ -88,7 +89,7 @@ export default async function QuestionsPage({
             className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
           >
             <IconPlus size={17} />
-            {chosenType ? `Add to ${chosenType.title}` : 'Add question'}
+            {chosenType ? `Add to ${chosenType.title}` : 'Add activity'}
           </Link>
         }
       />
@@ -103,85 +104,102 @@ export default async function QuestionsPage({
 
       {broken.length > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          {broken.length === 1 ? 'One question is' : `${broken.length} questions are`} not being
+          {broken.length === 1 ? 'One activity is' : `${broken.length} activities are`} not being
           shown to children. They are marked below.
         </div>
       )}
 
-      <Card>
-        {questions.items.length === 0 ? (
-          <EmptyState
-            title="No questions yet"
-            description="Add a question type first, then write its questions."
-          />
-        ) : (
-          <>
-            <Table>
-              <THead
-                columns={['Question', 'Question type', 'Book', 'Chapter', 'Answer', 'State']}
-              />
-              <tbody>
-                {questions.items.map((question) => (
-                  <TRow key={question.id}>
-                    <TCell>
-                      <Link
-                        href={`/publication/questions/${question.id}`}
-                        className="hover:underline"
-                      >
-                        <TPrimary
-                          sub={
-                            question.options.length > 0
-                              ? `${question.options.length} choices`
-                              : undefined
-                          }
-                        >
-                          {question.say}
-                        </TPrimary>
-                      </Link>
-                    </TCell>
-                    <TCell>{question.activity.title}</TCell>
-                    <TCell>
-                      {question.book ? (
-                        question.book.name
-                      ) : (
-                        /* Reaches nobody: schools are given books, not loose
-                           pages. */
-                        <span className="text-amber-700">No book</span>
-                      )}
-                    </TCell>
-                    <TCell>
-                      {question.chapter?.name ?? <span className="text-slate-400">—</span>}
-                    </TCell>
-                    <TCell>
-                      <Answer question={question} />
-                    </TCell>
-                    <TCell>
-                      {question.problem ? (
-                        <Pill tone="neutral">{question.problem}</Pill>
-                      ) : (
-                        <Pill tone="brand">Ready</Pill>
-                      )}
-                    </TCell>
-                  </TRow>
-                ))}
-              </tbody>
-            </Table>
-
-            <Pagination
-              page={questions.page}
-              totalPages={questions.totalPages}
-              total={questions.total}
-              basePath={
-                query ? `/publication/questions?${query}` : '/publication/questions'
-              }
+      {/* Keyed by what is on screen, so a new page or filter starts with
+          nothing ticked. */}
+      <SelectionProvider
+        key={`${query}|${page}`}
+        ids={questions.items.map((question) => question.id)}
+      >
+        <Card>
+          {questions.items.length === 0 ? (
+            <EmptyState
+              title="No activities yet"
+              description="Add an activity type first, then write its activities."
             />
-          </>
-        )}
-      </Card>
+          ) : (
+            <>
+              <BulkBar />
+              <Table>
+                <THead
+                  columns={[
+                    { label: 'Select', content: <SelectAll /> },
+                    'Activity',
+                    'Activity type',
+                    'Book',
+                    'Chapter',
+                    'Answer',
+                    'State',
+                  ]}
+                />
+                <tbody>
+                  {questions.items.map((question) => (
+                    <TRow key={question.id}>
+                      <TCell className="w-10">
+                        <RowCheck id={question.id} label={question.say} />
+                      </TCell>
+                      <TCell>
+                        <Link
+                          href={`/publication/questions/${question.id}`}
+                          className="hover:underline"
+                        >
+                          <TPrimary
+                            sub={
+                              question.options.length > 0
+                                ? `${question.options.length} choices`
+                                : undefined
+                            }
+                          >
+                            {question.say}
+                          </TPrimary>
+                        </Link>
+                      </TCell>
+                      <TCell>{question.activity.title}</TCell>
+                      <TCell>
+                        {question.book ? (
+                          question.book.name
+                        ) : (
+                          /* Reaches nobody: schools are given books, not loose
+                           pages. */
+                          <span className="text-amber-700">No book</span>
+                        )}
+                      </TCell>
+                      <TCell>
+                        {question.chapter?.name ?? <span className="text-slate-400">—</span>}
+                      </TCell>
+                      <TCell>
+                        <Answer question={question} />
+                      </TCell>
+                      <TCell>
+                        {question.problem ? (
+                          <Pill tone="neutral">{question.problem}</Pill>
+                        ) : (
+                          <Pill tone="brand">Ready</Pill>
+                        )}
+                      </TCell>
+                    </TRow>
+                  ))}
+                </tbody>
+              </Table>
+
+              <Pagination
+                page={questions.page}
+                totalPages={questions.totalPages}
+                total={questions.total}
+                basePath={query ? `/publication/questions?${query}` : '/publication/questions'}
+              />
+            </>
+          )}
+        </Card>
+      </SelectionProvider>
 
       <p className="mt-4 text-xs text-slate-500">
-        {types.total} question {types.total === 1 ? 'type' : 'types'} in the catalogue.
-        {!chosenType && ' A question is written on one of them.'}
+        {types.total} activity {types.total === 1 ? 'type' : 'types'} in the catalogue.
+        {!chosenType && ' An activity is written on one of them.'}
       </p>
     </>
   );
@@ -189,6 +207,10 @@ export default async function QuestionsPage({
 
 /** What a child has to tap, shown so the list can be read without opening each. */
 function Answer({ question }: { question: QuestionWithContext }) {
+  // The newer types are not one right option; say what each one holds.
+  const summary = summaryOf(question);
+  if (summary) return <span className="text-xs text-slate-500">{summary}</span>;
+
   if (question.strokes && question.strokes.length > 0) {
     return (
       <span className="text-xs text-slate-500">
@@ -214,4 +236,33 @@ function Answer({ question }: { question: QuestionWithContext }) {
   }
 
   return <span className="text-sm">{correct.glyph ?? correct.text}</span>;
+}
+
+/** One line on what a question of the newer types holds, or null for the rest. */
+function summaryOf(question: QuestionWithContext): string | null {
+  const { settings, options } = question;
+  const plural = (count: number, one: string, many: string) =>
+    `${count} ${count === 1 ? one : many}`;
+
+  switch (question.activity.type) {
+    case 'MATCH_PAIRS':
+      return plural(options.length, 'pair', 'pairs');
+    case 'SORT_GROUPS':
+      return `${plural(settings.groups.length, 'basket', 'baskets')} · ${plural(options.length, 'card', 'cards')}`;
+    case 'COUNT_OUT':
+      return settings.target
+        ? `colour ${settings.target}${settings.shown ? ` of ${settings.shown}` : ''}`
+        : null;
+    case 'FILL_GAP':
+      return settings.row;
+    case 'LETTER_HUNT':
+      return settings.targets ? `find ${settings.targets}` : null;
+    case 'RHYME':
+    case 'STORY': {
+      const lines = (settings.lines ?? '').split('\n').filter((line) => line.trim() !== '');
+      return lines.length > 0 ? plural(lines.length, 'line', 'lines') : null;
+    }
+    default:
+      return null;
+  }
 }

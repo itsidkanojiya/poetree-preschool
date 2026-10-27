@@ -147,6 +147,13 @@ flutter:
     # The attendance calendar and a day's details: status, homework and notice
     # line icons, and the empty states.
     - assets/attendance_ui/
+    # The certificates screens: the designer's line icons and the child
+    # holding a certificate, faded at the edges to sit on the sky.
+    - assets/certificates_ui/
+    # The timetable: the designer's schedule icons and subject pictures.
+    - assets/timetable_ui/
+    # Announcements and Settings: the designer's line icons.
+    - assets/announcements_settings_ui/
     # The learning games: their content data, game icons and characters.
     - assets/games/
     - assets/games/icons/

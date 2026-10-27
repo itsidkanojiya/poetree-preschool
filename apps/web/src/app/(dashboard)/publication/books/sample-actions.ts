@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
 
 export type SampleBookResult =
-  { bookId: string; bookName: string; added: number; total: number } | { error: string };
+  | { bookId: string; bookName: string; added: number; total: number; questionsAdded: number }
+  | { error: string };
 
 /** Adds the sample book, or whatever of it is missing. */
 export async function addSampleBookAction(): Promise<SampleBookResult> {
@@ -14,6 +15,7 @@ export async function addSampleBookAction(): Promise<SampleBookResult> {
       bookName: string;
       added: number;
       total: number;
+      questionsAdded: number;
     }>('/publication/samples/pre-primary-a', { method: 'POST', redirectOnAuthFailure: false });
     revalidatePath('/publication/books');
     revalidatePath('/publication/questions');

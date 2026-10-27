@@ -15,6 +15,7 @@ import { AddQuestionForm } from '../../question-types/[id]/questions/forms';
 import { editorDescription } from '../../question-types/[id]/questions/editors/kinds';
 import { allActivities } from '../all-activities';
 import { AddChapterForm, NewActivityForm } from './forms';
+import { ExistingPages, QuestionList } from './existing';
 import { SampleBookCard } from '../../books/sample-book';
 
 export const metadata: Metadata = { title: 'Add an activity · Poetree Admin' };
@@ -145,45 +146,48 @@ export default async function NewActivityPage({
           <>
             <Card title="Which type of activity?" description="How the child answers it.">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {AUTHORED_ACTIVITY_TYPES.map((option) => (
-                  <ChoiceCard
-                    key={option}
-                    href={`${chapterHref}&type=${option}`}
-                    mark={TYPE_MARK[option]}
-                    title={ACTIVITY_TYPE_LABELS[option].label}
-                    detail={ACTIVITY_TYPE_LABELS[option].hint}
-                  />
-                ))}
+                {AUTHORED_ACTIVITY_TYPES.map((option) => {
+                  const there = here.filter((page) => page.type === option).length;
+                  return (
+                    <ChoiceCard
+                      key={option}
+                      href={`${chapterHref}&type=${option}`}
+                      mark={TYPE_MARK[option]}
+                      title={ACTIVITY_TYPE_LABELS[option].label}
+                      detail={ACTIVITY_TYPE_LABELS[option].hint}
+                      badge={
+                        there > 0 ? `${there} ${there === 1 ? 'page' : 'pages'} here` : undefined
+                      }
+                    />
+                  );
+                })}
               </div>
             </Card>
-            {here.length > 0 && (
-              <Card
-                title="Or add to a page already in this chapter"
-                description="One more question on a page that is there."
-              >
-                <ul className="divide-y divide-navy-950/[0.06]">
-                  {here.map((activity) => (
-                    <li key={activity.id}>
-                      <Link
-                        href={`${base}?activityId=${activity.id}`}
-                        className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-navy-700"
-                      >
-                        <span className="font-medium text-navy-950">{activity.title}</span>
-                        <span className="shrink-0 text-xs text-slate-500">
-                          {labelOf(activity.type)} ·{' '}
-                          {count(activity.itemCount, 'question', 'questions')}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
+            <ExistingPages
+              pages={here}
+              title={`Already in this chapter (${here.length})`}
+              description="Open any activity to change it, or add one more to a page."
+            />
           </>
         )}
 
         {step === 4 && book && type && (
-          <Card title={`${labelOf(type)} in ${book.name}`} description={editorDescription(type)}>
+          <ExistingPages
+            pages={here.filter((page) => page.type === type)}
+            title={`${labelOf(type)} already in this chapter`}
+            description="Add to one of these, or start a new page below."
+          />
+        )}
+
+        {step === 4 && book && type && (
+          <Card
+            title={
+              here.some((page) => page.type === type)
+                ? `Or start a new ${labelOf(type)} page`
+                : `${labelOf(type)} in ${book.name}`
+            }
+            description={editorDescription(type)}
+          >
             <WriteStep
               type={type}
               book={book}
@@ -341,6 +345,7 @@ function ChoiceCard({
   mark,
   cover,
   quiet,
+  badge,
 }: {
   href: string;
   title: string;
@@ -348,6 +353,8 @@ function ChoiceCard({
   mark?: string;
   cover?: string | null;
   quiet?: boolean;
+  /** "2 pages here": what the chapter already has of this. */
+  badge?: string;
 }) {
   const coverId = cover?.split('/').pop();
   return (
@@ -371,8 +378,15 @@ function ChoiceCard({
           {mark}
         </span>
       ) : null}
-      <span className="min-w-0">
-        <span className="block font-medium text-navy-950">{title}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium text-navy-950">{title}</span>
+          {badge && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200">
+              {badge}
+            </span>
+          )}
+        </span>
         {detail && (
           <span className="mt-0.5 block text-xs leading-snug text-slate-500">{detail}</span>
         )}
@@ -476,17 +490,17 @@ async function AddToPage({ activityId, added }: { activityId: string; added: boo
             .
           </Notice>
         )}
+        {existing.length > 0 && (
+          <Card
+            title={`Already on this page (${existing.length})`}
+            description="Open any of them to change it."
+          >
+            <QuestionList questions={existing} />
+          </Card>
+        )}
         <Card
-          title={activity.title}
+          title={existing.length > 0 ? `Add one more to “${activity.title}”` : activity.title}
           description={editorDescription(activity.type)}
-          action={
-            <Link
-              href={`/publication/question-types/${activity.id}/questions`}
-              className="text-sm font-medium text-navy-900 hover:underline"
-            >
-              {existing.length} already on this page
-            </Link>
-          }
         >
           <AddQuestionForm activityId={activity.id} type={activity.type} count={existing.length} />
         </Card>

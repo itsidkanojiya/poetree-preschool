@@ -46,6 +46,11 @@ const PIC = {
   mango: { picture: 'Mango (M)', emoji: '🥭' },
   rabbit: { picture: 'Rabbit (R)', emoji: '🐰' },
   zebra: { picture: 'Zebra (Z)', emoji: '🦓' },
+  one: { picture: 'One apple (1)', emoji: '1' },
+  two: { picture: 'Two balls (2)', emoji: '2' },
+  three: { picture: 'Three stars (3)', emoji: '3' },
+  four: { picture: 'Four fish (4)', emoji: '4' },
+  five: { picture: 'Five flowers (5)', emoji: '5' },
 } satisfies Record<string, Pic>;
 
 /** What an option or card is made of, before the pictures are looked up. */
@@ -173,6 +178,17 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
               { media: PIC.elephant },
             ],
           },
+          {
+            say: 'Tap every fruit, then Done.',
+            options: [
+              { media: PIC.apple, right: true },
+              { media: PIC.cat },
+              { media: PIC.mango, right: true },
+              { media: PIC.ball },
+              { media: PIC.grapes, right: true },
+              { media: PIC.dog },
+            ],
+          },
         ],
       },
       {
@@ -184,6 +200,56 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
           { say: 'This is an apple. Apples are crunchy and red.', prompt: PIC.apple },
           { say: 'These are grapes. They grow in a bunch.', prompt: PIC.grapes },
           { say: 'This is a mango. Mangoes are sweet and yellow.', prompt: PIC.mango },
+        ],
+      },
+      {
+        code: 'SAMPLE_ANIMAL_CARDS',
+        title: 'Animals around us',
+        type: 'FLASHCARD',
+        from: 'Holistic Book A, the animal pages',
+        questions: [
+          { say: 'This is a cat. A cat says meow.', prompt: PIC.cat },
+          { say: 'This is a dog. A dog says woof.', prompt: PIC.dog },
+          { say: 'This is an elephant. It has a long trunk.', prompt: PIC.elephant },
+          { say: 'This is a lion. The lion is the king of the forest.', prompt: PIC.lion },
+          { say: 'This is a zebra. It has black and white stripes.', prompt: PIC.zebra },
+          { say: 'This is a fish. A fish swims in water.', prompt: PIC.fish },
+        ],
+      },
+      {
+        code: 'SAMPLE_NOT_A_FRUIT',
+        title: 'Which one does not belong?',
+        type: 'ODD_ONE_OUT',
+        from: 'Holistic Book A, the odd one out pages',
+        questions: [
+          {
+            say: 'Which one is not a fruit?',
+            options: [
+              { media: PIC.apple },
+              { media: PIC.mango },
+              { media: PIC.ball, right: true },
+              { media: PIC.grapes },
+            ],
+          },
+          {
+            say: 'Which one is not an animal?',
+            options: [
+              { media: PIC.cat },
+              { media: PIC.apple, right: true },
+              { media: PIC.dog },
+              { media: PIC.rabbit },
+            ],
+          },
+        ],
+      },
+      {
+        code: 'SAMPLE_COLOUR_ANIMALS',
+        title: 'Count and colour the animals',
+        type: 'COUNT_OUT',
+        from: 'Holistic Book A, the colouring pages',
+        questions: [
+          { say: 'Colour 4 fish.', prompt: PIC.fish, settings: { target: 4, shown: 8 } },
+          { say: 'Colour 2 cats.', prompt: PIC.cat, settings: { target: 2, shown: 6 } },
         ],
       },
     ],
@@ -204,6 +270,10 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
           {
             say: 'Find every B and b.',
             settings: { targets: 'B b', grid: 'B d b P B b D B q b p B' },
+          },
+          {
+            say: 'Find every A and a.',
+            settings: { targets: 'A a', grid: 'A n a A m a A e a A' },
           },
         ],
       },
@@ -238,6 +308,24 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
               { media: glyph('C'), right: true },
               { media: glyph('O') },
               { media: glyph('G') },
+            ],
+          },
+          {
+            say: 'Which letter does dog start with?',
+            prompt: PIC.dog,
+            options: [
+              { media: glyph('B') },
+              { media: glyph('P') },
+              { media: glyph('D'), right: true },
+            ],
+          },
+          {
+            say: 'Which letter does elephant start with?',
+            prompt: PIC.elephant,
+            options: [
+              { media: glyph('E'), right: true },
+              { media: glyph('F') },
+              { media: glyph('A') },
             ],
           },
         ],
@@ -293,6 +381,71 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
           },
         ],
       },
+      {
+        code: 'SAMPLE_LETTER_CARDS',
+        title: 'A for Apple',
+        type: 'FLASHCARD',
+        from: 'Literacy Book A, the letter pages',
+        questions: [
+          { say: 'A is for Apple.', prompt: PIC.apple },
+          { say: 'B is for Ball.', prompt: PIC.ball },
+          { say: 'C is for Cat.', prompt: PIC.cat },
+          { say: 'D is for Dog.', prompt: PIC.dog },
+          { say: 'E is for Elephant.', prompt: PIC.elephant },
+          { say: 'F is for Fish.', prompt: PIC.fish },
+        ],
+      },
+      {
+        code: 'SAMPLE_CAPITAL_OR_SMALL',
+        title: 'Capital letter or small letter?',
+        type: 'SORT_GROUPS',
+        from: 'Literacy Book A, the revision pages',
+        questions: [
+          {
+            say: 'Put each letter in its basket: capital or small.',
+            settings: {
+              groups: [
+                { label: 'Capital', glyph: 'A' },
+                { label: 'Small', glyph: 'a' },
+              ],
+            },
+            options: [
+              { media: glyph('B'), group: 0 },
+              { media: glyph('d'), group: 1 },
+              { media: glyph('E'), group: 0 },
+              { media: glyph('f'), group: 1 },
+              { media: glyph('G'), group: 0 },
+              { media: glyph('h'), group: 1 },
+            ],
+          },
+        ],
+      },
+      {
+        code: 'SAMPLE_ODD_LETTER',
+        title: 'Which letter is different?',
+        type: 'ODD_ONE_OUT',
+        from: 'Literacy Workbook A, same letters',
+        questions: [
+          {
+            say: 'Which letter is different?',
+            options: [
+              { media: glyph('A') },
+              { media: glyph('A') },
+              { media: glyph('B'), right: true },
+              { media: glyph('A') },
+            ],
+          },
+          {
+            say: 'Which small letter is different?',
+            options: [
+              { media: glyph('c') },
+              { media: glyph('o'), right: true },
+              { media: glyph('c') },
+              { media: glyph('c') },
+            ],
+          },
+        ],
+      },
     ],
   },
   {
@@ -307,6 +460,7 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
           { say: 'Colour 11 balls.', prompt: PIC.ball, settings: { target: 11, shown: 20 } },
           { say: 'Colour 5 apples.', prompt: PIC.apple, settings: { target: 5, shown: 9 } },
           { say: 'Colour 3 stars.', prompt: glyph('⭐'), settings: { target: 3, shown: 6 } },
+          { say: 'Colour 7 grapes.', prompt: PIC.grapes, settings: { target: 7, shown: 12 } },
         ],
       },
       {
@@ -413,6 +567,63 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
           },
         ],
       },
+      {
+        code: 'SAMPLE_NUMBER_CARDS',
+        title: 'Numbers 1 to 5',
+        type: 'FLASHCARD',
+        from: 'Numeracy Book A, the number pages',
+        questions: [
+          { say: 'One. One apple.', prompt: PIC.one },
+          { say: 'Two. Two balls.', prompt: PIC.two },
+          { say: 'Three. Three stars.', prompt: PIC.three },
+          { say: 'Four. Four fish.', prompt: PIC.four },
+          { say: 'Five. Five flowers.', prompt: PIC.five },
+        ],
+      },
+      {
+        code: 'SAMPLE_BIG_OR_SMALL',
+        title: 'Big animals and small animals',
+        type: 'SORT_GROUPS',
+        from: 'Numeracy Workbook A, p3',
+        questions: [
+          {
+            say: 'Put each animal in its basket: big or small.',
+            settings: {
+              groups: [
+                { label: 'Big', glyph: '🐘' },
+                { label: 'Small', glyph: '🐭' },
+              ],
+            },
+            options: [
+              { media: PIC.elephant, group: 0 },
+              { media: PIC.cat, group: 1 },
+              { media: PIC.lion, group: 0 },
+              { media: PIC.rabbit, group: 1 },
+              { media: PIC.zebra, group: 0 },
+              { media: PIC.fish, group: 1 },
+            ],
+          },
+        ],
+      },
+      {
+        code: 'SAMPLE_TAP_THREES',
+        title: 'Tap every number 3',
+        type: 'MULTIPLE_CHOICE',
+        from: 'Numeracy Book A, p22',
+        questions: [
+          {
+            say: 'Tap every 3, then Done.',
+            options: [
+              { media: glyph('3'), right: true },
+              { media: glyph('5') },
+              { media: glyph('3'), right: true },
+              { media: glyph('8') },
+              { media: glyph('3'), right: true },
+              { media: glyph('1') },
+            ],
+          },
+        ],
+      },
     ],
   },
   {
@@ -452,6 +663,30 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
               ].join('\n'),
             },
           },
+          {
+            say: 'Rain, Rain, Go Away',
+            prompt: glyph('🌧️'),
+            settings: {
+              lines: [
+                'Rain, rain, go away,',
+                'Come again another day.',
+                'Little Tommy wants to play.',
+                'Rain, rain, go away.',
+              ].join('\n'),
+            },
+          },
+          {
+            say: 'Two Little Hands',
+            prompt: glyph('👏'),
+            settings: {
+              lines: [
+                'Two little hands go clap, clap, clap,',
+                'Two little feet go tap, tap, tap,',
+                'Two little eyes are open wide,',
+                'One little head goes side to side.',
+              ].join('\n'),
+            },
+          },
         ],
       },
       {
@@ -478,6 +713,30 @@ const CHAPTERS: Array<{ name: string; activities: SampleActivity[] }> = [
           },
         ],
       },
+      {
+        code: 'SAMPLE_TWO_CATS',
+        title: 'The Two Cats and a Monkey',
+        type: 'STORY',
+        from: 'Nursery Rhymes A, p23',
+        questions: [
+          {
+            say: 'The Two Cats and a Monkey',
+            prompt: glyph('🐒'),
+            settings: {
+              lines: [
+                'Once upon a time there were two cats. They were good friends.',
+                'They got a piece of bread.',
+                'They made a big piece and a small piece, and began to fight for the bigger one.',
+                'A monkey saw them fighting. He said, "I will share it equally."',
+                'He bit the bigger piece to make it equal. Then he bit the other piece.',
+                'Bit by bit, he ate the whole bread and went away happily.',
+                'The poor cats lost the bread.',
+                'Moral: We must learn to share what we have.',
+              ].join('\n'),
+            },
+          },
+        ],
+      },
     ],
   },
 ];
@@ -489,6 +748,8 @@ export interface SamplesResult {
   added: number;
   /** Activities the sample book has, all told. */
   total: number;
+  /** Questions added to sample pages that were there already. */
+  questionsAdded: number;
 }
 
 /** Adds the sample book, or whatever of it is missing. */
@@ -544,6 +805,7 @@ export async function addPrePrimarySamples(actorUserId: string): Promise<Samples
 
   let added = 0;
   let total = 0;
+  let questionsAdded = 0;
   for (const sampleChapter of CHAPTERS) {
     const chapterId =
       haveChapters.find((chapter) => chapter.name === sampleChapter.name)?.id ??
@@ -559,9 +821,23 @@ export async function addPrePrimarySamples(actorUserId: string): Promise<Samples
       total += 1;
       const there = await prismaUnscoped.learningActivity.findUnique({
         where: { code: sample.code },
-        select: { id: true },
+        select: { id: true, questions: { select: { say: true } } },
       });
-      if (there) continue;
+      if (there) {
+        // A page from an earlier run: its new questions only, matched by what
+        // they say, so pressing the button again tops it up.
+        const said = new Set(there.questions.map((question) => question.say));
+        for (const question of sample.questions) {
+          if (said.has(question.say)) continue;
+          await questions.createQuestion(
+            there.id,
+            createQuestionSchema.parse(toQuestion(sample.type, question, pictureIds)),
+            actorUserId,
+          );
+          questionsAdded += 1;
+        }
+        continue;
+      }
 
       const activity = await catalogue.createActivity(
         createActivitySchema.parse({
@@ -586,7 +862,7 @@ export async function addPrePrimarySamples(actorUserId: string): Promise<Samples
     }
   }
 
-  return { bookId: book.id, bookName: book.name, added, total };
+  return { bookId: book.id, bookName: book.name, added, total, questionsAdded };
 }
 
 /** The library's pictures the samples use, by the name they were brought in under. */

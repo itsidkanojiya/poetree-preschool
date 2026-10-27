@@ -29,9 +29,16 @@ export function SampleBookCard({ bookId }: { bookId?: string }) {
         )}
         {result && 'added' in result && (
           <p role="status" className="mt-1 text-xs font-medium text-emerald-800">
-            {result.added === 0
-              ? `All ${result.total} sample activities are there already.`
-              : `${result.added} sample activities added.`}
+            {result.added === 0 && result.questionsAdded === 0
+              ? `All ${result.total} sample pages are there already, with everything on them.`
+              : [
+                  result.added > 0 ? `${result.added} sample pages added` : null,
+                  result.questionsAdded > 0
+                    ? `${result.questionsAdded} activities added to pages already there`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ') + '.'}
           </p>
         )}
       </div>

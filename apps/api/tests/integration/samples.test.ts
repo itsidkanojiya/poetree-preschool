@@ -99,6 +99,24 @@ describe.skipIf(!dbUp)('the sample book', () => {
     const again = await api.post(`${BASE}/publication/samples/pre-primary-a`).set(auth(publisher));
     expect(again.status).toBe(200);
     expect(again.body.added).toBe(0);
+    expect(again.body.questionsAdded).toBe(0);
     expect(await prismaUnscoped.book.count({ where: { code: SAMPLE_BOOK_CODE } })).toBe(1);
+  });
+
+  it('tops up a sample page that has lost an activity', async () => {
+    const page = await prismaUnscoped.learningActivity.findUniqueOrThrow({
+      where: { code: 'SAMPLE_FRUIT_CARDS' },
+      select: { id: true, questions: { select: { id: true, say: true } } },
+    });
+    const gone = page.questions[0]!;
+    await prismaUnscoped.activityQuestion.delete({ where: { id: gone.id } });
+
+    const topped = await api.post(`${BASE}/publication/samples/pre-primary-a`).set(auth(publisher));
+    expect(topped.body.added).toBe(0);
+    expect(topped.body.questionsAdded).toBe(1);
+    const back = await prismaUnscoped.activityQuestion.count({
+      where: { activityId: page.id, say: gone.say },
+    });
+    expect(back).toBe(1);
   });
 });

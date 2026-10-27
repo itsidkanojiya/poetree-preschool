@@ -38,20 +38,12 @@ export function NewChapterForm({ bookId }: { bookId: string }) {
             aria-label="Chapter name"
           />
         </span>
-        <span className="min-w-[13rem] flex-1">
+        <span className="min-w-[16rem] flex-1">
           <Input
             name="animationUrl"
-            placeholder="2D film — https://youtu.be/… (optional)"
+            placeholder="Animation link — https://youtu.be/… (optional)"
             className="py-1.5 text-sm"
-            aria-label="2D film for this chapter"
-          />
-        </span>
-        <span className="min-w-[13rem] flex-1">
-          <Input
-            name="animation3dUrl"
-            placeholder="3D film — https://youtu.be/… (optional)"
-            className="py-1.5 text-sm"
-            aria-label="3D film for this chapter"
+            aria-label="Animation link for this chapter"
           />
         </span>
         <SubmitButton pendingLabel="Adding…">Add chapter</SubmitButton>
@@ -175,12 +167,11 @@ export function ChapterFields({
   position: number;
 }) {
   const film = chapter.animation?.url ?? '';
-  const film3d = chapter.animation3d?.url ?? '';
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="chapterId" value={chapter.id} />
-      <input type="hidden" name="before" value={`${chapter.name}|${film}|${film3d}`} />
+      <input type="hidden" name="before" value={`${chapter.name}|${film}`} />
 
       {/* The number is where the chapter sits, so it is shown rather than
           typed. Asking for both the position and the number is asking the same
@@ -208,26 +199,16 @@ export function ChapterFields({
           aria-label={`Name of ${chapter.name}`}
         />
       </span>
-      {/* The film that opens this chapter. Beside the name because it is part
-          of what the chapter is, not a separate screen to remember. */}
-      <span className="min-w-[13rem] flex-1">
+      {/* The animation that opens this chapter: one YouTube link. Beside the
+          name because it is part of what the chapter is, not a separate
+          screen to remember. */}
+      <span className="min-w-[16rem] flex-1">
         <Input
           name="animationUrl"
           defaultValue={film}
-          placeholder="2D film — https://youtu.be/… (optional)"
+          placeholder="Animation link — https://youtu.be/… (optional)"
           className="py-1.5 text-sm"
-          aria-label={`2D film for ${chapter.name}`}
-        />
-      </span>
-      {/* The 3D version, when there is one. The app shows a 2D / 3D switch
-          only for a chapter that has both. */}
-      <span className="min-w-[13rem] flex-1">
-        <Input
-          name="animation3dUrl"
-          defaultValue={film3d}
-          placeholder="3D film — https://youtu.be/… (optional)"
-          className="py-1.5 text-sm"
-          aria-label={`3D film for ${chapter.name}`}
+          aria-label={`Animation link for ${chapter.name}`}
         />
       </span>
     </div>

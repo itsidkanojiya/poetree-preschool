@@ -7,6 +7,7 @@ import { TCell, THead, TRow, Table } from '@/components/ui/table';
 import { IconPlus } from '@/components/icons';
 import { BookCover } from './forms';
 import { CatalogueTabs } from './tabs';
+import { SampleBookCard } from './sample-book';
 
 export const metadata: Metadata = { title: 'Books · Poetree Admin' };
 
@@ -43,6 +44,8 @@ export default async function BooksPage() {
       />
 
       <CatalogueTabs current="books" />
+
+      <SampleBookCard bookId={books.find((book) => book.code === 'PRE_PRIMARY_A_SAMPLES')?.id} />
 
       {empty.length > 0 && (
         <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">

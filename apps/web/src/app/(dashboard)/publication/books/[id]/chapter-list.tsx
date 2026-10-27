@@ -125,6 +125,13 @@ export function ChapterList({
                     {chapter.questionCount} {chapter.questionCount === 1 ? 'activity' : 'activities'}
                   </Pill>
                 )}
+                {/* Straight to choosing a type: the book and chapter are this. */}
+                <Link
+                  href={`/publication/questions/new?bookId=${bookId}&chapterId=${chapter.id}`}
+                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+                >
+                  + Add activity
+                </Link>
                 <DeleteChapterButton chapter={chapter} />
               </span>
             </div>

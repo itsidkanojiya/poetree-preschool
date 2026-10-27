@@ -105,6 +105,7 @@ import * as tracing from '../services/tracing.service.js';
 import * as games from '../services/games.service.js';
 import * as drive from '../services/drive.service.js';
 import * as pictures from '../services/pictureLibrary.service.js';
+import * as samples from '../services/samples.service.js';
 
 /**
  * Super Admin surface. Everything below reaches across schools, which is why it
@@ -438,6 +439,17 @@ publicationRouter.get(
   validate({ query: pictureLibraryQuerySchema }),
   asyncHandler(async (req, res) => {
     res.json(await pictures.listLibrary(query<PictureLibraryQuery>(req)));
+  }),
+);
+
+/**
+ * The sample book: an activity or two of every type, modelled on the
+ * Pre-Primary A books, in a book given to no school. Safe to run again.
+ */
+publicationRouter.post(
+  '/samples/pre-primary-a',
+  asyncHandler(async (req, res) => {
+    res.json(await samples.addPrePrimarySamples(req.auth!.userId));
   }),
 );
 

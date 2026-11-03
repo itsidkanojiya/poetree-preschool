@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/widgets/youtube_guard.dart';
+
 import '../tracing_module/lesson_video.dart';
 import 'gallery_ui.dart';
 
@@ -379,7 +381,7 @@ class _Stuck extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: () => unawaited(openInYouTube(videoId)),
+            onPressed: () => unawaited(openInYouTube(context, videoId)),
             icon: const Icon(Icons.open_in_new_rounded),
             label: const Text('Open in YouTube'),
           ),

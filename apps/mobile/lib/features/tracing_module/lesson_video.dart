@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+
+import '../../core/widgets/youtube_guard.dart';
 
 /// What the WebView tells us about itself.
 const _channel = 'PoetreeLesson';
@@ -188,7 +189,6 @@ class LessonVideoSurface extends StatefulWidget {
 class _LessonVideoSurfaceState extends State<LessonVideoSurface> {
   late final WebViewController _web;
   Timer? _startupWatch;
-  bool _triedWatchPage = false;
 
   LessonVideoController get _video => widget.controller;
 
@@ -207,6 +207,8 @@ class _LessonVideoSurfaceState extends State<LessonVideoSurface> {
       ..addJavaScriptChannel(_channel, onMessageReceived: _fromPage)
       ..setNavigationDelegate(
         NavigationDelegate(
+          // This video's embed page and nowhere else — see youtube_guard.dart.
+          onNavigationRequest: (request) => embedOnly(request, _video.videoId),
           onPageFinished: (_) => unawaited(_web.runJavaScript(_watcher)),
           onWebResourceError: (error) {
             if (error.isForMainFrame ?? false) _video.handle('stuck');
@@ -231,39 +233,18 @@ class _LessonVideoSurfaceState extends State<LessonVideoSurface> {
     _video._run = _web.runJavaScript;
     _video.paused = false;
 
-    // Nothing playing after twelve seconds: the ordinary watch page once,
-    // then the way out.
-    _startupWatch = Timer(const Duration(seconds: 12), () {
-      if (!mounted || _video.started) return;
-      if (_triedWatchPage) {
-        _video.handle('stuck');
-      } else {
-        _tryWatchPage();
-      }
-    });
-  }
-
-  void _tryWatchPage() {
-    _triedWatchPage = true;
-    _startupWatch?.cancel();
+    // Nothing playing after twelve seconds: say so, with a grown-up's way out
+    // — never the full YouTube watch page as a second try.
     _startupWatch = Timer(const Duration(seconds: 12), () {
       if (mounted && !_video.started) _video.handle('stuck');
     });
-    unawaited(
-      _web.loadRequest(
-        Uri.parse('https://www.youtube.com/watch?v=${_video.videoId}'),
-      ),
-    );
   }
 
   void _fromPage(JavaScriptMessage message) {
     if (!mounted) return;
     if (message.message == 'refused') {
-      if (!_triedWatchPage) {
-        _tryWatchPage();
-      } else {
-        _video.handle('stuck');
-      }
+      _startupWatch?.cancel();
+      _video.handle('stuck');
       return;
     }
     _video.handle(message.message);
@@ -295,12 +276,6 @@ class _LessonVideoSurfaceState extends State<LessonVideoSurface> {
     );
   }
 }
-
-/// Opens the video in the YouTube app, for a phone that will not play it here.
-Future<bool> openInYouTube(String videoId) => launchUrl(
-  Uri.parse('https://www.youtube.com/watch?v=$videoId'),
-  mode: LaunchMode.externalApplication,
-);
 
 /// "0:32".
 String clock(double seconds) {

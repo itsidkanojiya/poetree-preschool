@@ -11,6 +11,7 @@ import '../../core/audio/speech_service.dart';
 import '../../core/letterforms/glyph_text.dart';
 import '../../core/letterforms/letterforms.dart';
 import '../../core/widgets/kid_ui.dart';
+import '../../core/widgets/youtube_guard.dart';
 import 'lesson_video.dart';
 import 'tracing_module_models.dart';
 
@@ -969,9 +970,10 @@ class _TracingLessonViewState extends State<TracingLessonView>
                 ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
-                  onPressed: () => unawaited(openInYouTube(_video.videoId)),
+                  onPressed: () =>
+                      unawaited(openInYouTube(context, _video.videoId)),
                   icon: const Icon(Icons.open_in_new_rounded),
-                  label: const Text('Open in YouTube'),
+                  label: const Text('Open in YouTube (grown-ups)'),
                 ),
                 TextButton(
                   // An adult's decision, offered only once the video has

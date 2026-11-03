@@ -6,7 +6,7 @@ description: >-
 publish_to: "none"
 
 # The one version of the one app, raised for every Play Store release.
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.12.0

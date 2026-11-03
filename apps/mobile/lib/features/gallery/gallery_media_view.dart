@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import '../../core/api/api_service.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/authed_image.dart';
-import '../tracing_module/lesson_video.dart';
+import '../../core/widgets/youtube_guard.dart';
 import 'gallery_albums_view.dart';
 import 'gallery_photo_view.dart';
 import 'gallery_ui.dart';
@@ -519,7 +519,8 @@ class _VideoList extends StatelessWidget {
             title: const Text('Open in YouTube'),
             onTap: () {
               Navigator.pop(sheet);
-              unawaited(openInYouTube(video.videoId));
+              // The page's own context: the sheet's is gone once it closes.
+              unawaited(openInYouTube(context, video.videoId));
             },
           ),
           const SizedBox(height: 8),

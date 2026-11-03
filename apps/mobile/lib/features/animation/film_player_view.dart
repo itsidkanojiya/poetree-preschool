@@ -4,13 +4,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../core/api/api_service.dart';
 import '../../core/assets/app_assets.dart';
 import '../../core/widgets/art.dart';
+import '../../core/widgets/youtube_guard.dart';
 import '../books/books_controllers.dart';
 import 'chapter_done_view.dart';
 import 'film_controllers.dart';
@@ -125,7 +125,6 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
   bool _finished = false;
   bool _saving = false;
   bool _stuck = false;
-  bool _triedWatchPage = false;
   bool _fullscreen = false;
   bool _controlsShown = true;
   String? _error;
@@ -163,6 +162,8 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
       ..addJavaScriptChannel(_channel, onMessageReceived: _fromPage)
       ..setNavigationDelegate(
         NavigationDelegate(
+          // This film's embed page and nowhere else — see youtube_guard.dart.
+          onNavigationRequest: (request) => embedOnly(request, _videoId),
           onPageFinished: (_) => unawaited(_web.runJavaScript(_watcher)),
           onWebResourceError: (error) {
             if (error.isForMainFrame ?? false) {
@@ -191,7 +192,6 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
       _paused = false;
       _finished = false;
       _stuck = false;
-      _triedWatchPage = false;
       _error = null;
       _position = keepPosition ? _position : 0;
       _duration = keepPosition ? _duration : 0;
@@ -209,27 +209,12 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
       ),
     );
 
-    // Nothing playing after twelve seconds: try the ordinary watch page once,
-    // then offer the way out.
-    _startupWatch = Timer(const Duration(seconds: 12), () {
-      if (!mounted || _started || _finished) return;
-      if (_triedWatchPage) {
-        setState(() => _stuck = true);
-      } else {
-        _tryWatchPage();
-      }
-    });
-  }
-
-  void _tryWatchPage() {
-    _triedWatchPage = true;
-    _startupWatch?.cancel();
+    // Nothing playing after twelve seconds: say so, with a grown-up's way out.
+    // Not the full YouTube watch page as a second try — that is YouTube
+    // itself, recommendations and all, inside a preschool app.
     _startupWatch = Timer(const Duration(seconds: 12), () {
       if (mounted && !_started && !_finished) setState(() => _stuck = true);
     });
-    unawaited(
-      _web.loadRequest(Uri.parse('https://www.youtube.com/watch?v=$_videoId')),
-    );
   }
 
   void _fromPage(JavaScriptMessage message) {
@@ -255,11 +240,8 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
     }
 
     if (text == 'refused') {
-      if (!_triedWatchPage) {
-        _tryWatchPage();
-      } else if (!_stuck) {
-        setState(() => _stuck = true);
-      }
+      _startupWatch?.cancel();
+      if (!_stuck) setState(() => _stuck = true);
       return;
     }
 
@@ -363,15 +345,6 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
         setState(() => _controlsShown = false);
       }
     });
-  }
-
-  Future<void> _openOutside() async {
-    final url = Uri.parse('https://www.youtube.com/watch?v=$_videoId');
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        setState(() => _error = 'Could not open YouTube on this device.');
-      }
-    }
   }
 
   /// Records the film as watched, then shows the chapter-complete screen.
@@ -772,16 +745,16 @@ class _FilmPlayerViewState extends State<FilmPlayerView> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Open it in YouTube, watch it together, then come back and tap '
-            'below.',
+            'A grown-up can open it in YouTube to watch together, then come '
+            'back and tap below.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: () => unawaited(_openOutside()),
+            onPressed: () => unawaited(openInYouTube(context, _videoId)),
             icon: const Icon(Icons.open_in_new_rounded),
-            label: const Text('Open in YouTube'),
+            label: const Text('Open in YouTube (grown-ups)'),
           ),
           TextButton(
             onPressed: _saving

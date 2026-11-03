@@ -7,6 +7,7 @@ import { Pill } from '@/components/ui/layout';
 import { IconGrip } from '@/components/icons';
 import { reorderChaptersAction, saveChaptersAction, type ChapterState } from './actions';
 import { ChapterFields, DeleteChapterButton } from './forms';
+import { ChapterPdf } from './chapter-pdf';
 import { SubmitButton } from '@/components/ui/form';
 import { Toast } from '@/components/ui/toast';
 
@@ -135,6 +136,9 @@ export function ChapterList({
                 <DeleteChapterButton chapter={chapter} />
               </span>
             </div>
+
+            {/* The chapter's pages, which a child reads inside the chapter. */}
+            <ChapterPdf bookId={bookId} chapter={chapter} />
 
             {inside.length > 0 && (
               <ul className="mt-2 space-y-1 border-l-2 border-navy-950/[0.06] pl-4 md:ml-7">

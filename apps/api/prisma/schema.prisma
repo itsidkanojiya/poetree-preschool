@@ -2182,39 +2182,45 @@ model ChapterAnimationView {
 }
 
 model Chapter {
-  id             String  @id @default(cuid())
-  bookId         String
-  name           String  @db.VarChar(160)
+  id                   String  @id @default(cuid())
+  bookId               String
+  name                 String  @db.VarChar(160)
   /// Printed on the page, and not the same as the order: a book can open with
   /// "Chapter 0: Getting ready".
-  number         Int?
-  sortOrder      Int     @default(0)
+  number               Int?
+  sortOrder            Int     @default(0)
   /// The film a child watches before this chapter's pages open.
   ///
   /// A chapter is what a book is actually divided into — "we're on chapter
   /// three" — so it is the unit a film introduces. One film for a whole book
   /// meant a single video standing in for everything between two covers.
-  animationUrl   String? @db.VarChar(500)
+  animationUrl         String? @db.VarChar(500)
   /// The same chapter made in 3D, when the publisher has one.
   ///
   /// A second link rather than a table of films: a chapter has at most one of
   /// each, and the app only needs to know whether to offer the switch. The
   /// link above stays the 2D one, so nothing already published changes.
-  animation3dUrl String? @db.VarChar(500)
+  animation3dUrl       String? @db.VarChar(500)
   /// Optional picture for the chapter, drawn on the contents page in the app.
   ///
   /// Optional on purpose: a book of twelve chapters is twelve pictures to draw,
   /// and a chapter without one still has to look like something. The app falls
   /// back to the chapter's own colour, so a half-illustrated book is not a
   /// half-broken one.
-  coverFileId    String? @db.VarChar(191)
-  isActive       Boolean @default(true)
+  coverFileId          String? @db.VarChar(191)
+  /// The chapter's own pages, as the PDF a child reads in the app. A book is
+  /// not uploaded whole: each chapter carries its part.
+  pdfFileId            String? @db.VarChar(191)
+  /// Its size as uploaded, once it has been made smaller for phones.
+  pdfOriginalSizeBytes Int?
+  isActive             Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   book       Book                   @relation(fields: [bookId], references: [id], onDelete: Cascade)
   cover      FileObject?            @relation("ChapterCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  pdf        FileObject?            @relation("ChapterPdf", fields: [pdfFileId], references: [id], onDelete: SetNull)
   activities LearningActivity[]
   views      ChapterAnimationView[]
 
@@ -2824,6 +2830,7 @@ model FileObject {
   bookPdfs                 Book[]                    @relation("BookPdf")
   subjectPictures          BookSubject[]             @relation("BookSubjectPicture")
   chapterCovers            Chapter[]                 @relation("ChapterCover")
+  chapterPdfs              Chapter[]                 @relation("ChapterPdf")
   questionPrompts          ActivityQuestion[]        @relation("QuestionPrompt")
   optionImages             QuestionOption[]          @relation("OptionImage")
   optionMatchImages        QuestionOption[]          @relation("OptionMatchImage")

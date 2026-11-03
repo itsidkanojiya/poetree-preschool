@@ -55,8 +55,20 @@ export function TeacherForm() {
         <Field label="Phone">
           <Input name="phone" placeholder="+91 98200 00000" />
         </Field>
-        <Field label="Password" required hint="Used when the teacher app ships in Phase 2.">
-          <Input name="password" type="text" required minLength={8} autoComplete="off" />
+        <Field
+          label="Password"
+          required
+          hint="At least 8 characters, with a letter and a number. They sign in to the app with it."
+        >
+          <Input
+            name="password"
+            type="text"
+            required
+            minLength={8}
+            pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,72}"
+            title="At least 8 characters, with a letter and a number"
+            autoComplete="off"
+          />
         </Field>
       </FieldSet>
 
@@ -91,8 +103,16 @@ export function ParentForm() {
         <Field label="Email">
           <Input name="email" type="email" autoComplete="off" />
         </Field>
-        <Field label="Password" required>
-          <Input name="password" type="text" required minLength={8} autoComplete="off" />
+        <Field label="Password" required hint="At least 8 characters, with a letter and a number.">
+          <Input
+            name="password"
+            type="text"
+            required
+            minLength={8}
+            pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,72}"
+            title="At least 8 characters, with a letter and a number"
+            autoComplete="off"
+          />
         </Field>
         <Field label="Relation">
           <Select name="relation" defaultValue="GUARDIAN">

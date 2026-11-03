@@ -8,11 +8,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 
 import '../../core/api/api_service.dart';
+import '../../core/assets/app_assets.dart';
 import '../../core/theme/play_palette.dart';
 import '../../core/widgets/art.dart';
 import 'books_controllers.dart';
 
-/// The books kept on this phone, so a book opens again without the internet.
+/// The pages kept on this phone, so a chapter opens again without the
+/// internet.
 ///
 /// One file per book and version — `<bookId>-<version>.pdf` — so a book the
 /// publisher replaced is fetched again, and the copy it replaced is removed
@@ -75,15 +77,27 @@ class BookCopies {
   }
 }
 
-/// A book, to read page by page as it was printed.
+/// A chapter's pages, to read page by page as they were printed.
 ///
 /// Fetched once and kept: the first open shows how much is left to come, and
 /// every open after that is instant and works without the internet. Pages turn
 /// with a swipe or with the big arrows, and pinch to look closer.
 class BookReaderView extends StatefulWidget {
-  const BookReaderView({required this.book, super.key});
+  const BookReaderView({
+    required this.id,
+    required this.title,
+    required this.pdf,
+    this.art = AppIcons.storybook,
+    super.key,
+  });
 
-  final ShelfBook book;
+  /// What the copy on this phone is kept under — the chapter's id.
+  final String id;
+  final String title;
+  final BookPdf pdf;
+
+  /// Drawn while the pages are on their way.
+  final String art;
 
   @override
   State<BookReaderView> createState() => _BookReaderViewState();
@@ -100,7 +114,7 @@ class _BookReaderViewState extends State<BookReaderView> {
   bool _olderCopy = false;
   int _pages = 0;
 
-  BookPdf get _source => widget.book.pdf!;
+  BookPdf get _source => widget.pdf;
 
   @override
   void initState() {
@@ -118,13 +132,13 @@ class _BookReaderViewState extends State<BookReaderView> {
 
   Future<void> _prepare() async {
     final copies = await BookCopies.open();
-    final kept = await copies.current(widget.book.id, _source.version);
+    final kept = await copies.current(widget.id, _source.version);
     if (kept != null) {
       _show(kept);
       return;
     }
 
-    final target = copies.fileFor(widget.book.id, _source.version);
+    final target = copies.fileFor(widget.id, _source.version);
     // Written under another name and renamed when whole, so a download cut
     // short is never mistaken for the book.
     final part = File('${target.path}.part');
@@ -142,13 +156,13 @@ class _BookReaderViewState extends State<BookReaderView> {
         },
       );
       await part.rename(target.path);
-      await copies.dropAllBut(widget.book.id, target);
+      await copies.dropAllBut(widget.id, target);
       _show(target);
     } on DioException catch (error) {
       if (await part.exists()) await part.delete();
       if (CancelToken.isCancel(error) || !mounted) return;
 
-      final older = await copies.anyCopyOf(widget.book.id);
+      final older = await copies.anyCopyOf(widget.id);
       if (older != null) {
         _olderCopy = true;
         _show(older);
@@ -157,7 +171,7 @@ class _BookReaderViewState extends State<BookReaderView> {
       setState(() {
         _progress = null;
         _problem =
-            'Could not get the book. Check the internet and try again — '
+            'Could not get the pages. Check the internet and try again — '
             'once it has opened, it opens without the internet too.';
       });
     }
@@ -174,7 +188,7 @@ class _BookReaderViewState extends State<BookReaderView> {
   /// A copy that will not open is thrown away and fetched again.
   Future<void> _fetchAgain() async {
     final copies = await BookCopies.open();
-    await copies.dropAll(widget.book.id);
+    await copies.dropAll(widget.id);
     final pdf = _pdf;
     setState(() {
       _pdf = null;
@@ -202,7 +216,7 @@ class _BookReaderViewState extends State<BookReaderView> {
     return Scaffold(
       backgroundColor: paper,
       appBar: AppBar(
-        title: Text(widget.book.name),
+        title: Text(widget.title),
         backgroundColor: paper,
         actions: [
           if (pdf != null && _pages > 0)
@@ -225,7 +239,7 @@ class _BookReaderViewState extends State<BookReaderView> {
       body: _problem != null
           ? _Problem(message: _problem!, onRetry: _retry)
           : pdf == null
-          ? _Fetching(book: widget.book, progress: _progress)
+          ? _Fetching(title: widget.title, art: widget.art, progress: _progress)
           : Column(
               children: [
                 if (_olderCopy)
@@ -247,7 +261,7 @@ class _BookReaderViewState extends State<BookReaderView> {
                           const Center(child: CircularProgressIndicator()),
                       errorBuilder: (_, _) => _Problem(
                         message:
-                            'This book would not open on this phone. Fetch it again?',
+                            'These pages would not open on this phone. Fetch them again?',
                         action: 'Fetch it again',
                         onRetry: _fetchAgain,
                       ),
@@ -351,17 +365,22 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
-/// The first open: the book's picture and how much of it has arrived.
+/// The first open: a picture and how much of the pages has arrived.
 class _Fetching extends StatelessWidget {
-  const _Fetching({required this.book, required this.progress});
+  const _Fetching({
+    required this.title,
+    required this.art,
+    required this.progress,
+  });
 
-  final ShelfBook book;
+  final String title;
+  final String art;
   final double? progress;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tone = toneFor(book.name);
+    final tone = toneFor(title);
     final percent = progress == null ? null : (progress! * 100).round();
 
     return Center(
@@ -378,11 +397,11 @@ class _Fetching extends StatelessWidget {
                 borderRadius: BorderRadius.circular(28),
               ),
               alignment: Alignment.center,
-              child: ArtIcon(book.art, size: 88),
+              child: ArtIcon(art, size: 88),
             ),
             const SizedBox(height: 24),
             Text(
-              'Getting the book ready…',
+              'Getting the pages ready…',
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,

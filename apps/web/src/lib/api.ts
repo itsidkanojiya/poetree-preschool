@@ -80,8 +80,42 @@ export const getCurrentUser = cache(async (): Promise<AuthenticatedUser> => {
   return user;
 });
 
+/** A field's name as a person reads it: "employeeCode" → "Employee code". */
+function fieldLabel(path: string): string {
+  const last = path.split('.').pop() ?? path;
+  const words = last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * What each field got wrong, from a validation error's details.
+ *
+ * The API names every field it refused and why; "Some fields need attention"
+ * alone left a person re-reading a form they had filled in correctly, looking
+ * for the one rule nobody told them — a password with no number in it.
+ */
+function fieldProblems(details: unknown): string[] {
+  if (!Array.isArray(details)) return [];
+  const lines = details.flatMap((detail: unknown) => {
+    if (!detail || typeof detail !== 'object') return [];
+    const { path, message } = detail as { path?: unknown; message?: unknown };
+    if (typeof message !== 'string') return [];
+    const label = typeof path === 'string' && path !== '(root)' ? fieldLabel(path) : '';
+    // "Password must contain a number" already says which field it is.
+    return [
+      label && !message.toLowerCase().includes(label.toLowerCase())
+        ? `${label}: ${message}`
+        : message,
+    ];
+  });
+  return [...new Set(lines)];
+}
+
 export function errorMessage(error: unknown, fallback = 'Something went wrong'): string {
-  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof ApiRequestError) {
+    const problems = fieldProblems(error.details);
+    return problems.length > 0 ? `${error.message}: ${problems.join('; ')}` : error.message;
+  }
   if (error instanceof Error) return error.message;
   return fallback;
 }

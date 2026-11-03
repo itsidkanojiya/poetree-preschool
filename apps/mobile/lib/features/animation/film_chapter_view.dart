@@ -10,18 +10,21 @@ import '../../core/theme/play_palette.dart';
 import '../../core/widgets/art.dart';
 import '../activities/activity_models.dart';
 import '../activities/activity_places.dart';
+import '../books/book_reader_view.dart';
 import 'film_controllers.dart';
 import 'film_player_view.dart';
 import 'film_widgets.dart';
 
-/// One chapter: its video first, then its activities.
+/// One chapter: its video, its pages to read, and its activities.
 ///
-/// The first time a child opens a chapter the video plays straight away, and
-/// the activities stay shut until it has been watched to the end. After that
-/// — this visit or any other, on any day — the chapter opens onto its
-/// activities, with the video there to watch again whenever they like. Each
-/// activity shows whether it is done, part-way (and where), or still to do;
-/// the chapter is finished when every one of them is done.
+/// The first time a child opens a chapter with a video it plays straight away,
+/// and the activities stay shut until it has been watched to the end. After
+/// that — this visit or any other, on any day — the chapter opens onto its
+/// activities, with the video there to watch again whenever they like. A
+/// chapter with no video opens its activities at once. Its pages, when the
+/// publisher has uploaded them, are there to read at any point. Each activity
+/// shows whether it is done, part-way (and where), or still to do; the chapter
+/// is finished when every one of them is done.
 class FilmChapterView extends StatefulWidget {
   const FilmChapterView({
     required this.videos,
@@ -49,7 +52,10 @@ class _FilmChapterViewState extends State<FilmChapterView> {
     super.initState();
     final chapter = _videos.chapterById(widget.chapterId);
     // Video first: on a first visit there is nothing else to do yet.
-    if (widget.autoPlay && chapter != null && !chapter.isWatched) {
+    if (widget.autoPlay &&
+        chapter != null &&
+        chapter.hasFilm &&
+        !chapter.isWatched) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _play(chapter);
       });
@@ -70,8 +76,18 @@ class _FilmChapterViewState extends State<FilmChapterView> {
     );
   }
 
+  /// The chapter's pages, as printed.
+  void _read(FilmChapter chapter) => Get.to<void>(
+    () => BookReaderView(
+      id: chapter.id,
+      title: chapter.name,
+      pdf: chapter.pdf!,
+      art: _videos.art,
+    ),
+  );
+
   Future<void> _open(FilmChapter chapter, ActivityDefinition activity) async {
-    if (!chapter.isWatched) {
+    if (chapter.hasFilm && !chapter.isWatched) {
       Get
         ..closeAllSnackbars()
         ..snackbar(
@@ -113,6 +129,9 @@ class _FilmChapterViewState extends State<FilmChapterView> {
       final complete = _videos.isComplete(chapter);
       final loading = _videos.activitiesLoading.value && activities.isEmpty;
       final problem = _videos.activitiesError.value;
+      // Only the steps this chapter has, numbered as they come.
+      final readStep = chapter.hasFilm ? 2 : 1;
+      final activitiesStep = readStep + (chapter.hasPdf ? 1 : 0);
 
       return Scaffold(
         appBar: AppBar(
@@ -121,7 +140,7 @@ class _FilmChapterViewState extends State<FilmChapterView> {
             children: [
               Text(chapter.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               Text(
-                _videos.bookNameOf(chapter.id),
+                _videos.subjectName,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -132,14 +151,20 @@ class _FilmChapterViewState extends State<FilmChapterView> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
-              _VideoStep(chapter: chapter, onPlay: () => _play(chapter)),
-              const SizedBox(height: 16),
+              if (chapter.hasFilm) ...[
+                _VideoStep(chapter: chapter, onPlay: () => _play(chapter)),
+                const SizedBox(height: 16),
+              ],
+              if (chapter.hasPdf) ...[
+                _ReadStep(step: readStep, onRead: () => _read(chapter)),
+                const SizedBox(height: 16),
+              ],
               if (complete && activities.isNotEmpty) ...[
-                const _ChapterComplete(),
+                _ChapterComplete(withVideo: chapter.hasFilm),
                 const SizedBox(height: 16),
               ],
               _StepTitle(
-                step: 2,
+                step: activitiesStep,
                 title: 'Activities',
                 trailing: activities.isEmpty
                     ? null
@@ -168,7 +193,7 @@ class _FilmChapterViewState extends State<FilmChapterView> {
                   _ActivityTile(
                     number: index + 1,
                     activity: activity,
-                    locked: !chapter.isWatched,
+                    locked: chapter.hasFilm && !chapter.isWatched,
                     place: _videos.places[activity.id],
                     onTap: () => _open(chapter, activity),
                   ),
@@ -316,6 +341,80 @@ class _VideoStep extends StatelessWidget {
   }
 }
 
+/// The chapter's pages, as printed — to read whenever the child likes.
+class _ReadStep extends StatelessWidget {
+  const _ReadStep({required this.step, required this.onRead});
+
+  final int step;
+  final VoidCallback onRead;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Read the pages',
+      excludeSemantics: true,
+      child: Material(
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onRead,
+          child: Ink(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [FilmColors.sky, Color(0xFF2B7FD6)],
+              ),
+            ),
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.menu_book_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Step $step · Read the pages',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'The chapter as printed. Pinch to look closer.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.92),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ActivityTile extends StatelessWidget {
   const _ActivityTile({
     required this.number,
@@ -447,7 +546,10 @@ class _ActivityTile extends StatelessWidget {
 
 /// Every activity done: the chapter is finished.
 class _ChapterComplete extends StatelessWidget {
-  const _ChapterComplete();
+  const _ChapterComplete({required this.withVideo});
+
+  /// Whether there was a video to watch as well.
+  final bool withVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -459,7 +561,7 @@ class _ChapterComplete extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(22),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.emoji_events_rounded, color: FilmColors.sun, size: 44),
           SizedBox(width: 14),
@@ -475,7 +577,11 @@ class _ChapterComplete extends StatelessWidget {
                     color: Color(0xFF15803D),
                   ),
                 ),
-                Text('The video and every activity are done. Well done!'),
+                Text(
+                  withVideo
+                      ? 'The video and every activity are done. Well done!'
+                      : 'Every activity is done. Well done!',
+                ),
               ],
             ),
           ),

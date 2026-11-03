@@ -5,10 +5,11 @@ import { ACCESS_COOKIE } from '@/lib/auth-cookies';
 import { ID } from '@/lib/document-proxy';
 
 /**
- * A book's PDF: uploaded through here, and opened from here to check it.
+ * A chapter's PDF — its pages, as printed: uploaded through here, and opened
+ * from here to check it.
  *
- * A route rather than a server action because a printed book is far larger
- * than the 16 MB a server action may carry. The upload is streamed straight to
+ * A route rather than a server action because a chapter of full-page pictures
+ * can be larger than the 16 MB a server action may carry. The upload is streamed straight to
  * the API, which sniffs it, caps it and records it — nothing is held here.
  * The middleware has already kept everyone but the Super Admin out of
  * /publication; the API checks again.
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest, { params }: Context): Promise<R
     return NextResponse.json({ error: { message: 'Nothing to upload' } }, { status: 400 });
   }
 
-  const response = await fetch(`${API_BASE_URL}/publication/books/${id}/pdf`, {
+  const response = await fetch(`${API_BASE_URL}/publication/chapters/${id}/pdf`, {
     method: 'POST',
     headers: {
       ...(await authorization()),
@@ -49,7 +50,7 @@ export async function GET(_request: NextRequest, { params }: Context): Promise<R
 
   // The portal's server fetches this API on loopback, so an X-Accel-Redirect
   // would be answered by nobody — Nginx is not in the path. Ask for the bytes.
-  const response = await fetch(`${API_BASE_URL}/publication/books/${id}/pdf`, {
+  const response = await fetch(`${API_BASE_URL}/publication/chapters/${id}/pdf`, {
     headers: { ...(await authorization()), 'x-no-accel': '1' },
     cache: 'no-store',
   });

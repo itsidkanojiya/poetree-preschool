@@ -35,6 +35,8 @@ function toSummary(row: {
   animationUrl: string | null;
   animation3dUrl: string | null;
   coverFileId: string | null;
+  pdfOriginalSizeBytes: number | null;
+  pdf: { originalName: string; sizeBytes: number; createdAt: Date } | null;
   activities: Array<{ _count: { questions: number } }>;
 }): ChapterSummary {
   return {
@@ -47,6 +49,14 @@ function toSummary(row: {
     // The same address the book's cover uses, so one proxy and one cache serve
     // both.
     coverUrl: row.coverFileId ? `/api/v1/catalogue/assets/${row.coverFileId}` : null,
+    pdf: row.pdf
+      ? {
+          fileName: row.pdf.originalName,
+          sizeBytes: row.pdf.sizeBytes,
+          originalSizeBytes: row.pdfOriginalSizeBytes,
+          uploadedAt: row.pdf.createdAt.toISOString(),
+        }
+      : null,
     sortOrder: row.sortOrder,
     isActive: row.isActive,
     activityCount: row.activities.length,
@@ -58,6 +68,7 @@ function toSummary(row: {
 
 const chapterInclude = {
   activities: { select: { _count: { select: { questions: true } } } },
+  pdf: { select: { originalName: true, sizeBytes: true, createdAt: true } },
 } as const;
 
 export async function listChapters(bookId: string): Promise<ChapterSummary[]> {
@@ -178,6 +189,67 @@ export async function updateChapter(
   return toSummary(row);
 }
 
+/** A chapter's PDF file, for the publisher's own screens. */
+export async function chapterPdfFile(
+  chapterId: string,
+): Promise<{ storageKey: string; originalName: string; id: string }> {
+  const chapter = await prismaUnscoped.chapter.findUnique({
+    where: { id: chapterId },
+    select: {
+      pdf: { select: { id: true, storageKey: true, originalName: true, deletedAt: true } },
+    },
+  });
+  if (!chapter?.pdf || chapter.pdf.deletedAt) throw ApiError.notFound('This chapter has no PDF');
+
+  return chapter.pdf;
+}
+
+/**
+ * Puts a PDF on a chapter — its pages, as printed — or takes it off with
+ * `null`.
+ *
+ * The file it replaces is marked deleted rather than left lying about: it was
+ * only ever reachable as this chapter's pages.
+ */
+export async function setChapterPdf(
+  chapterId: string,
+  fileId: string | null,
+  actorUserId: string,
+): Promise<ChapterSummary> {
+  const existing = await prismaUnscoped.chapter.findUnique({
+    where: { id: chapterId },
+    select: { name: true, pdfFileId: true },
+  });
+  if (!existing) throw ApiError.notFound('Chapter not found');
+
+  const row = await prismaUnscoped.$transaction(async (tx) => {
+    const updated = await tx.chapter.update({
+      where: { id: chapterId },
+      data: { pdfFileId: fileId, pdfOriginalSizeBytes: null },
+      include: chapterInclude,
+    });
+    if (existing.pdfFileId && existing.pdfFileId !== fileId) {
+      await tx.fileObject.update({
+        where: { id: existing.pdfFileId },
+        data: { deletedAt: new Date() },
+      });
+    }
+    return updated;
+  });
+
+  await writeAuditLog({
+    action: 'CHAPTER_UPDATED',
+    entity: 'Chapter',
+    entityId: chapterId,
+    schoolId: null,
+    actorUserId,
+    before: { name: existing.name, pdf: existing.pdfFileId !== null },
+    after: { pdf: fileId !== null },
+  });
+
+  return toSummary(row);
+}
+
 /**
  * The order the contents page runs in, as somebody dragged it.
  *
@@ -241,7 +313,7 @@ export async function reorderChapters(
 export async function deleteChapter(id: string, actorUserId: string): Promise<void> {
   const existing = await prismaUnscoped.chapter.findUnique({
     where: { id },
-    select: { id: true, name: true, _count: { select: { activities: true } } },
+    select: { id: true, name: true, pdfFileId: true, _count: { select: { activities: true } } },
   });
   if (!existing) throw ApiError.notFound('Chapter not found');
 
@@ -254,6 +326,13 @@ export async function deleteChapter(id: string, actorUserId: string): Promise<vo
   }
 
   await prismaUnscoped.chapter.delete({ where: { id } });
+  // Its pages go with it: they were only ever reachable as this chapter's.
+  if (existing.pdfFileId) {
+    await prismaUnscoped.fileObject.update({
+      where: { id: existing.pdfFileId },
+      data: { deletedAt: new Date() },
+    });
+  }
 
   await writeAuditLog({
     action: 'CHAPTER_UPDATED',

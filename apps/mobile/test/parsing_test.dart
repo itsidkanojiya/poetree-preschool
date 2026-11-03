@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/models/attached_file.dart';
+import 'package:poetree_school/features/animation/film_controllers.dart';
 import 'package:poetree_school/features/books/books_controllers.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
@@ -365,74 +366,89 @@ void _childPhotoTests() {
 }
 
 void _shelfTests() {
-  test('a book cover is fetchable, not doubled', () {
-    final book = ShelfBook.fromJson({
-      'id': 'bk_1',
-      'name': 'EVS Book',
-      'classLevel': {'name': 'Nursery'},
+  test('a chapter cover is fetchable, not doubled', () {
+    final chapter = FilmChapter.fromJson({
+      'id': 'c1',
+      'name': 'Leaves',
       'coverUrl': '/api/v1/catalogue/assets/f_1',
     });
 
-    // The trim that would otherwise 404 every cover on the shelf.
-    expect(book.coverPath, '/catalogue/assets/f_1');
-    expect(book.levelName, 'Nursery');
+    // The trim that would otherwise 404 every chapter picture.
+    expect(chapter.coverPath, '/catalogue/assets/f_1');
   });
 
-  test('a book with no cover parses to null, not an empty path', () {
+  test('a chapter with no cover parses to null, not an empty path', () {
     // An empty string is truthy enough to reach AuthedImage and would draw a
-    // broken square where the coloured fallback card belongs.
-    final book = ShelfBook.fromJson({
-      'id': 'bk_2',
+    // broken square where the coloured number belongs.
+    final chapter = FilmChapter.fromJson({
+      'id': 'c2',
       'name': 'Phonics',
       'coverUrl': '',
     });
 
-    expect(book.coverPath, isNull);
+    expect(chapter.coverPath, isNull);
   });
 
-  test('a book opens to read once its PDF is uploaded', () {
-    final book = ShelfBook.fromJson({
-      'id': 'bk_3',
+  test('a chapter has pages to read once its PDF is uploaded', () {
+    final chapter = FilmChapter.fromJson({
+      'id': 'c3',
       'name': 'Numbers',
       'pdf': {
-        'url': '/api/v1/catalogue/children/s1/books/bk_3/pdf',
+        'url': '/api/v1/catalogue/children/s1/chapters/c3/pdf',
         'sizeBytes': 2048,
         'version': 'f_7',
       },
     });
 
-    expect(book.canRead, isTrue);
+    expect(chapter.hasPdf, isTrue);
     // Fetched through the client, whose base URL already ends in /api/v1.
-    expect(book.pdf!.path, '/catalogue/children/s1/books/bk_3/pdf');
-    expect(book.pdf!.version, 'f_7');
-    expect(book.pdf!.sizeBytes, 2048);
+    expect(chapter.pdf!.path, '/catalogue/children/s1/chapters/c3/pdf');
+    expect(chapter.pdf!.version, 'f_7');
+    expect(chapter.pdf!.sizeBytes, 2048);
+    expect(chapter.hasFilm, isFalse);
   });
 
-  test('a book with no PDF yet is on the shelf but not ready to read', () {
-    final book = ShelfBook.fromJson({
-      'id': 'bk_4',
+  test('a chapter with no PDF yet has nothing to read', () {
+    final chapter = FilmChapter.fromJson({
+      'id': 'c4',
       'name': 'Rhymes',
       'pdf': null,
     });
 
-    expect(book.canRead, isFalse);
-    expect(book.pdf, isNull);
-    // Nor anything to play, from a server that does not count them.
-    expect(book.hasActivities, isFalse);
-    expect(book.isEmpty, isTrue);
+    expect(chapter.hasPdf, isFalse);
   });
 
-  test('a book with activities but no PDF yet is not "Soon"', () {
-    final book = ShelfBook.fromJson({
-      'id': 'bk_5',
-      'name': 'Sample book',
-      'pdf': null,
-      'activityCount': 29,
+  test('a subject keeps every chapter, and knows which have a video', () {
+    final book = FilmBookGroup.fromJson({
+      'id': 'b1',
+      'name': 'English',
+      'chapters': [
+        {
+          'id': 'c1',
+          'name': 'Letters',
+          'animation': {'videoId': 'aaaaaaaaaaa', 'url': 'https://youtu.be/a'},
+        },
+        {'id': 'c2', 'name': 'Words'},
+      ],
     });
 
-    expect(book.canRead, isFalse);
-    expect(book.hasActivities, isTrue);
-    expect(book.activityCount, 29);
-    expect(book.isEmpty, isFalse);
+    // Learning lists both; the player steps through the one with a video.
+    expect(book.chapters.map((c) => c.id), ['c1', 'c2']);
+    expect(book.films.map((c) => c.id), ['c1']);
+  });
+
+  test('a subject says how many chapters it holds', () {
+    final subject = ShelfSubject.fromJson({
+      'id': 'en',
+      'name': 'English',
+      'icon': 'letters',
+      'bookCount': 1,
+      'chapterCount': 12,
+      'filmCount': 9,
+      'filmsToWatch': 3,
+    });
+
+    expect(subject.chapterCount, 12);
+    expect(subject.filmsWatched, 6);
   });
 }

@@ -252,16 +252,28 @@ void main() {
   });
 
   group('a chapter', () {
+    /// A chapter as Learning opens it: [chapter] in place of the filmed one
+    /// when given.
     Future<FilmVideosController> open(
       WidgetTester tester, {
       required bool watched,
       required List<Map<String, dynamic>> activities,
+      Map<String, dynamic>? chapter,
     }) async {
       await tester.binding.setSurfaceSize(const Size(400, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       _install(
         (method, path) => switch (path) {
-          '/catalogue/children/s1/films' => [_films(watched: watched)],
+          '/catalogue/children/s1/chapters' => [
+            if (chapter == null)
+              _films(watched: watched)
+            else
+              {
+                'id': 'b1',
+                'name': 'EVS Book 1',
+                'chapters': [chapter],
+              },
+          ],
           '/progress/activities' => activities,
           _ => null,
         },
@@ -271,6 +283,7 @@ void main() {
           studentId: 's1',
           subjectId: 'evs',
           subjectName: 'EVS',
+          learning: true,
         ),
       );
       await tester.pumpWidget(const GetMaterialApp(home: SizedBox()));
@@ -312,6 +325,53 @@ void main() {
       expect(find.text('Step 1 · Video watched'), findsOneWidget);
       expect(find.text('Opens after the video'), findsNothing);
       expect(find.text('4 questions'), findsNWidgets(2));
+    });
+
+    testWidgets('with no video, opens its activities at once and its pages', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        watched: false,
+        chapter: {
+          'id': 'c1',
+          'name': 'Shapes',
+          'pdf': {
+            'url': '/api/v1/catalogue/children/s1/chapters/c1/pdf',
+            'sizeBytes': 2048,
+            'version': 'f1',
+          },
+        },
+        activities: [_activity('a1', 'Circles')],
+      );
+
+      expect(find.textContaining('Watch the video'), findsNothing);
+      expect(find.text('Step 1 · Read the pages'), findsOneWidget);
+      expect(find.text('Opens after the video'), findsNothing);
+      expect(find.text('4 questions'), findsOneWidget);
+    });
+
+    testWidgets('reads its pages after the video, as step two', (tester) async {
+      await open(
+        tester,
+        watched: false,
+        chapter: {
+          'id': 'c1',
+          'name': 'Shapes',
+          'animation': {'videoId': 'aaaaaaaaaaa', 'url': 'https://youtu.be/a'},
+          'pdf': {
+            'url': '/api/v1/catalogue/children/s1/chapters/c1/pdf',
+            'sizeBytes': 2048,
+            'version': 'f1',
+          },
+        },
+        activities: [_activity('a1', 'Circles')],
+      );
+
+      expect(find.text('Step 1 · Watch the video'), findsOneWidget);
+      expect(find.text('Step 2 · Read the pages'), findsOneWidget);
+      // The pages are open before the video; the activities wait for it.
+      expect(find.text('Opens after the video'), findsOneWidget);
     });
 
     testWidgets('opens straight onto the activities on a return visit', (

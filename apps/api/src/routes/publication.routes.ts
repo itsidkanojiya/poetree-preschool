@@ -605,6 +605,53 @@ function receiveBookPdf(req: Request, res: Response, next: NextFunction): void {
   });
 }
 
+/**
+ * The uploaded PDF, checked and kept as a private publication file. Returns
+ * the new file's id.
+ */
+async function storeUploadedPdf(req: Request, refusal: string): Promise<string> {
+  const file = req.file;
+  if (!file) throw ApiError.badRequest('No file was uploaded');
+  // By content, never by the name or the Content-Type the client sent.
+  if (sniffMime(file.buffer) !== 'application/pdf') throw ApiError.badRequest(refusal);
+
+  const stored = await storage.put({
+    schoolId: null,
+    originalName: file.originalname,
+    bytes: file.buffer,
+  });
+  const record = await prismaUnscoped.fileObject.create({
+    data: {
+      schoolId: null,
+      storageKey: stored.key,
+      originalName: file.originalname.slice(0, 200),
+      mimeType: 'application/pdf',
+      sizeBytes: stored.sizeBytes,
+      checksum: stored.checksum,
+      uploadedById: req.auth!.userId,
+      visibility: 'PRIVATE',
+    },
+    select: { id: true },
+  });
+  return record.id;
+}
+
+/** Sends a PDF for the publisher to check, never cached. */
+function sendPdfToCheck(
+  req: Request,
+  res: Response,
+  file: { id: string; storageKey: string; originalName: string },
+): void {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader(
+    'Content-Disposition',
+    `inline; filename="${file.originalName.replace(/[^\w.\- ]/g, '_')}"`,
+  );
+  res.setHeader('Cache-Control', 'private, no-store');
+
+  sendStoredFile(req, res, file, { fileId: file.id });
+}
+
 publicationRouter.post(
   '/books/:id/pdf',
   validate({ params: idParamSchema }),
@@ -612,37 +659,13 @@ publicationRouter.post(
   // Multer finishes outside the request's async context; see file.routes.ts.
   tenantContext,
   asyncHandler(async (req, res) => {
-    const file = req.file;
-    if (!file) throw ApiError.badRequest('No file was uploaded');
-    // By content, never by the name or the Content-Type the client sent.
-    if (sniffMime(file.buffer) !== 'application/pdf') {
-      throw ApiError.badRequest('A book has to be uploaded as a PDF');
-    }
-
     const bookId = params<{ id: string }>(req).id;
-    const stored = await storage.put({
-      schoolId: null,
-      originalName: file.originalname,
-      bytes: file.buffer,
-    });
-    const record = await prismaUnscoped.fileObject.create({
-      data: {
-        schoolId: null,
-        storageKey: stored.key,
-        originalName: file.originalname.slice(0, 200),
-        mimeType: 'application/pdf',
-        sizeBytes: stored.sizeBytes,
-        checksum: stored.checksum,
-        uploadedById: req.auth!.userId,
-        visibility: 'PRIVATE',
-      },
-      select: { id: true },
-    });
+    const fileId = await storeUploadedPdf(req, 'A book has to be uploaded as a PDF');
 
-    res.json(await books.setBookPdf(bookId, record.id, req.auth!.userId));
+    res.json(await books.setBookPdf(bookId, fileId, req.auth!.userId));
     // After the answer: the publisher's page shows the smaller size on its next
     // load.
-    books.compressBookPdfLater(bookId, record.id);
+    books.compressBookPdfLater(bookId, fileId);
   }),
 );
 
@@ -659,16 +682,45 @@ publicationRouter.get(
   '/books/:id/pdf',
   validate({ params: idParamSchema }),
   asyncHandler(async (req: Request, res) => {
-    const file = await books.bookPdfFile(params<{ id: string }>(req).id);
+    sendPdfToCheck(req, res, await books.bookPdfFile(params<{ id: string }>(req).id));
+  }),
+);
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `inline; filename="${file.originalName.replace(/[^\w.\- ]/g, '_')}"`,
-    );
-    res.setHeader('Cache-Control', 'private, no-store');
+/**
+ * A chapter's pages, as the PDF a child reads inside the chapter.
+ *
+ * A book is uploaded chapter by chapter, not whole: the same limits and the
+ * same making-smaller as a book's PDF had.
+ */
+publicationRouter.post(
+  '/chapters/:id/pdf',
+  validate({ params: idParamSchema }),
+  receiveBookPdf,
+  // Multer finishes outside the request's async context; see file.routes.ts.
+  tenantContext,
+  asyncHandler(async (req, res) => {
+    const chapterId = params<{ id: string }>(req).id;
+    const fileId = await storeUploadedPdf(req, 'A chapter has to be uploaded as a PDF');
 
-    sendStoredFile(req, res, file, { fileId: file.id });
+    res.json(await chapters.setChapterPdf(chapterId, fileId, req.auth!.userId));
+    books.compressChapterPdfLater(chapterId, fileId);
+  }),
+);
+
+publicationRouter.delete(
+  '/chapters/:id/pdf',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await chapters.setChapterPdf(params<{ id: string }>(req).id, null, req.auth!.userId));
+  }),
+);
+
+/** The chapter's PDF as uploaded, so the publisher can check it. */
+publicationRouter.get(
+  '/chapters/:id/pdf',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req: Request, res) => {
+    sendPdfToCheck(req, res, await chapters.chapterPdfFile(params<{ id: string }>(req).id));
   }),
 );
 

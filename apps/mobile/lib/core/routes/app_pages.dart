@@ -8,7 +8,7 @@ import '../../features/activities/activity_play_view.dart';
 import '../../features/animation/film_controllers.dart';
 import '../../features/animation/film_subjects_view.dart';
 import '../../features/animation/film_videos_view.dart';
-import '../../features/books/book_shelf_view.dart';
+import '../../features/books/subject_chapters_view.dart';
 import '../../features/books/books_controllers.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/change_password_view.dart';
@@ -102,8 +102,9 @@ class AppRoutes {
   static const teacherHomework = '/teacher/homework';
   static const roster = '/teacher/class';
 
-  /// Books: subject → book → read. The subjects are the Learning tab.
-  static const books = '/books';
+  /// Learning: subject → its chapters → a chapter's video, pages and
+  /// activities. The subjects are the Learning tab.
+  static const subjectChapters = '/learning/subject';
   static const activities = '/activities';
   static const activityPlay = '/activities/play';
   static const blocked = '/blocked';
@@ -185,15 +186,19 @@ class ActivityListBinding extends Bindings {
   }
 }
 
-class BookShelfBinding extends Bindings {
+/// A subject's chapters in Learning: the same controller as 2D & 3D, listing
+/// every chapter rather than only the videos.
+class SubjectChaptersBinding extends Bindings {
   @override
   void dependencies() {
     final args = Get.arguments as Map<String, dynamic>? ?? const {};
-    Get.put<BookShelfController>(
-      BookShelfController(
+    Get.put<FilmVideosController>(
+      FilmVideosController(
         studentId: args['studentId'] as String?,
         subjectId: args['subjectId'] as String?,
-        subjectName: args['subjectName'] as String? ?? 'Books',
+        subjectName: args['subjectName'] as String? ?? 'Learning',
+        art: args['art'] as String? ?? AppIcons.storybook,
+        learning: true,
       ),
     );
   }
@@ -330,9 +335,9 @@ final appPages = <GetPage<dynamic>>[
     binding: RosterBinding(),
   ),
   GetPage<void>(
-    name: AppRoutes.books,
-    page: () => const BookShelfView(),
-    binding: BookShelfBinding(),
+    name: AppRoutes.subjectChapters,
+    page: () => const SubjectChaptersView(),
+    binding: SubjectChaptersBinding(),
   ),
   GetPage<void>(
     name: AppRoutes.activities,

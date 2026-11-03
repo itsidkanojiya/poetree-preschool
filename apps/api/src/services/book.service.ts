@@ -3,6 +3,7 @@ import type {
   BookForChild,
   BookSubjectIcon,
   BookSummary,
+  ChapterBookForChild,
   ChapterForChild,
   FilmBookForChild,
   SubjectForChild,
@@ -386,6 +387,13 @@ export async function subjectsForChild(studentId: string): Promise<SubjectForChi
   });
   const filmsIn = new Map(films.map((row) => [row.bookId, row._count._all]));
 
+  const contents = await prismaUnscoped.chapter.groupBy({
+    by: ['bookId'],
+    where: { bookId: { in: books.map((book) => book.id) }, isActive: true },
+    _count: { _all: true },
+  });
+  const chaptersIn = new Map(contents.map((row) => [row.bookId, row._count._all]));
+
   const subjects = await prismaUnscoped.bookSubject.findMany({
     where: { id: { in: books.flatMap((book) => (book.subject ? [book.subject.id] : [])) } },
     select: { id: true, sortOrder: true, pictureFileId: true },
@@ -406,10 +414,12 @@ export async function subjectsForChild(studentId: string): Promise<SubjectForChi
       icon: book.subject?.icon ?? 'book',
       pictureUrl: pictureOf(book.subject?.id),
       bookCount: 0,
+      chapterCount: 0,
       filmCount: 0,
       filmsToWatch: 0,
     };
     group.bookCount += 1;
+    group.chapterCount += chaptersIn.get(book.id) ?? 0;
     group.filmCount += filmsIn.get(book.id) ?? 0;
     group.filmsToWatch += book.filmsToWatch;
     groups.set(key, group);
@@ -559,15 +569,7 @@ export async function filmsForChild(
         isActive: true,
         OR: [{ animationUrl: { not: null } }, { animation3dUrl: { not: null } }],
       },
-      select: {
-        id: true,
-        bookId: true,
-        name: true,
-        number: true,
-        animationUrl: true,
-        animation3dUrl: true,
-        coverFileId: true,
-      },
+      select: chapterForChildSelect,
       orderBy: { sortOrder: 'asc' },
     }),
     prismaUnscoped.chapterAnimationView.findMany({
@@ -580,13 +582,82 @@ export async function filmsForChild(
   return books.flatMap((book) => {
     const films = chapters
       .filter((chapter) => chapter.bookId === book.id)
-      .map((chapter) => toChapterForChild(chapter, seen))
+      .map((chapter) => toChapterForChild(chapter, seen, studentId))
       // A link that is not a YouTube video is not a film the app can play.
       .filter((chapter) => chapter.animation !== null);
     return films.length > 0
       ? [{ id: book.id, name: book.name, coverUrl: book.coverUrl, films }]
       : [];
   });
+}
+
+/**
+ * A subject's chapters for one child — what Learning opens a subject onto.
+ *
+ * Every chapter of the child's book under that subject, filmed or not, in
+ * running order: each is a video, activities and pages to read, and a chapter
+ * with only some of those is still a chapter. Books with no chapters yet are
+ * left out rather than shown empty.
+ */
+export async function subjectChaptersForChild(
+  studentId: string,
+  subjectId?: string,
+): Promise<ChapterBookForChild[]> {
+  const books = await booksForChild(studentId, subjectId);
+  if (books.length === 0) return [];
+
+  const [chapters, watched] = await Promise.all([
+    prismaUnscoped.chapter.findMany({
+      where: { bookId: { in: books.map((book) => book.id) }, isActive: true },
+      select: chapterForChildSelect,
+      orderBy: { sortOrder: 'asc' },
+    }),
+    prismaUnscoped.chapterAnimationView.findMany({
+      where: { studentId },
+      select: { chapterId: true },
+    }),
+  ]);
+  const seen = new Set(watched.map((row) => row.chapterId));
+
+  return books.flatMap((book) => {
+    const rows = chapters
+      .filter((chapter) => chapter.bookId === book.id)
+      .map((chapter) => toChapterForChild(chapter, seen, studentId));
+    return rows.length > 0
+      ? [{ id: book.id, name: book.name, coverUrl: book.coverUrl, chapters: rows }]
+      : [];
+  });
+}
+
+/**
+ * A chapter's pages, for a child whose school has its book.
+ *
+ * The same shelf rules as the chapters list — the school bought the book, it
+ * is active and for this child's year, and the chapter is switched on — so a
+ * chapter's PDF can never be reached by id alone.
+ */
+export async function chapterPdfForChild(
+  studentId: string,
+  chapterId: string,
+): Promise<{ storageKey: string; originalName: string; id: string }> {
+  const chapter = await prismaUnscoped.chapter.findUnique({
+    where: { id: chapterId },
+    select: {
+      bookId: true,
+      isActive: true,
+      pdf: { select: { id: true, storageKey: true, originalName: true, deletedAt: true } },
+    },
+  });
+  if (!chapter?.isActive || !chapter.pdf || chapter.pdf.deletedAt) {
+    throw ApiError.notFound('Chapter not found');
+  }
+
+  const books = await booksForChild(studentId);
+  if (!books.some((book) => book.id === chapter.bookId)) {
+    throw ApiError.notFound('Chapter not found');
+  }
+
+  return chapter.pdf;
 }
 
 /**
@@ -728,14 +799,7 @@ export async function chaptersForChild(
   const [chapters, watched] = await Promise.all([
     prismaUnscoped.chapter.findMany({
       where: { bookId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        number: true,
-        animationUrl: true,
-        animation3dUrl: true,
-        coverFileId: true,
-      },
+      select: chapterForChildSelect,
       orderBy: { sortOrder: 'asc' },
     }),
     prismaUnscoped.chapterAnimationView.findMany({
@@ -746,7 +810,7 @@ export async function chaptersForChild(
 
   const seen = new Set(watched.map((row) => row.chapterId));
 
-  return chapters.map((chapter) => toChapterForChild(chapter, seen));
+  return chapters.map((chapter) => toChapterForChild(chapter, seen, studentId));
 }
 
 /**
@@ -779,6 +843,57 @@ export async function compressBookPdf(
   fileId: string,
   compress: (path: string) => Promise<Buffer | null> = pdfCompressor.compress,
 ): Promise<'replaced' | 'kept' | 'superseded'> {
+  return compressStoredPdf(
+    fileId,
+    compress,
+    async (smallerId, originalSize) =>
+      (
+        await prismaUnscoped.book.updateMany({
+          where: { id: bookId, pdfFileId: fileId },
+          data: { pdfFileId: smallerId, pdfOriginalSizeBytes: originalSize },
+        })
+      ).count > 0,
+    { bookId },
+  );
+}
+
+/** Makes a chapter's PDF smaller for phones, after the upload has been answered. */
+export function compressChapterPdfLater(chapterId: string, fileId: string): void {
+  inBackground(() => compressChapterPdf(chapterId, fileId));
+}
+
+/** A chapter's PDF swapped for a smaller copy, by the same rules as a book's. */
+export async function compressChapterPdf(
+  chapterId: string,
+  fileId: string,
+  compress: (path: string) => Promise<Buffer | null> = pdfCompressor.compress,
+): Promise<'replaced' | 'kept' | 'superseded'> {
+  return compressStoredPdf(
+    fileId,
+    compress,
+    async (smallerId, originalSize) =>
+      (
+        await prismaUnscoped.chapter.updateMany({
+          where: { id: chapterId, pdfFileId: fileId },
+          data: { pdfFileId: smallerId, pdfOriginalSizeBytes: originalSize },
+        })
+      ).count > 0,
+    { chapterId },
+  );
+}
+
+/**
+ * A stored PDF made smaller, and handed to [swap] to put in its place.
+ *
+ * [swap] answers false when the file is no longer the one in use — replaced
+ * while this ran — and then the smaller copy is thrown away instead.
+ */
+async function compressStoredPdf(
+  fileId: string,
+  compress: (path: string) => Promise<Buffer | null>,
+  swap: (smallerId: string, originalSize: number) => Promise<boolean>,
+  context: Record<string, string>,
+): Promise<'replaced' | 'kept' | 'superseded'> {
   const file = await prismaUnscoped.fileObject.findUnique({
     where: { id: fileId },
     select: { storageKey: true, originalName: true, sizeBytes: true, uploadedById: true },
@@ -807,36 +922,39 @@ export async function compressBookPdf(
     select: { id: true },
   });
 
-  const swapped = await prismaUnscoped.book.updateMany({
-    where: { id: bookId, pdfFileId: fileId },
-    data: { pdfFileId: record.id, pdfOriginalSizeBytes: file.sizeBytes },
-  });
+  const swapped = await swap(record.id, file.sizeBytes);
   const now = new Date();
-  if (swapped.count === 0) {
+  if (!swapped) {
     await prismaUnscoped.fileObject.update({ where: { id: record.id }, data: { deletedAt: now } });
     return 'superseded';
   }
 
   await prismaUnscoped.fileObject.update({ where: { id: fileId }, data: { deletedAt: now } });
-  logger.info('Made a book PDF smaller', {
-    bookId,
+  logger.info('Made a PDF smaller', {
+    ...context,
     from: file.sizeBytes,
     to: stored.sizeBytes,
   });
   return 'replaced';
 }
 
+/** What the app is told about each chapter. */
+const chapterForChildSelect = {
+  id: true,
+  bookId: true,
+  name: true,
+  number: true,
+  animationUrl: true,
+  animation3dUrl: true,
+  coverFileId: true,
+  pdf: { select: { id: true, sizeBytes: true, deletedAt: true } },
+} satisfies Prisma.ChapterSelect;
+
 /** A chapter row as the app reads it, given the chapters this child watched. */
 function toChapterForChild(
-  chapter: {
-    id: string;
-    name: string;
-    number: number | null;
-    animationUrl: string | null;
-    animation3dUrl: string | null;
-    coverFileId: string | null;
-  },
+  chapter: Prisma.ChapterGetPayload<{ select: typeof chapterForChildSelect }>,
   watched: Set<string>,
+  studentId: string,
 ): ChapterForChild {
   const animation = toAnimation(chapter.animationUrl);
   const animation3d = toAnimation(chapter.animation3dUrl);
@@ -850,6 +968,16 @@ function toChapterForChild(
     animation: animation ?? animation3d,
     animation3d: animation ? animation3d : null,
     coverUrl: chapter.coverFileId ? `/api/v1/catalogue/assets/${chapter.coverFileId}` : null,
+    // Fetched through this child, so the school's entitlement is checked on
+    // every read; the file's id is the version a phone keeps its copy under.
+    pdf:
+      chapter.pdf && !chapter.pdf.deletedAt
+        ? {
+            url: `/api/v1/catalogue/children/${studentId}/chapters/${chapter.id}/pdf`,
+            sizeBytes: chapter.pdf.sizeBytes,
+            version: chapter.pdf.id,
+          }
+        : null,
     isWatched: watched.has(chapter.id),
     isUnlocked: true,
   };

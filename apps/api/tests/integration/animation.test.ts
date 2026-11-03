@@ -12,7 +12,11 @@ import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { disconnectPrisma, prismaUnscoped } from '../../src/db/prisma.js';
 import { backgroundSettled } from '../../src/lib/compress.js';
-import { compressBookPdf, pdfCompressor } from '../../src/services/book.service.js';
+import {
+  compressBookPdf,
+  compressChapterPdf,
+  pdfCompressor,
+} from '../../src/services/book.service.js';
 
 const dbUp = await isDatabaseReachable();
 
@@ -319,6 +323,146 @@ describe.skipIf(!dbUp)('books to read and films to watch', () => {
       expect(response.status).toBe(403);
     });
   });
+
+  describe('a chapter’s PDF', () => {
+    let firstVersion: string;
+    const chapterPdf = (studentId: string) =>
+      `${BASE}/catalogue/children/${studentId}/chapters/${openChapterId}/pdf`;
+
+    it('is a PDF or nothing', async () => {
+      const picture = await api
+        .post(`${BASE}/publication/chapters/${openChapterId}/pdf`)
+        .set(auth(publisher))
+        .attach('file', Buffer.from('\x89PNG\r\n\x1a\n not a chapter'), 'letters.pdf');
+
+      expect(picture.status).toBe(400);
+    });
+
+    it('is uploaded by the publisher and travels with the chapter', async () => {
+      const uploaded = await api
+        .post(`${BASE}/publication/chapters/${openChapterId}/pdf`)
+        .set(auth(publisher))
+        .attach('file', pdfBytes('letters'), 'Letters.pdf');
+
+      expect(uploaded.status).toBe(200);
+      expect(uploaded.body.pdf.fileName).toBe('Letters.pdf');
+
+      const contents = await api
+        .get(`${BASE}/publication/books/${openBookId}/chapters`)
+        .set(auth(publisher));
+      expect(contents.body[0].pdf.sizeBytes).toBe(pdfBytes('letters').length);
+
+      // What Learning opens a subject onto: every chapter, filmed or not.
+      const chapters = await api
+        .get(`${BASE}/catalogue/children/${school.studentId}/chapters`)
+        .query({ subjectId: 'none' })
+        .set(auth(parent));
+      expect(chapters.status).toBe(200);
+      const all = chapters.body.flatMap(
+        (book: { chapters: Array<{ id: string }> }) => book.chapters,
+      );
+      const letters = all.find((c: { id: string }) => c.id === openChapterId);
+      expect(letters.pdf.url).toBe(chapterPdf(school.studentId));
+      expect(letters.animation).toBeNull();
+      firstVersion = letters.pdf.version as string;
+      // A chapter with nothing uploaded says so.
+      expect(all.find((c: { id: string }) => c.id === filmedChapterId).pdf).toBeNull();
+
+      // And a subject says how many chapters it holds.
+      const subjects = await api
+        .get(`${BASE}/catalogue/children/${school.studentId}/subjects`)
+        .set(auth(parent));
+      expect(subjects.body.find((s: { id: string | null }) => s.id === null).chapterCount).toBe(2);
+    });
+
+    it('is read by a child whose school has the book', async () => {
+      const pdf = await api.get(chapterPdf(school.studentId)).set(auth(parent));
+
+      expect(pdf.status).toBe(200);
+      expect(pdf.headers['content-type']).toContain('application/pdf');
+      expect(pdf.headers.etag).toBe(`"${firstVersion}"`);
+    });
+
+    it('is not served to a school that did not buy the book, nor as artwork', async () => {
+      const outsider = await login(otherSchool.parentPhone);
+      const pdf = await api.get(chapterPdf(otherSchool.studentId)).set(auth(outsider));
+      expect(pdf.status).toBe(404);
+
+      const asset = await api.get(`${BASE}/catalogue/assets/${firstVersion}`).set(auth(parent));
+      expect(asset.status).toBe(404);
+    });
+
+    it('gets a new version when replaced, and can be taken off again', async () => {
+      await api
+        .post(`${BASE}/publication/chapters/${openChapterId}/pdf`)
+        .set(auth(publisher))
+        .attach('file', pdfBytes('letters, again'), 'Letters v2.pdf');
+
+      const old = await prismaUnscoped.fileObject.findUniqueOrThrow({
+        where: { id: firstVersion },
+        select: { deletedAt: true },
+      });
+      expect(old.deletedAt).not.toBeNull();
+
+      const removed = await api
+        .delete(`${BASE}/publication/chapters/${openChapterId}/pdf`)
+        .set(auth(publisher));
+      expect(removed.status).toBe(200);
+      expect(removed.body.pdf).toBeNull();
+
+      const pdf = await api.get(chapterPdf(school.studentId)).set(auth(parent));
+      expect(pdf.status).toBe(404);
+    });
+
+    it('is made smaller like a book’s, never over a newer upload', async () => {
+      const upload = async (label: string) => {
+        await api
+          .post(`${BASE}/publication/chapters/${openChapterId}/pdf`)
+          .set(auth(publisher))
+          .attach('file', pdfBytes(label), 'Letters.pdf');
+        const chapter = await prismaUnscoped.chapter.findUniqueOrThrow({
+          where: { id: openChapterId },
+          select: { pdfFileId: true },
+        });
+        return chapter.pdfFileId!;
+      };
+
+      const big = 'a long chapter '.repeat(300);
+      const fileId = await upload(big);
+      expect(await compressChapterPdf(openChapterId, fileId, async () => pdfBytes('small'))).toBe(
+        'replaced',
+      );
+      const chapter = await prismaUnscoped.chapter.findUniqueOrThrow({
+        where: { id: openChapterId },
+        select: { pdfFileId: true, pdfOriginalSizeBytes: true },
+      });
+      expect(chapter.pdfFileId).not.toBe(fileId);
+      expect(chapter.pdfOriginalSizeBytes).toBe(pdfBytes(big).length);
+
+      const first = await upload('first '.repeat(100));
+      const second = await upload('second');
+      expect(await compressChapterPdf(openChapterId, first, async () => pdfBytes('tiny'))).toBe(
+        'superseded',
+      );
+      const after = await prismaUnscoped.chapter.findUniqueOrThrow({
+        where: { id: openChapterId },
+        select: { pdfFileId: true },
+      });
+      expect(after.pdfFileId).toBe(second);
+
+      await api.delete(`${BASE}/publication/chapters/${openChapterId}/pdf`).set(auth(publisher));
+    });
+
+    it('is the publisher’s to upload, not a parent’s', async () => {
+      const response = await api
+        .post(`${BASE}/publication/chapters/${openChapterId}/pdf`)
+        .set(auth(parent))
+        .attach('file', pdfBytes('not yours'), 'mine.pdf');
+
+      expect(response.status).toBe(403);
+    });
+  });
+
   describe('a subject’s picture', () => {
     it('is shown on the child’s subject in place of its icon, and can be taken off', async () => {
       // One white pixel: the smallest thing that is a real picture.

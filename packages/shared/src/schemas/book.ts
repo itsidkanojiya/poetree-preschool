@@ -108,6 +108,8 @@ export interface SubjectForChild {
   /** The uploaded picture, drawn in place of the icon; null for most. */
   pictureUrl: string | null;
   bookCount: number;
+  /** Chapters across its books, filmed or not. */
+  chapterCount: number;
   /** Chapters with a film, across its books. */
   filmCount: number;
   /** Of those, how many this child has not watched. */

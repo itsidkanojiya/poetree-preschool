@@ -7,6 +7,7 @@ import '../../core/api/api_service.dart';
 import '../../core/assets/app_assets.dart';
 import '../activities/activity_models.dart';
 import '../activities/activity_places.dart';
+import '../books/books_controllers.dart';
 
 /// One film, as the animation screens use it.
 class FilmVideo {
@@ -33,6 +34,7 @@ class FilmChapter {
     this.film2d,
     this.film3d,
     this.coverPath,
+    this.pdf,
   });
 
   factory FilmChapter.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class FilmChapter {
           ? null
           : cover.replaceFirst('/api/v1', ''),
       isWatched: json['isWatched'] as bool? ?? false,
+      pdf: BookPdf.fromJson(json['pdf']),
     );
   }
 
@@ -63,8 +66,12 @@ class FilmChapter {
   final String? coverPath;
   bool isWatched;
 
+  /// The chapter's pages to read. Null until the publisher uploads them.
+  final BookPdf? pdf;
+
   bool get hasFilm => film2d != null;
   bool get has3d => film3d != null;
+  bool get hasPdf => pdf != null;
 
   String get label => number == null ? name : 'Chapter $number · $name';
 }
@@ -76,26 +83,46 @@ String _problem(DioException e, String fallback) {
       : 'Cannot reach the school right now.';
 }
 
-/// One book's videos, in a subject's list.
+/// One book's chapters, in a subject's list.
 class FilmBookGroup {
-  FilmBookGroup({required this.id, required this.name, required this.films});
+  FilmBookGroup({
+    required this.id,
+    required this.name,
+    required this.films,
+    List<FilmChapter>? chapters,
+  }) : chapters = chapters ?? films;
 
-  factory FilmBookGroup.fromJson(Map<String, dynamic> json) => FilmBookGroup(
-    id: json['id'] as String,
-    name: json['name'] as String? ?? 'Book',
-    films: (json['films'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(FilmChapter.fromJson)
-        .where((chapter) => chapter.hasFilm)
-        .toList(),
-  );
+  /// Read from a subject's videos (`films`) or from its chapters
+  /// (`chapters`), which also carries those without a video.
+  factory FilmBookGroup.fromJson(Map<String, dynamic> json) {
+    final chapters =
+        ((json['chapters'] ?? json['films']) as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(FilmChapter.fromJson)
+            .toList();
+    return FilmBookGroup(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? 'Book',
+      chapters: chapters,
+      films: chapters.where((chapter) => chapter.hasFilm).toList(),
+    );
+  }
 
   final String id;
   final String name;
+
+  /// The chapters with a video, which is what the player steps through.
   final List<FilmChapter> films;
+
+  /// Every chapter, with a video or without — what Learning lists.
+  final List<FilmChapter> chapters;
 }
 
-/// A subject's videos, book by book, and each chapter's activities.
+/// A subject's chapters, and each chapter's activities.
+///
+/// Two ways in. 2D & 3D lists the subject's videos and plays them. Learning
+/// ([learning]) lists every chapter — its video, its activities and its pages
+/// to read — and opens each onto all three.
 ///
 /// The list is also the running order: Next from the last video of one book
 /// goes on to the first of the next. And it is where "watched" and "done"
@@ -111,9 +138,14 @@ class FilmVideosController extends GetxController {
     required this.subjectId,
     required this.subjectName,
     this.art = AppIcons.storybook,
+    this.learning = false,
   });
 
   final String? studentId;
+
+  /// Learning's list: every chapter, and its activities. Otherwise 2D & 3D's,
+  /// which is the videos alone.
+  final bool learning;
 
   /// Null asks for the videos in books filed under no subject.
   final String? subjectId;
@@ -149,22 +181,28 @@ class FilmVideosController extends GetxController {
   int doneIn(String chapterId) =>
       activitiesOf(chapterId).where((a) => a.isDone).length;
 
-  /// Watched, and every activity done — or watched, when there are none.
+  /// The video watched, when there is one, and every activity done.
   bool isComplete(FilmChapter chapter) =>
-      chapter.isWatched && activitiesOf(chapter.id).every((a) => a.isDone);
+      (chapter.isWatched || !chapter.hasFilm) &&
+      activitiesOf(chapter.id).every((a) => a.isDone);
 
   FilmChapter? chapterById(String chapterId) =>
-      withFilms.firstWhereOrNull((c) => c.id == chapterId);
+      allChapters.firstWhereOrNull((c) => c.id == chapterId);
 
   /// Every video in the subject, in the order the player steps through them.
   List<FilmChapter> get withFilms => [for (final book in books) ...book.films];
+
+  /// Every chapter in the subject, in running order.
+  List<FilmChapter> get allChapters => [
+    for (final book in books) ...book.chapters,
+  ];
 
   int get watchedCount => withFilms.where((c) => c.isWatched).length;
 
   /// The book a video is from, for the player's title.
   String bookNameOf(String chapterId) => books
       .firstWhere(
-        (book) => book.films.any((c) => c.id == chapterId),
+        (book) => book.chapters.any((c) => c.id == chapterId),
         orElse: () => FilmBookGroup(id: '', name: subjectName, films: []),
       )
       .name;
@@ -185,20 +223,31 @@ class FilmVideosController extends GetxController {
     error.value = null;
     try {
       final rows = await api.get<List<dynamic>>(
-        '/catalogue/children/$studentId/films',
+        learning
+            ? '/catalogue/children/$studentId/chapters'
+            : '/catalogue/children/$studentId/films',
         query: {'subjectId': subjectId ?? 'none'},
       );
       books.value = rows
           .whereType<Map<String, dynamic>>()
           .map(FilmBookGroup.fromJson)
-          .where((book) => book.films.isNotEmpty)
+          .where(
+            (book) =>
+                learning ? book.chapters.isNotEmpty : book.films.isNotEmpty,
+          )
           .toList();
     } on DioException catch (e) {
-      error.value = _problem(e, 'Could not load the videos.');
+      error.value = _problem(
+        e,
+        learning
+            ? 'Could not load the chapters.'
+            : 'Could not load the videos.',
+      );
     } finally {
       isLoading.value = false;
     }
-    if (error.value == null) await loadActivities();
+    // 2D & 3D only plays the videos; the activities are Learning's.
+    if (error.value == null && learning) await loadActivities();
   }
 
   /// Each book's activities for this child, sorted into its chapters.
@@ -210,7 +259,7 @@ class FilmVideosController extends GetxController {
     activitiesLoading.value = true;
     activitiesError.value = null;
     try {
-      final chapterIds = {for (final c in withFilms) c.id};
+      final chapterIds = {for (final c in allChapters) c.id};
       final lists = await Future.wait([
         for (final book in books)
           api.get<List<dynamic>>(
@@ -235,12 +284,14 @@ class FilmVideosController extends GetxController {
         }
       }
       activities.value = byChapter;
-      places.value = await _places?.all() ?? {};
     } on DioException catch (e) {
       activitiesError.value = _problem(e, 'Could not load the activities.');
     } finally {
       activitiesLoading.value = false;
     }
+    // After, not before, the list is shown: where the child left off is read
+    // from the phone's storage, and the chapters need not wait for it.
+    places.value = await _places?.all() ?? {};
   }
 
   /// Shows an activity done at once, before the school's answer comes back.

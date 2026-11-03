@@ -153,6 +153,15 @@ export async function renameChapterAction(
 }
 
 /** Refused server-side while question types are still in the chapter. */
+/**
+ * Takes a chapter's PDF off. Uploading is not here: a chapter's pages can be
+ * larger than a server action may carry, so they go through its /pdf route.
+ */
+export async function removeChapterPdfAction(bookId: string, chapterId: string): Promise<void> {
+  await apiFetch(`/publication/chapters/${chapterId}/pdf`, { method: 'DELETE' });
+  revalidatePath(`/publication/books/${bookId}`);
+}
+
 export async function deleteChapterAction(bookId: string, chapterId: string): Promise<void> {
   await apiFetch(`/publication/chapters/${chapterId}`, { method: 'DELETE' });
   revalidatePath(`/publication/books/${bookId}`);

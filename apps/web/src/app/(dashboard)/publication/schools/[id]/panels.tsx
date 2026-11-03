@@ -321,7 +321,15 @@ export function CreateAdminPanel({ schoolId }: { schoolId: string }) {
           required
           hint="At least 8 characters, with a letter and a number."
         >
-          <Input name="password" type="text" required minLength={8} autoComplete="off" />
+          <Input
+            name="password"
+            type="text"
+            required
+            minLength={8}
+            pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,72}"
+            title="At least 8 characters, with a letter and a number"
+            autoComplete="off"
+          />
         </Field>
       </FieldSet>
 

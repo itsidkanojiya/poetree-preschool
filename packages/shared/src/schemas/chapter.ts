@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { idSchema } from './common.js';
 import { youTubeUrlSchema, type BookAnimation } from './animation.js';
+import type { BookPdfFile, BookPdfForChild } from './book.js';
 
 /**
  * A chapter — a section of a book.
@@ -70,6 +71,8 @@ export interface ChapterSummary {
   animation3d: BookAnimation | null;
   /** The chapter's picture, or null — most chapters have none. */
   coverUrl: string | null;
+  /** The chapter's pages as a PDF, or null until the publisher uploads them. */
+  pdf: BookPdfFile | null;
   sortOrder: number;
   isActive: boolean;
   /** Question types filed under it. */
@@ -94,6 +97,8 @@ export interface ChapterForChild {
   animation: BookAnimation | null;
   animation3d: BookAnimation | null;
   coverUrl: string | null;
+  /** The chapter's pages to read, or null until they are uploaded. */
+  pdf: BookPdfForChild | null;
   /** True once this child has watched either film to the end. */
   isWatched: boolean;
   /**
@@ -115,6 +120,20 @@ export interface FilmBookForChild {
   name: string;
   coverUrl: string | null;
   films: ChapterForChild[];
+}
+
+/**
+ * A subject's chapters for one child: every chapter of the child's book under
+ * that subject, filmed or not, in running order.
+ *
+ * Grouped by book because a subject may, in old data, hold more than one for
+ * the same year; the app lists them one after another.
+ */
+export interface ChapterBookForChild {
+  id: string;
+  name: string;
+  coverUrl: string | null;
+  chapters: ChapterForChild[];
 }
 
 /** For the pickers: every chapter, with the book it belongs to. */

@@ -12,7 +12,6 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { NewChapterForm } from './forms';
 import { ChapterList } from './chapter-list';
-import { BookPdfForm } from './book-pdf';
 import { BookCoverForm, BookDetailsForm, BookLiveSwitch } from '../forms';
 
 export const metadata: Metadata = { title: 'Book · Poetree Admin' };
@@ -75,7 +74,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           they sit underneath. */}
       <Card
         title="Chapters"
-        description="The contents page. Every activity type in the book is filed under one of these."
+        description="The contents page. A child opens the subject and then a chapter: its video, its activities and its PDF."
       >
         {chapters.length === 0 ? (
           <p className="mb-4 text-sm text-slate-500">
@@ -139,13 +138,6 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
             description="What a child looks for on the shelf, long before they can read the name."
           >
             <BookCoverForm book={book} />
-          </Card>
-
-          <Card
-            title="The book to read"
-            description="The PDF that opens when a child taps this book in the app: Subjects → this book."
-          >
-            <BookPdfForm book={book} />
           </Card>
 
           <Card title="Availability">

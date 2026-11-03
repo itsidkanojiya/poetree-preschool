@@ -131,11 +131,12 @@ class _SubjectCard extends StatelessWidget {
 
     return Squish(
       onTap: () => Get.toNamed<void>(
-        AppRoutes.books,
+        AppRoutes.subjectChapters,
         arguments: {
           'studentId': studentId,
           'subjectId': subject.id,
           'subjectName': subject.name,
+          'art': subject.art,
         },
       ),
       child: Container(
@@ -183,9 +184,9 @@ class _SubjectCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    subject.bookCount == 1
-                        ? '1 book'
-                        : '${subject.bookCount} books',
+                    subject.chapterCount == 1
+                        ? '1 chapter'
+                        : '${subject.chapterCount} chapters',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: tone.deep,
                     ),

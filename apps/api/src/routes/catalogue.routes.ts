@@ -109,6 +109,43 @@ catalogueRouter.get(
   }),
 );
 
+/**
+ * A subject's chapters for this child: every chapter, filmed or not, each with
+ * its film and its pages. What Learning opens a subject onto.
+ */
+catalogueRouter.get(
+  '/children/:id/chapters',
+  requirePermission('progress:read'),
+  validate({ params: idParamSchema, query: subjectQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const { subjectId } = query<{ subjectId?: string }>(req);
+    res.json(await books.subjectChaptersForChild(params<{ id: string }>(req).id, subjectId));
+  }),
+);
+
+/**
+ * A chapter's pages, for reading in the app.
+ *
+ * Only for a chapter of a book on this child's shelf. Cached like a book's
+ * PDF: the app keeps a copy and asks again only when `pdf.version` changes.
+ */
+catalogueRouter.get(
+  '/children/:id/chapters/:chapterId/pdf',
+  requirePermission('progress:read'),
+  validate({ params: idParamSchema.extend({ chapterId: idSchema }) }),
+  asyncHandler(async (req: Request, res) => {
+    const { id, chapterId } = params<{ id: string; chapterId: string }>(req);
+    const file = await books.chapterPdfForChild(id, chapterId);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('ETag', `"${file.id}"`);
+
+    sendStoredFile(req, res, file, { fileId: file.id, chapterId });
+  }),
+);
+
 /** The chapters of one book, each with its film and whether it is watched. */
 catalogueRouter.get(
   '/children/:id/books/:bookId/chapters',
@@ -156,9 +193,15 @@ catalogueRouter.get(
     const fileId = params<{ id: string }>(req).id;
 
     const file = await prismaUnscoped.fileObject.findFirst({
-      // Never a book's PDF: that is the book a school pays for, served only to
-      // a child whose school has it, by the route above.
-      where: { id: fileId, schoolId: null, deletedAt: null, bookPdfs: { none: {} } },
+      // Never a book's or a chapter's PDF: that is the book a school pays
+      // for, served only to a child whose school has it, by the routes above.
+      where: {
+        id: fileId,
+        schoolId: null,
+        deletedAt: null,
+        bookPdfs: { none: {} },
+        chapterPdfs: { none: {} },
+      },
       select: { storageKey: true, mimeType: true, originalName: true },
     });
     if (!file) throw ApiError.notFound('Not found');

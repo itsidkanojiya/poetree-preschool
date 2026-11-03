@@ -53,6 +53,42 @@ export const changePasswordSchema = z
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 /**
+ * A parent closing their own account from the app.
+ *
+ * The password again, although they are signed in: a phone left unlocked on a
+ * table should not be enough to erase a family's account.
+ */
+export const deleteOwnAccountSchema = z.object({
+  password: z.string().min(1, 'Enter your password').max(72),
+});
+export type DeleteOwnAccountInput = z.infer<typeof deleteOwnAccountSchema>;
+
+/**
+ * The same from the website, for a family who no longer has the app.
+ *
+ * The same three things as signing in, because that is what proves it is
+ * theirs. The school code is only needed when one phone number has an account
+ * at two schools.
+ */
+export const deleteAccountSchema = z.object({
+  identifier: z.string().trim().min(3, 'Enter your phone number or email').max(160),
+  password: z.string().min(1, 'Enter your password').max(72),
+  schoolCode: z.string().trim().toLowerCase().max(30).optional(),
+});
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
+
+export interface AccountDeletedResponse {
+  deleted: true;
+  /** The school the account belonged to, so the website can name it. */
+  schoolName: string | null;
+  /**
+   * True when there was no account yet, only a registration the school had not
+   * approved — what was erased was the request.
+   */
+  registrationOnly: boolean;
+}
+
+/**
  * What an admin is handed after resetting somebody's password.
  *
  * Returned once and never stored in the clear — there is nowhere to look it up

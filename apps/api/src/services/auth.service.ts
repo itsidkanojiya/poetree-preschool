@@ -109,7 +109,7 @@ export function isSingleDevice(role: string): boolean {
 const SESSION_MEMORY_MS = 10_000;
 const sessionMemory = new Map<string, { sessionId: string | null; at: number }>();
 
-function rememberSession(userId: string, sessionId: string | null): void {
+export function rememberSession(userId: string, sessionId: string | null): void {
   sessionMemory.set(userId, { sessionId, at: Date.now() });
   // Bounded without a timer: past a few thousand entries, start again.
   if (sessionMemory.size > 5000) sessionMemory.clear();

@@ -346,6 +346,10 @@ export const AUDIT_ACTIONS = [
   'PASSWORD_RESET',
   'LOGIN_SUCCEEDED',
   'LOGIN_FAILED',
+  // A parent closing their own account. The row keeps no personal details —
+  // it records that an account was erased and how, which is what the school
+  // can be asked to show afterwards.
+  'ACCOUNT_DELETED',
   // A family asking the school for access, and what the school decided. Three
   // events rather than one: "who let this person in, and when" is exactly the
   // question asked months later, and a rejection is worth keeping too — a

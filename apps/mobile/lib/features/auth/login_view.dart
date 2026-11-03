@@ -251,6 +251,9 @@ String? _whySignedOut() {
       'You were signed out because this account signed in on another '
           'phone. It can be signed in on one device at a time.',
     'expired' => 'Your session ended. Please sign in again.',
+    'deleted' =>
+      'Your account has been deleted, and your details with it. You can '
+          'uninstall the app.',
     _ => null,
   };
 }

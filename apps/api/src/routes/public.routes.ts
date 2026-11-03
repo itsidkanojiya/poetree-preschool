@@ -2,9 +2,11 @@ import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import {
+  deleteAccountSchema,
   sendOtpSchema,
   submitRegistrationSchema,
   verifyOtpSchema,
+  type DeleteAccountInput,
   type SendOtpInput,
   type SubmitRegistrationInput,
   type VerifyOtpInput,
@@ -12,6 +14,8 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { body, params, validate } from '../middleware/validate.js';
 import { env } from '../config/env.js';
+import { loginRateLimitKey } from './auth.routes.js';
+import * as accountDeletion from '../services/accountDeletion.service.js';
 import * as registrationService from '../services/registration.service.js';
 import * as otpService from '../services/otp.service.js';
 import { prismaUnscoped } from '../db/prisma.js';
@@ -30,9 +34,11 @@ import { sendStoredFile } from '../lib/sendStoredFile.js';
  * address, not how many children it has. If a field would embarrass the school
  * on a stranger's screen, it belongs behind the token like everything else.
  *
- * There is now one write. A parent registering themselves has no account yet,
+ * There are two writes. A parent registering themselves has no account yet,
  * so the request cannot carry a token, and a successful reply says only that
- * the request was received.
+ * the request was received. And a parent closing their account from the
+ * website, who may no longer have the app to hold a token in — proved the way
+ * signing in is, with their password.
  *
  * Its refusals do say more than that, and deliberately: a phone that already
  * has an account is told to sign in instead, and one with a request already
@@ -263,6 +269,51 @@ publicRouter.post(
     const school = await registrationService.registeringSchool(code);
     await otpService.verifyChallenge(school.id, input.challengeId, input.code);
     res.json({ verified: true });
+  }),
+);
+
+const deletionRateLimited = {
+  error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again in 15 minutes.' },
+};
+
+/**
+ * The website's deletion form takes a password, so it is guarded the way
+ * signing in is: per account and address, and a looser ceiling per address
+ * for somebody working down a list of numbers.
+ */
+const deletionPerAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  keyGenerator: loginRateLimitKey,
+  message: deletionRateLimited,
+});
+
+const deletionPerAddressLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  message: deletionRateLimited,
+});
+
+/**
+ * Closing an account from the website — Google Play requires a way that does
+ * not need the app, for a family who has already uninstalled it.
+ *
+ * Not under /schools/:code: the School ID is only needed when the same number
+ * is a parent at two schools, and the reply says when it is.
+ */
+publicRouter.post(
+  '/account-deletion',
+  deletionPerAddressLimiter,
+  deletionPerAccountLimiter,
+  validate({ body: deleteAccountSchema }),
+  asyncHandler(async (req: Request, res) => {
+    res.json(await accountDeletion.deleteAccountWithCredentials(body<DeleteAccountInput>(req)));
   }),
 );
 

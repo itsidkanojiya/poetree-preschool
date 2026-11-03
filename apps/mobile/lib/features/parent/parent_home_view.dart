@@ -334,7 +334,7 @@ class _ProfileTab extends StatelessWidget {
                   color: const Color(0xFF6366F1),
                   wash: const Color(0xFFF0EFFF),
                   title: 'App Settings',
-                  subtitle: 'App appearance and preferences',
+                  subtitle: 'Appearance, privacy and your account',
                   onTap: () => Get.to<void>(() => const SettingsView()),
                 ),
                 const SizedBox(height: 10),

@@ -154,6 +154,27 @@ class AuthController extends GetxController {
       // below whether or not the server call succeeded.
     }
 
+    await _endSession();
+  }
+
+  /// Closes the signed-in parent's account for good, then leaves as signing
+  /// out does — with the sign-in screen saying what happened.
+  ///
+  /// Throws the [DioException] when the API refuses, a wrong password most
+  /// often, so the dialog that asked for it can say why and stay open.
+  Future<void> deleteAccount(String password) async {
+    await api.post<dynamic>(
+      '/auth/delete-account',
+      body: {'password': password},
+    );
+
+    // The server has already dropped the account's sessions and devices, so
+    // only what is on this phone is left to clear.
+    await Get.find<PushService>().forget();
+    await _endSession(reason: 'deleted');
+  }
+
+  Future<void> _endSession({String? reason}) async {
     await api.tokens.clear();
     user.value = null;
 
@@ -165,7 +186,10 @@ class AuthController extends GetxController {
     SessionScope.clear<RegisterController>();
     SessionScope.clear<InboxController>();
 
-    await Get.offAllNamed<void>('/login');
+    await Get.offAllNamed<void>(
+      '/login',
+      arguments: reason == null ? null : {'reason': reason},
+    );
   }
 
   /// Re-reads who is signed in. Used after changing a password, which clears

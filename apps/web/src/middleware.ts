@@ -8,7 +8,13 @@ import {
   readClaims,
 } from '@/lib/auth-cookies';
 
-const PUBLIC_PATHS = new Set(['/login', '/blocked']);
+/**
+ * Readable without signing in. The privacy policy and the account-deletion
+ * page are linked from the app and from the Play Store listing, and Google
+ * Play requires both to open for anyone — a family who has uninstalled the app
+ * has no session to bring.
+ */
+const PUBLIC_PATHS = new Set(['/login', '/blocked', '/privacy', '/delete-account']);
 
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://127.0.0.1:4000/api/v1';
 

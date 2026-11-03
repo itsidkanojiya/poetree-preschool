@@ -34,6 +34,12 @@ deploy-artifact/
 **/firebase-service-account.json
 **/*firebase-adminsdk*.json
 **/serviceAccountKey.json
+# Android release signing: the upload keystore and the file holding its
+# password. apps/mobile/android/.gitignore says the same; this catches a copy
+# left anywhere else in the tree.
+**/key.properties
+*.jks
+*.keystore
 # Python bytecode from the content generators in scripts/content.
 __pycache__/
 *.pyc

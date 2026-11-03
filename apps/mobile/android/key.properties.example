@@ -1,0 +1,15 @@
+# Copy to key.properties (same folder) on the machine that builds releases.
+# key.properties is gitignored: it holds the upload key's password, and this
+# repository is public.
+#
+# storeFile is absolute, or relative to android/app. Keep the keystore itself
+# outside the repository, and keep a backup of it and of this file somewhere
+# safe (a password manager) — Play Console only accepts bundles signed with the
+# upload key it has on record.
+#
+# CI can set POETREE_UPLOAD_STORE_FILE, POETREE_UPLOAD_STORE_PASSWORD,
+# POETREE_UPLOAD_KEY_ALIAS and POETREE_UPLOAD_KEY_PASSWORD instead.
+storeFile=C:/path/outside/the/repo/poetree-kids-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=

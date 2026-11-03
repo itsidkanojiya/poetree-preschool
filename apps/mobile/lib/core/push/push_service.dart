@@ -101,6 +101,21 @@ class PushService extends GetxService {
     }
   }
 
+  /// Discards this phone's push token once the account itself is deleted.
+  ///
+  /// Unlike [stop] there is nothing to revoke on the server — the account took
+  /// its devices with it, and the session that could have asked is gone — so
+  /// only the token on the phone is left.
+  Future<void> forget() async {
+    if (!_started) return;
+
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } on Object catch (error) {
+      debugPrint('Could not discard the push token: $error');
+    }
+  }
+
   Future<void> _register(String token) async {
     try {
       await api.post<dynamic>(

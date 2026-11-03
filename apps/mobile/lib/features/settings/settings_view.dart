@@ -1,19 +1,27 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/audio/speech_service.dart';
+import '../../core/config/policy_links.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/kid_sky.dart';
+import '../../core/widgets/password_field.dart';
+import '../auth/auth_controller.dart';
 
-/// Settings: whether the app reads aloud, and how it looks.
+/// Settings: whether the app reads aloud, how it looks, and the family's
+/// privacy and account.
 ///
-/// Only what the app can actually do. Both settings are the app's own — the
-/// voice is [SpeechService]'s, saved by it and obeyed by every activity that
-/// speaks; the look is [ThemeController]'s, saved by it and restored before
-/// the first frame — so this page only shows and changes them.
+/// Only what the app can actually do. The first two settings are the app's own
+/// — the voice is [SpeechService]'s, saved by it and obeyed by every activity
+/// that speaks; the look is [ThemeController]'s, saved by it and restored
+/// before the first frame — so this page only shows and changes them. The
+/// privacy policy and account deletion are here because Google Play requires
+/// both to be easy to find in the app.
 
 abstract final class SettingsArt {
   static const _dir = 'assets/announcements_settings_ui';
@@ -24,11 +32,13 @@ abstract final class SettingsArt {
   static const phone = '$_dir/phone.svg';
   static const check = '$_dir/check.svg';
   static const star = '$_dir/star.svg';
+  static const info = '$_dir/info.svg';
 }
 
 const _orange = Color(0xFFF7A928);
 const _blue = Color(0xFF3B82F6);
 const _purple = Color(0xFF6D5BD0);
+const _red = Color(0xFFE5484D);
 
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key});
@@ -39,6 +49,11 @@ class SettingsView extends StatelessWidget {
     final voice = Get.isRegistered<SpeechService>()
         ? Get.find<SpeechService>()
         : null;
+    // Settings opens from the parent's home only, but this asks anyway: a
+    // teacher's account is the school's to close, not theirs.
+    final isParent =
+        Get.isRegistered<AuthController>() &&
+        (Get.find<AuthController>().user.value?.isParent ?? false);
 
     return KidSkyPage(
       title: 'Settings',
@@ -90,8 +105,278 @@ class SettingsView extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 24),
+          const _Section(
+            icon: SettingsArt.info,
+            colour: _purple,
+            title: 'Privacy and your account',
+            text: 'What the app keeps about your family, and how to remove it.',
+          ),
+          const SizedBox(height: 10),
+          _ActionCard(
+            leading: const _IconTile(icon: SettingsArt.info, colour: _purple),
+            title: 'Privacy policy',
+            subtitle: 'What the app collects, and why',
+            trailing: Icons.open_in_new_rounded,
+            onTap: () => _openPage(context, PolicyLinks.privacy),
+          ),
+          if (isParent) ...[
+            const SizedBox(height: 10),
+            _ActionCard(
+              leading: const _GlyphTile(
+                icon: Icons.delete_forever_rounded,
+                colour: _red,
+              ),
+              title: 'Delete account',
+              titleColour: _red,
+              subtitle: 'Erase your account and your details for good',
+              trailing: Icons.chevron_right_rounded,
+              onTap: () => showDeleteAccountDialog(context),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Opens a page on the website, or says why it did not.
+Future<void> _openPage(BuildContext context, Uri page) async {
+  final messenger = ScaffoldMessenger.of(context);
+  if (!await PolicyLinks.open(page)) {
+    messenger.showSnackBar(
+      SnackBar(content: Text('Could not open $page on this phone.')),
+    );
+  }
+}
+
+/// A row that does one thing when tapped: its picture, what it is, and where
+/// it goes.
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    required this.onTap,
+    this.titleColour,
+  });
+
+  final Widget leading;
+  final String title;
+  final String subtitle;
+  final IconData trailing;
+  final VoidCallback onTap;
+  final Color? titleColour;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = KidSkyPalette.of(context);
+    final theme = Theme.of(context);
+    return KidCard(
+      onTap: onTap,
+      child: Semantics(
+        button: true,
+        label: '$title. $subtitle',
+        excludeSemantics: true,
+        child: Row(
+          children: [
+            leading,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: titleColour ?? palette.ink,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.quiet,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(trailing, color: palette.quiet),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// [_IconTile]'s shape for a Material icon, where the designer's pack has no
+/// picture.
+class _GlyphTile extends StatelessWidget {
+  const _GlyphTile({required this.icon, required this.colour});
+
+  final IconData icon;
+  final Color colour;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = KidSkyPalette.of(context);
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: palette.wash(colour),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: colour, size: 26),
+    );
+  }
+}
+
+/// Asks a parent to confirm, with their password, that the account should go.
+Future<void> showDeleteAccountDialog(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => const DeleteAccountDialog(),
+  );
+}
+
+/// The last step before an account is erased.
+///
+/// Says plainly what goes and what the school keeps, and asks for the password
+/// again: a phone left unlocked on a table should not be enough. A refusal
+/// keeps the dialog open with the reason; success leaves for the sign-in
+/// screen, which closes this with everything else.
+class DeleteAccountDialog extends StatefulWidget {
+  const DeleteAccountDialog({super.key});
+
+  @override
+  State<DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
+  final _password = TextEditingController();
+  bool _busy = false;
+  String? _problem;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _delete() async {
+    if (_busy) return;
+    if (_password.text.isEmpty) {
+      setState(() => _problem = 'Type your password to confirm.');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      await Get.find<AuthController>().deleteAccount(_password.text);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _problem = _problemWith(e);
+      });
+    }
+  }
+
+  static String _problemWith(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is Map) {
+      final error = data['error'] as Map;
+      if (error['code'] == ApiErrorCodes.invalidCredentials) {
+        return 'That password is not right.';
+      }
+      return error['message']?.toString() ??
+          'Your account could not be deleted. Please try again.';
+    }
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      return 'Cannot reach the school right now. Check your connection.';
+    }
+    return 'Your account could not be deleted. Please try again.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final quiet = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return AlertDialog(
+      title: const Text('Delete your account?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'This erases your account for good: your name, phone number, '
+              'email address and password, and your link to your children. '
+              'It cannot be undone.',
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Your child’s school record — attendance, homework, fees and '
+              'report cards — stays with the school.',
+              style: quiet,
+            ),
+            const SizedBox(height: 18),
+            PasswordField(
+              controller: _password,
+              label: 'Your password',
+              prefixIcon: Icons.lock_rounded,
+              autofillHints: const [AutofillHints.password],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _delete(),
+            ),
+            if (_problem != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _problem!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          child: const Text('Keep my account'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: _red,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _busy ? null : _delete,
+          child: _busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Delete my account'),
+        ),
+      ],
     );
   }
 }

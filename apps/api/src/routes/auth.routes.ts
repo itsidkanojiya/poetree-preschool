@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import {
   changePasswordSchema,
+  deleteOwnAccountSchema,
   loginSchema,
   refreshSchema,
   switchBranchSchema,
@@ -10,10 +11,12 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { body, validate } from '../middleware/validate.js';
 import { env } from '../config/env.js';
+import * as accountDeletion from '../services/accountDeletion.service.js';
 import * as authService from '../services/auth.service.js';
 import * as passwordService from '../services/password.service.js';
 import type {
   ChangePasswordInput,
+  DeleteOwnAccountInput,
   LoginInput,
   RefreshInput,
   SwitchBranchInput,
@@ -191,5 +194,41 @@ authRouter.post(
       requestMeta(req),
     );
     res.json(tokens);
+  }),
+);
+
+/**
+ * Password guesses against a session somebody has picked up. Keyed on the
+ * account, which by now is known — so a school's shared Wi-Fi is not one
+ * bucket for every family in it.
+ */
+const accountDeletionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+  keyGenerator: (req) => req.auth?.userId ?? addressKey(req.ip ?? ''),
+  message: {
+    error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again in 15 minutes.' },
+  },
+});
+
+/**
+ * A parent closing their own account, from the app's Settings.
+ *
+ * Here rather than in the secured tree, which is plan-gated: a family whose
+ * school's plan has lapsed is locked out of everything else, and must still be
+ * able to leave. The website's way in, for a family without the app, is
+ * POST /public/account-deletion.
+ */
+authRouter.post(
+  '/delete-account',
+  authenticate,
+  accountDeletionLimiter,
+  validate({ body: deleteOwnAccountSchema }),
+  asyncHandler(async (req, res) => {
+    const { password } = body<DeleteOwnAccountInput>(req);
+    res.json(await accountDeletion.deleteOwnAccount(req.auth!.userId, password));
   }),
 );

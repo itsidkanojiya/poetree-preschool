@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/config/policy_links.dart';
 import '../../core/config/school_config.dart';
 import '../../core/widgets/kid_ui.dart';
 import '../../core/widgets/password_field.dart';
@@ -645,8 +646,19 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             value: _accepted,
             onChanged: (v) => setState(() => _accepted = v),
             text:
-                'I accept ${SchoolConfig.schoolName}’s terms and privacy '
-                'policy.',
+                'I have read the Poetree Kids privacy policy and agree to my '
+                'child’s and my details being used as it describes.',
+          ),
+          // The policy the tick agrees to, readable before ticking it — a
+          // consent to something that cannot be seen is not much of one.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _openPrivacyPolicy(context),
+              icon: const Icon(Icons.privacy_tip_rounded, size: 18),
+              label: const Text('Read the privacy policy'),
+              style: TextButton.styleFrom(foregroundColor: KidPalette.violet),
+            ),
           ),
           if (missingTicks)
             Padding(
@@ -660,6 +672,18 @@ class _RegistrationFormState extends State<_RegistrationForm> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Opens the privacy policy in the browser, or says why it could not.
+Future<void> _openPrivacyPolicy(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  if (!await PolicyLinks.open(PolicyLinks.privacy)) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Could not open ${PolicyLinks.privacy} on this phone.'),
       ),
     );
   }

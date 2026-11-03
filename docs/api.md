@@ -51,6 +51,32 @@ Branch on `code`, never on `message`.
 | `POST` | `/auth/change-password` | authenticated — ends all other sessions |
 | `GET` | `/auth/branches` | authenticated — the branches an `ORG_ADMIN` may work in; `[]` for anyone else |
 | `POST` | `/auth/switch-branch` | `ORG_ADMIN` only — `{ schoolId }`, returns a whole new session |
+| `POST` | `/auth/delete-account` | `PARENT` only — `{ password }`. Not plan-gated, so a family can leave a lapsed school. See below |
+| `POST` | `/public/account-deletion` | public — `{ identifier, password, schoolCode? }`, the website's way for a family without the app. 10 / 15 min per account and address |
+
+### Account deletion
+
+Google Play requires a parent who can register in the app to be able to delete
+the account both in the app and on the web. Both routes do the same thing, in one
+transaction, and reply `{ deleted: true, schoolName, registrationOnly }`:
+
+- **Erased:** the parent's name, phone, email, password and address; their
+  `ParentProfile` and with it every `StudentGuardian` link; refresh tokens, device
+  tokens, notifications and notice reads; the parent's own `ParentRegistration`
+  rows and OTP challenges; and the personal details (`before`, `after`,
+  `metadata`, `ipAddress`) in audit rows about them. One `ACCOUNT_DELETED` audit row
+  records that it happened, with no personal details.
+- **Kept:** the child's school record (enrolment, attendance, homework, fees,
+  results, progress) — it is the school's.
+- The `User` row is emptied rather than removed (`name: "Deleted account"`, no
+  phone or email, an unusable password, `deletedAt` set), because a fee plan the
+  parent chose points at it under a `Restrict` key. `currentSessionId` is set to a
+  value nobody holds, so the access token already on the phone is refused at once.
+- Staff accounts get `403` — the school office closes those.
+- On the website route, a phone number matches however it is typed (last ten
+  digits). With no account but an unapproved registration whose password matches,
+  the registration is withdrawn and `registrationOnly` is `true`. One login at two
+  schools gives `409` with `schoolCodes`, as at sign-in.
 
 `POST /auth/login`
 

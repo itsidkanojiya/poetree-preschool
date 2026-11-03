@@ -5,8 +5,9 @@ import 'package:get/get.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_service.dart';
-import '../../core/config/school_config.dart';
+import '../../core/config/branding.dart';
 import '../../core/push/push_service.dart';
+import '../../core/routes/app_pages.dart';
 import '../../core/session/session_scope.dart';
 import '../notifications/inbox_controller.dart';
 import '../parent/child_controller.dart';
@@ -23,6 +24,7 @@ class AppUser {
     this.email,
     this.phone,
     this.schoolName,
+    this.schoolCode,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,7 @@ class AppUser {
       email: json['email'] as String?,
       phone: json['phone'] as String?,
       schoolName: school?['name'] as String?,
+      schoolCode: school?['code'] as String?,
     );
   }
 
@@ -50,11 +53,20 @@ class AppUser {
   final String? phone;
   final String? schoolName;
 
+  /// The School ID of the school this session belongs to.
+  final String? schoolCode;
+
   bool get isTeacher => role == 'TEACHER';
   bool get isParent => role == 'PARENT';
 }
 
 class AuthController extends GetxController {
+  AuthController({BrandingService? branding})
+    : _branding = branding ?? BrandingService();
+
+  /// Checks School IDs and remembers the one that signed in.
+  final BrandingService _branding;
+
   final user = Rxn<AppUser>();
   final isBusy = false.obs;
   final errorMessage = RxnString();
@@ -75,6 +87,17 @@ class AuthController extends GetxController {
       final data = await api.get<Map<String, dynamic>>('/auth/me');
       final signedIn = AppUser.fromJson(data['user'] as Map<String, dynamic>);
       user.value = signedIn;
+
+      // The session is the authority on which school this is. A phone whose
+      // remembered School ID disagrees — or has none, after an update —
+      // takes the session's, so the next sign-in starts from it.
+      final schoolCode = signedIn.schoolCode;
+      if (schoolCode != null && schoolCode != BrandingService.current.code) {
+        unawaited(
+          _branding.choose(schoolCode).then<void>((_) {}, onError: (_) {}),
+        );
+      }
+
       // FCM rotates tokens silently, so a returning user re-registers on every
       // cold start rather than only on the day they signed in.
       unawaited(Get.find<PushService>().start());
@@ -88,6 +111,7 @@ class AuthController extends GetxController {
   }
 
   Future<void> signIn({
+    required String schoolId,
     required String identifier,
     required String password,
   }) async {
@@ -96,17 +120,21 @@ class AuthController extends GetxController {
     isAwaitingSchool.value = false;
 
     try {
+      // The School ID first. It decides whose records the sign-in is checked
+      // against, and one that names no school deserves to be told so — not
+      // "wrong password" to somebody who typed their password correctly.
+      final school = await _branding.choose(schoolId);
+
       final data = await api.post<Map<String, dynamic>>(
         '/auth/login',
         body: {
           'identifier': identifier.trim(),
           'password': password,
-          // The code this binary was built with — a school's, or a group's when
-          // the customer runs several branches. Sending it is what makes the
-          // answer unambiguous for a parent whose phone number also exists at
-          // another school, and what stops a wrongly-built app signing anyone
-          // in to a school it does not belong to.
-          'schoolCode': SchoolConfig.schoolCode,
+          // Only accounts at this school are considered. That is what makes
+          // the answer unambiguous for a parent whose phone number also exists
+          // at another school, and the session the API issues is bound to this
+          // school alone — every request after it sees only this school's data.
+          'schoolCode': school.code,
         },
       );
 
@@ -133,6 +161,8 @@ class AuthController extends GetxController {
       unawaited(Get.find<PushService>().start());
 
       await Get.offAllNamed<void>(_routeFor(signedIn));
+    } on SchoolNotFound catch (e) {
+      errorMessage.value = _unknownSchool(e);
     } on DioException catch (e) {
       errorMessage.value = _messageFor(e);
       isAwaitingSchool.value = _isAboutRegistration(e);
@@ -140,6 +170,38 @@ class AuthController extends GetxController {
       isBusy.value = false;
     }
   }
+
+  /// Opens registration for the school whose ID has been typed.
+  ///
+  /// A family registers with one school, so the School ID is checked before
+  /// the form opens — finding out at the end of four screens that it was
+  /// mistyped would waste all of them.
+  Future<void> startRegistration(String schoolId) async {
+    errorMessage.value = null;
+    isAwaitingSchool.value = false;
+
+    if (schoolId.trim().isEmpty) {
+      errorMessage.value =
+          'Enter your School ID first. Your school gives it to you.';
+      return;
+    }
+
+    isBusy.value = true;
+    try {
+      await _branding.choose(schoolId);
+      await Get.toNamed<void>(AppRoutes.registration);
+    } on SchoolNotFound catch (e) {
+      errorMessage.value = _unknownSchool(e);
+    } on DioException catch (e) {
+      errorMessage.value = _messageFor(e);
+    } finally {
+      isBusy.value = false;
+    }
+  }
+
+  static String _unknownSchool(SchoolNotFound e) =>
+      'No school has the School ID “${e.schoolId}”. Please check it with '
+      'your school office.';
 
   Future<void> signOut() async {
     // Before the session goes: revoking the device needs a live token, and a

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/config/policy_links.dart';
-import '../../core/config/school_config.dart';
+import '../../core/config/branding.dart';
 import '../../core/widgets/kid_ui.dart';
 import '../../core/widgets/password_field.dart';
 import 'registration_controller.dart';
@@ -21,9 +21,10 @@ import 'registration_controller.dart';
 /// asked for beside it because the first one is not always answered, and the
 /// office needs a second one in the afternoon.
 ///
-/// It does not ask which school — this binary belongs to one — and it does not
-/// ask for a photograph: that would mean accepting files from somebody with no
-/// account, and the office puts the child's photograph on their record itself.
+/// It does not ask which school — the School ID on the sign-in screen said
+/// that, and was checked — and it does not ask for a photograph: that would
+/// mean accepting files from somebody with no account, and the office puts the
+/// child's photograph on their record itself.
 class RegistrationView extends GetView<RegistrationController> {
   const RegistrationView({super.key});
 
@@ -86,7 +87,7 @@ class _Sent extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                '${SchoolConfig.schoolName} will check your details against '
+                '${BrandingService.current.name} will check your details against '
                 'their records. You will be able to sign in once they have '
                 'approved it.',
                 style: theme.textTheme.bodyMedium,
@@ -344,7 +345,7 @@ class _RegistrationFormState extends State<_RegistrationForm> {
                   _Intro(
                     icon: Icons.waving_hand_rounded,
                     text:
-                        'Registering at ${SchoolConfig.schoolName}. The school '
+                        'Registering at ${BrandingService.current.name}. The school '
                         'checks it against their records and opens your '
                         'account — you do not need an admission number.',
                   ),

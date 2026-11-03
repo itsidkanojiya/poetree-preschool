@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../config/school_config.dart';
+import '../config/app_config.dart';
 
 /// Error codes the API returns. Clients branch on these, never on the message.
 class ApiErrorCodes {
@@ -92,9 +92,9 @@ class ApiClient {
   ApiClient(this._tokens, {Dio? dio, Dio? refreshDio})
     : _dio = dio ?? Dio(),
       _refreshDio =
-          refreshDio ?? Dio(BaseOptions(baseUrl: SchoolConfig.apiBaseUrl)) {
+          refreshDio ?? Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)) {
     _dio.options
-      ..baseUrl = SchoolConfig.apiBaseUrl
+      ..baseUrl = AppConfig.apiBaseUrl
       ..connectTimeout = const Duration(seconds: 15)
       ..receiveTimeout = const Duration(seconds: 20)
       ..headers['content-type'] = 'application/json';

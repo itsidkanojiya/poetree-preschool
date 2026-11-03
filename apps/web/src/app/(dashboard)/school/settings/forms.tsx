@@ -36,7 +36,10 @@ export function SchoolDetailsForm({ school }: { school: SchoolProfile }) {
         </Field>
         {/* Shown because people look for it, disabled because the mobile app
             build is keyed on it and changing it would orphan every install. */}
-        <Field label="School code" hint="Fixed — the mobile app is built against it.">
+        <Field
+          label="School ID"
+          hint="Parents and teachers type this into the Poetree Kids app to sign in. It cannot be changed."
+        >
           <Input value={school.code} disabled readOnly />
         </Field>
         <Field label="Principal">

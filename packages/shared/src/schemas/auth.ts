@@ -13,10 +13,9 @@ export const loginSchema = z.object({
   /**
    * Narrows the search to one school — or to one group's branches.
    *
-   * A school code and an organisation code are both accepted here, in one
-   * field, because the caller does not know which it holds: a branded app is
-   * built per school when the customer is independent and per group when it is
-   * not, and either way the app sends the code it was built with.
+   * The Poetree Kids app sends the School ID its user typed — a school's code.
+   * An organisation's code is accepted in the same field, so a group's own
+   * administrator, who belongs to no single school, can sign in with it.
    *
    * Without it, login still works: the user is found by email or phone and the
    * school comes from the row that matches. The code is what makes the answer

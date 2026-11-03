@@ -272,8 +272,7 @@ export async function registrationAwaiting(
     where: {
       ...(looksLikeEmail ? { email: identifier.toLowerCase() } : { phone: identifier }),
       status: { in: ['PENDING', 'REJECTED'] },
-      // A school code or a group's code, as at login: the app sends whichever
-      // it was built with.
+      // The School ID the app sends, or a group's code, as at login.
       ...(schoolCode
         ? { school: { OR: [{ code: schoolCode }, { organisation: { code: schoolCode } }] } }
         : {}),

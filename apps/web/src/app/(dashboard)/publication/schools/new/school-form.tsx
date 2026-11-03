@@ -34,8 +34,8 @@ export function NewSchoolForm({ organisations }: { organisations: OrganisationSu
         )}
 
         <Field
-          label="School code"
-          hint="Left blank, it is generated from the name — sunrisepreschool, or sunrise01 for a branch. Permanent either way: it becomes the school's app id."
+          label="School ID"
+          hint="Left blank, it is generated from the name — sunrisepreschool, or sunrise01 for a branch. Permanent either way: parents and teachers type it into the Poetree Kids app to sign in."
         >
           <Input
             name="code"

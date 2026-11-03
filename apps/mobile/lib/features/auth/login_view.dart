@@ -2,20 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/config/branding.dart';
-import '../../core/routes/app_pages.dart';
 import '../../core/widgets/kid_ui.dart';
 import '../../core/widgets/password_field.dart';
 import 'auth_controller.dart';
 
-/// Sign-in.
+/// Sign-in: the School ID, then who the person is.
 ///
-/// No school picker: this binary belongs to one school, so the only thing to
-/// ask for is who the person is.
+/// Poetree Kids is one app for every school, so it asks which school first.
+/// The ID is remembered once the API has recognised it, so after the first
+/// time it is already filled in — and the screen wears that school's name and
+/// logo.
 class LoginView extends GetView<AuthController> {
   const LoginView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final school = BrandingService.current;
+    final schoolId = TextEditingController(text: school.code ?? '');
     final identifier = TextEditingController();
     final password = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -25,6 +28,7 @@ class LoginView extends GetView<AuthController> {
       if (!(formKey.currentState?.validate() ?? false)) return;
       FocusScope.of(context).unfocus();
       await controller.signIn(
+        schoolId: schoolId.text,
         identifier: identifier.text,
         password: password.text,
       );
@@ -36,9 +40,9 @@ class LoginView extends GetView<AuthController> {
           children: [
             AuthHeader(
               title: 'Welcome back!',
-              subtitle:
-                  'Sign in to see your child’s day at '
-                  '${BrandingService.current.name}',
+              subtitle: school.code == null
+                  ? 'Sign in with your School ID to see your child’s day'
+                  : 'Sign in to see your child’s day at ${school.name}',
               extraBottom: 36,
               badge: const _SchoolBadge(),
             ),
@@ -93,6 +97,25 @@ class LoginView extends GetView<AuthController> {
                             ),
                           ),
 
+                          TextFormField(
+                            controller: schoolId,
+                            // A code, not a word: no capitals, corrections or
+                            // suggestions turning "sunrise" into "Sunrise".
+                            keyboardType: TextInputType.visiblePassword,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'School ID',
+                              hintText: 'Given to you by your school',
+                              prefixIcon: Icon(Icons.school_rounded),
+                            ),
+                            validator: (value) =>
+                                (value == null || value.trim().isEmpty)
+                                ? 'Enter your School ID'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
                           TextFormField(
                             controller: identifier,
                             keyboardType: TextInputType.emailAddress,
@@ -199,7 +222,7 @@ class LoginView extends GetView<AuthController> {
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
                           onPressed: () =>
-                              Get.toNamed<void>(AppRoutes.registration),
+                              controller.startRegistration(schoolId.text),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: KidPalette.violet,
                             minimumSize: const Size.fromHeight(54),

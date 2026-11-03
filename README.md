@@ -80,8 +80,9 @@ other projects sharing that box.
 
 ## Roadmap
 
-- **Phase 2** — Flutter app, one branded Android app per school built from a single
-  codebase, published from Poetree's Play Store account. Teacher and parent login
-  arrive here. iOS afterwards.
+- **Phase 2** — Flutter app: one Poetree Kids app on Google Play
+  (`com.poetreepublications.kids`) for every school, published from Poetree's Play
+  Store account. Parents and teachers type their school's School ID at sign-in; a
+  new school is a row in the database, never a new build. iOS afterwards.
 - **Later** — attendance, fees, homework, timetable, notices, reports, progress
   tracking, and the interactive learning engine that is the platform's real USP.

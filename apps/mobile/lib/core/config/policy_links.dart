@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'school_config.dart';
+import 'app_config.dart';
 
 /// The two public pages Google Play requires the app to point to: the privacy
 /// policy, and how to delete an account without the app.
@@ -12,7 +12,7 @@ import 'school_config.dart';
 abstract final class PolicyLinks {
   /// The site the API is served from: its base URL without the /api/v1 part.
   static String get _site =>
-      SchoolConfig.apiBaseUrl.replaceFirst(RegExp(r'/api/v\d+/?$'), '');
+      AppConfig.apiBaseUrl.replaceFirst(RegExp(r'/api/v\d+/?$'), '');
 
   static Uri get privacy => Uri.parse('$_site/privacy');
 

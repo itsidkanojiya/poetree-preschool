@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'school_config.dart';
+import 'app_config.dart';
 
 /// The school's name, colour and logo, fetched rather than baked in.
 ///
@@ -17,27 +17,36 @@ import 'school_config.dart';
 /// them is the sign-in screen, where there is no token to send. Cached to disk
 /// so a cold start on a bad connection still opens looking like the school
 /// rather than like a default, and so the very first frame is never unbranded.
+///
+/// The same route is how a School ID is checked: Poetree Kids is one app for
+/// every school, and the school a phone belongs to is the one whose ID was
+/// last typed at sign-in and recognised — [code] here.
 class Branding {
   const Branding({
     required this.name,
     required this.primaryColor,
     required this.logoUrl,
+    this.code,
   });
 
   factory Branding.fromJson(Map<String, dynamic> json) => Branding(
-    name: json['name'] as String? ?? SchoolConfig.schoolName,
+    name: json['name'] as String? ?? appName,
     primaryColor: _parseColour(json['primaryColor'] as String?),
     logoUrl: json['logoUrl'] as String?,
+    code: json['code'] as String?,
   );
 
-  /// What the app shows before anything has been fetched: the values baked in
-  /// at build time, which are right for a configured build and harmless for a
-  /// development one.
-  factory Branding.fallback() => Branding(
-    name: SchoolConfig.schoolName,
-    primaryColor: _parseColour(SchoolConfig.primaryColorHex),
-    logoUrl: null,
-  );
+  /// What the app shows before anyone has given a School ID: Poetree Kids
+  /// itself, in the Poetree navy.
+  factory Branding.fallback() =>
+      Branding(name: appName, primaryColor: _parseColour(null), logoUrl: null);
+
+  /// The app's own name, for when it belongs to no school yet.
+  static const appName = 'Poetree Kids';
+
+  /// The School ID this phone signs in to — the school's code, as the API
+  /// knows it. Null until someone has typed one that the API recognised.
+  final String? code;
 
   final String name;
   final Color primaryColor;
@@ -55,7 +64,7 @@ class Branding {
     // The stored path is rooted at the domain (/api/v1/...) while the client's
     // base URL already ends in /api/v1, so the two are joined by hand rather
     // than concatenated into /api/v1/api/v1.
-    final origin = SchoolConfig.apiBaseUrl.replaceFirst(
+    final origin = AppConfig.apiBaseUrl.replaceFirst(
       RegExp(r'/api/v\d+/?$'),
       '',
     );
@@ -63,6 +72,7 @@ class Branding {
   }
 
   Map<String, dynamic> toJson() => {
+    'code': code,
     'name': name,
     // ignore: deprecated_member_use — .value is the stable int for storage;
     // toARGB32() is not available on the Flutter version this targets.
@@ -83,43 +93,99 @@ class Branding {
   }
 }
 
-/// Loads branding, cache first and network second.
+/// A School ID that no school has.
+class SchoolNotFound implements Exception {
+  const SchoolNotFound(this.schoolId);
+
+  /// As the person typed it, to show it back to them.
+  final String schoolId;
+
+  @override
+  String toString() => 'SchoolNotFound($schoolId)';
+}
+
+/// The school this phone belongs to — its School ID, name, colour and logo —
+/// remembered on the phone, cache first and network second.
 class BrandingService {
-  BrandingService({Dio? dio})
-    : _dio = dio ?? Dio(BaseOptions(baseUrl: SchoolConfig.apiBaseUrl));
+  /// [cacheFile] stands in for the file in the app's support directory —
+  /// tests pass one, because real disk I/O never finishes inside a widget
+  /// test's fake clock.
+  BrandingService({Dio? dio, Future<File> Function()? cacheFile})
+    : _dio = dio ?? Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)),
+      _cacheFileOverride = cacheFile;
 
   final Dio _dio;
+  final Future<File> Function()? _cacheFileOverride;
 
   static const _fileName = 'branding.json';
 
   /// What the app is currently painted with. Read before the first frame.
   static Branding current = Branding.fallback();
 
-  /// Reads the cached copy, then refreshes from the API in the background.
+  /// Reads the remembered school, then refreshes it from the API.
   ///
   /// Deliberately never throws: a school with no signal at 8am still has to be
   /// able to open the app, and branding is the least important thing on it.
+  /// A phone that has never been given a School ID stays Poetree Kids.
   Future<Branding> load() async {
     final cached = await _readCache();
     if (cached != null) current = cached;
 
+    final code = current.code;
+    if (code == null) return current;
+
     try {
       final response = await _dio.get<Map<String, dynamic>>(
-        '/public/schools/${SchoolConfig.schoolCode}/branding',
+        '/public/schools/$code/branding',
       );
       final data = response.data;
       if (data != null) {
-        current = Branding.fromJson(data);
+        current = Branding.fromJson({'code': code, ...data});
         await _writeCache(current);
       }
     } on Object {
-      // Keep whatever we had. Cached, or the build-time defaults.
+      // Keep whatever we had: the remembered school, or Poetree Kids.
     }
 
     return current;
   }
 
+  /// Checks a School ID with the API and, when it names a school, makes it
+  /// the one this phone signs in to — remembered for next time, and painted
+  /// on the sign-in screen from then on.
+  ///
+  /// Throws [SchoolNotFound] for an ID no school has, and the [DioException]
+  /// when the API cannot be reached, so the caller can tell the two apart.
+  Future<Branding> choose(String schoolId) async {
+    final code = normalise(schoolId);
+    if (!looksLikeSchoolId(code)) throw SchoolNotFound(schoolId.trim());
+
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/public/schools/$code/branding',
+      );
+      current = Branding.fromJson({'code': code, ...?response.data});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) throw SchoolNotFound(code);
+      rethrow;
+    }
+
+    await _writeCache(current);
+    return current;
+  }
+
+  /// A School ID however it was typed: " Sunrise " is "sunrise".
+  static String normalise(String schoolId) => schoolId.trim().toLowerCase();
+
+  /// The API's own rule for a school code: a letter, then letters and digits,
+  /// two to thirty in all. Anything else cannot be a school, and asking the
+  /// server about it would only cost a round trip.
+  static bool looksLikeSchoolId(String code) =>
+      RegExp(r'^[a-z][a-z0-9]{1,29}$').hasMatch(code);
+
   Future<File> _cacheFile() async {
+    final override = _cacheFileOverride;
+    if (override != null) return override();
     final directory = await getApplicationSupportDirectory();
     return File('${directory.path}/$_fileName');
   }

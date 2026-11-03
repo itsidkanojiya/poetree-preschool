@@ -126,8 +126,8 @@ export async function getSchool(schoolId: string): Promise<SchoolSummary> {
  * The code a new school gets when the Super Admin does not type one.
  *
  * A branch is numbered within its group — sunrise becomes sunrise01, sunrise02
- * — because a group's app is built with the group's code and its branches have
- * to sort under it recognisably. An independent school is named after itself.
+ * — so that its School ID sorts recognisably under the group's code. An
+ * independent school is named after itself.
  *
  * Only a suggestion: two admins creating a school at the same moment can both
  * be told the same code is free, which is why the insert below retries on the

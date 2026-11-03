@@ -44,9 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Per-school Firebase config, placed by tool/configure_school.dart at build
-# time. It identifies one school's Firebase app and must never be committed —
-# a checked-in file would silently apply to every school's build.
+# The Poetree Kids Firebase app's config. It identifies the Firebase project
+# and is kept out of this public repository; put it in place on the machine
+# that builds releases.
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 

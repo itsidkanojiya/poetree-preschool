@@ -210,9 +210,8 @@ export async function login(
     : { phone: identifier };
 
   if (input.schoolCode) {
-    // One field, two kinds of code. A branded app is built per school when the
-    // customer is independent and per group when it is not, and it sends the
-    // code it was built with without knowing which kind that is.
+    // One field, two kinds of code: the School ID a parent or teacher typed
+    // into the app, or a group's code from its administrator.
     //
     // The second arm is the group's own administrator, who belongs to no school
     // and would otherwise be excluded by their own group's code.

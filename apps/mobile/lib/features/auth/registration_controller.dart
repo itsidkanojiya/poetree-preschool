@@ -3,14 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
-import '../../core/config/school_config.dart';
+import '../../core/config/branding.dart';
 
 /// A family asking their school for access.
 ///
-/// There is no school to choose. This binary belongs to one school and its code
-/// is compiled in, so the request goes to that school's public endpoint — the
-/// same way the sign-in screen already fetches its branding before anybody has
-/// signed in.
+/// The school is the one whose School ID was typed on the sign-in screen and
+/// checked before this opened, so the request goes to that school's public
+/// endpoint — the same way the sign-in screen fetches its branding before
+/// anybody has signed in.
 ///
 /// Nothing here creates an account. The reply says only that the school has the
 /// request; the family cannot sign in until somebody in the office agrees.
@@ -51,6 +51,11 @@ class OtpState {
 }
 
 class RegistrationController extends GetxController {
+  /// The school being registered with: the School ID typed on the sign-in
+  /// screen, which [AuthController.startRegistration] has already checked
+  /// before opening this form.
+  String get _school => BrandingService.current.code ?? '';
+
   final isBusy = false.obs;
   final errorMessage = RxnString();
 
@@ -76,7 +81,7 @@ class RegistrationController extends GetxController {
 
     try {
       final data = await api.post<Map<String, dynamic>>(
-        '/public/schools/${SchoolConfig.schoolCode}/otp/send',
+        '/public/schools/$_school/otp/send',
         body: {'channel': channel, 'destination': destination.trim()},
       );
 
@@ -106,7 +111,7 @@ class RegistrationController extends GetxController {
 
     try {
       await api.post<Map<String, dynamic>>(
-        '/public/schools/${SchoolConfig.schoolCode}/otp/verify',
+        '/public/schools/$_school/otp/verify',
         body: {'challengeId': challengeId, 'code': code.trim()},
       );
       state.isVerified.value = true;
@@ -204,7 +209,7 @@ class RegistrationController extends GetxController {
 
     try {
       await api.post<dynamic>(
-        '/public/schools/${SchoolConfig.schoolCode}/registrations',
+        '/public/schools/$_school/registrations',
         body: {
           'studentFirstName': studentFirstName.trim(),
           if (given(studentMiddleName) != null)

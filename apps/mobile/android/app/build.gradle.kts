@@ -46,18 +46,18 @@ if (buildingRelease && !releaseSigningConfigured) {
     )
 }
 
-// Push is per school: tool/configure_school.dart drops that school's
-// google-services.json here. The Google plugin fails the build outright when the
-// file is missing, which would break every developer build and every school
-// whose Firebase project is not set up yet — so it is applied only when the file
-// is actually there. Without it the app still runs and falls back to the in-app
-// inbox, which is the durable record anyway.
+// Push needs the Poetree Kids Firebase app's google-services.json here (its
+// package must be com.poetreepublications.kids). It is not in the repository,
+// and the Google plugin fails the build outright when the file is missing,
+// which would break every developer build — so it is applied only when the
+// file is actually there. Without it the app still runs and falls back to the
+// in-app inbox, which is the durable record anyway.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.poetree.poetree_school"
+    namespace = "com.poetreepublications.kids"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -67,8 +67,10 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.poetree.poetree_school"
+        // One app for every school, on Google Play as Poetree Kids. Schools are
+        // told apart by the School ID typed at sign-in, never by a build of
+        // their own, and this can never change once the app has been uploaded.
+        applicationId = "com.poetreepublications.kids"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

@@ -64,7 +64,7 @@ export default async function OrganisationPage({
         </Card>
 
         <div className="space-y-5">
-          <Card title="Group code" description="What the group's own app is built with.">
+          <Card title="Group code" description="The group's own code. Each branch has its own School ID for the app.">
             <Pill>{organisation.code}</Pill>
             <p className="mt-3 text-xs text-slate-500">
               Permanent. Branch codes are numbered under it, so one group ships one app rather

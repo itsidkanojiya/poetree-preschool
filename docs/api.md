@@ -88,10 +88,12 @@ transaction, and reply `{ deleted: true, schoolName, registrationOnly }`:
 more than one school, the response is `409 CONFLICT` listing the school codes; send
 `schoolCode` to disambiguate.
 
-`schoolCode` accepts a school's code **or an organisation's**, because a branded
-app is built per school for an independent customer and per group for one that
-runs branches — and it sends whichever code it was built with. The mobile app
-always sends it.
+`schoolCode` is the **School ID** a parent or teacher types into the Poetree Kids
+app — a school's code — and the app always sends it: only accounts at that school
+are considered, and the session is bound to it. An organisation's code is accepted
+in the same field for a group's own administrator. The app checks the School ID
+first with `GET /public/schools/:code/branding`, whose `404` means no school has
+it.
 
 In Phase 1 the endpoint admits only `PUBLICATION_ADMIN` and `SCHOOL_ADMIN`.
 

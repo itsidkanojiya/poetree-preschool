@@ -39,6 +39,18 @@ export class ApiError extends Error {
     return new ApiError(401, ERROR_CODES.INVALID_REFRESH_TOKEN, message);
   }
 
+  /** Too many of something, too soon — the answer to an attack and a stuck finger alike. */
+  static rateLimited(message: string, details?: unknown): ApiError {
+    return new ApiError(429, ERROR_CODES.RATE_LIMITED, message, details);
+  }
+
+  /** The school switched the account off, removed it, or took the role away. */
+  static accountInactive(
+    message = 'The school has changed or switched off your account. Please contact the school office.',
+  ): ApiError {
+    return new ApiError(401, ERROR_CODES.ACCOUNT_INACTIVE, message);
+  }
+
   static sessionReplaced(
     message = 'You signed in on another device, so you were signed out here. Sign in again to carry on.',
   ): ApiError {

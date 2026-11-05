@@ -435,6 +435,7 @@ export async function recordPayment(
       body: `₹${(input.amountInPaise / 100).toLocaleString('en-IN')} received. Receipt ${result.receiptNo}.`,
       entityType: 'Payment',
       entityId: result.paymentId,
+      data: { studentId: input.studentId },
     });
   }
 

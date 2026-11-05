@@ -9,6 +9,7 @@ import type {
 import { prisma, prismaUnscoped, type TenantTransactionClient } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
+import { holdsTeacher } from './roles.service.js';
 
 /* -------------------------------------------------------------------------- */
 /* Class levels — global reference data, shared by every school                */
@@ -209,7 +210,7 @@ async function assertClassLevelExists(classLevelId: string): Promise<void> {
 
 async function assertTeacherBelongsToSchool(teacherId: string): Promise<void> {
   const teacher = await prisma.user.findFirst({
-    where: { id: teacherId, role: 'TEACHER' },
+    where: { id: teacherId, ...holdsTeacher },
     select: { id: true },
   });
   if (!teacher) throw ApiError.badRequest('That teacher does not exist at your school');

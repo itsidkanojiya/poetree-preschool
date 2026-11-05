@@ -21,18 +21,24 @@ class AppUser {
     required this.name,
     required this.role,
     required this.mustChangePassword,
+    List<String>? roles,
     this.email,
     this.phone,
     this.schoolName,
     this.schoolCode,
-  });
+  }) : roles = roles ?? [role];
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     final school = json['school'] as Map<String, dynamic>?;
+    final role = json['role'] as String;
     return AppUser(
       id: json['id'] as String,
       name: json['name'] as String,
-      role: json['role'] as String,
+      role: role,
+      // An older server sends only the one role; that is all there is then.
+      roles:
+          (json['roles'] as List<dynamic>?)?.whereType<String>().toList() ??
+          [role],
       mustChangePassword: json['mustChangePassword'] as bool? ?? false,
       email: json['email'] as String?,
       phone: json['phone'] as String?,
@@ -43,7 +49,13 @@ class AppUser {
 
   final String id;
   final String name;
+
+  /// The role this session acts as — what the app is showing.
   final String role;
+
+  /// Every role the person holds at the school: both, for a parent who also
+  /// teaches there.
+  final List<String> roles;
 
   /// Signed in with a password the school office chose. The API refuses
   /// everything but changing it, so the app must not open a normal screen.
@@ -58,6 +70,12 @@ class AppUser {
 
   bool get isTeacher => role == 'TEACHER';
   bool get isParent => role == 'PARENT';
+
+  /// A parent who is also a teacher here — offered a switch between the two.
+  bool get canSwitch => roles.contains('TEACHER') && roles.contains('PARENT');
+
+  /// Whether the person may use this app at all: families and teachers.
+  bool get usesApp => roles.contains('PARENT') || roles.contains('TEACHER');
 }
 
 class AuthController extends GetxController {
@@ -78,10 +96,16 @@ class AuthController extends GetxController {
   /// the red that means "you got that wrong".
   final isAwaitingSchool = false.obs;
 
+  /// Where someone who is not signed in starts: their school's sign-in, or —
+  /// on a phone that has never been told one — the School ID screen.
+  static String get _signedOutRoute => BrandingService.current.code == null
+      ? AppRoutes.schoolId
+      : AppRoutes.login;
+
   /// Restores a session on cold start. Returns the route to open.
   Future<String> resolveStartRoute() async {
     final token = await api.tokens.accessToken;
-    if (token == null) return '/login';
+    if (token == null) return _signedOutRoute;
 
     try {
       final data = await api.get<Map<String, dynamic>>('/auth/me');
@@ -106,23 +130,63 @@ class AuthController extends GetxController {
       // The interceptor already tried to refresh; if we are still here the
       // session is genuinely gone.
       await api.tokens.clear();
-      return '/login';
+      return _signedOutRoute;
     }
   }
 
+  /// The School ID screen's Continue: checked with the API, remembered, and
+  /// then — only then — the school's sign-in.
+  Future<void> chooseSchool(String schoolId) async {
+    errorMessage.value = null;
+    isAwaitingSchool.value = false;
+
+    if (schoolId.trim().isEmpty) {
+      errorMessage.value = 'Enter your School ID. Your school gives it to you.';
+      return;
+    }
+
+    isBusy.value = true;
+    try {
+      await _branding.choose(schoolId);
+      // Not awaited: the future only ends when the new screen does, and the
+      // busy flag below would stay on — spinning the sign-in button.
+      unawaited(Get.offAllNamed<void>(AppRoutes.login));
+    } on SchoolNotFound catch (e) {
+      errorMessage.value = _unknownSchool(e);
+    } on DioException catch (e) {
+      errorMessage.value = _messageFor(e);
+    } finally {
+      isBusy.value = false;
+    }
+  }
+
+  /// Back to the School ID screen, for a phone signing in to another school.
+  /// The remembered school stays until a new one is accepted.
+  Future<void> changeSchool() async {
+    errorMessage.value = null;
+    isAwaitingSchool.value = false;
+    await Get.offAllNamed<void>(AppRoutes.schoolId);
+  }
+
   Future<void> signIn({
-    required String schoolId,
     required String identifier,
     required String password,
   }) async {
+    final schoolId = BrandingService.current.code;
+    // Nobody signs in without a school: the School ID screen comes first.
+    if (schoolId == null) {
+      await changeSchool();
+      return;
+    }
+
     isBusy.value = true;
     errorMessage.value = null;
     isAwaitingSchool.value = false;
 
     try {
-      // The School ID first. It decides whose records the sign-in is checked
-      // against, and one that names no school deserves to be told so — not
-      // "wrong password" to somebody who typed their password correctly.
+      // Checked again, so a school that has gone since this phone last saw it
+      // is said plainly — not "wrong password" to somebody who typed their
+      // password correctly.
       final school = await _branding.choose(schoolId);
 
       final data = await api.post<Map<String, dynamic>>(
@@ -143,7 +207,7 @@ class AuthController extends GetxController {
       // This app is for families and staff, not administration — and the check
       // must not depend on SchoolConfig being filled in, or an unconfigured
       // development build would silently admit school admins.
-      if (!signedIn.isParent && !signedIn.isTeacher) {
+      if (!signedIn.usesApp) {
         errorMessage.value =
             'This app is for parents and teachers. Administrators use the web portal.';
         return;
@@ -160,7 +224,14 @@ class AuthController extends GetxController {
       // stop someone getting into the app.
       unawaited(Get.find<PushService>().start());
 
-      await Get.offAllNamed<void>(_routeFor(signedIn));
+      // Someone who is both a parent and a teacher here says which, first.
+      unawaited(
+        Get.offAllNamed<void>(
+          signedIn.canSwitch && !signedIn.mustChangePassword
+              ? AppRoutes.chooseRole
+              : _routeFor(signedIn),
+        ),
+      );
     } on SchoolNotFound catch (e) {
       errorMessage.value = _unknownSchool(e);
     } on DioException catch (e) {
@@ -171,18 +242,18 @@ class AuthController extends GetxController {
     }
   }
 
-  /// Opens registration for the school whose ID has been typed.
+  /// Opens registration for the school this phone has chosen.
   ///
-  /// A family registers with one school, so the School ID is checked before
-  /// the form opens — finding out at the end of four screens that it was
-  /// mistyped would waste all of them.
-  Future<void> startRegistration(String schoolId) async {
+  /// A family registers with one school, so the School ID is checked again
+  /// before the form opens — finding out at the end of four screens that the
+  /// school had gone would waste all of them.
+  Future<void> startRegistration() async {
     errorMessage.value = null;
     isAwaitingSchool.value = false;
 
-    if (schoolId.trim().isEmpty) {
-      errorMessage.value =
-          'Enter your School ID first. Your school gives it to you.';
+    final schoolId = BrandingService.current.code;
+    if (schoolId == null) {
+      await changeSchool();
       return;
     }
 
@@ -236,20 +307,69 @@ class AuthController extends GetxController {
     await _endSession(reason: 'deleted');
   }
 
-  Future<void> _endSession({String? reason}) async {
-    await api.tokens.clear();
-    user.value = null;
+  /// The choice after signing in, for someone who is both: carry on as the
+  /// role they signed in as, or become the other.
+  Future<void> continueAs(String role) async {
+    final signedIn = user.value;
+    if (signedIn == null) return;
+    if (signedIn.role == role) {
+      await goHome();
+      return;
+    }
+    await switchTo(role);
+  }
 
-    // Everything holding the signed-in person's data goes with them. GetX keeps
-    // the first registration of a type, so the next sign-in would otherwise
-    // reuse these — handing a second family the first family's children.
+  /// Becoming the other of parent and teacher.
+  ///
+  /// A new session acting as that role — the server ends the old one, so the
+  /// two are never open together — and everything the old role had loaded is
+  /// put away before the new home opens.
+  Future<void> switchTo(String role) async {
+    isBusy.value = true;
+    try {
+      final data = await api.post<Map<String, dynamic>>(
+        '/auth/switch-role',
+        body: {'role': role},
+      );
+      await api.tokens.save(
+        access: data['accessToken'] as String,
+        refresh: data['refreshToken'] as String,
+      );
+      final switched = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+      _clearSessionControllers();
+      user.value = switched;
+      unawaited(Get.offAllNamed<void>(_routeFor(switched)));
+    } on DioException catch (e) {
+      Get
+        ..closeAllSnackbars()
+        ..snackbar(
+          'Could not switch',
+          _messageFor(e),
+          snackPosition: SnackPosition.BOTTOM,
+        );
+    } finally {
+      isBusy.value = false;
+    }
+  }
+
+  /// Everything holding the signed-in person's data. GetX keeps the first
+  /// registration of a type, so the next sign-in — or the other role — would
+  /// otherwise reuse these, handing a second family the first family's
+  /// children, or a teacher's register to their parent view.
+  void _clearSessionControllers() {
     SessionScope.clear<ChildController>();
     SessionScope.clear<ChildrenController>();
     SessionScope.clear<RegisterController>();
     SessionScope.clear<InboxController>();
+  }
+
+  Future<void> _endSession({String? reason}) async {
+    await api.tokens.clear();
+    user.value = null;
+    _clearSessionControllers();
 
     await Get.offAllNamed<void>(
-      '/login',
+      _signedOutRoute,
       arguments: reason == null ? null : {'reason': reason},
     );
   }

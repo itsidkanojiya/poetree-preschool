@@ -27,17 +27,32 @@ export function DecideButtons({
   studentName,
   matches,
   classrooms,
+  classLevel,
+  parentAccountName,
 }: {
   registrationId: string;
   guardianName: string;
   studentName: string;
   /** Children already on the roll who might be the one described. */
   matches: StudentMatch[];
-  classrooms: Array<{ id: string; label: string }>;
+  classrooms: Array<{ id: string; label: string; classLevelId: string; isCurrentYear: boolean }>;
+  /** The standard the family asked for, when the form asked. */
+  classLevel: { id: string; name: string } | null;
+  /** Set when the child is for an account the family already has here. */
+  parentAccountName: string | null;
 }) {
   const [mode, setMode] = useState<'idle' | 'approving' | 'rejecting'>('idle');
   // Empty means "a child the school does not have yet".
   const [studentId, setStudentId] = useState(matches[0]?.id ?? '');
+
+  // The standard asked for first — this year's sections before older ones —
+  // and the first of them chosen, so the usual case is no choice at all.
+  const asked = classLevel
+    ? classrooms
+        .filter((classroom) => classroom.classLevelId === classLevel.id)
+        .sort((a, b) => Number(b.isCurrentYear) - Number(a.isCurrentYear))
+    : [];
+  const others = classrooms.filter((classroom) => !asked.includes(classroom));
 
   const [rejectState, rejectAction] = useActionState<RegistrationState, FormData>(
     rejectRegistrationAction.bind(null, registrationId),
@@ -85,6 +100,12 @@ export function DecideButtons({
           They will see everything about this child — attendance, fees, homework and
           photographs. Which child is <span className="font-medium text-navy-950">{studentName}</span>?
         </p>
+        {parentAccountName && (
+          <p className="text-xs text-gold-900">
+            The child is added to {parentAccountName}’s existing account — no new account or
+            password.
+          </p>
+        )}
 
         <div className="space-y-1.5">
           {matches.map((match) => (
@@ -150,13 +171,39 @@ export function DecideButtons({
               ))}
             </Select>
 
-            <Select name="classroomId" defaultValue="" className="py-1.5 text-xs">
+            <Select
+              name="classroomId"
+              defaultValue={asked[0]?.id ?? ''}
+              className="py-1.5 text-xs"
+              aria-label="Class"
+            >
               <option value="">No class yet</option>
-              {classrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.label}
-                </option>
-              ))}
+              {asked.length > 0 ? (
+                <>
+                  <optgroup label={`${classLevel?.name} — asked for`}>
+                    {asked.map((classroom) => (
+                      <option key={classroom.id} value={classroom.id}>
+                        {classroom.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {others.length > 0 && (
+                    <optgroup label="Other classes">
+                      {others.map((classroom) => (
+                        <option key={classroom.id} value={classroom.id}>
+                          {classroom.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                classrooms.map((classroom) => (
+                  <option key={classroom.id} value={classroom.id}>
+                    {classroom.label}
+                  </option>
+                ))
+              )}
             </Select>
 
             <Input

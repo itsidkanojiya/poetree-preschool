@@ -1,5 +1,7 @@
 import type {
+  AddChildRequestInput,
   ApproveRegistrationInput,
+  ChildRequestSummary,
   ListRegistrationsQuery,
   Paginated,
   RegistrationSummary,
@@ -9,7 +11,7 @@ import type {
 } from '@poetree/shared';
 import type { Prisma } from '@prisma/client';
 import { prisma, prismaUnscoped } from '../db/prisma.js';
-import { requireSchoolId } from '../context/requestContext.js';
+import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { hashPassword } from '../lib/password.js';
 import { isSchoolUsable } from './schoolAccess.service.js';
@@ -17,7 +19,16 @@ import { writeAuditLog } from './audit.service.js';
 import { consumeVerifiedChallenges } from './otp.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
+import { grantParentRole } from './parent.service.js';
+import { holdsParent, profileRoles, rolesHeld } from './roles.service.js';
 import { studentName } from '../lib/names.js';
+
+/**
+ * What a request for another child holds in the password column: nothing that
+ * could ever be a hash. The family already has an account and its password;
+ * approving one of these never copies this anywhere.
+ */
+const NO_PASSWORD = '!existing-account';
 
 /**
  * A family asking their school for access, and the school deciding.
@@ -72,6 +83,8 @@ function toMatch(student: StudentRow): StudentMatch {
 const registrationInclude = {
   student: { select: studentSelect },
   reviewedBy: { select: { name: true } },
+  classLevel: { select: { id: true, name: true } },
+  parentUser: { select: { id: true, name: true, role: true, deletedAt: true, ...profileRoles } },
 } satisfies Prisma.ParentRegistrationInclude;
 
 type RegistrationRow = Prisma.ParentRegistrationGetPayload<{
@@ -91,6 +104,20 @@ function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): Registra
 
     admissionNo: row.admissionNo,
     motherPhone: row.motherPhone,
+    secondContactRelation: row.secondContactRelation,
+    motherPhoneVerified: row.motherPhoneVerified,
+    motherEmail: row.motherEmail,
+    classLevel: row.classLevel,
+    parentAccount:
+      row.parentUser && !row.parentUser.deletedAt
+        ? {
+            userId: row.parentUser.id,
+            name: row.parentUser.name,
+            roles: rolesHeld(row.parentUser).filter(
+              (role): role is 'TEACHER' | 'PARENT' => role === 'TEACHER' || role === 'PARENT',
+            ),
+          }
+        : null,
     studentName: row.studentName,
     studentDateOfBirth: row.studentDateOfBirth?.toISOString() ?? null,
     fatherName: row.fatherName,
@@ -160,33 +187,55 @@ export async function submitRegistration(
 ): Promise<SubmitRegistrationResponse> {
   const school = await registeringSchool(schoolCode);
 
-  // Both answered before any of this was typed. Spent here, so one code cannot
-  // open two accounts, and each checked against what is ON the form — a family
-  // that proves one number and types another would leave the school ringing a
-  // phone nobody had answered for.
+  const level = await prismaUnscoped.classLevel.findFirst({
+    where: { id: input.classLevelId, isActive: true },
+    select: { id: true },
+  });
+  if (!level) throw ApiError.badRequest('Choose your child’s class from the list.');
+
+  // Somebody here already has this number or address. Asked before the codes
+  // are spent, so a family sent elsewhere does not have to confirm them again.
+  const accounts = await prismaUnscoped.user.findMany({
+    where: {
+      schoolId: school.id,
+      deletedAt: null,
+      OR: [{ phone: input.phone }, { email: input.email }],
+    },
+    select: { id: true, role: true, phone: true, ...profileRoles },
+    take: 2,
+  });
+  const byPhone = accounts.find((account) => account.phone === input.phone);
+  // A teacher here registering their own child: the child is linked to the
+  // account they already have, which gains the parent role on approval —
+  // not a second account for the same person.
+  const teacherOwnChild =
+    byPhone !== undefined &&
+    accounts.length === 1 &&
+    rolesHeld(byPhone).includes('TEACHER') &&
+    !rolesHeld(byPhone).includes('PARENT');
+  if (accounts.length > 0 && !teacherOwnChild) {
+    const isParent = accounts.some((account) => rolesHeld(account).includes('PARENT'));
+    throw ApiError.conflict(
+      isParent
+        ? 'You already have an account at this school. Sign in, and add your child from the ' +
+            'app: Settings → Add another child.'
+        : 'There is already an account with that phone number or email at this school. ' +
+            'Try signing in, or ask the office to reset your password.',
+    );
+  }
+
+  // All three answered before any of this was typed. Spent here, so one code
+  // cannot open two accounts, and each checked against what is ON the form — a
+  // family that proves one number and types another would leave the school
+  // ringing a phone nobody had answered for.
   await consumeVerifiedChallenges(school.id, {
     phoneChallengeId: input.phoneChallengeId,
     phone: input.phone,
     emailChallengeId: input.emailChallengeId,
     email: input.email,
+    secondPhoneChallengeId: input.motherPhoneChallengeId,
+    secondPhone: input.motherPhone,
   });
-
-  // Already has an account: they want to sign in, not register. Saying so is
-  // more use than "phone already taken".
-  const existing = await prismaUnscoped.user.findFirst({
-    where: {
-      schoolId: school.id,
-      deletedAt: null,
-      OR: [{ phone: input.phone }, ...(input.email ? [{ email: input.email }] : [])],
-    },
-    select: { id: true },
-  });
-  if (existing) {
-    throw ApiError.conflict(
-      'There is already an account with that phone number at this school. ' +
-        'Try signing in, or ask the office to reset your password.',
-    );
-  }
 
   const waiting = await prismaUnscoped.parentRegistration.findFirst({
     where: { schoolId: school.id, phone: input.phone, status: 'PENDING' },
@@ -214,7 +263,12 @@ export async function submitRegistration(
       studentMiddleName: input.studentMiddleName ?? null,
       studentLastName: input.studentLastName ?? null,
       studentDateOfBirth: input.studentDateOfBirth,
+      classLevelId: input.classLevelId,
       motherPhone: input.motherPhone,
+      motherPhoneVerified: true,
+      secondContactRelation: input.secondContactRelation,
+      motherEmail: input.motherEmail ?? null,
+      parentUserId: teacherOwnChild ? byPhone.id : null,
 
       guardianName: input.guardianName,
       relation: input.relation,
@@ -223,7 +277,7 @@ export async function submitRegistration(
       // Hashed here, the moment it arrives. Nothing downstream ever sees the
       // password the family chose.
       passwordHash: await hashPassword(input.password),
-      address: input.address ?? null,
+      address: input.address,
 
       fatherName: input.fatherName ?? null,
       motherName: input.motherName ?? null,
@@ -246,9 +300,120 @@ export async function submitRegistration(
 
   return {
     status: 'PENDING',
-    message:
-      'Thank you. Your registration has been sent to the school. ' +
-      'You will be able to sign in once they have approved it.',
+    message: teacherOwnChild
+      ? 'Thank you. Your registration has been sent to the school. Once they approve it, ' +
+        'sign in with your teacher account and switch to Parent to see your child.'
+      : 'Thank you. Your registration has been sent to the school. ' +
+        'You will be able to sign in once they have approved it.',
+  };
+}
+
+/**
+ * A signed-in parent asking the school to add another child — a brother or
+ * sister joining. It goes into the same queue as a registration and the office
+ * approves it the same way; approving links the child to this parent's account
+ * instead of opening a new one.
+ */
+export async function requestAnotherChild(
+  input: AddChildRequestInput,
+): Promise<ChildRequestSummary> {
+  const context = getRequestContext();
+  if (!context) throw ApiError.unauthenticated();
+  const schoolId = requireSchoolId();
+
+  const parent = await prisma.user.findFirst({
+    where: { id: context.userId, ...holdsParent },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      parentProfile: { select: { relation: true, address: true } },
+    },
+  });
+  if (!parent) throw ApiError.forbidden('Only a parent can ask for a child to be added.');
+
+  const level = await prisma.classLevel.findFirst({
+    where: { id: input.classLevelId, isActive: true },
+    select: { id: true },
+  });
+  if (!level) throw ApiError.badRequest('Choose your child’s class from the list.');
+
+  const name = studentName({
+    firstName: input.studentFirstName,
+    middleName: input.studentMiddleName,
+    lastName: input.studentLastName,
+  });
+  const waiting = await prisma.parentRegistration.findFirst({
+    where: { parentUserId: parent.id, studentName: name, status: 'PENDING' },
+    select: { id: true },
+  });
+  if (waiting) {
+    throw ApiError.conflict(`Your request for ${name} is already waiting for the school.`);
+  }
+
+  const row = await prisma.parentRegistration.create({
+    data: {
+      schoolId,
+      parentUserId: parent.id,
+      guardianName: parent.name,
+      relation: parent.parentProfile?.relation ?? 'GUARDIAN',
+      phone: parent.phone ?? '',
+      email: parent.email,
+      passwordHash: NO_PASSWORD,
+      address: parent.parentProfile?.address ?? null,
+      studentName: name,
+      studentFirstName: input.studentFirstName,
+      studentMiddleName: input.studentMiddleName ?? null,
+      studentLastName: input.studentLastName ?? null,
+      studentDateOfBirth: input.studentDateOfBirth,
+      classLevelId: input.classLevelId,
+      bloodGroup: input.bloodGroup ?? null,
+    },
+    include: { classLevel: { select: { name: true } } },
+  });
+
+  await writeAuditLog({
+    action: 'REGISTRATION_SUBMITTED',
+    entity: 'ParentRegistration',
+    entityId: row.id,
+    schoolId,
+    actorUserId: parent.id,
+    metadata: { anotherChild: true, studentName: input.studentFirstName },
+  });
+
+  return toChildRequest(row);
+}
+
+/** A parent's own requests for more children, newest first. */
+export async function myChildRequests(): Promise<ChildRequestSummary[]> {
+  const context = getRequestContext();
+  if (!context) throw ApiError.unauthenticated();
+
+  const rows = await prisma.parentRegistration.findMany({
+    where: { parentUserId: context.userId },
+    include: { classLevel: { select: { name: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+  return rows.map(toChildRequest);
+}
+
+function toChildRequest(row: {
+  id: string;
+  studentName: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: Date;
+  rejectionReason: string | null;
+  classLevel: { name: string } | null;
+}): ChildRequestSummary {
+  return {
+    id: row.id,
+    studentName: row.studentName,
+    classLevel: row.classLevel?.name ?? null,
+    status: row.status,
+    submittedAt: row.createdAt.toISOString(),
+    rejectionReason: row.rejectionReason,
   };
 }
 
@@ -420,17 +585,30 @@ export async function approveRegistration(
     );
   }
 
+  // For a family that already has an account: it must still be here.
+  if (
+    registration.parentUserId &&
+    (!registration.parentUser || registration.parentUser.deletedAt)
+  ) {
+    throw ApiError.conflict(
+      'The account this child was asked for has been removed. Restore it first, or turn this down.',
+    );
+  }
+
   // Checked again at approval, not only at submission. Weeks can pass, and the
   // office may have created the account by hand in the meantime.
-  const clash = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { phone: registration.phone },
-        ...(registration.email ? [{ email: registration.email }] : []),
-      ],
-    },
-    select: { id: true, deletedAt: true },
-  });
+  const clash = registration.parentUserId
+    ? null
+    : await prisma.user.findFirst({
+        where: {
+          deletedAt: undefined,
+          OR: [
+            { phone: registration.phone },
+            ...(registration.email ? [{ email: registration.email }] : []),
+          ],
+        },
+        select: { id: true, deletedAt: true },
+      });
   if (clash) {
     throw ApiError.conflict(
       clash.deletedAt
@@ -501,29 +679,44 @@ export async function approveRegistration(
   // is not.
   const { userId, student } = await prisma.$transaction(
     async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        schoolId,
-        scopeKey: schoolId,
-        name: registration.guardianName,
-        email: registration.email,
-        phone: registration.phone,
-        // Their own password, chosen when they registered. They are not made to
-        // change it: nobody else has ever seen it.
-        passwordHash: registration.passwordHash,
-        role: 'PARENT',
-        status: 'ACTIVE',
-      },
-    });
-
-    const profile = await tx.parentProfile.create({
-      data: {
-        userId: user.id,
-        schoolId,
-        relation: registration.relation,
-        address: registration.address,
-      },
-    });
+    // A family already here — a parent's next child, or a teacher's own — is
+    // linked to the account they have. Everyone else gets theirs now.
+    const { user, profile } = registration.parentUserId
+      ? {
+          user: { id: registration.parentUserId },
+          profile: {
+            id: await grantParentRole(
+              registration.parentUserId,
+              { relation: registration.relation, address: registration.address ?? undefined },
+              tx,
+            ),
+          },
+        }
+      : await (async () => {
+          const created = await tx.user.create({
+            data: {
+              schoolId,
+              scopeKey: schoolId,
+              name: registration.guardianName,
+              email: registration.email,
+              phone: registration.phone,
+              // Their own password, chosen when they registered. They are not
+              // made to change it: nobody else has ever seen it.
+              passwordHash: registration.passwordHash,
+              role: 'PARENT',
+              status: 'ACTIVE',
+            },
+          });
+          const parentProfile = await tx.parentProfile.create({
+            data: {
+              userId: created.id,
+              schoolId,
+              relation: registration.relation,
+              address: registration.address,
+            },
+          });
+          return { user: created, profile: parentProfile };
+        })();
 
     // The child: the one pointed at, or a new record whose number is issued
     // from the school's own series inside this same transaction, so a rollback
@@ -594,8 +787,12 @@ export async function approveRegistration(
         return created;
       })());
 
-    await tx.studentGuardian.create({
-      data: {
+    // Upserted: a parent linking to a child they are already the guardian of
+    // has nothing new to write, and must not be refused for it.
+    await tx.studentGuardian.upsert({
+      where: { studentId_parentProfileId: { studentId: child.id, parentProfileId: profile.id } },
+      update: {},
+      create: {
         schoolId,
         studentId: child.id,
         parentProfileId: profile.id,

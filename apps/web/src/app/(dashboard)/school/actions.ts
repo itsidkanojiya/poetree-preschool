@@ -1,12 +1,45 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { apiFetch, errorMessage } from '@/lib/api';
+import type { ExistingAccount } from '@poetree/shared';
+import { ApiRequestError, apiFetch, errorMessage } from '@/lib/api';
+import { ID } from '@/lib/document-proxy';
 import { chosenFile, uploadFile } from '@/lib/upload';
 
 export interface ActionState {
   error?: string;
   success?: string;
+  /**
+   * Who already holds the email or phone, when adding someone was refused
+   * because the school has them. The form offers the role, or a restore,
+   * on that account instead of a second one.
+   */
+  existingAccount?: ExistingAccount;
+  /**
+   * The role's own details as they were typed, sent with that offer. The form
+   * has been reset by the time it is clicked, so they travel back here.
+   */
+  roleDetails?: Record<string, string>;
+  /** Where to see the person, after the offer worked. */
+  link?: { href: string; label: string };
+}
+
+/** The account a 409 names, if it names one. */
+function existingAccountIn(error: unknown): ExistingAccount | undefined {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) return undefined;
+  const details = error.details;
+  if (!details || typeof details !== 'object') return undefined;
+  const account = (details as { existingAccount?: unknown }).existingAccount;
+  if (!account || typeof account !== 'object') return undefined;
+  if (typeof (account as { userId?: unknown }).userId !== 'string') return undefined;
+  return account as ExistingAccount;
+}
+
+/** Only the fields that were filled in. */
+function filled(values: Record<string, string | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
 }
 
 export interface ResetState {
@@ -60,6 +93,11 @@ export async function createTeacherAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const roleDetails = filled({
+    employeeCode: text(formData, 'employeeCode'),
+    qualification: text(formData, 'qualification'),
+  });
+
   try {
     await apiFetch('/teachers', {
       method: 'POST',
@@ -69,12 +107,15 @@ export async function createTeacherAction(
         email: text(formData, 'email'),
         phone: text(formData, 'phone'),
         password: text(formData, 'password'),
-        employeeCode: text(formData, 'employeeCode'),
-        qualification: text(formData, 'qualification'),
+        ...roleDetails,
       },
     });
   } catch (error) {
-    return { error: errorMessage(error, 'Could not add the teacher.') };
+    return {
+      error: errorMessage(error, 'Could not add the teacher.'),
+      existingAccount: existingAccountIn(error),
+      roleDetails,
+    };
   }
 
   revalidatePath('/school/teachers');
@@ -85,6 +126,12 @@ export async function createParentAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const roleDetails = filled({
+    relation: text(formData, 'relation') ?? 'GUARDIAN',
+    occupation: text(formData, 'occupation'),
+    address: text(formData, 'address'),
+  });
+
   try {
     await apiFetch('/parents', {
       method: 'POST',
@@ -94,17 +141,95 @@ export async function createParentAction(
         phone: text(formData, 'phone'),
         email: text(formData, 'email'),
         password: text(formData, 'password'),
-        relation: text(formData, 'relation') ?? 'GUARDIAN',
-        occupation: text(formData, 'occupation'),
+        ...roleDetails,
       },
     });
   } catch (error) {
-    return { error: errorMessage(error, 'Could not add the parent.') };
+    return {
+      error: errorMessage(error, 'Could not add the parent.'),
+      existingAccount: existingAccountIn(error),
+      roleDetails,
+    };
   }
 
   revalidatePath('/school/parents');
   revalidatePath('/school/students');
   return { success: 'Parent added. They can now be linked to a child.' };
+}
+
+/**
+ * The way forward the 409 offered: the role added to the account the person
+ * already has, or a removed account put back. One action for both forms —
+ * `kind` says which list the form was adding to.
+ *
+ * Its fields are `offer.`-prefixed: it is submitted from inside the add form,
+ * whose own boxes share the plain names.
+ */
+export async function resolveExistingAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const offer = (key: string) => text(formData, `offer.${key}`);
+  const kind = offer('kind');
+  const mode = offer('mode');
+  const userId = offer('userId');
+
+  // The id goes into an API path, so it is held to the shape of one.
+  if ((kind !== 'teachers' && kind !== 'parents') || !userId || !ID.test(userId)) {
+    return { error: 'Unknown account.' };
+  }
+  if (mode !== 'restore' && mode !== 'add-role') return { error: 'Unknown account.' };
+
+  const body =
+    kind === 'teachers'
+      ? filled({ employeeCode: offer('employeeCode'), qualification: offer('qualification') })
+      : filled({
+          relation: offer('relation'),
+          occupation: offer('occupation'),
+          address: offer('address'),
+        });
+
+  // A TeacherSummary or a ParentSummary; both carry these.
+  type Person = { name: string; email: string | null; phone: string | null };
+
+  let person: Person;
+  try {
+    person =
+      mode === 'restore'
+        ? await apiFetch<Person>(`/${kind}/${userId}/restore`, {
+            method: 'POST',
+            redirectOnAuthFailure: false,
+          })
+        : await apiFetch<Person>(`/${kind}/${userId}/from-account`, {
+            method: 'POST',
+            redirectOnAuthFailure: false,
+            body,
+          });
+  } catch (error) {
+    return {
+      error: errorMessage(
+        error,
+        mode === 'restore' ? 'Could not restore them.' : 'Could not add the role.',
+      ),
+    };
+  }
+
+  revalidatePath('/school/teachers');
+  revalidatePath('/school/parents');
+  revalidatePath('/school/students');
+
+  const role = kind === 'teachers' ? 'teacher' : 'parent';
+  const list = kind === 'teachers' ? 'Teachers' : 'Parents';
+  return {
+    success:
+      mode === 'restore'
+        ? `${person.name} is restored as a ${role}.`
+        : `${person.name} is now a ${role} here too, on the account they already have.`,
+    link: {
+      href: `/school/${kind}?search=${encodeURIComponent(person.email ?? person.phone ?? person.name)}`,
+      label: `See ${person.name} on ${list}`,
+    },
+  };
 }
 
 export async function createStudentAction(

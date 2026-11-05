@@ -32,7 +32,10 @@ const studentInclude = {
       },
     },
   },
+  // Only parents the school has not removed: a removed parent's link is kept,
+  // inert, for restoring them, but they are nobody's guardian meanwhile.
   guardians: {
+    where: { parentProfile: { removedAt: null } },
     include: {
       parentProfile: { select: { id: true, user: { select: { name: true, phone: true } } } },
     },
@@ -73,6 +76,7 @@ function toSummary(student: StudentRow): StudentSummary {
       relation: link.relation,
       isPrimary: link.isPrimary,
     })),
+    removedAt: student.deletedAt?.toISOString() ?? null,
     createdAt: student.createdAt.toISOString(),
   };
 }
@@ -87,7 +91,9 @@ export async function currentAcademicYearId(): Promise<string | null> {
 }
 
 export async function listStudents(query: ListStudentsQuery): Promise<Paginated<StudentSummary>> {
-  const where: Prisma.StudentWhereInput = {};
+  // Removed children only on request, for the screen that puts them back.
+  const where: Prisma.StudentWhereInput =
+    query.removed === 'true' ? { deletedAt: { not: null } } : {};
   if (query.status) where.status = query.status;
   // Filtering by classroom now goes through the enrolment, not the student.
   if (query.classroomId) {
@@ -114,9 +120,10 @@ export async function listStudents(query: ListStudentsQuery): Promise<Paginated<
   return paginate(rows.map(toSummary), total, query);
 }
 
+/** One child — a removed one too, so the portal can show them and put them back. */
 export async function getStudent(studentId: string): Promise<StudentSummary> {
   const student = await prisma.student.findFirst({
-    where: { id: studentId },
+    where: { id: studentId, deletedAt: undefined },
     include: studentInclude,
   });
   // Another school's student is reported missing — never "forbidden", which
@@ -127,7 +134,7 @@ export async function getStudent(studentId: string): Promise<StudentSummary> {
 
 async function assertGuardiansBelongToSchool(parentProfileIds: string[]): Promise<void> {
   const found = await prisma.parentProfile.findMany({
-    where: { id: { in: parentProfileIds } },
+    where: { id: { in: parentProfileIds }, removedAt: null },
     select: { id: true },
   });
 
@@ -421,4 +428,84 @@ export async function setOwnChildPhoto(
   }
 
   await setStudentPhoto(studentId, fileId, actorUserId);
+}
+
+/**
+ * The school removing a child from its records.
+ *
+ * Nothing is erased: attendance, fees, homework, report cards and certificates
+ * all stay, and so do the totals they add up to. The child leaves their class
+ * (the enrolment is closed as withdrawn, today), drops out of every list,
+ * roster and parent's app, and can be restored. Their parents' accounts are
+ * not touched — a parent with other children carries on with those.
+ */
+export async function removeStudent(
+  studentId: string,
+  actorUserId: string,
+): Promise<StudentSummary> {
+  const schoolId = requireSchoolId();
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId },
+    select: { id: true, admissionNo: true, firstName: true, lastName: true, status: true },
+  });
+  if (!student) throw ApiError.notFound('Student not found');
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.studentEnrolment.updateMany({
+      where: { studentId, schoolId, status: 'ACTIVE' },
+      data: { status: 'WITHDRAWN', exitedOn: now, exitReason: 'Removed by the school' },
+    });
+    await tx.student.update({
+      where: { id: studentId, schoolId },
+      data: { deletedAt: now, status: 'WITHDRAWN' },
+    });
+  });
+
+  await writeAuditLog({
+    action: 'STUDENT_DELETED',
+    entity: 'Student',
+    entityId: studentId,
+    schoolId,
+    actorUserId,
+    before: { status: student.status },
+    metadata: { admissionNo: student.admissionNo, name: student.firstName },
+  });
+
+  return getStudent(studentId);
+}
+
+/**
+ * Putting a removed child back on the roll, with all their history. They come
+ * back without a class — the year may have moved on — for the office to place.
+ */
+export async function restoreStudent(
+  studentId: string,
+  actorUserId: string,
+): Promise<StudentSummary> {
+  const schoolId = requireSchoolId();
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, deletedAt: { not: null } },
+    select: { id: true },
+  });
+  if (!student) throw ApiError.notFound('There is no removed child with that id');
+
+  await assertStudentSeatAvailable(schoolId);
+
+  await prisma.student.update({
+    where: { id: studentId, schoolId },
+    data: { deletedAt: null, status: 'ACTIVE' },
+  });
+
+  await writeAuditLog({
+    action: 'STUDENT_RESTORED',
+    entity: 'Student',
+    entityId: studentId,
+    schoolId,
+    actorUserId,
+  });
+
+  return getStudent(studentId);
 }

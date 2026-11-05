@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js';
 import { storage } from '../lib/storage.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
+import { holdsTeacher } from './roles.service.js';
 import { writeAuditLog } from './audit.service.js';
 
 /** PDFKit embeds JPEG and PNG. Anything else has to be left out. */
@@ -147,7 +148,7 @@ export async function setTeacherSignature(
 ): Promise<void> {
   const schoolId = requireSchoolId();
   const teacher = await prisma.user.findFirst({
-    where: { id: userId, role: 'TEACHER' },
+    where: { id: userId, ...holdsTeacher },
     select: { id: true },
   });
   if (!teacher) throw ApiError.notFound('Teacher not found');

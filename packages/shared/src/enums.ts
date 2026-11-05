@@ -288,9 +288,18 @@ export const AUDIT_ACTIONS = [
   'FEE_FOLLOW_UP_LOGGED',
   'USER_CREATED',
   'USER_UPDATED',
+  // The school taking a teacher or parent off, and putting them back. Removal
+  // keeps the account for the records it left behind, so both are events.
+  'USER_REMOVED',
+  'USER_RESTORED',
+  // A teacher becoming a parent at the same school, or a parent a teacher, on
+  // the one account they already had — and switching between the two.
+  'ROLE_ADDED',
+  'ROLE_SWITCHED',
   'STUDENT_CREATED',
   'STUDENT_UPDATED',
   'STUDENT_DELETED',
+  'STUDENT_RESTORED',
   'STUDENTS_IMPORTED',
   'ENROLMENT_CREATED',
   'ENROLMENT_UPDATED',

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
+  addChildRequestSchema,
+  type AddChildRequestInput,
   chooseFeePlanSchema,
   idParamSchema,
   idSchema,
@@ -18,6 +20,7 @@ import * as certificates from '../services/certificate.service.js';
 import * as results from '../services/result.service.js';
 import * as students from '../services/student.service.js';
 import * as feePlans from '../services/feePlan.service.js';
+import * as registrations from '../services/registration.service.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { studentName } from '../lib/names.js';
 
@@ -203,6 +206,31 @@ meRouter.get(
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
     res.json(await idCards.studentIdCardData(params<{ id: string }>(req).id));
+  }),
+);
+
+/**
+ * A parent asking the school to add another child to their account, and the
+ * requests they have sent. The office approves them like a registration.
+ */
+meRouter.get(
+  '/child-requests',
+  asyncHandler(async (req, res) => {
+    if (req.auth!.role !== 'PARENT') {
+      throw ApiError.forbidden('Only a parent can ask for a child to be added');
+    }
+    res.json(await registrations.myChildRequests());
+  }),
+);
+
+meRouter.post(
+  '/child-requests',
+  validate({ body: addChildRequestSchema }),
+  asyncHandler(async (req, res) => {
+    if (req.auth!.role !== 'PARENT') {
+      throw ApiError.forbidden('Only a parent can ask for a child to be added');
+    }
+    res.status(201).json(await registrations.requestAnotherChild(body<AddChildRequestInput>(req)));
   }),
 );
 

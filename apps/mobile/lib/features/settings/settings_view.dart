@@ -12,6 +12,7 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/kid_sky.dart';
 import '../../core/widgets/password_field.dart';
 import '../auth/auth_controller.dart';
+import '../parent/add_child_view.dart';
 
 /// Settings: whether the app reads aloud, how it looks, and the family's
 /// privacy and account.
@@ -51,9 +52,12 @@ class SettingsView extends StatelessWidget {
         : null;
     // Settings opens from the parent's home only, but this asks anyway: a
     // teacher's account is the school's to close, not theirs.
-    final isParent =
-        Get.isRegistered<AuthController>() &&
-        (Get.find<AuthController>().user.value?.isParent ?? false);
+    final auth = Get.isRegistered<AuthController>()
+        ? Get.find<AuthController>()
+        : null;
+    final isParent = auth?.user.value?.isParent ?? false;
+    // A parent who also teaches here can open the teacher's side from here.
+    final canTeach = auth?.user.value?.roles.contains('TEACHER') ?? false;
 
     return KidSkyPage(
       title: 'Settings',
@@ -105,6 +109,39 @@ class SettingsView extends StatelessWidget {
               ),
             ),
           ),
+          if (isParent) ...[
+            const SizedBox(height: 24),
+            const _Section(
+              icon: SettingsArt.star,
+              colour: _blue,
+              title: 'Family',
+              text: 'Another child joining the school, and your other role.',
+            ),
+            const SizedBox(height: 10),
+            _ActionCard(
+              leading: const _GlyphTile(
+                icon: Icons.child_care_rounded,
+                colour: _blue,
+              ),
+              title: 'Add another child',
+              subtitle: 'Ask the school to add a brother or sister',
+              trailing: Icons.chevron_right_rounded,
+              onTap: () => Get.to<void>(() => const AddChildView()),
+            ),
+            if (canTeach && auth != null) ...[
+              const SizedBox(height: 10),
+              _ActionCard(
+                leading: const _GlyphTile(
+                  icon: Icons.co_present_rounded,
+                  colour: _orange,
+                ),
+                title: 'Switch to Teacher',
+                subtitle: 'Open your classes and the register',
+                trailing: Icons.swap_horiz_rounded,
+                onTap: () => auth.switchTo('TEACHER'),
+              ),
+            ],
+          ],
           const SizedBox(height: 24),
           const _Section(
             icon: SettingsArt.info,

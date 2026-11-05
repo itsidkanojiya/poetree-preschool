@@ -4,11 +4,16 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
+import { IconCheck } from '@/components/icons';
 import { DecideButtons } from './decide';
 
 export const metadata: Metadata = { title: 'Registrations · Poetree' };
 
 const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
+
+/** The form asks for the mother's number, or a guardian's when hers is not to be had. */
+const secondContactLabel = (row: RegistrationSummary) =>
+  row.secondContactRelation === 'MOTHER' ? 'Mother' : 'Guardian';
 
 const TABS: Array<{ key: string; label: string }> = [
   { key: 'PENDING', label: 'Waiting' },
@@ -90,7 +95,7 @@ export default async function RegistrationsPage({
           <>
             <Table>
               <THead
-                columns={['Who is asking', 'The child', 'On the roll', 'Sent', '']}
+                columns={['Who is asking', 'The child', 'Standard', 'On the roll', 'Sent', '']}
               />
               <tbody>
                 {registrations.items.map((row) => (
@@ -99,11 +104,46 @@ export default async function RegistrationsPage({
                       <TPrimary sub={`${titleCase(row.relation)} · ${row.phone}`}>
                         {row.guardianName}
                       </TPrimary>
+                      {row.email && (
+                        <span className="mt-0.5 block text-xs text-slate-500">{row.email}</span>
+                      )}
+                      {row.address && (
+                        <span className="mt-0.5 block max-w-[16rem] text-xs text-slate-500">
+                          {row.address}
+                        </span>
+                      )}
                       {/* The second number the form now insists on, because
                           the first one is not always the one that answers. */}
-                      {row.motherPhone && (
-                        <span className="mt-0.5 block text-xs text-slate-500">
-                          Mother · {row.motherPhone}
+                      {(row.motherName || row.motherPhone) && (
+                        <span className="mt-1.5 block text-xs text-slate-500">
+                          <span className="font-medium text-slate-600">
+                            {secondContactLabel(row)}
+                          </span>
+                          {row.motherName && <> · {row.motherName}</>}
+                          {row.motherPhone && <> · {row.motherPhone}</>}
+                          {row.motherPhone && row.motherPhoneVerified && (
+                            <span
+                              className="ml-1 inline-flex items-center gap-0.5 text-leaf-700"
+                              title="Proved with a code sent to this number"
+                            >
+                              <IconCheck size={12} strokeWidth={2.5} />
+                              verified
+                            </span>
+                          )}
+                          {row.motherEmail && <span className="block">{row.motherEmail}</span>}
+                        </span>
+                      )}
+                      {/* A parent's next child, or a teacher's own: approving
+                          adds the child to the account they sign in with. */}
+                      {row.parentAccount && (
+                        <span className="mt-2 block max-w-[16rem] rounded-lg bg-gold-50 px-2.5 py-1.5 text-xs text-gold-900 ring-1 ring-inset ring-gold-200">
+                          <span className="font-medium">
+                            For {row.parentAccount.name}’s existing account
+                            {row.parentAccount.roles.includes('TEACHER') && ' (teacher)'}
+                          </span>
+                          <span className="block">
+                            Approving adds this child to that account. No new account is opened.
+                          </span>
                         </span>
                       )}
                     </TCell>
@@ -119,6 +159,10 @@ export default async function RegistrationsPage({
                             })}`
                           : 'No date of birth given'}
                       </span>
+                    </TCell>
+
+                    <TCell>
+                      {row.classLevel?.name ?? <span className="text-slate-400">—</span>}
                     </TCell>
 
                     {/* Decided: the child it became. Waiting: who it might be,
@@ -171,7 +215,11 @@ export default async function RegistrationsPage({
                           classrooms={classrooms.map((classroom) => ({
                             id: classroom.id,
                             label: `${classroom.classLevel.name} — ${classroom.section}`,
+                            classLevelId: classroom.classLevel.id,
+                            isCurrentYear: classroom.academicYear.isCurrent,
                           }))}
+                          classLevel={row.classLevel}
+                          parentAccountName={row.parentAccount?.name ?? null}
                         />
                       ) : (
                         <span className="flex flex-col gap-1">

@@ -1,4 +1,5 @@
 import { createHash, randomInt } from 'node:crypto';
+import nodemailer, { type Transporter } from 'nodemailer';
 import type { OtpChannel } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { env } from '../config/env.js';
@@ -19,11 +20,11 @@ import { logger } from '../lib/logger.js';
  * guesses, the same one-use-only rule — and writing them twice would be two
  * chances to get those wrong.
  *
- * What this is NOT, today: proof of anything. Both providers default to
- * `static`, which accepts one fixed code and sends no message, which is how it
- * runs until there are real accounts — so anyone can claim any number or
- * address. The office approving every registration by hand is what stands in
- * the gap, and the gap closes by setting two environment variables.
+ * What this is NOT, until it is configured: proof of anything. Both providers
+ * default to `static`, which accepts one fixed code and sends no message — so
+ * anyone can claim any number or address. The office approving every
+ * registration by hand is what stands in the gap, and the gap closes by
+ * choosing `msg91` for phones and `smtp` for email, with their credentials.
  */
 
 /** How a code reaches somebody. Swapped by configuration, not by code. */
@@ -79,17 +80,61 @@ const msg91Sender: Sender = {
   },
 };
 
+/** One connection pool for the process, made the first time a code is sent. */
+let mailTransport: Transporter | null = null;
+
+function mailer(): Transporter {
+  if (!env.SMTP_HOST || !(env.SMTP_FROM ?? env.SMTP_USER)) {
+    throw ApiError.internal('Email is selected but SMTP_HOST and SMTP_FROM are not configured');
+  }
+  mailTransport ??= nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE,
+    ...(env.SMTP_USER ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS ?? '' } } : {}),
+  });
+  return mailTransport;
+}
+
+/** The sender, with the app's name when only an address was given. */
+function sender(): string {
+  const from = (env.SMTP_FROM ?? env.SMTP_USER ?? '').trim();
+  return from.includes('<') ? from : `"Poetree Kids" <${from}>`;
+}
+
 /**
- * Email has no real sender yet.
- *
- * Deliberately left as one function to write rather than a dependency added on
- * spec: nothing in this platform sends email today, so the choice of service is
- * still open and adding a mailer now would be guessing at it. When there is an
- * account, this is the only place that changes — the flow, the table and the
- * app all stay as they are.
+ * Any mailbox that speaks SMTP: the school domain's own, Gmail, Zoho, or a
+ * sending service's SMTP door. Plain text — a code needs nothing more, and a
+ * plain message is the one least likely to be filed as spam.
  */
+const smtpSender: Sender = {
+  name: 'smtp',
+  delivers: true,
+  async send(destination, code) {
+    const minutes = Math.round(env.OTP_TTL_SECONDS / 60);
+    try {
+      await mailer().sendMail({
+        from: sender(),
+        to: destination,
+        subject: `${code} is your Poetree Kids code`,
+        text:
+          `Your code is ${code}.\n\n` +
+          `Type it into the Poetree Kids app to confirm this email address. ` +
+          `It works for ${minutes} minutes.\n\n` +
+          'If you did not ask for it, you can ignore this email.',
+      });
+    } catch (error) {
+      logger.error('The email code could not be sent', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw ApiError.internal('The code could not be sent. Please try again in a moment.');
+    }
+  },
+};
+
 const emailSenders: Record<string, Sender> = {
   static: staticSender('EMAIL'),
+  smtp: smtpSender,
 };
 
 const senders: Record<OtpChannel, Sender> = {
@@ -141,7 +186,10 @@ export async function sendChallenge(
   schoolId: string,
   channel: OtpChannel,
   destination: string,
+  resendSeconds: number = env.OTP_RESEND_SECONDS,
 ): Promise<SentChallenge> {
+  await assertResendAllowed(schoolId, channel, destination, resendSeconds);
+
   await prismaUnscoped.otpChallenge.updateMany({
     where: {
       schoolId,
@@ -174,6 +222,45 @@ export async function sendChallenge(
     delivered: senders[channel].delivers,
     codeLength: code.length,
   };
+}
+
+/** "+91 98200 00000" and "9820000000" are one phone; an address is its lower case. */
+function sameDestination(channel: OtpChannel, a: string, b: string): boolean {
+  if (channel === 'EMAIL') return a.trim().toLowerCase() === b.trim().toLowerCase();
+  const digits = (value: string) => value.replace(/[^0-9]/g, '').slice(-10);
+  return digits(a) === digits(b);
+}
+
+/**
+ * Refuses a second code to the same number or address within [seconds] of
+ * the last, however the number is written. The app waits the same time
+ * before it offers "Send again"; this is what stops a script that does not.
+ */
+async function assertResendAllowed(
+  schoolId: string,
+  channel: OtpChannel,
+  destination: string,
+  seconds: number,
+): Promise<void> {
+  if (seconds <= 0) return;
+
+  const since = new Date(Date.now() - seconds * 1000);
+  const recent = await prismaUnscoped.otpChallenge.findMany({
+    where: { schoolId, channel, createdAt: { gt: since } },
+    select: { destination: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  });
+  const last = recent.find((row) => sameDestination(channel, row.destination, destination));
+  if (!last) return;
+
+  const wait = Math.max(
+    1,
+    Math.ceil((last.createdAt.getTime() + seconds * 1000 - Date.now()) / 1000),
+  );
+  throw ApiError.rateLimited(`Please wait ${wait} seconds before asking for another code.`, {
+    retryAfterSeconds: wait,
+  });
 }
 
 /**
@@ -273,6 +360,9 @@ export async function consumeVerifiedChallenges(
     phone: string;
     emailChallengeId: string;
     email: string;
+    /** The second number — the mother's or a guardian's — proved the same way. */
+    secondPhoneChallengeId?: string;
+    secondPhone?: string;
   },
 ): Promise<void> {
   const phoneId = await findVerified(
@@ -287,9 +377,17 @@ export async function consumeVerifiedChallenges(
     proofs.emailChallengeId,
     proofs.email,
   );
+  const secondId =
+    proofs.secondPhoneChallengeId && proofs.secondPhone
+      ? await findVerified(schoolId, 'PHONE', proofs.secondPhoneChallengeId, proofs.secondPhone)
+      : null;
+  // One proof per number: the father's code cannot stand in for the mother's.
+  if (secondId === phoneId) {
+    throw ApiError.badRequest('Please confirm the second number with its own code.');
+  }
 
   await prismaUnscoped.otpChallenge.updateMany({
-    where: { id: { in: [phoneId, emailId] } },
+    where: { id: { in: [phoneId, emailId, ...(secondId ? [secondId] : [])] } },
     data: { usedAt: new Date() },
   });
 }

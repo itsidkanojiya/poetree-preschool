@@ -1,7 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal, useFormStatus } from 'react-dom';
+
+/** Disabled while the action runs, so a second click is not a second removal. */
+function ConfirmSubmit({ children }: { children: ReactNode }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:bg-rose-300"
+    >
+      {pending ? 'Working…' : children}
+    </button>
+  );
+}
 
 /**
  * A destructive action, with the consequence stated before it happens.
@@ -26,7 +40,8 @@ export function ConfirmButton({
   action: () => Promise<void>;
   label: string;
   title: string;
-  body: string;
+  /** A sentence, or several paragraphs when the consequences need a list. */
+  body: ReactNode;
   confirmLabel?: string;
   className?: string;
 }) {
@@ -82,7 +97,11 @@ export function ConfirmButton({
               <h2 id="confirm-title" className="text-lg font-semibold text-navy-950">
                 {title}
               </h2>
-              <p className="mt-2 text-sm text-slate-600">{body}</p>
+              {typeof body === 'string' ? (
+                <p className="mt-2 text-sm text-slate-600">{body}</p>
+              ) : (
+                <div className="mt-2 space-y-2 text-sm text-slate-600">{body}</div>
+              )}
 
               <div className="mt-6 flex justify-end gap-2">
                 <button
@@ -95,12 +114,7 @@ export function ConfirmButton({
                 </button>
 
                 <form action={action}>
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700"
-                  >
-                    {confirmLabel ?? label}
-                  </button>
+                  <ConfirmSubmit>{confirmLabel ?? label}</ConfirmSubmit>
                 </form>
               </div>
             </div>

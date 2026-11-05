@@ -14,6 +14,11 @@ process.env.LOG_LEVEL ??= 'error';
 // Suspension must be observable immediately in tests; the production default of
 // 60s would mask the cache invalidation the suite is there to prove.
 process.env.SCHOOL_STATUS_CACHE_TTL_SECONDS ??= '0';
+// Never a real text or email from a test run, whatever the machine's .env
+// says — and no wait between codes, which the suite asks for back to back.
+process.env.OTP_PROVIDER = 'static';
+process.env.EMAIL_OTP_PROVIDER = 'static';
+process.env.OTP_RESEND_SECONDS ??= '0';
 
 if (process.env.TEST_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;

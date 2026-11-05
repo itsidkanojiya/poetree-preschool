@@ -2,6 +2,9 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer';
 import { z } from 'zod';
 import {
+  schoolExportQuerySchema,
+  addParentRoleSchema,
+  addTeacherRoleSchema,
   addGalleryPhotosSchema,
   addGalleryVideoSchema,
   connectGalleryDriveSchema,
@@ -34,6 +37,9 @@ import {
   updateTeacherSchema,
 } from '@poetree/shared';
 import type {
+  SchoolExportQuery,
+  AddParentRoleInput,
+  AddTeacherRoleInput,
   AddGalleryPhotosInput,
   AddGalleryVideoInput,
   ConnectGalleryDriveInput,
@@ -70,6 +76,7 @@ import { requirePermission } from '../middleware/requirePermission.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
+import { holdsParent, holdsTeacher } from '../services/roles.service.js';
 import * as printAssets from '../services/printAssets.service.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
@@ -80,6 +87,9 @@ import * as driveService from '../services/drive.service.js';
 import * as schoolService from '../services/school.service.js';
 import * as idCards from '../services/idCard.service.js';
 import * as studentService from '../services/student.service.js';
+import * as exportService from '../services/export.service.js';
+import { exportLimiter } from '../middleware/exportLimiter.js';
+import { writeAuditLogSafe } from '../services/audit.service.js';
 import * as classroomService from '../services/classroom.service.js';
 import * as subjectService from '../services/subject.service.js';
 import * as documentService from '../services/studentDocument.service.js';
@@ -105,8 +115,8 @@ schoolAdminRouter.get(
   asyncHandler(async (_req, res) => {
     const [students, teachers, parents, classrooms] = await Promise.all([
       prisma.student.count({ where: { status: 'ACTIVE' } }),
-      prisma.user.count({ where: { role: 'TEACHER', status: 'ACTIVE' } }),
-      prisma.user.count({ where: { role: 'PARENT', status: 'ACTIVE' } }),
+      prisma.user.count({ where: { ...holdsTeacher, status: 'ACTIVE' } }),
+      prisma.user.count({ where: { ...holdsParent, status: 'ACTIVE' } }),
       prisma.classroom.count(),
     ]);
 
@@ -153,6 +163,80 @@ schoolAdminRouter.patch(
     res.json(
       await teacherService.updateTeacher(idOf(req), body<UpdateTeacherInput>(req), req.auth!.userId),
     );
+  }),
+);
+
+/**
+ * This school's records as an Excel file — students, teachers, parents or
+ * classes, narrowed by the filters given, everything when there are none.
+ *
+ * The school is the one on the session, never a parameter: a filter naming a
+ * class or year of another school simply matches nothing. Taking a copy of
+ * children's and families' details away is `report:export`, and it is audited.
+ */
+schoolAdminRouter.get(
+  '/exports',
+  requirePermission('report:export'),
+  exportLimiter,
+  validate({ query: schoolExportQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const filters = query<SchoolExportQuery>(req);
+    const schoolId = requireSchoolId();
+    let rows: number;
+    try {
+      rows = await exportService.exportForSchool(res, schoolId, filters);
+    } catch (error) {
+      // Part-way through, the download has already been ended and logged.
+      if (res.headersSent) return;
+      throw error;
+    }
+    writeAuditLogSafe({
+      action: 'DATA_EXPORTED',
+      entity: 'Export',
+      entityId: filters.type,
+      schoolId,
+      actorUserId: req.auth!.userId,
+      ipAddress: req.ip ?? null,
+      metadata: { export: filters.type, filters, rows },
+    });
+  }),
+);
+
+/**
+ * Takes a teacher off the school. Nothing is erased — see removeTeacher — and
+ * someone who is also a parent here stays one. Answers with the teacher as
+ * they now are, removed.
+ */
+schoolAdminRouter.delete(
+  '/teachers/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await teacherService.removeTeacher(idOf(req), req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.post(
+  '/teachers/:id/restore',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await teacherService.restoreTeacher(idOf(req), req.auth!.userId));
+  }),
+);
+
+/** A parent here who comes to teach, on the account they already have. */
+schoolAdminRouter.post(
+  '/teachers/:id/from-account',
+  validate({ params: idParamSchema, body: addTeacherRoleSchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(
+        await teacherService.addTeacherRole(
+          idOf(req),
+          body<AddTeacherRoleInput>(req),
+          req.auth!.userId,
+        ),
+      );
   }),
 );
 
@@ -224,6 +308,43 @@ schoolAdminRouter.patch(
   }),
 );
 
+/**
+ * Takes a parent off the school. Their children are not touched; someone who
+ * also teaches here stays a teacher.
+ */
+schoolAdminRouter.delete(
+  '/parents/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await parentService.removeParent(idOf(req), req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.post(
+  '/parents/:id/restore',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await parentService.restoreParent(idOf(req), req.auth!.userId));
+  }),
+);
+
+/** A teacher here whose own child joins, on the account they already have. */
+schoolAdminRouter.post(
+  '/parents/:id/from-account',
+  validate({ params: idParamSchema, body: addParentRoleSchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(
+        await parentService.addParentRole(
+          idOf(req),
+          body<AddParentRoleInput>(req),
+          req.auth!.userId,
+        ),
+      );
+  }),
+);
+
 /** The same for a family, which is where nearly all of these will come from. */
 /** The same for a parent, and deliberately the same rules. */
 schoolAdminRouter.post(
@@ -282,6 +403,26 @@ schoolAdminRouter.patch(
     res.json(
       await studentService.updateStudent(idOf(req), body<UpdateStudentInput>(req), req.auth!.userId),
     );
+  }),
+);
+
+/**
+ * Removes a child from the school's records: withdrawn and hidden, with every
+ * attendance mark, fee and report card kept. Restorable.
+ */
+schoolAdminRouter.delete(
+  '/students/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await studentService.removeStudent(idOf(req), req.auth!.userId));
+  }),
+);
+
+schoolAdminRouter.post(
+  '/students/:id/restore',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await studentService.restoreStudent(idOf(req), req.auth!.userId));
   }),
 );
 

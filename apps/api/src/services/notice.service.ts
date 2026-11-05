@@ -8,6 +8,7 @@ import type {
 import { prisma, prismaUnscoped } from '../db/prisma.js';
 import { getRequestContext, requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
+import { holdingAny, profileRoles, rolesHeld } from './roles.service.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { guardianStudentIds, teacherClassroomIds } from './scope.service.js';
@@ -57,7 +58,7 @@ async function noticeRecipients(
         : (['TEACHER', 'PARENT'] as const);
 
   const users = await prismaUnscoped.user.findMany({
-    where: { schoolId, role: { in: [...roles] }, status: 'ACTIVE' },
+    where: { schoolId, deletedAt: null, status: 'ACTIVE', ...holdingAny(roles) },
     select: { id: true },
   });
 
@@ -336,8 +337,8 @@ export async function noticeReadReceipts(
 
   const [recipients, reads] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: [...roles] }, status: 'ACTIVE' },
-      select: { id: true, name: true, role: true },
+      where: { status: 'ACTIVE', ...holdingAny(roles) },
+      select: { id: true, name: true, role: true, ...profileRoles },
     }),
     prisma.noticeRead.findMany({ where: { noticeId }, select: { userId: true } }),
   ]);
@@ -348,6 +349,13 @@ export async function noticeReadReceipts(
     read: readSet.size,
     unread: recipients
       .filter((user) => !readSet.has(user.id))
-      .map((user) => ({ userId: user.id, name: user.name, role: user.role })),
+      .map((user) => ({
+        userId: user.id,
+        name: user.name,
+        // The role they were sent it as — the audience's, for someone who is
+        // both a parent and a teacher here.
+        role:
+          rolesHeld(user).find((role) => (roles as readonly string[]).includes(role)) ?? user.role,
+      })),
   };
 }

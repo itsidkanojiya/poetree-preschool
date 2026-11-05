@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import type { AccountDeletedResponse, DeleteAccountInput } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
+import { profileRoles, rolesHeld } from './roles.service.js';
 import { burnPasswordComparison, hashPassword, verifyPassword } from '../lib/password.js';
 import { newTokenId } from '../lib/tokens.js';
 import { writeAuditLog } from './audit.service.js';
@@ -44,6 +45,7 @@ const accountSelect = {
   email: true,
   passwordHash: true,
   school: { select: { name: true, code: true } },
+  ...profileRoles,
 } satisfies Prisma.UserSelect;
 
 type Account = Prisma.UserGetPayload<{ select: typeof accountSelect }>;
@@ -128,7 +130,8 @@ export async function deleteAccountWithCredentials(
  * deactivated by the office rather than erased.
  */
 function assertParent(account: Account): void {
-  if (account.role !== 'PARENT') {
+  const held = rolesHeld(account);
+  if (!held.includes('PARENT') || held.includes('TEACHER')) {
     throw ApiError.forbidden(
       'Staff accounts are opened and closed by the school office. Please ask them to close yours.',
     );

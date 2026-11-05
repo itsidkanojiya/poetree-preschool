@@ -269,6 +269,7 @@ export async function issueCertificate(
       body: `${award.student.firstName} received “${certificate.title}”`,
       entityType: 'CertificateAward',
       entityId: award.id,
+      data: { studentId: award.studentId },
     });
   }
 

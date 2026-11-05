@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 
 import '../../core/api/api_service.dart';
@@ -88,10 +89,31 @@ class ChildrenController extends GetxController {
         children.first;
   }
 
+  /// Where the chosen child is remembered, so the app opens on the child the
+  /// parent was looking at rather than always the first. A child id from
+  /// another family's session matches none of these children and is ignored.
+  static const _storage = FlutterSecureStorage();
+  static const _selectedKey = 'selected_child';
+
   @override
   void onInit() {
     super.onInit();
     unawaited(load());
+    unawaited(_restoreSelection());
+  }
+
+  Future<void> _restoreSelection() async {
+    try {
+      final remembered = await _storage.read(key: _selectedKey);
+      if (remembered != null && children.any((c) => c.id == remembered)) {
+        selectedId.value = remembered;
+      } else if (remembered != null && children.isEmpty) {
+        // Not loaded yet: held, and kept by the load if it is one of theirs.
+        selectedId.value = remembered;
+      }
+    } on Object {
+      // No storage — a test, or a phone refusing. The first child it is.
+    }
   }
 
   Future<void> load() async {
@@ -123,7 +145,18 @@ class ChildrenController extends GetxController {
     }
   }
 
-  void select(String id) => selectedId.value = id;
+  void select(String id) {
+    selectedId.value = id;
+    unawaited(_remember(id));
+  }
+
+  Future<void> _remember(String id) async {
+    try {
+      await _storage.write(key: _selectedKey, value: id);
+    } on Object {
+      // Remembering is a kindness; the selection itself has already changed.
+    }
+  }
 
   /// Sets a child's photograph from a picture on this phone, or takes it off
   /// with null. Null back when it worked, else the reason it did not.

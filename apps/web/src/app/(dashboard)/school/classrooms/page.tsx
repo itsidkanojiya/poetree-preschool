@@ -5,11 +5,13 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import { IconPlus } from '@/components/icons';
+import { ExcelExportButton } from '@/components/excel-export';
 
 export default async function ClassroomsPage() {
-  const [classrooms, academicYears] = await Promise.all([
+  const [classrooms, academicYears, standards] = await Promise.all([
     apiFetch<ClassroomSummary[]>('/classrooms'),
     apiFetch<AcademicYearSummary[]>('/academic-years'),
+    apiFetch<Array<{ id: string; name: string }>>('/class-levels'),
   ]);
 
   return (
@@ -19,6 +21,26 @@ export default async function ClassroomsPage() {
         description="Sections per class level, within an academic year."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <ExcelExportButton
+              endpoint="/school/exports"
+              type="classes"
+              title="Export classes to Excel"
+              filters={[
+                {
+                  name: 'academicYearId',
+                  label: 'Academic year',
+                  allLabel: 'This year',
+                  initial: academicYears.find((y) => y.isCurrent)?.id,
+                  options: academicYears.map((y) => ({ value: y.id, label: y.name })),
+                },
+                {
+                  name: 'classLevelId',
+                  label: 'Standard',
+                  allLabel: 'All standards',
+                  options: standards.map((s) => ({ value: s.id, label: s.name })),
+                },
+              ]}
+            />
             <Link href="/school/classrooms/academic-years/new" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
               Add academic year
             </Link>

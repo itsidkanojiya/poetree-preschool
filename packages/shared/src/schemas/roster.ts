@@ -70,6 +70,17 @@ export const createTeacherSchema = z.object({
 });
 export type CreateTeacherInput = z.infer<typeof createTeacherSchema>;
 
+/**
+ * The teacher's own details, for a person who already has an account here as a
+ * parent: the account, its password and its sign-in stay as they are.
+ */
+export const addTeacherRoleSchema = createTeacherSchema.pick({
+  employeeCode: true,
+  qualification: true,
+  joinedAt: true,
+});
+export type AddTeacherRoleInput = z.infer<typeof addTeacherRoleSchema>;
+
 export const updateTeacherSchema = createTeacherSchema
   .omit({ password: true })
   .partial()
@@ -92,6 +103,14 @@ export const createParentSchema = z.object({
   address: z.string().trim().max(300).optional(),
 });
 export type CreateParentInput = z.infer<typeof createParentSchema>;
+
+/** The same the other way round: a teacher here who is also a parent. */
+export const addParentRoleSchema = createParentSchema.pick({
+  relation: true,
+  occupation: true,
+  address: true,
+});
+export type AddParentRoleInput = z.infer<typeof addParentRoleSchema>;
 
 export const updateParentSchema = createParentSchema
   .omit({ password: true })
@@ -184,14 +203,22 @@ export interface StudentDocumentSummary {
   };
 }
 
+/**
+ * `removed=true` lists only those the school has removed, for the screen that
+ * puts them back. Without it, removed rows never appear.
+ */
+const removedFlag = z.enum(['true', 'false']).optional();
+
 export const listStudentsQuerySchema = paginationQuerySchema.extend({
   classroomId: idSchema.optional(),
   status: z.enum(STUDENT_STATUSES).optional(),
+  removed: removedFlag,
 });
 export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;
 
 export const listUsersQuerySchema = paginationQuerySchema.extend({
   status: z.enum(USER_STATUSES).optional(),
+  removed: removedFlag,
 });
 export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
 
@@ -212,6 +239,10 @@ export interface TeacherSummary {
   classroomCount: number;
   /** Their signature, printed on the report cards of classes they teach. */
   signatureUrl: string | null;
+  /** True when the same account is also a parent here. */
+  isParent: boolean;
+  /** When the school took them off its teachers. Null while they teach. */
+  removedAt: string | null;
   createdAt: string;
 }
 
@@ -225,8 +256,37 @@ export interface ParentSummary {
   relation: (typeof GUARDIAN_RELATIONS)[number];
   occupation: string | null;
   address: string | null;
-  children: Array<{ id: string; name: string; isPrimary: boolean }>;
+  children: Array<{
+    id: string;
+    name: string;
+    isPrimary: boolean;
+    /**
+     * Whether the child has another parent here who is still active. False
+     * means removing this one leaves the child with nobody to sign in for
+     * them, which the portal warns about before it happens.
+     */
+    hasOtherGuardian: boolean;
+  }>;
+  /** True when the same account is also a teacher here. */
+  isTeacher: boolean;
+  /** When the school took them off its parents. Null while active. */
+  removedAt: string | null;
   createdAt: string;
+}
+
+/**
+ * Who already holds a phone number or email the school typed in, sent with the
+ * 409 that refuses a second account for them. The portal offers to add the
+ * role to this account — or, for a removed one, to restore it — instead.
+ */
+export interface ExistingAccount {
+  userId: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  roles: Array<'TEACHER' | 'PARENT' | 'SCHOOL_ADMIN' | 'ORG_ADMIN' | 'PUBLICATION_ADMIN'>;
+  /** True when the school removed this account; restoring it is the way back. */
+  removed: boolean;
 }
 
 /** Null clears it. */
@@ -255,6 +315,8 @@ export interface StudentSummary {
     relation: (typeof GUARDIAN_RELATIONS)[number];
     isPrimary: boolean;
   }>;
+  /** When the school removed the child. Null while on the roll. */
+  removedAt: string | null;
   createdAt: string;
 }
 

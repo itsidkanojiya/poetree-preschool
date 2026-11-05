@@ -9,6 +9,7 @@ import {
 } from '../helpers/db.js';
 import { api, auth, BASE, login, type Session } from '../helpers/api.js';
 import { disconnectPrisma, prismaUnscoped } from '../../src/db/prisma.js';
+import { sendChallenge } from '../../src/services/otp.service.js';
 
 const dbUp = await isDatabaseReachable();
 
@@ -30,6 +31,8 @@ describe.skipIf(!dbUp)('parent registration', () => {
     dateOfBirth: string;
     admissionNo: string;
   };
+  /** The standard every family here registers for, unless a test says otherwise. */
+  let nurseryId: string;
 
   /** The form as a real family fills it in. */
   const form = (overrides: Record<string, unknown> = {}) => ({
@@ -42,6 +45,8 @@ describe.skipIf(!dbUp)('parent registration', () => {
     // identify themselves separately from their child. The email is filled in
     // by `submit` below, one per family.
     motherPhone: '+919820007777',
+    // Required now, as is the class, which `submit` fills in.
+    address: '12 Lake Road, Pune',
     guardianName: 'Nikhil Joshi',
     phone: '+919820007001',
     password: 'Family@2026',
@@ -73,7 +78,7 @@ describe.skipIf(!dbUp)('parent registration', () => {
     return challengeId;
   };
 
-  /** The whole journey: prove both, then send the form with both proofs. */
+  /** The whole journey: prove all three, then send the form with the proofs. */
   const submit = async (schoolCode: string, body: Record<string, unknown>) => {
     const phone = String(body.phone ?? '+919820007001');
     // One address per family, derived from their number. Sharing one across
@@ -86,10 +91,21 @@ describe.skipIf(!dbUp)('parent registration', () => {
       body.phoneChallengeId ?? (await verifiedChallenge(schoolCode, 'PHONE', phone));
     const emailChallengeId =
       body.emailChallengeId ?? (await verifiedChallenge(schoolCode, 'EMAIL', email));
+    // The second number is proved too, with its own code.
+    const motherPhoneChallengeId =
+      body.motherPhoneChallengeId ??
+      (typeof body.motherPhone === 'string'
+        ? await verifiedChallenge(schoolCode, 'PHONE', body.motherPhone)
+        : undefined);
 
-    return api
-      .post(`${BASE}/public/schools/${schoolCode}/registrations`)
-      .send({ ...body, email, phoneChallengeId, emailChallengeId });
+    return api.post(`${BASE}/public/schools/${schoolCode}/registrations`).send({
+      classLevelId: nurseryId,
+      ...body,
+      email,
+      phoneChallengeId,
+      emailChallengeId,
+      motherPhoneChallengeId,
+    });
   };
 
   beforeAll(async () => {
@@ -98,6 +114,12 @@ describe.skipIf(!dbUp)('parent registration', () => {
     school = await seedSchool(baseline, 'alpha', 'Alpha Preschool');
     other = await seedSchool(baseline, 'beta', 'Beta Preschool');
     admin = await login(school.adminEmail);
+    nurseryId = (
+      await prismaUnscoped.classLevel.findUniqueOrThrow({
+        where: { code: 'NURSERY' },
+        select: { id: true },
+      })
+    ).id;
 
     const student = await prismaUnscoped.student.findUniqueOrThrow({
       where: { id: school.studentId },
@@ -160,13 +182,30 @@ describe.skipIf(!dbUp)('parent registration', () => {
     ).toBe(true);
   });
 
+  it('makes a family wait before another code goes to the same number', async () => {
+    // The suite runs with no wait; the server's own is 30 seconds.
+    await sendChallenge(school.id, 'PHONE', '+919820008888', 30);
+
+    // The same phone written another way is still the same phone.
+    await expect(sendChallenge(school.id, 'PHONE', '98200 08888', 30)).rejects.toMatchObject({
+      status: 429,
+      code: 'RATE_LIMITED',
+    });
+    // Nobody else is held up by it.
+    await expect(sendChallenge(school.id, 'PHONE', '+919820008889', 30)).resolves.toMatchObject({
+      challengeId: expect.any(String),
+    });
+  });
+
   it('tells somebody who already has an account to sign in instead', async () => {
     // The seeded parent, who the office created by hand.
     const existing = await submit('alpha', form({ phone: school.parentPhone }));
 
     expect(existing.status).toBe(409);
-    // Pointed at the door they actually want, rather than "phone already taken".
-    expect(existing.body.error.message).toContain('signing in');
+    // Pointed at the door they actually want, rather than "phone already taken":
+    // sign in, and add the child from the app.
+    expect(existing.body.error.message).toContain('Sign in');
+    expect(existing.body.error.message).toContain('Add another child');
   });
 
   it('refuses a second request from the same phone while one is waiting', async () => {

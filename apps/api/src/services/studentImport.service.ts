@@ -8,6 +8,7 @@ import { importStudentRowSchema } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
+import { grantParentRole } from './parent.service.js';
 import { hashPassword } from '../lib/password.js';
 import { writeAuditLog } from './audit.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
@@ -125,12 +126,12 @@ export async function importStudents(
 
       if (!parentProfileId) {
         const existingUser = await tx.user.findFirst({
-          where: { schoolId, phone: data.guardianPhone, role: 'PARENT' },
-          include: { parentProfile: { select: { id: true } } },
+          where: { schoolId, phone: data.guardianPhone, deletedAt: null },
+          select: { id: true },
         });
 
-        if (existingUser?.parentProfile) {
-          parentProfileId = existingUser.parentProfile.id;
+        if (existingUser) {
+          parentProfileId = await grantParentRole(existingUser.id, {}, tx);
         } else {
           const user = await tx.user.create({
             data: {

@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import {
   IconAward,
   IconChart,
+  IconDownload,
   IconClassroom,
   IconHome,
   IconParents,
@@ -53,6 +54,8 @@ const PUBLICATION_NAV: NavGroup[] = [
       // Poetree's Google sign-in, through which each school connects its own Drive.
       { href: '/publication/google-drive', label: 'Google Drive', icon: <IconCloud size={18} /> },
       { href: '/publication/usage', label: 'Usage', icon: <IconChart size={18} /> },
+      // Records across schools as Excel files.
+      { href: '/publication/exports', label: 'Export data', icon: <IconDownload size={18} /> },
     ],
   },
 ];

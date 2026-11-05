@@ -63,18 +63,55 @@ class RegistrationController extends GetxController {
   /// rather than cleared, so nobody sends the same thing twice.
   final isSent = false.obs;
 
-  /* ---- Proving the number and the address ------------------------------- */
+  /* ---- The standards the school takes ------------------------------------ */
 
-  /// One of these per channel. They behave identically, which is why the screen
-  /// can use one widget for both.
+  /// Nursery, Junior KG — the school's own list, for the child's class.
+  final standards = <({String id, String name})>[].obs;
+  final standardsError = RxnString();
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadStandards();
+  }
+
+  Future<void> loadStandards() async {
+    standardsError.value = null;
+    try {
+      final rows = await api.get<List<dynamic>>(
+        '/public/schools/$_school/standards',
+      );
+      standards.value = [
+        for (final row in rows.whereType<Map<String, dynamic>>())
+          (id: row['id'] as String, name: row['name'] as String? ?? ''),
+      ];
+    } on DioException catch (e) {
+      standardsError.value = messageFor(e);
+    }
+  }
+
+  /* ---- Proving the numbers and the address ------------------------------ */
+
+  /// One of these per thing proved: the father's mobile (`PHONE`), the second
+  /// mobile — the mother's or a guardian's (`SECOND`) — and the email
+  /// (`EMAIL`). They behave identically, which is why the screen can use one
+  /// widget for all three.
   final phoneOtp = OtpState();
+  final secondOtp = OtpState();
   final emailOtp = OtpState();
 
-  OtpState otpFor(String channel) => channel == 'EMAIL' ? emailOtp : phoneOtp;
+  OtpState otpFor(String key) => switch (key) {
+    'EMAIL' => emailOtp,
+    'SECOND' => secondOtp,
+    _ => phoneOtp,
+  };
+
+  /// Both mobiles are phones as far as the school's server is concerned.
+  static String _channelOf(String key) => key == 'EMAIL' ? 'EMAIL' : 'PHONE';
 
   /// Ask for a code. Any earlier one for the same destination stops counting.
-  Future<void> sendOtp(String channel, String destination) async {
-    final state = otpFor(channel);
+  Future<void> sendOtp(String key, String destination) async {
+    final state = otpFor(key);
     state.isSending.value = true;
     state.error.value = null;
     state.isVerified.value = false;
@@ -82,7 +119,7 @@ class RegistrationController extends GetxController {
     try {
       final data = await api.post<Map<String, dynamic>>(
         '/public/schools/$_school/otp/send',
-        body: {'channel': channel, 'destination': destination.trim()},
+        body: {'channel': _channelOf(key), 'destination': destination.trim()},
       );
 
       state.challengeId.value = data['challengeId']?.toString();
@@ -101,8 +138,8 @@ class RegistrationController extends GetxController {
   }
 
   /// Type it back. The API says the same thing however it is wrong.
-  Future<void> verifyOtp(String channel, String code) async {
-    final state = otpFor(channel);
+  Future<void> verifyOtp(String key, String code) async {
+    final state = otpFor(key);
     final challengeId = state.challengeId.value;
     if (challengeId == null) return;
 
@@ -123,9 +160,9 @@ class RegistrationController extends GetxController {
   }
 
   /// Typing a different number or address throws away the proof for the old one.
-  void forgetProof(String channel) => otpFor(channel).forget();
+  void forgetProof(String key) => otpFor(key).forget();
 
-  /// Both codes at once, because Continue sends them together.
+  /// All three codes at once, because Continue sends them together.
   ///
   /// Either failing stops the family moving on — carrying them to a screen
   /// asking for a code that was never sent is worse than keeping them here
@@ -135,8 +172,9 @@ class RegistrationController extends GetxController {
   /// field. The two code boxes live on the NEXT step, so a failure reported
   /// only there is reported nowhere: pressing Continue did nothing at all, and
   /// looked like a dead button.
-  Future<bool> sendBothCodes({
+  Future<bool> sendAllCodes({
     required String phone,
+    required String secondPhone,
     required String email,
   }) async {
     errorMessage.value = null;
@@ -144,6 +182,12 @@ class RegistrationController extends GetxController {
     await sendOtp('PHONE', phone);
     if (phoneOtp.error.value != null) {
       errorMessage.value = phoneOtp.error.value;
+      return false;
+    }
+
+    await sendOtp('SECOND', secondPhone);
+    if (secondOtp.error.value != null) {
+      errorMessage.value = secondOtp.error.value;
       return false;
     }
 
@@ -157,15 +201,24 @@ class RegistrationController extends GetxController {
   }
 
   /// And checks them together. Each says for itself what is wrong with it.
-  Future<bool> verifyBothCodes({
+  Future<bool> verifyAllCodes({
     required String phoneCode,
+    required String secondCode,
     required String emailCode,
   }) async {
     if (!phoneOtp.isVerified.value) {
       if (phoneCode.trim().isEmpty) {
-        phoneOtp.error.value = 'Enter the code sent to your mobile.';
+        phoneOtp.error.value = 'Enter the code sent to the father’s mobile.';
       } else {
         await verifyOtp('PHONE', phoneCode);
+      }
+    }
+
+    if (!secondOtp.isVerified.value) {
+      if (secondCode.trim().isEmpty) {
+        secondOtp.error.value = 'Enter the code sent to the second mobile.';
+      } else {
+        await verifyOtp('SECOND', secondCode);
       }
     }
 
@@ -177,7 +230,9 @@ class RegistrationController extends GetxController {
       }
     }
 
-    return phoneOtp.isVerified.value && emailOtp.isVerified.value;
+    return phoneOtp.isVerified.value &&
+        secondOtp.isVerified.value &&
+        emailOtp.isVerified.value;
   }
 
   Future<void> submit({
@@ -185,14 +240,17 @@ class RegistrationController extends GetxController {
     required String studentMiddleName,
     required String studentLastName,
     required DateTime studentDateOfBirth,
+    required String classLevelId,
     required String guardianName,
     required String phone,
     required String motherPhone,
     required String email,
     required String password,
     required String confirmPassword,
-    String? address,
+    required String address,
+    required bool guardianInsteadOfMother,
     String? motherName,
+    String? motherEmail,
     String? bloodGroup,
     String? emergencyContactName,
     String? emergencyContactPhone,
@@ -228,13 +286,21 @@ class RegistrationController extends GetxController {
           // question a family has to read.
           'relation': 'FATHER',
           'phone': phone.trim(),
+          'classLevelId': classLevelId,
           'phoneChallengeId': phoneOtp.challengeId.value,
           'emailChallengeId': emailOtp.challengeId.value,
+          // The second number — the mother's, or a guardian's when hers is
+          // not available — proved with its own code.
+          'secondContactRelation': guardianInsteadOfMother
+              ? 'GUARDIAN'
+              : 'MOTHER',
           'motherPhone': motherPhone.trim(),
+          'motherPhoneChallengeId': secondOtp.challengeId.value,
+          if (given(motherEmail) != null) 'motherEmail': given(motherEmail),
           'email': email.trim(),
           'password': password,
           'confirmPassword': confirmPassword,
-          if (given(address) != null) 'address': given(address),
+          'address': address.trim(),
           // The father's name is the child's middle name, already sent above.
           'fatherName': studentMiddleName.trim().isEmpty
               ? null
@@ -269,7 +335,11 @@ class RegistrationController extends GetxController {
   /// every field they could see. The path is the half that says where to look.
   static const Map<String, String> _fieldLabels = {
     'studentFirstName': 'your child’s name',
-    'motherPhone': 'the mother’s mobile number',
+    'classLevelId': 'your child’s class',
+    'motherPhone': 'the second mobile number',
+    'motherPhoneChallengeId': 'the code sent to the second mobile',
+    'motherEmail': 'the second email address',
+    'secondContactRelation': 'whose the second number is',
     'phoneChallengeId': 'the code sent to your mobile',
     'emailChallengeId': 'the code sent to your email',
     'studentMiddleName': 'the father’s name',

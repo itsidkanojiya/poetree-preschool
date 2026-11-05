@@ -16,6 +16,7 @@ class ApiService extends GetxService {
     client = ApiClient(SecureTokenStore(const FlutterSecureStorage()))
       ..onSessionExpired = _toLogin
       ..onSessionReplaced = _toLoginReplaced
+      ..onAccountInactive = _toLoginInactive
       ..onSchoolSuspended = _toBlocked;
     return this;
   }
@@ -31,6 +32,13 @@ class ApiService extends GetxService {
   void _toLoginReplaced() {
     if (Get.currentRoute != '/login') {
       Get.offAllNamed<void>('/login', arguments: {'reason': 'replaced'});
+    }
+  }
+
+  /// Signed out because the school switched the account off or changed it.
+  void _toLoginInactive() {
+    if (Get.currentRoute != '/login') {
+      Get.offAllNamed<void>('/login', arguments: {'reason': 'inactive'});
     }
   }
 

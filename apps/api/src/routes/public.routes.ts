@@ -68,6 +68,47 @@ const brandingSelect = {
   status: true,
 } as const;
 
+/**
+ * The standards a school takes children into — Nursery, Junior KG — for the
+ * registration form to choose from.
+ *
+ * The ones it has classes of this year, so a family is not offered a standard
+ * nobody teaches; a school that has not set up its classes yet offers every
+ * standard, rather than an empty list nobody could get past.
+ */
+publicRouter.get(
+  '/schools/:code/standards',
+  validate({ params: codeParamSchema }),
+  asyncHandler(async (req: Request, res) => {
+    const { code } = params<{ code: string }>(req);
+    const school = await prismaUnscoped.school.findUnique({
+      where: { code },
+      select: { id: true },
+    });
+    if (!school) throw ApiError.notFound('School not found');
+
+    const taught = await prismaUnscoped.classLevel.findMany({
+      where: {
+        isActive: true,
+        classrooms: { some: { schoolId: school.id, academicYear: { isCurrent: true } } },
+      },
+      select: { id: true, name: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const standards =
+      taught.length > 0
+        ? taught
+        : await prismaUnscoped.classLevel.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true },
+            orderBy: { sortOrder: 'asc' },
+          });
+
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json(standards);
+  }),
+);
+
 publicRouter.get(
   '/schools/:code/branding',
   validate({ params: codeParamSchema }),
@@ -211,6 +252,27 @@ const otpPerDestinationLimiter = rateLimit({
 });
 
 /**
+ * The same number or address, over a day. Six an hour is room for a family
+ * fumbling the form; this stops somebody using the school to flood one phone
+ * or inbox all day, six an hour, every hour.
+ */
+const otpPerDestinationDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  limit: 15,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: (req) => {
+    if (env.isTest) return true;
+    const channel = (req.body as { channel?: unknown } | undefined)?.channel;
+    return !otpService.isDelivered(channel === 'EMAIL' ? 'EMAIL' : 'PHONE');
+  },
+  keyGenerator: otpDestinationKey,
+  message: otpRateLimited(
+    'Too many codes sent to this number or address today. Try again tomorrow.',
+  ),
+});
+
+/**
  * The spray guard: one connection sending codes to many numbers. Loose enough
  * for a school's worth of families registering over its one Wi-Fi.
  */
@@ -245,6 +307,7 @@ publicRouter.post(
   '/schools/:code/otp/send',
   otpSendPerAddressLimiter,
   otpPerDestinationLimiter,
+  otpPerDestinationDailyLimiter,
   validate({ params: codeParamSchema, body: sendOtpSchema }),
   asyncHandler(async (req: Request, res) => {
     const { code } = params<{ code: string }>(req);

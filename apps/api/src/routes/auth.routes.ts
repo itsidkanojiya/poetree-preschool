@@ -6,6 +6,7 @@ import {
   loginSchema,
   refreshSchema,
   switchBranchSchema,
+  switchRoleSchema,
 } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -20,6 +21,7 @@ import type {
   LoginInput,
   RefreshInput,
   SwitchBranchInput,
+  SwitchRoleInput,
 } from '@poetree/shared';
 
 export const authRouter = Router();
@@ -145,7 +147,11 @@ authRouter.get(
   asyncHandler(async (req, res) => {
     // The token's school, not the user's own: a group administrator's row holds
     // no school, and the answer here has to be the branch they are working in.
-    const user = await authService.getAuthenticatedUser(req.auth!.userId, req.auth!.schoolId);
+    const user = await authService.getAuthenticatedUser(
+      req.auth!.userId,
+      req.auth!.schoolId,
+      req.auth!.role,
+    );
     res.json({ user });
   }),
 );
@@ -162,6 +168,25 @@ authRouter.get(
   authenticate,
   asyncHandler(async (req, res) => {
     res.json(await authService.branchesFor(req.auth!.userId, req.auth!.schoolId));
+  }),
+);
+
+/**
+ * A parent who also teaches here, or a teacher who is also a parent, becoming
+ * the other. What comes back is a fresh session acting as that role alone.
+ */
+authRouter.post(
+  '/switch-role',
+  authenticate,
+  validate({ body: switchRoleSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await authService.switchRole(
+        req.auth!.userId,
+        body<SwitchRoleInput>(req).role,
+        requestMeta(req),
+      ),
+    );
   }),
 );
 

@@ -165,7 +165,12 @@ class PushService extends GetxService {
     };
 
     if (Get.isRegistered<ChildrenController>()) {
-      Get.find<ChildrenController>().tab.value = ChildrenController.homeTab;
+      final children = Get.find<ChildrenController>();
+      children.tab.value = ChildrenController.homeTab;
+      // About one child: open it for that child, not whichever was showing —
+      // a family with two must never see one's fees under the other's name.
+      final studentId = message.data['studentId']?.toString();
+      if (studentId != null && studentId.isNotEmpty) children.select(studentId);
     }
 
     if (Get.currentRoute != AppRoutes.parent) {

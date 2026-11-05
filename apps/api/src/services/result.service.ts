@@ -714,6 +714,7 @@ export async function publish(
       body: `${card.student.firstName}’s ${term.name} report card is ready`,
       entityType: 'ReportCard',
       entityId: card.id,
+      data: { studentId: card.studentId },
     });
   }
 

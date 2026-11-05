@@ -83,12 +83,29 @@ export const submitRegistrationSchema = z
     emailChallengeId: idSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
-    address: z.string().trim().max(300).optional(),
+    /** Where the family lives. Required: the school needs it on the child's file. */
+    address: z.string().trim().min(5, 'Enter your address').max(300),
+    /**
+     * The standard the child is to join — Nursery, Junior KG — from the
+     * school's own list. Required: the office places the child in a class of
+     * it when it approves.
+     */
+    classLevelId: idSchema,
 
     fatherName: z.string().trim().max(120).optional(),
+    /**
+     * Whose the second number is. The mother's, or — when hers is not
+     * available — a guardian's, whose name is then required in `motherName`.
+     */
+    secondContactRelation: z.enum(['MOTHER', 'GUARDIAN']).default('MOTHER'),
+    /** The mother's name, or the guardian's when `secondContactRelation` is GUARDIAN. */
     motherName: z.string().trim().max(120).optional(),
     /** The second number, asked for because the first one is not always answered. */
     motherPhone: phoneSchema,
+    /** Proof that the second number answered too, as for the first. */
+    motherPhoneChallengeId: idSchema,
+    /** The mother's — or the guardian's — email. Optional. */
+    motherEmail: emailSchema.optional(),
     bloodGroup: z.string().trim().max(8).optional(),
     emergencyContactName: z.string().trim().max(120).optional(),
     emergencyContactPhone: phoneSchema.optional(),
@@ -106,8 +123,59 @@ export const submitRegistrationSchema = z
   .refine((v) => v.password === v.confirmPassword, {
     message: 'The two passwords do not match',
     path: ['confirmPassword'],
+  })
+  .refine(
+    (v) => v.secondContactRelation !== 'GUARDIAN' || (v.motherName?.trim().length ?? 0) >= 2,
+    { message: 'Enter the guardian’s name', path: ['motherName'] },
+  )
+  .refine((v) => lastTenDigits(v.motherPhone) !== lastTenDigits(v.phone), {
+    message: 'The second number must be a different phone from the father’s',
+    path: ['motherPhone'],
   });
 export type SubmitRegistrationInput = z.infer<typeof submitRegistrationSchema>;
+
+/** "+91 98200 00000" and "9820000000" are the same phone. */
+function lastTenDigits(phone: string): string {
+  return phone.replace(/[^0-9]/g, '').slice(-10);
+}
+
+/**
+ * A parent who is signed in asking the school to add another child to their
+ * account — a brother or sister joining. No account is opened: the office
+ * approves it like any registration, and the child is linked to this parent.
+ */
+export const addChildRequestSchema = z.object({
+  studentFirstName: z.string().trim().min(1, 'Enter your child’s name').max(60),
+  studentMiddleName: z.string().trim().max(60).optional(),
+  studentLastName: z.string().trim().max(60).optional(),
+  studentDateOfBirth: z.coerce
+    .date()
+    .refine((value) => value.getTime() < Date.now(), {
+      message: 'A date of birth cannot be in the future',
+    })
+    .refine((value) => value.getTime() > Date.now() - 25 * 365 * 24 * 60 * 60 * 1000, {
+      message: 'Check the year — that is not a preschool child',
+    }),
+  classLevelId: idSchema,
+  bloodGroup: z.string().trim().max(8).optional(),
+});
+export type AddChildRequestInput = z.infer<typeof addChildRequestSchema>;
+
+/** A parent's own request for another child, as the app lists it. */
+export interface ChildRequestSummary {
+  id: string;
+  studentName: string;
+  classLevel: string | null;
+  status: (typeof REGISTRATION_STATUSES)[number];
+  submittedAt: string;
+  rejectionReason: string | null;
+}
+
+/** A standard a school takes children into, for the registration form. */
+export interface SchoolStandard {
+  id: string;
+  name: string;
+}
 
 /** All the answer a stranger gets. Never whether the child exists. */
 export interface SubmitRegistrationResponse {
@@ -149,8 +217,25 @@ export interface RegistrationSummary {
    * is the whole point of the change that removed it from the form.
    */
   admissionNo: string | null;
-  /** The second number on the form — the mother's. The first is `phone`. */
+  /** The second number on the form — the mother's or a guardian's. The first is `phone`. */
   motherPhone: string | null;
+  /** Whose the second number is. */
+  secondContactRelation: (typeof GUARDIAN_RELATIONS)[number];
+  /** True when the second number was proved with a code. */
+  motherPhoneVerified: boolean;
+  motherEmail: string | null;
+  /** The standard asked for. Null on rows from before the form asked. */
+  classLevel: { id: string; name: string } | null;
+  /**
+   * The account this child is for, when the family already has one here — a
+   * parent adding a second child, or a teacher registering their own. Approving
+   * links the child to it; no new account is opened.
+   */
+  parentAccount: {
+    userId: string;
+    name: string;
+    roles: Array<'TEACHER' | 'PARENT'>;
+  } | null;
   /** The three parts written out, which is what the queue shows and searches. */
   studentName: string;
   /** ISO date. Null on rows submitted before the form asked for it. */

@@ -128,9 +128,17 @@ class _RegistrationFormState extends State<_RegistrationForm> {
   final _phoneCode = TextEditingController();
   final _motherName = TextEditingController();
   final _motherPhone = TextEditingController();
+  final _secondCode = TextEditingController();
+  final _motherEmail = TextEditingController();
   final _email = TextEditingController();
   final _emailCode = TextEditingController();
   final _address = TextEditingController();
+
+  /// The child's standard, from the school's list.
+  String? _classLevelId;
+
+  /// The mother's number is not available, so a guardian's is given instead.
+  bool _guardianInstead = false;
 
   final _password = TextEditingController();
   final _confirm = TextEditingController();
@@ -164,6 +172,14 @@ class _RegistrationFormState extends State<_RegistrationForm> {
       }
     });
 
+    _motherPhone.addListener(() {
+      if (registration.secondOtp.isVerified.value &&
+          _motherPhone.text.trim() !=
+              registration.secondOtp.destination.value) {
+        registration.forgetProof('SECOND');
+      }
+    });
+
     _email.addListener(() {
       if (registration.emailOtp.isVerified.value &&
           _email.text.trim() != registration.emailOtp.destination.value) {
@@ -183,6 +199,8 @@ class _RegistrationFormState extends State<_RegistrationForm> {
       _phoneCode,
       _motherName,
       _motherPhone,
+      _secondCode,
+      _motherEmail,
       _email,
       _emailCode,
       _address,
@@ -205,6 +223,21 @@ class _RegistrationFormState extends State<_RegistrationForm> {
         ? 'That does not look like a mobile number'
         : null;
   }
+
+  static String _lastTen(String phone) {
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
+  }
+
+  static String? _emailProblem(String? value, {bool optional = false}) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return optional ? null : 'Enter the email address';
+    return trimmed.contains('@') && trimmed.contains('.')
+        ? null
+        : 'That does not look like an email address';
+  }
+
+  String get _secondWhose => _guardianInstead ? 'guardian’s' : 'mother’s';
 
   static String _formatDate(DateTime value) =>
       '${value.day.toString().padLeft(2, '0')}/'
@@ -252,22 +285,25 @@ class _RegistrationFormState extends State<_RegistrationForm> {
     if (_step == 1) {
       if (!(_parentsKey.currentState?.validate() ?? false)) return;
 
-      final sent = await registration.sendBothCodes(
+      final sent = await registration.sendAllCodes(
         phone: _fatherPhone.text,
+        secondPhone: _motherPhone.text,
         email: _email.text,
       );
       if (!sent) return;
       // Codes from an earlier visit to this step belong to challenges that
       // no longer count.
       _phoneCode.clear();
+      _secondCode.clear();
       _emailCode.clear();
     }
 
     // And leaving the confirm step is what checks them — any the boxes have
     // not already checked by themselves.
     if (_step == 2) {
-      final confirmed = await registration.verifyBothCodes(
+      final confirmed = await registration.verifyAllCodes(
         phoneCode: _phoneCode.text,
+        secondCode: _secondCode.text,
         emailCode: _emailCode.text,
       );
       if (!confirmed) return;
@@ -298,6 +334,7 @@ class _RegistrationFormState extends State<_RegistrationForm> {
       studentMiddleName: _studentMiddleName.text,
       studentLastName: _studentLastName.text,
       studentDateOfBirth: _dateOfBirth!,
+      classLevelId: _classLevelId!,
       // The father's name and the child's surname, which is who the account
       // belongs to.
       guardianName: [
@@ -310,7 +347,9 @@ class _RegistrationFormState extends State<_RegistrationForm> {
       password: _password.text,
       confirmPassword: _confirm.text,
       address: _address.text,
+      guardianInsteadOfMother: _guardianInstead,
       motherName: _motherName.text,
+      motherEmail: _motherEmail.text,
       bloodGroup: _bloodGroup.text,
     );
   }
@@ -473,6 +512,38 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             ),
           ),
           const SizedBox(height: 14),
+          Obx(() {
+            final registration = Get.find<RegistrationController>();
+            final standards = registration.standards.toList();
+            final problem = registration.standardsError.value;
+            if (standards.isEmpty && problem != null) {
+              return TextButton.icon(
+                onPressed: registration.loadStandards,
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text('$problem Tap to try again.'),
+              );
+            }
+            return DropdownButtonFormField<String>(
+              initialValue: _classLevelId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Class',
+                helperText: 'The class your child is joining.',
+                prefixIcon: Icon(Icons.school_rounded),
+              ),
+              items: [
+                for (final standard in standards)
+                  DropdownMenuItem(
+                    value: standard.id,
+                    child: Text(standard.name),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _classLevelId = value),
+              validator: (value) =>
+                  value == null ? 'Choose your child’s class' : null,
+            );
+          }),
+          const SizedBox(height: 14),
           TextFormField(
             controller: _bloodGroup,
             decoration: const InputDecoration(
@@ -505,59 +576,91 @@ class _RegistrationFormState extends State<_RegistrationForm> {
           ),
           const SizedBox(height: 14),
           TextFormField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'Father’s email address',
+              helperText: 'The school’s second way to reach you.',
+              prefixIcon: Icon(Icons.alternate_email_rounded),
+            ),
+            validator: (v) => _emailProblem(v),
+          ),
+          const SizedBox(height: 18),
+          // The second contact: the mother, or a guardian when her number is
+          // not available. Their number is proved with a code too.
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: _guardianInstead,
+            onChanged: (value) => setState(() => _guardianInstead = value),
+            title: const Text('Mother’s number not available'),
+            subtitle: const Text('Give a guardian’s number instead'),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
             controller: _motherName,
             textCapitalization: TextCapitalization.words,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Mother’s name (optional)',
-              prefixIcon: Icon(Icons.face_3_rounded),
+            decoration: InputDecoration(
+              labelText: _guardianInstead
+                  ? 'Guardian’s name'
+                  : 'Mother’s name (optional)',
+              prefixIcon: const Icon(Icons.face_3_rounded),
             ),
+            validator: (v) =>
+                _guardianInstead ? _required(v, 'the guardian’s name') : null,
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: _motherPhone,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Mother’s mobile number',
+            decoration: InputDecoration(
+              labelText: _guardianInstead
+                  ? 'Guardian’s mobile number'
+                  : 'Mother’s mobile number',
               helperText: 'The second number the school rings.',
-              prefixIcon: Icon(Icons.phone_android_rounded),
+              prefixIcon: const Icon(Icons.phone_android_rounded),
             ),
-            validator: (v) => _phone(v, 'the mother’s mobile number'),
+            validator: (v) {
+              final problem = _phone(v, 'the $_secondWhose mobile number');
+              if (problem != null) return problem;
+              return _lastTen(v!) == _lastTen(_fatherPhone.text)
+                  ? 'This has to be a different phone from the father’s'
+                  : null;
+            },
           ),
           const SizedBox(height: 14),
           TextFormField(
-            controller: _email,
+            controller: _motherEmail,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Email address',
-              helperText: 'The school’s second way to reach you.',
-              prefixIcon: Icon(Icons.alternate_email_rounded),
+            decoration: InputDecoration(
+              labelText: _guardianInstead
+                  ? 'Guardian’s email (optional)'
+                  : 'Mother’s email (optional)',
+              prefixIcon: const Icon(Icons.mark_email_read_rounded),
             ),
-            validator: (v) {
-              final trimmed = v?.trim() ?? '';
-              if (trimmed.isEmpty) return 'Enter your email address';
-              return trimmed.contains('@') && trimmed.contains('.')
-                  ? null
-                  : 'That does not look like an email address';
-            },
+            validator: (v) => _emailProblem(v, optional: true),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: _address,
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
-              labelText: 'Address (optional)',
+              labelText: 'Address',
               prefixIcon: Icon(Icons.home_rounded),
             ),
+            validator: (v) => (v == null || v.trim().length < 5)
+                ? 'Enter your address'
+                : null,
           ),
           const SizedBox(height: 16),
           const _Intro(
             icon: Icons.sms_rounded,
             text:
-                'When you press Continue we send a code to the father’s '
-                'mobile and to the email address, to check they reach you.',
+                'When you press Continue we send a code to both mobile '
+                'numbers and to the father’s email, to check they reach you.',
           ),
         ],
       ),
@@ -580,12 +683,24 @@ class _RegistrationFormState extends State<_RegistrationForm> {
           channel: 'PHONE',
           code: _phoneCode,
           icon: Icons.sms_rounded,
-          title: 'Mobile number',
+          title: 'Father’s mobile',
           destination: _fatherPhone.text.trim(),
           autofocus: true,
           onResend: () {
             _phoneCode.clear();
             return controller.sendOtp('PHONE', _fatherPhone.text);
+          },
+        ),
+        const SizedBox(height: 14),
+        _CodeCard(
+          channel: 'SECOND',
+          code: _secondCode,
+          icon: Icons.sms_rounded,
+          title: _guardianInstead ? 'Guardian’s mobile' : 'Mother’s mobile',
+          destination: _motherPhone.text.trim(),
+          onResend: () {
+            _secondCode.clear();
+            return controller.sendOtp('SECOND', _motherPhone.text);
           },
         ),
         const SizedBox(height: 14),
@@ -625,8 +740,13 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             helperText: 'At least 8 characters, with a letter and a number',
             prefixIcon: Icons.lock_rounded,
             autofillHints: const [AutofillHints.newPassword],
-            validator: (v) =>
-                (v == null || v.length < 8) ? 'At least 8 characters' : null,
+            // The school's own rule, said here rather than after sending.
+            validator: (v) {
+              if (v == null || v.length < 8) return 'At least 8 characters';
+              if (!RegExp(r'[A-Za-z]').hasMatch(v)) return 'Add a letter';
+              if (!RegExp(r'[0-9]').hasMatch(v)) return 'Add a number';
+              return null;
+            },
           ),
           const SizedBox(height: 14),
           PasswordField(
@@ -1007,9 +1127,9 @@ class _CodeCardState extends State<_CodeCard> {
             // than leaving a family waiting for one that is not coming.
             else if (!verified && !state.delivered.value)
               Text(
-                widget.channel == 'PHONE'
-                    ? 'Text messages are not switched on yet — enter 1234.'
-                    : 'Emails are not switched on yet — enter 1234.',
+                widget.channel == 'EMAIL'
+                    ? 'Emails are not switched on yet — enter 1234.'
+                    : 'Text messages are not switched on yet — enter 1234.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,

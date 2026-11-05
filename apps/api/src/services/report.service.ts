@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { ApiError } from '../lib/apiError.js';
+import { holdsTeacher } from './roles.service.js';
 import { studentName } from '../lib/names.js';
 
 /**
@@ -313,7 +314,7 @@ export async function homeworkCompletion(range: DateRange): Promise<HomeworkComp
 export async function schoolSummary(range: DateRange) {
   const [students, teachers, classrooms, sessions, collected, dues] = await Promise.all([
     prisma.studentEnrolment.count({ where: { status: 'ACTIVE' } }),
-    prisma.user.count({ where: { role: 'TEACHER', status: 'ACTIVE' } }),
+    prisma.user.count({ where: { ...holdsTeacher, status: 'ACTIVE' } }),
     prisma.classroom.count(),
     prisma.attendanceSession.count({ where: { date: { gte: range.from, lte: range.to } } }),
     prisma.payment.aggregate({

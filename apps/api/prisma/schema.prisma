@@ -632,6 +632,7 @@ model ClassLevel {
   skills        Skill[]
   activities    LearningActivity[]
   reportAreas   ReportArea[]
+  registrations ParentRegistration[]
 
   @@map("class_levels")
 }
@@ -705,6 +706,7 @@ model User {
   suspendedSubscriptions   SchoolSubscription[] @relation("SubscriptionSuspender")
   reactivatedSubscriptions SchoolSubscription[] @relation("SubscriptionReactivator")
   reviewedRegistrations    ParentRegistration[] @relation("RegistrationReviewer")
+  childRequests            ParentRegistration[] @relation("RegistrationParentAccount")
   galleryEventsCreated     GalleryEvent[]       @relation("GalleryEventCreator")
   signatureFile            FileObject?          @relation("UserSignature", fields: [signatureFileId], references: [id], onDelete: SetNull)
   reportCardsEntered       ReportCard[]         @relation("ReportCardEnteredBy")
@@ -727,6 +729,10 @@ model TeacherProfile {
   employeeCode  String?   @db.VarChar(40)
   qualification String?   @db.VarChar(160)
   joinedAt      DateTime?
+  /// When the school took this person off its teachers. The profile stays —
+  /// their name is still on last year's attendance and homework — but they no
+  /// longer hold the role. Null while they teach here.
+  removedAt     DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -785,21 +791,36 @@ model ParentRegistration {
   /// the office approves. `studentName` is the three of them written out, which
   /// is what the queue displays and searches, and is all there is on rows from
   /// before the form asked separately.
-  studentName           String    @db.VarChar(120)
-  studentFirstName      String?   @db.VarChar(60)
-  studentMiddleName     String?   @db.VarChar(60)
-  studentLastName       String?   @db.VarChar(60)
+  studentName           String           @db.VarChar(120)
+  studentFirstName      String?          @db.VarChar(60)
+  studentMiddleName     String?          @db.VarChar(60)
+  studentLastName       String?          @db.VarChar(60)
   /// Null on rows submitted before the form asked for it.
   studentDateOfBirth    DateTime?
-  fatherName            String?   @db.VarChar(120)
-  motherName            String?   @db.VarChar(120)
+  fatherName            String?          @db.VarChar(120)
+  motherName            String?          @db.VarChar(120)
   /// The father's number is the one that signs in, so it is `phone` above.
-  /// This is the mother's, which the school rings when the first does not
-  /// answer — the reason the form asks for two.
-  motherPhone           String?   @db.VarChar(20)
-  bloodGroup            String?   @db.VarChar(8)
-  emergencyContactName  String?   @db.VarChar(120)
-  emergencyContactPhone String?   @db.VarChar(20)
+  /// This is the second one — the mother's, or a guardian's when the mother's
+  /// is not available — which the school rings when the first does not answer.
+  motherPhone           String?          @db.VarChar(20)
+  /// Whose the second number is: MOTHER, or GUARDIAN when she has none.
+  /// `motherName` holds that person's name either way.
+  secondContactRelation GuardianRelation @default(MOTHER)
+  /// True when the second number was proved with a code, as it must be now.
+  /// False on rows from before the form asked for that.
+  motherPhoneVerified   Boolean          @default(false)
+  /// The second contact's email, which is optional.
+  motherEmail           String?          @db.VarChar(160)
+  /// The standard the family is registering the child for. Null on rows from
+  /// before the form asked.
+  classLevelId          String?
+  /// An account the child is for, already at the school: a parent adding a
+  /// second child from the app, or a teacher registering their own. Approving
+  /// links the child to it rather than opening a new account.
+  parentUserId          String?
+  bloodGroup            String?          @db.VarChar(8)
+  emergencyContactName  String?          @db.VarChar(120)
+  emergencyContactPhone String?          @db.VarChar(20)
 
   status          RegistrationStatus @default(PENDING)
   reviewedById    String?
@@ -809,9 +830,11 @@ model ParentRegistration {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  reviewedBy User?    @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  school     School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student    Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User?       @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  classLevel ClassLevel? @relation(fields: [classLevelId], references: [id], onDelete: SetNull)
+  parentUser User?       @relation("RegistrationParentAccount", fields: [parentUserId], references: [id], onDelete: SetNull)
 
   /// The queue, and the duplicate checks, are both per school.
   ///
@@ -881,6 +904,10 @@ model ParentProfile {
   relation   GuardianRelation @default(GUARDIAN)
   occupation String?          @db.VarChar(120)
   address    String?          @db.VarChar(300)
+  /// When the school took this person off its parents. The links to their
+  /// children are kept, inert, so restoring them puts the family back as it
+  /// was; the children themselves are never touched. Null while active.
+  removedAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1231,6 +1258,12 @@ model RefreshToken {
   /// must not silently drop somebody back to "no branch chosen", because their
   /// next request would then fail halfway through a task.
   activeSchoolId String? @db.VarChar(191)
+
+  /// The role this session is acting as, for someone who is both a parent and
+  /// a teacher. Kept on the session for the same reason as the branch above: a
+  /// refresh that dropped back to the default role would change what the next
+  /// request may see. Null: the account's own role.
+  activeRole Role?
 
   /// The sign-in this token belongs to, the same across every rotation of it.
   /// Null on tokens issued before sessions were tracked.

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:poetree_school/core/api/api_client.dart';
 import 'package:poetree_school/core/api/api_service.dart';
+import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/config/policy_links.dart';
 import 'package:poetree_school/core/push/push_service.dart';
 import 'package:poetree_school/core/theme/theme_controller.dart';
@@ -116,6 +117,13 @@ Future<(_Api, _Tokens)> _openSettings(
     )
     ..put(PushService())
     ..put(ThemeController());
+  // They signed in at a school, so the phone remembers it — and leaving goes
+  // back to that school's sign-in.
+  BrandingService.current = Branding.fromJson({
+    'code': 'sunrise',
+    'name': 'Sunrise Preschool',
+  });
+  addTearDown(() => BrandingService.current = Branding.fallback());
   Get.put(AuthController()).user.value = AppUser(
     id: 'u1',
     name: 'Meera Shah',

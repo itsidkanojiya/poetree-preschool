@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -6,19 +8,25 @@ import '../../core/widgets/kid_ui.dart';
 import '../../core/widgets/password_field.dart';
 import 'auth_controller.dart';
 
-/// Sign-in: the School ID, then who the person is.
+/// Sign-in, at the school chosen on the School ID screen.
 ///
-/// Poetree Kids is one app for every school, so it asks which school first.
-/// The ID is remembered once the API has recognised it, so after the first
-/// time it is already filled in — and the screen wears that school's name and
-/// logo.
+/// Poetree Kids is one app for every school, so the School ID screen comes
+/// first and this one wears that school's name and logo. A phone with no
+/// school remembered is sent back there — sign-in never runs without one.
+/// "Change school" goes back too, for a phone moving to another school.
 class LoginView extends GetView<AuthController> {
   const LoginView({super.key});
 
   @override
   Widget build(BuildContext context) {
     final school = BrandingService.current;
-    final schoolId = TextEditingController(text: school.code ?? '');
+    if (school.code == null) {
+      // Reached without a school — an old session, a deep link. The School ID
+      // screen is the only way in.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(controller.changeSchool()),
+      );
+    }
     final identifier = TextEditingController();
     final password = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -28,7 +36,6 @@ class LoginView extends GetView<AuthController> {
       if (!(formKey.currentState?.validate() ?? false)) return;
       FocusScope.of(context).unfocus();
       await controller.signIn(
-        schoolId: schoolId.text,
         identifier: identifier.text,
         password: password.text,
       );
@@ -40,9 +47,7 @@ class LoginView extends GetView<AuthController> {
           children: [
             AuthHeader(
               title: 'Welcome back!',
-              subtitle: school.code == null
-                  ? 'Sign in with your School ID to see your child’s day'
-                  : 'Sign in to see your child’s day at ${school.name}',
+              subtitle: 'Sign in to see your child’s day at ${school.name}',
               extraBottom: 36,
               badge: const _SchoolBadge(),
             ),
@@ -97,23 +102,10 @@ class LoginView extends GetView<AuthController> {
                             ),
                           ),
 
-                          TextFormField(
-                            controller: schoolId,
-                            // A code, not a word: no capitals, corrections or
-                            // suggestions turning "sunrise" into "Sunrise".
-                            keyboardType: TextInputType.visiblePassword,
-                            autocorrect: false,
-                            enableSuggestions: false,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'School ID',
-                              hintText: 'Given to you by your school',
-                              prefixIcon: Icon(Icons.school_rounded),
-                            ),
-                            validator: (value) =>
-                                (value == null || value.trim().isEmpty)
-                                ? 'Enter your School ID'
-                                : null,
+                          _SchoolRow(
+                            name: school.name,
+                            code: school.code ?? '',
+                            onChange: controller.changeSchool,
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -221,8 +213,7 @@ class LoginView extends GetView<AuthController> {
                         ),
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
-                          onPressed: () =>
-                              controller.startRegistration(schoolId.text),
+                          onPressed: controller.startRegistration,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: KidPalette.violet,
                             minimumSize: const Size.fromHeight(54),
@@ -274,6 +265,9 @@ String? _whySignedOut() {
       'You were signed out because this account signed in on another '
           'phone. It can be signed in on one device at a time.',
     'expired' => 'Your session ended. Please sign in again.',
+    'inactive' =>
+      'The school has changed or switched off your account. Sign in again, '
+          'or ask the school office if it will not let you.',
     'deleted' =>
       'Your account has been deleted, and your details with it. You can '
           'uninstall the app.',
@@ -321,6 +315,58 @@ class _SchoolBadge extends StatelessWidget {
                 // with it.
                 errorBuilder: (_, _, _) => fallback,
               ),
+      ),
+    );
+  }
+}
+
+/// The school being signed in to, and the way to another one.
+class _SchoolRow extends StatelessWidget {
+  const _SchoolRow({
+    required this.name,
+    required this.code,
+    required this.onChange,
+  });
+
+  final String name;
+  final String code;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+      decoration: BoxDecoration(
+        color: KidPalette.violet.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.school_rounded, color: KidPalette.violet),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text('School ID: $code', style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onChange,
+            style: TextButton.styleFrom(foregroundColor: KidPalette.violet),
+            child: const Text('Change school'),
+          ),
+        ],
       ),
     );
   }

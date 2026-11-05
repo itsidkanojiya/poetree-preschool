@@ -241,5 +241,5 @@ export async function changeOwnPassword(
     actorUserId: userId,
   });
 
-  return authService.issueTokensFor(userId, meta);
+  return authService.issueTokensFor(userId, meta, getRequestContext()?.role);
 }

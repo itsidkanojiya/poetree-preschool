@@ -113,7 +113,15 @@ export interface AuthenticatedUser {
   name: string;
   email: string | null;
   phone: string | null;
+  /** The role this session is acting as. */
   role: (typeof ROLES)[number];
+  /**
+   * Every role the person holds at their school — two for someone who is both
+   * a parent and a teacher there. A client offers a switch when there is more
+   * than one; switching is `POST /auth/switch-role`, which signs them in again
+   * as the other.
+   */
+  roles: Array<(typeof ROLES)[number]>;
   schoolId: string | null;
   /**
    * True while the user is holding a password somebody else chose for them.
@@ -141,6 +149,14 @@ export interface AuthenticatedUser {
     code: string;
   } | null;
 }
+
+/**
+ * A parent who also teaches — or a teacher who is also a parent — choosing which
+ * of the two to be. Returns a fresh pair acting as that role: one token, one
+ * role, so every permission check reads one thing and never mixes the two.
+ */
+export const switchRoleSchema = z.object({ role: z.enum(['TEACHER', 'PARENT']) });
+export type SwitchRoleInput = z.infer<typeof switchRoleSchema>;
 
 export interface LoginResponse extends AuthTokens {
   user: AuthenticatedUser;

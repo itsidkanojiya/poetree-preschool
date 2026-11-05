@@ -14,6 +14,12 @@ export const ERROR_CODES = {
    * so the app can say why, rather than a bare "session expired".
    */
   SESSION_REPLACED: 'SESSION_REPLACED',
+  /**
+   * The school switched this account off, removed it, or took away the role
+   * the session was using — which also ends the session. Its own code so the
+   * app says that, rather than "you signed in on another phone".
+   */
+  ACCOUNT_INACTIVE: 'ACCOUNT_INACTIVE',
   FORBIDDEN: 'FORBIDDEN',
   /** Signed in, but holding a password somebody else set. Change it first. */
   PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',

@@ -3,11 +3,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { StudentDocumentSummary, StudentSummary } from '@poetree/shared';
 import { apiFetch, ApiRequestError } from '@/lib/api';
-import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
+import { Avatar, Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft, IconChart, IconSpark } from '@/components/icons';
 import { formatDate } from '@/lib/format';
+import { ConfirmButton } from '@/components/ui/confirm-button';
 import { AttachDocumentForm, RemoveDocumentButton, StudentPhotoForm } from './forms';
 import { FeePlanCard } from './fee-plan';
+import { removeStudentAction, restoreStudentAction } from '../../removal-actions';
+import { RestoreButton } from '../../restore-button';
+import { OutcomeToast } from '../../outcome-toast';
 
 const TYPE_LABELS: Record<string, string> = {
   PHOTO: 'Photograph',
@@ -51,10 +55,13 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 
 export default async function StudentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ done?: string; who?: string; problem?: string }>;
 }) {
   const { id } = await params;
+  const outcome = await searchParams;
 
   let student: StudentSummary;
   try {
@@ -64,6 +71,49 @@ export default async function StudentDetailPage({
     throw error;
   }
 
+  const back = (
+    <Link
+      href={student.removedAt ? '/school/students?removed=true' : '/school/students'}
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-navy-900"
+    >
+      <IconArrowLeft size={16} />
+      All children
+    </Link>
+  );
+
+  const toast = (
+    <OutcomeToast
+      outcome={outcome}
+      removed={(name) => `${name} is removed.`}
+      restored={(name) => `${name} is back on the roll, without a class — place them in one.`}
+    />
+  );
+
+  // Removed: their records are kept but closed, so the page offers the way
+  // back and nothing else.
+  if (student.removedAt) {
+    return (
+      <>
+        <PageHeader
+          eyebrow={back}
+          title={student.fullName}
+          description={`${student.admissionNo} · removed ${formatDate(student.removedAt)}`}
+          action={
+            <RestoreButton
+              action={restoreStudentAction.bind(null, student.id, 'child')}
+              name={student.fullName}
+            />
+          }
+        />
+        <Notice tone="info" title="Removed from the roll">
+          Attendance, fees and report cards are kept. Restore them to see and change their record;
+          they come back without a class.
+        </Notice>
+        {toast}
+      </>
+    );
+  }
+
   const { documents } = await apiFetch<{ documents: StudentDocumentSummary[] }>(
     `/students/${id}/documents`,
   );
@@ -71,15 +121,7 @@ export default async function StudentDetailPage({
   return (
     <>
       <PageHeader
-        eyebrow={
-          <Link
-            href="/school/students"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-navy-900"
-          >
-            <IconArrowLeft size={16} />
-            All children
-          </Link>
-        }
+        eyebrow={back}
         title={student.fullName}
         description={`${student.admissionNo}${student.classroom ? ` · ${student.classroom.label}` : ' · not enrolled in a class'}`}
         action={
@@ -104,9 +146,19 @@ export default async function StudentDetailPage({
                 Progress
               </Link>
             )}
+            <ConfirmButton
+              action={removeStudentAction.bind(null, student.id)}
+              label="Remove"
+              title={`Remove ${student.fullName}?`}
+              body="Withdrawn from their class and hidden from lists and the parent app. Attendance, fees and report cards are kept. You can restore them."
+              confirmLabel="Remove child"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200 transition-colors hover:bg-rose-50"
+            />
           </span>
         }
       />
+
+      {toast}
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1.15fr]">
         <div className="space-y-5">

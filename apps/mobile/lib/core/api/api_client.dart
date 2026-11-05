@@ -16,6 +16,10 @@ class ApiErrorCodes {
   /// This account signed in on another phone, which ended the session here.
   /// Parents and teachers are signed in on one device at a time.
   static const sessionReplaced = 'SESSION_REPLACED';
+
+  /// The school switched the account off, removed it, or took away the role
+  /// the session was using.
+  static const accountInactive = 'ACCOUNT_INACTIVE';
   static const portalAccessDenied = 'PORTAL_ACCESS_DENIED';
   static const wrongSchoolApp = 'WRONG_SCHOOL_APP';
 
@@ -134,6 +138,14 @@ class ApiClient {
             return handler.next(error);
           }
 
+          // The school's doing: switched off, removed, or a role taken away.
+          // Terminal too, and worth saying as it is.
+          if (code == ApiErrorCodes.accountInactive) {
+            await _tokens.clear();
+            onAccountInactive?.call();
+            return handler.next(error);
+          }
+
           final isAuthFailure = response?.statusCode == 401;
           final alreadyRetried = error.requestOptions.extra['retried'] == true;
           final isRefreshCall = error.requestOptions.path.contains(
@@ -165,6 +177,8 @@ class ApiClient {
             // An expired access token finds out at refresh time instead.
             if (_lastRefreshFailure == ApiErrorCodes.sessionReplaced) {
               onSessionReplaced?.call();
+            } else if (_lastRefreshFailure == ApiErrorCodes.accountInactive) {
+              onAccountInactive?.call();
             } else {
               onSessionExpired?.call();
             }
@@ -202,6 +216,9 @@ class ApiClient {
   /// Called when the account signed in on another device, which ended this
   /// session.
   void Function()? onSessionReplaced;
+
+  /// The school switched the account off, removed it, or changed its role.
+  void Function()? onAccountInactive;
 
   /// Why the last refresh was refused, when the API said.
   String? _lastRefreshFailure;

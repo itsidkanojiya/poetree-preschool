@@ -136,7 +136,10 @@ export async function guardianUserIdsFor(studentIds: string[]): Promise<string[]
   if (studentIds.length === 0) return [];
 
   const links = await prismaUnscoped.studentGuardian.findMany({
-    where: { studentId: { in: studentIds } },
+    where: {
+      studentId: { in: studentIds },
+      parentProfile: { removedAt: null, user: { deletedAt: null, status: 'ACTIVE' } },
+    },
     select: { parentProfile: { select: { userId: true } } },
   });
 

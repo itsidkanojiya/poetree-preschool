@@ -325,6 +325,41 @@ void main() {
       expect(tokens.clearCount, 1);
     });
 
+    test('a session the school ended says so, without a refresh', () async {
+      // Switched off, removed, or a role taken away: not "another phone".
+      final tokens = _MemoryTokenStore(access: 'old', refresh: 'old');
+
+      var refreshCalls = 0;
+      final refreshDio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+        ..httpClientAdapter = _ScriptedAdapter((options) async {
+          refreshCalls += 1;
+          return _json({'accessToken': 'a', 'refreshToken': 'b'}, 200);
+        });
+
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.test'))
+        ..httpClientAdapter = _ScriptedAdapter((options) async {
+          return _json({
+            'error': {'code': 'ACCOUNT_INACTIVE', 'message': 'switched off'},
+          }, 401);
+        });
+
+      var inactive = 0;
+      var replaced = 0;
+      final client = ApiClient(tokens, dio: dio, refreshDio: refreshDio)
+        ..onAccountInactive = (() => inactive += 1)
+        ..onSessionReplaced = (() => replaced += 1);
+
+      await expectLater(
+        client.get<Map<String, dynamic>>('/me/children'),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(inactive, 1);
+      expect(replaced, 0);
+      expect(refreshCalls, 0);
+      expect(tokens.clearCount, 1);
+    });
+
     test('is recognised when only the refresh says so', () async {
       // An access token that simply expired finds out at refresh time.
       final tokens = _MemoryTokenStore(access: 'old', refresh: 'old');

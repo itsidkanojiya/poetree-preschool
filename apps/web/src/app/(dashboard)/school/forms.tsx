@@ -1,14 +1,18 @@
 'use client';
 
 import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
+import Link from 'next/link';
 import { GENDERS, GUARDIAN_RELATIONS } from '@poetree/shared';
 import type {
   AcademicYearSummary,
   ClassroomSummary,
+  ExistingAccount,
   ParentSummary,
   TeacherSummary,
 } from '@poetree/shared';
 import {
+  Button,
   Field,
   FieldSet,
   FormError,
@@ -24,6 +28,7 @@ import {
   createParentAction,
   createStudentAction,
   createTeacherAction,
+  resolveExistingAccountAction,
   type ActionState,
 } from './actions';
 
@@ -38,12 +43,120 @@ function Result({ state }: { state: ActionState }) {
   );
 }
 
+/**
+ * What adding a teacher or parent said — and, when the school already has the
+ * person, the way forward on the account they have.
+ */
+function CreateResult({ state, kind }: { state: ActionState; kind: 'teachers' | 'parents' }) {
+  if (!state.existingAccount) return <Result state={state} />;
+  return (
+    <ExistingAccountOffer
+      key={state.existingAccount.userId}
+      kind={kind}
+      message={state.error}
+      account={state.existingAccount}
+      details={state.roleDetails ?? {}}
+    />
+  );
+}
+
+/**
+ * A second account for the same person is refused, so offer the right thing:
+ * a removed account put back, or the other role added to the one they hold.
+ *
+ * It sits inside the add form and submits through its own `formAction`, so it
+ * needs no form of its own. The fields it sends are hidden copies of what was
+ * typed — React has cleared the form by now — under names of their own, and
+ * `formNoValidate` because the cleared form's required boxes are not its.
+ */
+function ExistingAccountOffer({
+  kind,
+  message,
+  account,
+  details,
+}: {
+  kind: 'teachers' | 'parents';
+  message?: string;
+  account: ExistingAccount;
+  details: Record<string, string>;
+}) {
+  const [offer, offerAction] = useActionState<ActionState, FormData>(
+    resolveExistingAccountAction,
+    {},
+  );
+  // The add form's own status: this button submits it, with another action.
+  const { pending } = useFormStatus();
+
+  if (offer.success) {
+    return (
+      <div className="space-y-2">
+        <FormSuccess message={offer.success} />
+        {offer.link && (
+          <Link
+            href={offer.link.href}
+            className="inline-block text-sm font-medium text-navy-700 underline hover:text-navy-900"
+          >
+            {offer.link.label}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  const role = kind === 'teachers' ? 'teacher' : 'parent';
+  const mode = account.removed
+    ? 'restore'
+    : account.roles.includes(kind === 'teachers' ? 'PARENT' : 'TEACHER')
+      ? 'add-role'
+      : null;
+
+  return (
+    <div className="space-y-3">
+      <FormError message={message} />
+
+      {mode && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-navy-50/60 px-3.5 py-3 ring-1 ring-inset ring-navy-100">
+          <input type="hidden" name="offer.kind" value={kind} />
+          <input type="hidden" name="offer.mode" value={mode} />
+          <input type="hidden" name="offer.userId" value={account.userId} />
+          {Object.entries(details).map(([name, value]) => (
+            <input key={name} type="hidden" name={`offer.${name}`} value={value} />
+          ))}
+
+          <Button
+            type="submit"
+            variant="secondary"
+            formAction={offerAction}
+            formNoValidate
+            disabled={pending}
+          >
+            {pending
+              ? 'Working…'
+              : mode === 'restore'
+                ? `Restore ${account.name}`
+                : `Add the ${role} role to ${account.name}`}
+          </Button>
+          <span className="min-w-[12rem] flex-1 text-xs text-slate-500">
+            {mode === 'restore'
+              ? 'They come back on the account they had, with the same sign-in.'
+              : `Their sign-in and password stay as they are; the app lets them switch between ${
+                  kind === 'teachers' ? 'parent and teacher' : 'teacher and parent'
+                }.`}
+          </span>
+        </div>
+      )}
+
+      <FormError message={offer.error} />
+    </div>
+  );
+}
+
 export function TeacherForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(createTeacherAction, {});
 
   return (
     <form action={formAction} className="space-y-6">
-      <Result state={state} />
+      <CreateResult state={state} kind="teachers" />
 
       <FieldSet legend="Details">
         <Field label="Full name" required>
@@ -91,7 +204,7 @@ export function ParentForm() {
 
   return (
     <form action={formAction} className="space-y-6">
-      <Result state={state} />
+      <CreateResult state={state} kind="parents" />
 
       <FieldSet legend="Details">
         <Field label="Full name" required>
@@ -125,6 +238,9 @@ export function ParentForm() {
         </Field>
         <Field label="Occupation">
           <Input name="occupation" />
+        </Field>
+        <Field label="Address">
+          <Input name="address" autoComplete="off" />
         </Field>
       </FieldSet>
 

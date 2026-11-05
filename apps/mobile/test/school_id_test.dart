@@ -10,7 +10,9 @@ import 'package:poetree_school/core/api/api_service.dart';
 import 'package:poetree_school/core/config/branding.dart';
 import 'package:poetree_school/core/push/push_service.dart';
 import 'package:poetree_school/features/auth/auth_controller.dart';
+import 'package:poetree_school/features/auth/choose_role_view.dart';
 import 'package:poetree_school/features/auth/login_view.dart';
+import 'package:poetree_school/features/auth/school_id_view.dart';
 
 /// One Poetree Kids app for every school: the School ID typed at sign-in
 /// chooses the school, the API checks it, and the phone remembers it.
@@ -41,6 +43,9 @@ class _Api implements HttpClientAdapter {
   final sent = <String>[];
   final logins = <Map<dynamic, dynamic>>[];
   bool offline = false;
+
+  /// Signs in someone who is both a parent and a teacher.
+  bool bothRoles = false;
 
   ResponseBody _json(Object body, int status) => ResponseBody.fromString(
     jsonEncode(body),
@@ -84,19 +89,31 @@ class _Api implements HttpClientAdapter {
         'accessToken': 'access-1',
         'refreshToken': 'refresh-1',
         'expiresIn': 900,
-        'user': {
-          'id': 'u1',
-          'name': 'Meera Shah',
-          'role': 'PARENT',
-          'mustChangePassword': false,
-          'school': {'code': 'sunrise', 'name': 'Sunrise Preschool'},
-        },
+        'user': _user('PARENT'),
+      }, 200);
+    }
+    if (options.path == '/auth/switch-role') {
+      final role = (options.data as Map)['role'] as String;
+      return _json({
+        'accessToken': 'access-2',
+        'refreshToken': 'refresh-2',
+        'expiresIn': 900,
+        'user': _user(role),
       }, 200);
     }
     return _json({
       'error': {'code': 'NOT_FOUND', 'message': 'Not found'},
     }, 404);
   }
+
+  Map<String, dynamic> _user(String role) => {
+    'id': 'u1',
+    'name': 'Meera Shah',
+    'role': role,
+    'roles': bothRoles ? ['PARENT', 'TEACHER'] : [role],
+    'mustChangePassword': false,
+    'school': {'code': 'sunrise', 'name': 'Sunrise Preschool'},
+  };
 
   @override
   void close({bool force = false}) {}
@@ -117,7 +134,8 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 /// The sign-in screen, with stand-ins for where it leads.
-Future<(_Api, _Tokens)> _openSignIn(WidgetTester tester) async {
+/// The app at [route], with every screen sign-in can lead to.
+Future<(_Api, _Tokens)> _open(WidgetTester tester, String route) async {
   await tester.binding.setSurfaceSize(const Size(420, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -133,12 +151,18 @@ Future<(_Api, _Tokens)> _openSignIn(WidgetTester tester) async {
 
   await tester.pumpWidget(
     GetMaterialApp(
-      initialRoute: '/login',
+      initialRoute: route,
       getPages: [
+        GetPage<void>(name: '/school', page: () => const SchoolIdView()),
         GetPage<void>(name: '/login', page: () => const LoginView()),
+        GetPage<void>(name: '/choose-role', page: () => const ChooseRoleView()),
         GetPage<void>(
           name: '/parent',
           page: () => const Scaffold(body: Text('Parent home')),
+        ),
+        GetPage<void>(
+          name: '/teacher',
+          page: () => const Scaffold(body: Text('Teacher home')),
         ),
         GetPage<void>(
           name: '/registration',
@@ -151,6 +175,14 @@ Future<(_Api, _Tokens)> _openSignIn(WidgetTester tester) async {
   );
   await _settle(tester);
   return (api, tokens);
+}
+
+/// A phone that has already been told its school.
+void _remember() {
+  BrandingService.current = Branding.fromJson({
+    'code': 'sunrise',
+    'name': 'Sunrise Preschool',
+  });
 }
 
 Finder _field(String label) => find.widgetWithText(TextFormField, label);
@@ -225,24 +257,73 @@ void main() {
     );
   });
 
-  group('signing in', () {
-    testWidgets('asks for the School ID', (tester) async {
-      final (api, _) = await _openSignIn(tester);
+  group('the School ID screen', () {
+    setUp(() => BrandingService.current = Branding.fallback());
 
-      expect(_field('School ID'), findsOneWidget);
-      await tester.enterText(_field('Phone or email'), '+919820011001');
-      await tester.enterText(_field('Password'), 'Family@2026');
-      await tester.tap(find.text('Sign in').last);
+    testWidgets('needs a School ID', (tester) async {
+      final (api, _) = await _open(tester, '/school');
+
+      await tester.tap(find.text('Continue'));
       await _settle(tester);
 
       expect(find.text('Enter your School ID'), findsOneWidget);
       expect(api.sent, isEmpty);
     });
 
-    testWidgets('signs in to the school the School ID names', (tester) async {
-      final (api, tokens) = await _openSignIn(tester);
+    testWidgets('says so when no school has it, and goes no further', (
+      tester,
+    ) async {
+      final (api, _) = await _open(tester, '/school');
+
+      await tester.enterText(_field('School ID'), 'nowhere');
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(
+        find.text(
+          'No school has the School ID “nowhere”. Please check it with your '
+          'school office.',
+        ),
+        findsOneWidget,
+      );
+      expect(api.logins, isEmpty);
+      expect(find.text('Sign in'), findsNothing);
+    });
+
+    testWidgets('opens that school’s sign-in, and remembers it', (
+      tester,
+    ) async {
+      final (api, _) = await _open(tester, '/school');
 
       await tester.enterText(_field('School ID'), 'Sunrise');
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(api.sent, ['GET /public/schools/sunrise/branding']);
+      expect(
+        find.text('Sign in to see your child’s day at Sunrise Preschool'),
+        findsOneWidget,
+      );
+      expect(find.text('School ID: sunrise'), findsOneWidget);
+      expect(BrandingService.current.code, 'sunrise');
+    });
+
+    testWidgets('is where sign-in goes with no school chosen', (tester) async {
+      await _open(tester, '/login');
+
+      expect(find.text('Your School ID'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
+    });
+  });
+
+  group('signing in', () {
+    setUp(_remember);
+    tearDown(() => BrandingService.current = Branding.fallback());
+
+    testWidgets('is at the school chosen first', (tester) async {
+      final (api, tokens) = await _open(tester, '/login');
+
+      expect(_field('School ID'), findsNothing);
       await tester.enterText(_field('Phone or email'), '+919820011001');
       await tester.enterText(_field('Password'), 'Family@2026');
       await tester.tap(find.text('Sign in').last);
@@ -255,65 +336,46 @@ void main() {
       expect(api.logins.single['schoolCode'], 'sunrise');
       expect(tokens.access, 'access-1');
       expect(find.text('Parent home'), findsOneWidget);
-      // Remembered, so next time it is already filled in.
-      expect(BrandingService.current.code, 'sunrise');
     });
 
-    testWidgets('says so when no school has the School ID', (tester) async {
-      final (api, tokens) = await _openSignIn(tester);
+    testWidgets('can go back to choose another school', (tester) async {
+      await _open(tester, '/login');
 
-      await tester.enterText(_field('School ID'), 'nowhere');
+      await tester.tap(find.text('Change school'));
+      await _settle(tester);
+
+      expect(find.text('Your School ID'), findsOneWidget);
+    });
+
+    testWidgets('asks someone who is both which to open as', (tester) async {
+      final (api, tokens) = await _open(tester, '/login');
+      api.bothRoles = true;
+
       await tester.enterText(_field('Phone or email'), '+919820011001');
       await tester.enterText(_field('Password'), 'Family@2026');
       await tester.tap(find.text('Sign in').last);
       await _settle(tester);
 
-      expect(
-        find.text(
-          'No school has the School ID “nowhere”. Please check it with your '
-          'school office.',
-        ),
-        findsOneWidget,
-      );
-      // Never asked to sign in to a school that does not exist.
-      expect(api.logins, isEmpty);
-      expect(tokens.access, isNull);
-    });
+      expect(find.text('Parent'), findsOneWidget);
+      expect(find.text('Teacher'), findsOneWidget);
 
-    testWidgets('fills in the School ID it remembers', (tester) async {
-      BrandingService.current = Branding.fromJson({
-        'code': 'sunrise',
-        'name': 'Sunrise Preschool',
-      });
-      await _openSignIn(tester);
+      await tester.tap(find.text('Teacher'));
+      await _settle(tester);
 
-      final field = tester.widget<TextFormField>(_field('School ID'));
-      expect(field.controller?.text, 'sunrise');
-      expect(
-        find.text('Sign in to see your child’s day at Sunrise Preschool'),
-        findsOneWidget,
-      );
+      expect(api.sent.last, 'POST /auth/switch-role');
+      expect(tokens.access, 'access-2');
+      expect(find.text('Teacher home'), findsOneWidget);
+      expect(Get.find<AuthController>().user.value?.role, 'TEACHER');
     });
   });
 
   group('registering', () {
-    testWidgets('needs the School ID first', (tester) async {
-      final (api, _) = await _openSignIn(tester);
+    setUp(_remember);
+    tearDown(() => BrandingService.current = Branding.fallback());
 
-      await tester.tap(find.text('Register with the school'));
-      await _settle(tester);
+    testWidgets('opens for the school chosen first', (tester) async {
+      await _open(tester, '/login');
 
-      expect(
-        find.text('Enter your School ID first. Your school gives it to you.'),
-        findsOneWidget,
-      );
-      expect(api.sent, isEmpty);
-    });
-
-    testWidgets('opens for the school the School ID names', (tester) async {
-      await _openSignIn(tester);
-
-      await tester.enterText(_field('School ID'), 'sunrise');
       await tester.tap(find.text('Register with the school'));
       await _settle(tester);
 

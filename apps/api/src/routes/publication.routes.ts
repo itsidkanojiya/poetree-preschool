@@ -1,5 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import {
+  globalExportQuerySchema,
+  type GlobalExportQuery,
   createBookSubjectSchema,
   updateBookSubjectSchema,
   createOrganisationSchema,
@@ -89,6 +91,9 @@ import { requireRole } from '../middleware/requireRole.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { sendStoredFile } from '../lib/sendStoredFile.js';
 import { body, params, query, validate } from '../middleware/validate.js';
+import * as exportService from '../services/export.service.js';
+import { exportLimiter } from '../middleware/exportLimiter.js';
+import { writeAuditLogSafe } from '../services/audit.service.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
 import * as organisationService from '../services/organisation.service.js';
@@ -721,6 +726,43 @@ publicationRouter.get(
   validate({ params: idParamSchema }),
   asyncHandler(async (req: Request, res) => {
     sendPdfToCheck(req, res, await chapters.chapterPdfFile(params<{ id: string }>(req).id));
+  }),
+);
+
+/**
+ * Records across schools as an Excel file: one school, several or all, each
+ * row naming its school. Only the Super Admin reaches this router.
+ */
+publicationRouter.get(
+  '/exports/filters',
+  asyncHandler(async (_req, res) => {
+    res.json(await exportService.globalExportFilters());
+  }),
+);
+
+publicationRouter.get(
+  '/exports',
+  exportLimiter,
+  validate({ query: globalExportQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const filters = query<GlobalExportQuery>(req);
+    let rows: number;
+    try {
+      rows = await exportService.exportAcrossSchools(res, filters);
+    } catch (error) {
+      // Part-way through, the download has already been ended and logged.
+      if (res.headersSent) return;
+      throw error;
+    }
+    writeAuditLogSafe({
+      action: 'DATA_EXPORTED',
+      entity: 'Export',
+      entityId: filters.type,
+      schoolId: null,
+      actorUserId: req.auth!.userId,
+      ipAddress: req.ip ?? null,
+      metadata: { export: filters.type, filters, rows },
+    });
   }),
 );
 

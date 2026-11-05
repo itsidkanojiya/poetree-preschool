@@ -28,6 +28,16 @@ class TeacherHomeView extends GetView<RegisterController> {
         title: Obx(() => Text(auth.user.value?.schoolName ?? 'School')),
         actions: [
           InboxButton(onOpen: () => Get.toNamed<void>(AppRoutes.inbox)),
+          // A teacher who is also a parent here: their family's side.
+          Obx(
+            () => (auth.user.value?.roles.contains('PARENT') ?? false)
+                ? IconButton(
+                    onPressed: () => auth.switchTo('PARENT'),
+                    icon: const Icon(Icons.family_restroom_rounded),
+                    tooltip: 'Switch to Parent',
+                  )
+                : const SizedBox.shrink(),
+          ),
           IconButton(
             onPressed: auth.signOut,
             icon: const Icon(Icons.logout_rounded),

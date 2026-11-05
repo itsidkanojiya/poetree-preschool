@@ -23,6 +23,7 @@ import { assertSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLogSafe } from './audit.service.js';
 import { registrationAwaiting } from './registration.service.js';
 import { listBranches } from './organisation.service.js';
+import { defaultRole, profileRoles, rolesHeld } from './roles.service.js';
 
 const userWithSchool = {
   include: {
@@ -32,6 +33,8 @@ const userWithSchool = {
     // Only a group administrator has one. It is what tells a client to offer a
     // branch switcher at all.
     organisation: { select: { id: true, name: true, code: true } },
+    // Which of teacher and parent the person holds — both, for some.
+    ...profileRoles,
   },
 } satisfies Prisma.UserDefaultArgs;
 
@@ -52,6 +55,8 @@ export interface RequestMeta {
 function toAuthenticatedUser(
   user: UserWithSchool,
   branch?: BranchSchool | null,
+  /** The role the session is acting as. Absent: the account's default. */
+  activeRole?: Role | null,
 ): AuthenticatedUser {
   // A group administrator's session belongs to the branch they picked, not to
   // their own row — which holds no school at all.
@@ -62,7 +67,8 @@ function toAuthenticatedUser(
     name: user.name,
     email: user.email,
     phone: user.phone,
-    role: user.role as Role,
+    role: activeRole ?? defaultRole(user),
+    roles: rolesHeld(user),
     schoolId: school?.id ?? user.schoolId,
     mustChangePassword: user.mustChangePassword,
     organisation: user.organisation,
@@ -143,16 +149,23 @@ async function issueTokens(
   activeSchoolId: string | null = null,
   /** Carrying on an existing sign-in (a refresh). Absent: a new sign-in. */
   continuing?: string,
+  /**
+   * Which of the person's roles the session acts as. Every permission check
+   * reads this one role off the token, so a parent-and-teacher sees only one
+   * side at a time. Absent: the account's default.
+   */
+  activeRole?: Role,
 ) {
   const tokenId = newTokenId();
   const refreshToken = signRefreshToken({ userId: user.id, tokenId });
   const sessionId = continuing ?? newTokenId();
+  const role = activeRole ?? defaultRole(user);
 
   // A new sign-in by a parent or teacher is now their only one: every other
   // session they hold ends, and this one becomes the one requests are checked
   // against. Done before this session's own token exists, so it is not caught
   // in the sweep.
-  if (!continuing && isSingleDevice(user.role)) {
+  if (!continuing && isSingleDevice(role)) {
     await prismaUnscoped.$transaction([
       prismaUnscoped.refreshToken.updateMany({
         where: { userId: user.id, revokedAt: null },
@@ -175,6 +188,7 @@ async function issueTokens(
       userAgent: meta.userAgent?.slice(0, 300) ?? null,
       ipAddress: meta.ipAddress?.slice(0, 64) ?? null,
       activeSchoolId,
+      activeRole: role,
       sessionId,
     },
   });
@@ -183,7 +197,7 @@ async function issueTokens(
     accessToken: signAccessToken({
       mustChangePassword: user.mustChangePassword,
       userId: user.id,
-      role: user.role as Role,
+      role,
       schoolId: activeSchoolId ?? user.schoolId,
       sessionId,
     }),
@@ -304,7 +318,9 @@ export async function login(
     throw ApiError.portalAccessDenied();
   }
 
-  if (user.status !== 'ACTIVE') {
+  // Not active — or a teacher or parent whose every role the school has
+  // taken away, which is the same thing to them.
+  if (user.status !== 'ACTIVE' || rolesHeld(user).length === 0) {
     throw ApiError.forbidden('Your account is not active. Please contact your administrator.');
   }
 
@@ -399,17 +415,23 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
   }
 
   const user = stored.user;
+  const held = rolesHeld(user);
 
-  if (user.status !== 'ACTIVE') {
-    throw ApiError.forbidden('Your account is not active. Please contact your administrator.');
+  // Switched off or removed by the school since the session began.
+  if (user.status !== 'ACTIVE' || held.length === 0) {
+    throw ApiError.accountInactive();
   }
+
+  // The role this session was acting as, while the person still holds it.
+  const role =
+    stored.activeRole && held.includes(stored.activeRole) ? stored.activeRole : defaultRole(user);
 
   // Tokens from before sessions were tracked carry none; the row's own id
   // stands in, so parallel refreshes of one such token stay one session.
   const sessionId = stored.sessionId ?? stored.id;
 
   if (
-    isSingleDevice(user.role) &&
+    isSingleDevice(role) &&
     user.currentSessionId !== null &&
     user.currentSessionId !== sessionId
   ) {
@@ -431,7 +453,7 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     await assertSchoolUsable(schoolToCheck);
   }
 
-  const tokens = await issueTokens(user, meta, branch?.id ?? null, sessionId);
+  const tokens = await issueTokens(user, meta, branch?.id ?? null, sessionId, role);
 
   await prismaUnscoped.refreshToken.update({
     where: { id: stored.id },
@@ -442,7 +464,71 @@ export async function refresh(rawToken: string, meta: RequestMeta): Promise<Logi
     },
   });
 
-  return { ...tokens, user: toAuthenticatedUser(user, branch) };
+  return { ...tokens, user: toAuthenticatedUser(user, branch, role) };
+}
+
+/**
+ * Someone who is both a parent and a teacher here choosing which to be.
+ *
+ * Like changing branch, it is signing in again as the other: a new session
+ * acting as that role, and — because parents and teachers hold one session at
+ * a time — the one they were in ends. One token never carries two roles, so a
+ * teacher's session cannot read a parent's pages or the other way round.
+ */
+export async function switchRole(
+  userId: string,
+  role: 'TEACHER' | 'PARENT',
+  meta: RequestMeta,
+): Promise<LoginResponse> {
+  const user = await prismaUnscoped.user.findUnique({ where: { id: userId }, ...userWithSchool });
+  if (!user || user.deletedAt) throw ApiError.unauthenticated('Your account no longer exists');
+
+  if (user.status !== 'ACTIVE') {
+    throw ApiError.forbidden('Your account is not active. Please contact your administrator.');
+  }
+  if (!rolesHeld(user).includes(role)) {
+    throw ApiError.forbidden(
+      role === 'TEACHER'
+        ? 'You are not a teacher at this school.'
+        : 'You are not a parent at this school.',
+    );
+  }
+  if (user.schoolId) await assertSchoolUsable(user.schoolId);
+
+  const tokens = await issueTokens(user, meta, null, undefined, role);
+
+  writeAuditLogSafe({
+    action: 'ROLE_SWITCHED',
+    entity: 'User',
+    entityId: user.id,
+    schoolId: user.schoolId,
+    actorUserId: user.id,
+    metadata: { role },
+    ipAddress: meta.ipAddress ?? null,
+  });
+
+  return { ...tokens, user: toAuthenticatedUser(user, null, role) };
+}
+
+/**
+ * Signs someone out everywhere, at once: every refresh token ended, the
+ * current session closed so a token already on their phone stops working on
+ * its next request, and their phones forgotten so nothing more is pushed.
+ *
+ * For an account the school removes or deactivates. Their next request is
+ * refused and they cannot sign in again.
+ */
+export async function endAllSessions(userId: string, reason: string): Promise<void> {
+  const closed = newTokenId();
+  await prismaUnscoped.$transaction([
+    prismaUnscoped.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedBy: reason.slice(0, 40) },
+    }),
+    prismaUnscoped.user.update({ where: { id: userId }, data: { currentSessionId: closed } }),
+    prismaUnscoped.deviceToken.deleteMany({ where: { userId } }),
+  ]);
+  rememberSession(userId, closed);
 }
 
 /**
@@ -500,10 +586,16 @@ export async function switchBranch(
  * Used after a password change, which revokes every session including the one
  * doing the changing — this is what hands that session its life back.
  */
-export async function issueTokensFor(userId: string, meta: RequestMeta): Promise<AuthTokens> {
+export async function issueTokensFor(
+  userId: string,
+  meta: RequestMeta,
+  /** The role the session was acting as, so changing a password keeps it. */
+  activeRole?: Role,
+): Promise<AuthTokens> {
   const user = await prismaUnscoped.user.findUnique({ where: { id: userId }, ...userWithSchool });
   if (!user) throw ApiError.unauthenticated('Your account no longer exists');
-  return issueTokens(user, meta);
+  const role = activeRole && rolesHeld(user).includes(activeRole) ? activeRole : undefined;
+  return issueTokens(user, meta, null, undefined, role);
 }
 
 export async function logout(rawToken: string | undefined, userId: string): Promise<void> {
@@ -524,6 +616,8 @@ export async function logout(rawToken: string | undefined, userId: string): Prom
 export async function getAuthenticatedUser(
   userId: string,
   activeSchoolId?: string | null,
+  /** The role the asking session acts as, which is what it should be told. */
+  activeRole?: Role,
 ): Promise<AuthenticatedUser> {
   const user = await prismaUnscoped.user.findUnique({ where: { id: userId }, ...userWithSchool });
   if (!user) throw ApiError.unauthenticated('Your account no longer exists');
@@ -538,7 +632,7 @@ export async function getAuthenticatedUser(
         })
       : null;
 
-  return toAuthenticatedUser(user, branch);
+  return toAuthenticatedUser(user, branch, activeRole);
 }
 
 /** The branches a group administrator may work in. */

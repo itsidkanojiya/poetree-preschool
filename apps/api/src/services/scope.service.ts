@@ -106,7 +106,7 @@ export async function assertCanReadStudent(studentId: string): Promise<void> {
 
   if (context.role === 'PARENT') {
     const link = await prisma.studentGuardian.findFirst({
-      where: { studentId, parentProfile: { userId: context.userId } },
+      where: { studentId, parentProfile: { userId: context.userId, removedAt: null } },
       select: { id: true },
     });
     if (!link) throw ApiError.notFound('Student not found');
@@ -134,7 +134,7 @@ export async function guardianStudentIds(): Promise<string[]> {
   if (!context) throw ApiError.unauthenticated();
 
   const links = await prisma.studentGuardian.findMany({
-    where: { parentProfile: { userId: context.userId } },
+    where: { parentProfile: { userId: context.userId, removedAt: null } },
     select: { studentId: true },
   });
 

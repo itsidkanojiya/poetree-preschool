@@ -47,12 +47,33 @@ const envSchema = z
      */
     OTP_PROVIDER: z.enum(['static', 'msg91']).default('static'),
     /**
-     * The same for the address. Nothing in this platform sends email yet, so
-     * `static` is the only one written — adding a mailer on spec would be
-     * guessing at a service nobody has chosen. When there is an account it goes
-     * in otp.service.ts beside MSG91, and nothing else moves.
+     * The same for the address. `smtp` sends a real email through any mailbox
+     * that speaks SMTP — the school domain's own, Gmail, Zoho, Resend's SMTP —
+     * using the SMTP_* settings below. `static` still sends nothing. Left out,
+     * it is `smtp` once SMTP_HOST is set and `static` until then.
      */
-    EMAIL_OTP_PROVIDER: z.enum(['static']).default('static'),
+    EMAIL_OTP_PROVIDER: z.enum(['static', 'smtp']).optional(),
+    SMTP_HOST: z.string().optional(),
+    /** 465 is SSL from the first byte; 587 upgrades with STARTTLS. */
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
+    /** Left out: SSL on port 465, STARTTLS on any other. */
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : v === 'true')),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    /**
+     * Who the email is from — the mailbox SMTP_USER signs in as, which most
+     * providers insist on. A bare address is shown as "Poetree Kids".
+     */
+    SMTP_FROM: z.string().optional(),
+    /**
+     * How long before another code may go to the same number or address. The
+     * app counts the same down beside "Send again"; this is the server holding
+     * to it, so a script cannot skip the wait.
+     */
+    OTP_RESEND_SECONDS: z.coerce.number().int().min(0).max(600).default(30),
     OTP_STATIC_CODE: z.string().regex(/^[0-9]{4,6}$/).default('1234'),
     OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(600),
     MSG91_AUTH_KEY: z.string().optional(),
@@ -132,6 +153,8 @@ const raw = parsed.data;
 
 export const env = {
   ...raw,
+  EMAIL_OTP_PROVIDER: raw.EMAIL_OTP_PROVIDER ?? (raw.SMTP_HOST ? 'smtp' : 'static'),
+  SMTP_SECURE: raw.SMTP_SECURE ?? raw.SMTP_PORT === 465,
   isProduction: raw.NODE_ENV === 'production',
   isTest: raw.NODE_ENV === 'test',
   corsOrigins: raw.CORS_ORIGINS.split(',')

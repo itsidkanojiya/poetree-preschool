@@ -60,6 +60,8 @@ async function notifyAbsences(
       body: `${name} was not in class on ${when}. Please contact the school if this is unexpected.`,
       entityType: 'Student',
       entityId: student.id,
+      // Which child, so a family with two opens the right one.
+      data: { studentId: student.id },
     });
   }
 }

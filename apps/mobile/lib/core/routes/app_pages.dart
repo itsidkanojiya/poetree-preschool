@@ -12,6 +12,8 @@ import '../../features/books/subject_chapters_view.dart';
 import '../../features/books/books_controllers.dart';
 import '../../features/auth/auth_controller.dart';
 import '../../features/auth/change_password_view.dart';
+import '../../features/auth/choose_role_view.dart';
+import '../../features/auth/school_id_view.dart';
 import '../../features/auth/login_view.dart';
 import '../../features/auth/registration_controller.dart';
 import '../../features/auth/registration_view.dart';
@@ -88,6 +90,13 @@ class InboxBinding extends Bindings {
 
 class AppRoutes {
   static const login = '/login';
+
+  /// Before sign-in: which school. Nobody reaches the sign-in screen without
+  /// a School ID the API has recognised.
+  static const schoolId = '/school';
+
+  /// After sign-in, for someone who is both a parent and a teacher here.
+  static const chooseRole = '/choose-role';
   static const changePassword = '/change-password';
 
   /// A parent registering themselves. Not `register`, which is the
@@ -283,6 +292,16 @@ final appPages = <GetPage<dynamic>>[
   GetPage<void>(
     name: AppRoutes.changePassword,
     page: () => const ChangePasswordView(),
+    binding: AuthBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.schoolId,
+    page: () => const SchoolIdView(),
+    binding: AuthBinding(),
+  ),
+  GetPage<void>(
+    name: AppRoutes.chooseRole,
+    page: () => const ChooseRoleView(),
     binding: AuthBinding(),
   ),
   GetPage<void>(

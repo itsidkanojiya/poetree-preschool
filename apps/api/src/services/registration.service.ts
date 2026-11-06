@@ -8,6 +8,7 @@ import type {
   StudentMatch,
   SubmitRegistrationInput,
   SubmitRegistrationResponse,
+  UpdateRegistrationInput,
 } from '@poetree/shared';
 import type { Prisma } from '@prisma/client';
 import { prisma, prismaUnscoped } from '../db/prisma.js';
@@ -119,6 +120,9 @@ function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): Registra
           }
         : null,
     studentName: row.studentName,
+    studentFirstName: row.studentFirstName,
+    studentMiddleName: row.studentMiddleName,
+    studentLastName: row.studentLastName,
     studentDateOfBirth: row.studentDateOfBirth?.toISOString() ?? null,
     fatherName: row.fatherName,
     motherName: row.motherName,
@@ -538,6 +542,113 @@ async function matchesFor(row: {
   });
 
   return candidates.map(toMatch);
+}
+
+/** A value as the change log shows it: a date as its day, nothing as null. */
+function shown(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value);
+}
+
+/**
+ * The office correcting a family's request while it waits for verification.
+ *
+ * Allowed only while it is pending: once the school has verified it — approved
+ * it into a child on the roll — or turned it down, the request is a record of
+ * what was decided and is locked. The child's record itself stays editable on
+ * its own page, every change logged.
+ *
+ * Each correction is recorded with what the family wrote and what it became.
+ */
+export async function updateRegistration(
+  registrationId: string,
+  input: UpdateRegistrationInput,
+  actorUserId: string,
+): Promise<RegistrationSummary> {
+  const schoolId = requireSchoolId();
+
+  const row = await prisma.parentRegistration.findUnique({
+    where: { id: registrationId },
+    include: registrationInclude,
+  });
+  if (!row) throw ApiError.notFound('Registration not found');
+
+  const locked = () =>
+    ApiError.conflict(
+      row.status === 'APPROVED'
+        ? 'This registration has been verified, so it can no longer be changed. Edit the child on their own page.'
+        : 'This registration was turned down, so it can no longer be changed.',
+    );
+  if (row.status !== 'PENDING') throw locked();
+
+  let levelName: string | null = null;
+  if (input.classLevelId) {
+    const level = await prisma.classLevel.findFirst({
+      where: { id: input.classLevelId, isActive: true },
+      select: { name: true },
+    });
+    if (!level) throw ApiError.badRequest('Choose the class from the list.');
+    levelName = level.name;
+  }
+
+  const before: Record<string, string | null> = {};
+  const after: Record<string, string | null> = {};
+  const data: Prisma.ParentRegistrationUncheckedUpdateManyInput = {};
+  for (const [field, value] of Object.entries(input) as Array<
+    [keyof UpdateRegistrationInput, unknown]
+  >) {
+    if (value === undefined) continue;
+    const was = shown(row[field as keyof typeof row]);
+    const now = shown(value);
+    if (was === now) continue;
+    before[field] = was;
+    after[field] = now;
+    (data as Record<string, unknown>)[field] = value;
+  }
+
+  if (Object.keys(after).length === 0) return toSummary(row, await matchesFor(row));
+
+  // The log says which standard, not which id.
+  if ('classLevelId' in after) {
+    before.classLevelId = row.classLevel?.name ?? null;
+    after.classLevelId = levelName;
+  }
+
+  // The written-out name follows its parts.
+  if ('studentFirstName' in after || 'studentMiddleName' in after || 'studentLastName' in after) {
+    data.studentName = studentName({
+      firstName: input.studentFirstName ?? row.studentFirstName ?? row.studentName,
+      middleName:
+        input.studentMiddleName !== undefined ? input.studentMiddleName : row.studentMiddleName,
+      lastName: input.studentLastName !== undefined ? input.studentLastName : row.studentLastName,
+    });
+  }
+
+  // Still pending at the moment of writing: an approval that landed in between
+  // wins, and this is refused rather than applied to a decided request.
+  const written = await prisma.parentRegistration.updateMany({
+    where: { id: registrationId, status: 'PENDING' },
+    data,
+  });
+  if (written.count === 0) throw locked();
+
+  await writeAuditLog({
+    action: 'REGISTRATION_UPDATED',
+    entity: 'ParentRegistration',
+    entityId: registrationId,
+    schoolId,
+    actorUserId,
+    before,
+    after,
+    metadata: { fields: Object.keys(after) },
+  });
+
+  const updated = await prisma.parentRegistration.findUniqueOrThrow({
+    where: { id: registrationId },
+    include: registrationInclude,
+  });
+  return toSummary(updated, await matchesFor(updated));
 }
 
 /** How many are waiting, for the badge on the nav. */

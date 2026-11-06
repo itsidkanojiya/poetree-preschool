@@ -28,6 +28,8 @@ interface NavItem {
   icon: ReactNode;
   /** Exact match only — otherwise the section root highlights on every child. */
   exact?: boolean;
+  /** Other addresses that belong to this section, such as a tab inside it. */
+  also?: string[];
 }
 
 interface NavGroup {
@@ -68,8 +70,13 @@ const SCHOOL_NAV: NavGroup[] = [
     heading: 'People',
     items: [
       { href: '/school/teachers', label: 'Teachers', icon: <IconTeacher size={18} /> },
-      { href: '/school/parents', label: 'Parents', icon: <IconParents size={18} /> },
-      { href: '/school/students', label: 'Students', icon: <IconStudent size={18} /> },
+      // Parents are a tab of Students now: a child and their family in one place.
+      {
+        href: '/school/students',
+        label: 'Students',
+        icon: <IconStudent size={18} />,
+        also: ['/school/parents'],
+      },
       // Families waiting to be let in. Beside the people it will turn into.
       { href: '/school/registrations', label: 'Registrations', icon: <IconInbox size={18} /> },
     ],
@@ -143,7 +150,9 @@ export function SidebarNav({ role }: { role: string }) {
           {group.items.map((item) => {
             const active = item.exact
               ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              : [item.href, ...(item.also ?? [])].some(
+                  (href) => pathname === href || pathname.startsWith(`${href}/`),
+                );
 
             return (
               <Link

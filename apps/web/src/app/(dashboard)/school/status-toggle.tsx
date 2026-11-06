@@ -15,6 +15,7 @@ export function StatusToggle({
   name,
   status,
   alsoOtherRole,
+  studentId,
 }: {
   kind: 'teachers' | 'parents';
   userId: string;
@@ -22,6 +23,8 @@ export function StatusToggle({
   status: string;
   /** A teacher who is also a parent here, or a parent who also teaches. */
   alsoOtherRole: boolean;
+  /** The child's page this is on, to come back to it. */
+  studentId?: string;
 }) {
   const active = status === 'ACTIVE';
   const label = active ? 'Active' : status === 'SUSPENDED' ? 'Suspended' : 'Inactive';
@@ -32,7 +35,7 @@ export function StatusToggle({
       <Pill tone={active ? 'brand' : 'neutral'}>{label}</Pill>
       {active ? (
         <ConfirmButton
-          action={setAccountStatusAction.bind(null, kind, userId, 'INACTIVE')}
+          action={setAccountStatusAction.bind(null, kind, userId, 'INACTIVE', studentId)}
           label="Deactivate"
           title={`Deactivate ${name}?`}
           body={
@@ -54,7 +57,7 @@ export function StatusToggle({
           className="rounded-lg px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200 transition-colors hover:bg-amber-50"
         />
       ) : (
-        <form action={setAccountStatusAction.bind(null, kind, userId, 'ACTIVE')}>
+        <form action={setAccountStatusAction.bind(null, kind, userId, 'ACTIVE', studentId)}>
           <button
             type="submit"
             className="rounded-lg px-2.5 py-1 text-xs font-medium text-leaf-800 ring-1 ring-leaf-200 transition-colors hover:bg-leaf-50"

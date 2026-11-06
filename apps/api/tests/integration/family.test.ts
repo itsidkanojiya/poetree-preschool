@@ -240,7 +240,7 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
   });
 
   describe('removing a parent', () => {
-    it('leaves the child and their records alone, and can be undone', async () => {
+    it('takes the child it would orphan along, and brings them back on restore', async () => {
       const parentId = (
         await prismaUnscoped.user.findFirstOrThrow({
           where: { phone: other.parentPhone },
@@ -255,10 +255,11 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
       const removed = await api.delete(`${BASE}/parents/${parentId}`).set(auth(otherAdmin));
       expect(removed.status).toBe(200);
 
+      // Their only parent: the child goes with them rather than being left on
+      // the roll with nobody to reach. Hidden, not erased.
       const child = await api.get(`${BASE}/students/${other.studentId}`).set(auth(otherAdmin));
       expect(child.status).toBe(200);
-      expect(child.body.removedAt).toBeNull();
-      // Nobody's guardian while removed.
+      expect(child.body.removedAt).not.toBeNull();
       expect(child.body.guardians).toHaveLength(0);
 
       const signIn = await api
@@ -274,6 +275,8 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
 
       const restored = await api.post(`${BASE}/parents/${parentId}/restore`).set(auth(otherAdmin));
       expect(restored.status).toBe(200);
+      const back = await api.get(`${BASE}/students/${other.studentId}`).set(auth(otherAdmin));
+      expect(back.body.removedAt).toBeNull();
       const parent = await login(other.parentPhone);
       const children = await api.get(`${BASE}/me/children`).set(auth(parent));
       expect(children.body).toHaveLength(1);

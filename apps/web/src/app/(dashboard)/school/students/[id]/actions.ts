@@ -1,10 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { STUDENT_DOCUMENT_TYPES, type StudentDocumentType } from '@poetree/shared';
+import { GENDERS, STUDENT_DOCUMENT_TYPES, type StudentDocumentType } from '@poetree/shared';
 import { API_BASE_URL, apiFetch, errorMessage } from '@/lib/api';
 import { ACCESS_COOKIE } from '@/lib/auth-cookies';
 import { cookies } from 'next/headers';
+import { ID } from '@/lib/document-proxy';
 
 export interface DocumentState {
   error?: string;
@@ -171,4 +172,68 @@ export async function setStudentPhotoAction(
 
   revalidatePath(`/school/students/${studentId}`);
   return { success: 'Photograph saved.' };
+}
+
+/**
+ * The office changing a child's details.
+ *
+ * Every field, verified child or not — a family moves house, a teacher spots a
+ * misspelt name — and the API records each change from what it was to what it
+ * became. A cleared box is sent as null so a field can be emptied, not only
+ * replaced.
+ */
+export async function updateStudentAction(
+  studentId: string,
+  _prev: DocumentState,
+  formData: FormData,
+): Promise<DocumentState> {
+  if (!ID.test(studentId)) return { error: 'Not a child on the roll.' };
+
+  const text = (name: string): string | null => {
+    const value = String(formData.get(name) ?? '').trim();
+    return value === '' ? null : value;
+  };
+
+  const firstName = text('firstName');
+  const dateOfBirth = text('dateOfBirth');
+  const gender = text('gender');
+  const classroomId = text('classroomId');
+  if (!firstName) return { error: 'The child’s first name is needed.' };
+  if (!dateOfBirth) return { error: 'The date of birth is needed.' };
+  if (!gender || !(GENDERS as readonly string[]).includes(gender)) {
+    return { error: 'Choose boy, girl or other.' };
+  }
+
+  try {
+    await apiFetch(`/students/${studentId}`, {
+      method: 'PATCH',
+      redirectOnAuthFailure: false,
+      body: {
+        firstName,
+        middleName: text('middleName'),
+        lastName: text('lastName'),
+        dateOfBirth,
+        gender,
+        bloodGroup: text('bloodGroup'),
+        // Moving between sections only; taking a child out of their class is
+        // Remove, which keeps their records.
+        ...(classroomId ? { classroomId } : {}),
+        rollNo: text('rollNo') ?? '',
+        addressLine1: text('addressLine1'),
+        addressLine2: text('addressLine2'),
+        city: text('city'),
+        postalCode: text('postalCode'),
+        emergencyContactName: text('emergencyContactName'),
+        emergencyContactPhone: text('emergencyContactPhone'),
+        allergies: text('allergies'),
+        medicalNotes: text('medicalNotes'),
+      },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the changes.') };
+  }
+
+  revalidatePath(`/school/students/${studentId}`);
+  revalidatePath('/school/students');
+  return { success: 'Saved. The change is on the child’s record.' };
 }

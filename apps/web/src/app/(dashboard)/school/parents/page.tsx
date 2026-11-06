@@ -1,66 +1,26 @@
 import type { ClassroomSummary, Paginated, ParentSummary } from '@poetree/shared';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
-import Link from 'next/link';
-import { IconPlus } from '@/components/icons';
+import { IconPlus, IconSearch } from '@/components/icons';
 import { ChangePasswordButton } from '../change-password';
-import { ConfirmButton } from '@/components/ui/confirm-button';
-import { TabStrip } from '@/components/ui/tab-strip';
-import { formatDate } from '@/lib/format';
-import { removeParentAction, restoreParentAction } from '../removal-actions';
-import { RestoreButton } from '../restore-button';
 import { OutcomeToast } from '../outcome-toast';
 import { StatusToggle } from '../status-toggle';
 import { ExcelExportButton } from '@/components/excel-export';
+import { StudentsSectionTabs } from '../students/section-tabs';
+import { RemoveParentButton } from '../students/parent-removal';
 
 const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 /**
- * The consequences, said before they happen — and above all which children
- * would be left with nobody who can sign in for them.
+ * Every parent account, as a tab of Students.
+ *
+ * A parent is managed from their child's page now, where the family is. This
+ * list is for the accounts as accounts: who can sign in, a new password,
+ * exporting them, and finding which child a number belongs to.
  */
-function RemovalBody({ parent }: { parent: ParentSummary }) {
-  const alone = parent.children.filter((child) => !child.hasOtherGuardian);
-
-  return (
-    <>
-      <p>
-        {parent.isTeacher
-          ? 'They are signed out at once and can no longer sign in as a parent.'
-          : 'They are signed out at once and cannot sign in.'}
-      </p>
-
-      {parent.children.length > 0 && (
-        <div>
-          <p>Their {parent.children.length === 1 ? 'child' : 'children'}:</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
-            {parent.children.map((child) => (
-              <li key={child.id}>
-                <span className="font-medium text-navy-950">{child.name}</span>
-                {!child.hasOtherGuardian && (
-                  <span className="text-rose-700"> — no other parent</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {alone.length > 0 && (
-        <p className="rounded-lg bg-rose-50 px-3 py-2 text-rose-900 ring-1 ring-inset ring-rose-200">
-          {alone.map((child) => child.name).join(', ')} will have no parent who can sign in, until
-          you link another parent or restore this one.
-        </p>
-      )}
-
-      <p>Their children’s records are not touched. You can restore them.</p>
-
-      {parent.isTeacher && <p>They stay a teacher here — only the parent role is removed.</p>}
-    </>
-  );
-}
-
 export default async function ParentsPage({
   searchParams,
 }: {
@@ -74,12 +34,19 @@ export default async function ParentsPage({
   }>;
 }) {
   const { page = '1', search, removed, done, who, problem } = await searchParams;
-  const showRemoved = removed === 'true';
-  const basePath = showRemoved ? '/school/parents?removed=true' : '/school/parents';
+
+  // Removed parents live beside removed children now, under Students → Removed.
+  if (removed === 'true') {
+    const query = new URLSearchParams({ removed: 'true' });
+    for (const [key, value] of Object.entries({ search, done, who, problem })) {
+      if (value) query.set(key, value);
+    }
+    redirect(`/school/students?${query.toString()}`);
+  }
 
   const [parents, classrooms, standards] = await Promise.all([
     apiFetch<Paginated<ParentSummary>>('/parents', {
-      query: { page, pageSize: 20, search, removed: showRemoved ? 'true' : undefined },
+      query: { page, pageSize: 20, search },
     }),
     apiFetch<ClassroomSummary[]>('/classrooms'),
     apiFetch<Array<{ id: string; name: string }>>('/class-levels'),
@@ -88,8 +55,8 @@ export default async function ParentsPage({
   return (
     <>
       <PageHeader
-        title="Parents"
-        description="Parents own the family login. Children are profiles under their account."
+        title="Students"
+        description="Every parent account. To add a parent, add their child — or open the child and link one."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ExcelExportButton
@@ -124,128 +91,135 @@ export default async function ParentsPage({
                 },
               ]}
             />
-            <Link href="/school/parents/new" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
+            <Link
+              href="/school/students/new"
+              className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+            >
               <IconPlus size={17} />
-              Add parent
+              Add student
             </Link>
           </div>
         }
       />
 
-      <TabStrip
-        current={showRemoved ? 'removed' : 'current'}
-        tabs={[
-          { key: 'current', label: 'Current', href: '/school/parents' },
-          { key: 'removed', label: 'Removed', href: '/school/parents?removed=true' },
-        ]}
-      />
+      <StudentsSectionTabs current="parents" />
 
-      {search && (
-        <p className="mb-4 text-sm text-slate-500">
-          Showing matches for “{search}”.{' '}
-          <Link href={basePath} className="font-medium text-navy-700 underline">
-            Show all
-          </Link>
-        </p>
-      )}
+      <Card className="mb-5">
+        <form className="flex flex-wrap items-end gap-3" action="/school/parents">
+          <div className="min-w-[16rem] flex-1">
+            <label
+              htmlFor="parent-search"
+              className="mb-1.5 block text-sm font-medium text-navy-950"
+            >
+              Search
+            </label>
+            <div className="relative">
+              <IconSearch
+                size={17}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                id="parent-search"
+                name="search"
+                defaultValue={search}
+                placeholder="Parent’s name, mobile or email"
+                className="w-full rounded-xl border-0 bg-white py-2.5 pl-10 pr-3.5 text-sm text-navy-950 shadow-sm ring-1 ring-inset ring-navy-950/15 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-navy-600"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 transition-colors hover:bg-navy-50"
+          >
+            Apply
+          </button>
+          {search && (
+            <Link
+              href="/school/parents"
+              className="px-2 py-2.5 text-sm font-medium text-slate-500 hover:text-navy-900"
+            >
+              Clear
+            </Link>
+          )}
+        </form>
+      </Card>
 
       <Card className="mb-6">
         {parents.items.length === 0 ? (
-          showRemoved ? (
-            <EmptyState
-              title="Nobody removed"
-              description="Parents you remove appear here, and can be restored with their children as they were."
-            />
-          ) : (
-            <EmptyState
-              title="No parents yet"
-              description="Add a parent before adding students — every child is linked to a guardian."
-            />
-          )
+          <EmptyState
+            title={search ? 'No parents match that search' : 'No parents yet'}
+            description={
+              search
+                ? 'Try part of the name or the number.'
+                : 'Parents are added with their child, from Add student.'
+            }
+          />
         ) : (
           <>
             <Table>
               <THead
-                columns={
-                  showRemoved
-                    ? ['Parent', 'Phone', 'Children', 'Removed', { label: 'Actions', hidden: true }]
-                    : [
-                        'Parent',
-                        'Phone',
-                        'Relation',
-                        'Children',
-                        'State',
-                        'Sign-in',
-                        { label: 'Actions', hidden: true },
-                      ]
-                }
+                columns={[
+                  'Parent',
+                  'Mobile',
+                  'Relation',
+                  'Children',
+                  'State',
+                  'Sign-in',
+                  { label: 'Actions', hidden: true },
+                ]}
               />
               <tbody>
-                {parents.items.map((parent) => (
-                  <TRow key={parent.userId}>
-                    <TCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar name={parent.name} />
-                        <TPrimary sub={parent.email ?? undefined}>{parent.name}</TPrimary>
-                        {parent.isTeacher && <Pill>Also a teacher</Pill>}
-                      </div>
-                    </TCell>
-                    <TCell>{parent.phone ?? '—'}</TCell>
-                    {!showRemoved && <TCell>{titleCase(parent.relation)}</TCell>}
-                    <TCell>
-                      {parent.children.length === 0 ? (
-                        <span className="text-slate-400">None linked</span>
-                      ) : (
-                        <span className="flex flex-wrap gap-1">
-                          {parent.children.map((child) => (
-                            <Pill key={child.id} tone={child.isPrimary ? 'gold' : 'neutral'}>
-                              {child.name}
-                            </Pill>
-                          ))}
-                        </span>
-                      )}
-                    </TCell>
-                    {showRemoved ? (
-                      <>
-                        <TCell>{formatDate(parent.removedAt)}</TCell>
-                        <TCell numeric>
-                          <RestoreButton
-                            action={restoreParentAction.bind(null, parent.userId)}
-                            name={parent.name}
-                          />
-                        </TCell>
-                      </>
-                    ) : (
-                      <>
-                        <TCell>
-                          <StatusToggle
-                            kind="parents"
-                            userId={parent.userId}
-                            name={parent.name}
-                            status={parent.status}
-                            alsoOtherRole={parent.isTeacher}
-                          />
-                        </TCell>
-                        <TCell>
-                          <ChangePasswordButton
-                            kind="parents"
-                            userId={parent.userId}
-                            name={parent.name}
-                          />
-                        </TCell>
-                        <TCell numeric>
-                          <ConfirmButton
-                            action={removeParentAction.bind(null, parent.userId)}
-                            label="Remove"
-                            title={`Remove ${parent.name}?`}
-                            body={<RemovalBody parent={parent} />}
-                            confirmLabel="Remove parent"
-                          />
-                        </TCell>
-                      </>
-                    )}
-                  </TRow>
-                ))}
+                {parents.items.map((parent) => {
+                  const onRoll = parent.children.filter((child) => !child.removed);
+                  return (
+                    <TRow key={parent.userId}>
+                      <TCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={parent.name} />
+                          <TPrimary sub={parent.email ?? undefined}>{parent.name}</TPrimary>
+                          {parent.isTeacher && <Pill>Also a teacher</Pill>}
+                        </div>
+                      </TCell>
+                      <TCell>{parent.phone ?? '—'}</TCell>
+                      <TCell>{titleCase(parent.relation)}</TCell>
+                      <TCell>
+                        {onRoll.length === 0 ? (
+                          <span className="text-slate-400">None on the roll</span>
+                        ) : (
+                          <span className="flex flex-wrap gap-1">
+                            {/* The child's page is where this parent is managed. */}
+                            {onRoll.map((child) => (
+                              <Link key={child.id} href={`/school/students/${child.id}`}>
+                                <Pill tone={child.isPrimary ? 'gold' : 'neutral'}>
+                                  {child.name}
+                                </Pill>
+                              </Link>
+                            ))}
+                          </span>
+                        )}
+                      </TCell>
+                      <TCell>
+                        <StatusToggle
+                          kind="parents"
+                          userId={parent.userId}
+                          name={parent.name}
+                          status={parent.status}
+                          alsoOtherRole={parent.isTeacher}
+                        />
+                      </TCell>
+                      <TCell>
+                        <ChangePasswordButton
+                          kind="parents"
+                          userId={parent.userId}
+                          name={parent.name}
+                        />
+                      </TCell>
+                      <TCell numeric>
+                        <RemoveParentButton parent={parent} />
+                      </TCell>
+                    </TRow>
+                  );
+                })}
               </tbody>
             </Table>
 
@@ -253,7 +227,7 @@ export default async function ParentsPage({
               page={parents.page}
               totalPages={parents.totalPages}
               total={parents.total}
-              basePath={basePath}
+              basePath="/school/parents"
             />
           </>
         )}
@@ -261,8 +235,8 @@ export default async function ParentsPage({
 
       <OutcomeToast
         outcome={{ done, who, problem }}
-        removed={(name) => `${name} is removed. Their children’s records are as they were.`}
-        restored={(name) => `${name} is restored, with their children as before.`}
+        removed={(name) => `${name} is removed. Their children stay with their other parents.`}
+        restored={(name) => `${name} is restored.`}
       />
     </>
   );

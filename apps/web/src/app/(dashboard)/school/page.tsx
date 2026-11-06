@@ -30,15 +30,9 @@ const STEPS = [
     icon: <IconTeacher size={18} />,
   },
   {
-    href: '/school/parents',
-    label: 'Add parents',
-    detail: 'Every child is reached through a guardian account.',
-    icon: <IconParents size={18} />,
-  },
-  {
-    href: '/school/students',
-    label: 'Add students',
-    detail: 'Link each child to their guardian.',
+    href: '/school/students/new',
+    label: 'Add students and their parents',
+    detail: 'One form for the child and the parent who signs in for them.',
     icon: <IconStudent size={18} />,
   },
 ];

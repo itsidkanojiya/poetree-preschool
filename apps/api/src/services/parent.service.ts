@@ -15,6 +15,7 @@ import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { endAllSessions } from './auth.service.js';
 import { existingAccount, holdsParent, profileRoles, rolesHeld } from './roles.service.js';
+import { getPlanLimits } from './plan.service.js';
 import { studentName } from '../lib/names.js';
 
 /**
@@ -43,6 +44,7 @@ const parentInclude = {
               firstName: true,
               middleName: true,
               lastName: true,
+              deletedAt: true,
               _count: { select: { guardians: activeGuardians } },
             },
           },
@@ -74,6 +76,7 @@ function toSummary(user: ParentRow): ParentSummary {
       name: studentName(link.student),
       isPrimary: link.isPrimary,
       hasOtherGuardian: link.student._count.guardians - (selfActive ? 1 : 0) > 0,
+      removed: link.student.deletedAt !== null,
     })),
     isTeacher: rolesHeld(user).includes('TEACHER'),
     removedAt: profile?.removedAt?.toISOString() ?? null,
@@ -123,7 +126,7 @@ export async function getParent(userId: string): Promise<ParentSummary> {
  * Refuses a second account for somebody the school already has, saying who
  * they are so the portal can offer the right way instead.
  */
-async function assertNoAccount(match: { email?: string | null; phone?: string | null }) {
+export async function assertNoAccount(match: { email?: string | null; phone?: string | null }) {
   const clash = await existingAccount(match);
   if (!clash) return;
 
@@ -160,44 +163,66 @@ export async function createParent(
   await assertNoAccount({ phone: input.phone, email: input.email });
 
   const passwordHash = await hashPassword(input.password);
+  const { userId } = await prisma.$transaction((tx) =>
+    createParentRecords(tx, schoolId, input, passwordHash),
+  );
+  await auditParentCreated(userId, input, actorUserId);
 
-  const userId = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        schoolId,
-        scopeKey: schoolId,
-        name: input.name,
-        email: input.email ?? null,
-        phone: input.phone,
-        passwordHash,
-        role: 'PARENT',
-        status: 'ACTIVE',
-      },
-    });
+  return getParent(userId);
+}
 
-    await tx.parentProfile.create({
-      data: {
-        userId: user.id,
-        schoolId,
-        relation: input.relation,
-        occupation: input.occupation ?? null,
-        address: input.address ?? null,
-      },
-    });
-
-    return user.id;
+/**
+ * The account and profile of a new parent, inside a transaction the caller
+ * owns — so a child added with a new parent is both or neither. Checking that
+ * nobody holds the phone or email (`assertNoAccount`) and hashing the password
+ * are the caller's, before the transaction opens.
+ */
+export async function createParentRecords(
+  tx: TenantTransactionClient,
+  schoolId: string,
+  input: CreateParentInput,
+  passwordHash: string,
+): Promise<{ userId: string; profileId: string }> {
+  const user = await tx.user.create({
+    data: {
+      schoolId,
+      scopeKey: schoolId,
+      name: input.name,
+      email: input.email ?? null,
+      phone: input.phone,
+      passwordHash,
+      role: 'PARENT',
+      status: 'ACTIVE',
+    },
   });
 
+  const profile = await tx.parentProfile.create({
+    data: {
+      userId: user.id,
+      schoolId,
+      relation: input.relation,
+      occupation: input.occupation ?? null,
+      address: input.address ?? null,
+    },
+    select: { id: true },
+  });
+
+  return { userId: user.id, profileId: profile.id };
+}
+
+export async function auditParentCreated(
+  userId: string,
+  input: CreateParentInput,
+  actorUserId: string,
+): Promise<void> {
   await writeAuditLog({
     action: 'USER_CREATED',
     entity: 'User',
     entityId: userId,
-    schoolId,
+    schoolId: requireSchoolId(),
     actorUserId,
     metadata: { role: 'PARENT', phone: input.phone },
   });
-
-  return getParent(userId);
 }
 
 /**
@@ -286,9 +311,24 @@ export async function updateParent(
 
   const existing = await prisma.user.findFirst({
     where: { id: userId, ...holdsParent },
-    select: { id: true },
+    select: { id: true, phone: true, email: true },
   });
   if (!existing) throw ApiError.notFound('Parent not found');
+
+  // A new phone or email is their sign-in, so it cannot be somebody else's.
+  const changedPhone = input.phone !== undefined && input.phone !== existing.phone;
+  const changedEmail = input.email !== undefined && input.email !== existing.email;
+  if (changedPhone || changedEmail) {
+    const clash = await existingAccount({
+      phone: changedPhone ? input.phone : null,
+      email: changedEmail ? input.email : null,
+    });
+    if (clash && clash.userId !== userId) {
+      throw ApiError.conflict(`${clash.name} already has that phone or email at your school.`, {
+        existingAccount: clash,
+      });
+    }
+  }
 
   const { relation, occupation, address, ...userFields } = input;
 
@@ -337,11 +377,14 @@ export async function updateParent(
 /**
  * The school taking a parent off.
  *
- * Their children are never touched — not one record of theirs changes — and
- * the links to them are kept, inert, so restoring the parent puts the family
- * back as it was. The parent is signed out, cannot sign in, and is told
- * nothing more about the children. Someone who also teaches here keeps that:
- * only the parent role goes.
+ * No child is left on the roll with nobody to reach: a child for whom this was
+ * the only parent here is removed with them — hidden, every record kept — and
+ * comes back when the parent is restored. A child with another parent stays,
+ * and if this one was the main contact, another parent becomes it.
+ *
+ * The links are kept, inert, so restoring the parent puts the family back. The
+ * parent is signed out and cannot sign in. Someone who also teaches here keeps
+ * that: only the parent role goes.
  */
 export async function removeParent(userId: string, actorUserId: string): Promise<ParentSummary> {
   const schoolId = requireSchoolId();
@@ -352,11 +395,72 @@ export async function removeParent(userId: string, actorUserId: string): Promise
   });
   if (!user) throw ApiError.notFound('Parent not found');
 
+  const profile = await prisma.parentProfile.findFirstOrThrow({
+    where: { userId },
+    select: {
+      id: true,
+      children: {
+        where: { student: { deletedAt: null } },
+        select: {
+          id: true,
+          isPrimary: true,
+          student: {
+            select: {
+              id: true,
+              admissionNo: true,
+              firstName: true,
+              status: true,
+              // The child's other parents who are still here.
+              guardians: {
+                where: {
+                  parentProfile: { removedAt: null, user: { deletedAt: null } },
+                  NOT: { parentProfile: { userId } },
+                },
+                select: { id: true, isPrimary: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const alone = profile.children.filter((link) => link.student.guardians.length === 0);
+  // Children staying with another parent who lose their main contact.
+  const handOver = profile.children.filter(
+    (link) =>
+      link.student.guardians.length > 0 &&
+      link.isPrimary &&
+      !link.student.guardians.some((other) => other.isPrimary),
+  );
+
   const stillTeacher = rolesHeld(user).includes('TEACHER');
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
     await tx.parentProfile.updateMany({ where: { userId, schoolId }, data: { removedAt: now } });
+
+    // Withdrawn and hidden exactly as removing the child by hand does, marked
+    // as having gone with this parent so restoring them brings the child back.
+    const aloneIds = alone.map((link) => link.student.id);
+    if (aloneIds.length > 0) {
+      await tx.studentEnrolment.updateMany({
+        where: { studentId: { in: aloneIds }, schoolId, status: 'ACTIVE' },
+        data: { status: 'WITHDRAWN', exitedOn: now, exitReason: 'Removed with their parent' },
+      });
+      await tx.student.updateMany({
+        where: { id: { in: aloneIds }, schoolId },
+        data: { deletedAt: now, status: 'WITHDRAWN', removedWithParentId: profile.id },
+      });
+    }
+
+    for (const link of handOver) {
+      await tx.studentGuardian.update({
+        where: { id: link.student.guardians[0]!.id },
+        data: { isPrimary: true },
+      });
+      await tx.studentGuardian.update({ where: { id: link.id }, data: { isPrimary: false } });
+    }
 
     if (!stillTeacher) {
       await tx.user.update({
@@ -376,13 +480,37 @@ export async function removeParent(userId: string, actorUserId: string): Promise
     entityId: userId,
     schoolId,
     actorUserId,
-    metadata: { role: 'PARENT', name: user.name, keptAsTeacher: stillTeacher },
+    metadata: {
+      role: 'PARENT',
+      name: user.name,
+      keptAsTeacher: stillTeacher,
+      childrenRemoved: alone.map((link) => link.student.id),
+    },
   });
+  for (const link of alone) {
+    await writeAuditLog({
+      action: 'STUDENT_DELETED',
+      entity: 'Student',
+      entityId: link.student.id,
+      schoolId,
+      actorUserId,
+      before: { status: link.student.status },
+      metadata: {
+        admissionNo: link.student.admissionNo,
+        name: link.student.firstName,
+        withParent: user.name,
+      },
+    });
+  }
 
   return getParent(userId);
 }
 
-/** Putting a removed parent back, with their children as they were. */
+/**
+ * Putting a removed parent back, with their children as they were — the
+ * children removed with them come back too, without a class, as a child
+ * restored by hand does.
+ */
 export async function restoreParent(userId: string, actorUserId: string): Promise<ParentSummary> {
   const schoolId = requireSchoolId();
 
@@ -392,9 +520,29 @@ export async function restoreParent(userId: string, actorUserId: string): Promis
       parentProfile: { is: { removedAt: { not: null } } },
       deletedAt: undefined,
     },
-    select: { id: true, deletedAt: true },
+    select: { id: true, name: true, deletedAt: true, parentProfile: { select: { id: true } } },
   });
   if (!user) throw ApiError.notFound('There is no removed parent with that id');
+
+  const children = await prisma.student.findMany({
+    where: { removedWithParentId: user.parentProfile!.id, deletedAt: { not: null } },
+    select: { id: true },
+  });
+
+  if (children.length > 0) {
+    const limits = await getPlanLimits(schoolId);
+    if (limits?.maxStudents != null) {
+      const current = await prisma.student.count({ where: { status: 'ACTIVE' } });
+      if (current + children.length > limits.maxStudents) {
+        throw ApiError.planLimitExceeded(
+          `Restoring ${user.name} brings back ${children.length} ${
+            children.length === 1 ? 'child' : 'children'
+          }, and your plan allows ${limits.maxStudents} students. Contact Poetree Publication to upgrade.`,
+          { limit: limits.maxStudents, current },
+        );
+      }
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.parentProfile.updateMany({ where: { userId, schoolId }, data: { removedAt: null } });
@@ -402,6 +550,12 @@ export async function restoreParent(userId: string, actorUserId: string): Promis
       await tx.user.update({
         where: { id: userId, schoolId },
         data: { deletedAt: null, status: 'ACTIVE' },
+      });
+    }
+    if (children.length > 0) {
+      await tx.student.updateMany({
+        where: { id: { in: children.map((c) => c.id) }, schoolId, deletedAt: { not: null } },
+        data: { deletedAt: null, status: 'ACTIVE', removedWithParentId: null },
       });
     }
   });
@@ -412,8 +566,18 @@ export async function restoreParent(userId: string, actorUserId: string): Promis
     entityId: userId,
     schoolId,
     actorUserId,
-    metadata: { role: 'PARENT' },
+    metadata: { role: 'PARENT', childrenRestored: children.map((c) => c.id) },
   });
+  for (const child of children) {
+    await writeAuditLog({
+      action: 'STUDENT_RESTORED',
+      entity: 'Student',
+      entityId: child.id,
+      schoolId,
+      actorUserId,
+      metadata: { withParent: user.name },
+    });
+  }
 
   return getParent(userId);
 }

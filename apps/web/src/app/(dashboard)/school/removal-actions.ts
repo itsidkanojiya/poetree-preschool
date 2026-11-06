@@ -75,38 +75,66 @@ export async function restoreTeacherAction(userId: string): Promise<void> {
   backTo('/school/teachers', { removed: 'true', ...outcome });
 }
 
-export async function removeParentAction(userId: string): Promise<void> {
+/**
+ * Removing a parent. A child for whom they were the only parent goes with them
+ * (the API does that), so the toast says how many children went too.
+ *
+ * `studentId` is the child's page it was done from: back there if the child
+ * is still on the roll, or to the list if they went with the parent.
+ */
+export async function removeParentAction(userId: string, studentId?: string): Promise<void> {
   assertId(userId);
+  if (studentId) assertId(studentId);
   let outcome: Record<string, string>;
+  let childStays = false;
   try {
+    // Who was on the roll before, so the toast names only the children who
+    // went with this parent — not ones removed on their own some time ago.
+    const before = await apiFetch<ParentSummary>(`/parents/${userId}`, {
+      redirectOnAuthFailure: false,
+    });
+    const onRoll = new Set(before.children.filter((c) => !c.removed).map((c) => c.id));
     const parent = await apiFetch<ParentSummary>(`/parents/${userId}`, {
       method: 'DELETE',
       redirectOnAuthFailure: false,
     });
-    outcome = { done: 'removed', who: parent.name };
+    const went = parent.children.filter((child) => child.removed && onRoll.has(child.id));
+    outcome = went.length
+      ? { done: 'removed-with', who: `${parent.name}|${went.map((c) => c.name).join(', ')}` }
+      : { done: 'removed', who: parent.name };
+    childStays = Boolean(studentId) && !went.some((child) => child.id === studentId);
   } catch (error) {
     outcome = failure(error, 'Could not remove the parent.');
+    childStays = Boolean(studentId);
   }
 
   refreshRoster();
-  backTo('/school/parents', outcome);
+  if (studentId) revalidatePath(`/school/students/${studentId}`);
+  if (studentId && childStays) backTo(`/school/students/${studentId}`, outcome);
+  backTo(studentId ? '/school/students' : '/school/parents', outcome);
 }
 
-export async function restoreParentAction(userId: string): Promise<void> {
+/** Back with the children removed with them. `studentId`: done from that child's page. */
+export async function restoreParentAction(userId: string, studentId?: string): Promise<void> {
   assertId(userId);
+  if (studentId) assertId(studentId);
   let outcome: Record<string, string>;
   try {
     const parent = await apiFetch<ParentSummary>(`/parents/${userId}/restore`, {
       method: 'POST',
       redirectOnAuthFailure: false,
     });
-    outcome = { done: 'restored', who: parent.name };
+    outcome = { done: 'parent-restored', who: parent.name };
   } catch (error) {
     outcome = failure(error, 'Could not restore the parent.');
   }
 
   refreshRoster();
-  backTo('/school/parents', { removed: 'true', ...outcome });
+  if (studentId) {
+    revalidatePath(`/school/students/${studentId}`);
+    backTo(`/school/students/${studentId}`, outcome);
+  }
+  backTo('/school/students', { removed: 'true', ...outcome });
 }
 
 /**
@@ -120,8 +148,10 @@ export async function setAccountStatusAction(
   kind: 'teachers' | 'parents',
   userId: string,
   status: 'ACTIVE' | 'INACTIVE',
+  studentId?: string,
 ): Promise<void> {
   assertId(userId);
+  if (studentId) assertId(studentId);
   if (kind !== 'teachers' && kind !== 'parents') throw new Error('Unknown kind of account');
   if (status !== 'ACTIVE' && status !== 'INACTIVE') throw new Error('Unknown status');
 
@@ -141,6 +171,10 @@ export async function setAccountStatusAction(
   }
 
   refreshRoster();
+  if (studentId) {
+    revalidatePath(`/school/students/${studentId}`);
+    backTo(`/school/students/${studentId}`, outcome);
+  }
   backTo(`/school/${kind}`, outcome);
 }
 

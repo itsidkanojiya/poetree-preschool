@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
+import { ID } from '@/lib/document-proxy';
 
 export interface RegistrationState {
   error?: string;
@@ -61,6 +62,61 @@ export async function approveRegistrationAction(
 
   refresh();
   return { success: 'Approved. The family can sign in now.' };
+}
+
+/**
+ * The office correcting a request while it waits to be verified.
+ *
+ * A cleared box is sent as null, so a wrong middle name can be taken out and
+ * not only replaced. The two mobiles and the email are not sent at all: they
+ * were proved with codes, and the API would ignore them anyway.
+ */
+export async function updateRegistrationAction(
+  registrationId: string,
+  _prev: RegistrationState,
+  formData: FormData,
+): Promise<RegistrationState> {
+  if (!ID.test(registrationId)) return { error: 'Not a registration.' };
+
+  const text = (name: string): string | null => {
+    const value = String(formData.get(name) ?? '').trim();
+    return value === '' ? null : value;
+  };
+
+  const studentFirstName = text('studentFirstName');
+  const guardianName = text('guardianName');
+  const studentDateOfBirth = text('studentDateOfBirth');
+  if (!studentFirstName) return { error: 'The child’s first name is needed.' };
+  if (!guardianName) return { error: 'The parent’s name is needed.' };
+
+  try {
+    await apiFetch(`/registrations/${registrationId}`, {
+      method: 'PATCH',
+      redirectOnAuthFailure: false,
+      body: {
+        studentFirstName,
+        studentMiddleName: text('studentMiddleName'),
+        studentLastName: text('studentLastName'),
+        // Rows from before the form asked have none; leave it absent then.
+        ...(studentDateOfBirth ? { studentDateOfBirth } : {}),
+        classLevelId: text('classLevelId'),
+        bloodGroup: text('bloodGroup'),
+        guardianName,
+        fatherName: text('fatherName'),
+        secondContactRelation: text('secondContactRelation') === 'GUARDIAN' ? 'GUARDIAN' : 'MOTHER',
+        motherName: text('motherName'),
+        motherEmail: text('motherEmail'),
+        address: text('address'),
+        emergencyContactName: text('emergencyContactName'),
+        emergencyContactPhone: text('emergencyContactPhone'),
+      },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save the changes.') };
+  }
+
+  revalidatePath('/school/registrations');
+  return { success: 'Saved. The request is still waiting to be verified.' };
 }
 
 export async function rejectRegistrationAction(

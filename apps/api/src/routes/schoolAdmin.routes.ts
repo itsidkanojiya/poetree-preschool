@@ -32,7 +32,10 @@ import {
   setSignatureSchema,
   updateSchoolProfileSchema,
   approveRegistrationSchema,
+  updateRegistrationSchema,
   rejectRegistrationSchema,
+  addGuardianSchema,
+  updateGuardianSchema,
   setPasswordSchema,
   updateTeacherSchema,
 } from '@poetree/shared';
@@ -58,6 +61,9 @@ import type {
   UpdateClassroomInput,
   UpdateParentInput,
   UpdateStudentInput,
+  UpdateRegistrationInput,
+  AddGuardianInput,
+  UpdateGuardianInput,
   UpdateSubjectInput,
   UpdateTeacherInput,
   ListRegistrationsQuery,
@@ -403,6 +409,58 @@ schoolAdminRouter.patch(
     res.json(
       await studentService.updateStudent(idOf(req), body<UpdateStudentInput>(req), req.auth!.userId),
     );
+  }),
+);
+
+/**
+ * A child's parents, managed from the child: link one the school has or a new
+ * one, change how they stand to the child, or unlink them — never the last.
+ */
+const guardianParamSchema = z.object({ id: idSchema, parentProfileId: idSchema });
+
+schoolAdminRouter.post(
+  '/students/:id/guardians',
+  validate({ params: idParamSchema, body: addGuardianSchema }),
+  asyncHandler(async (req, res) => {
+    res
+      .status(201)
+      .json(
+        await studentService.addGuardian(idOf(req), body<AddGuardianInput>(req), req.auth!.userId),
+      );
+  }),
+);
+
+schoolAdminRouter.patch(
+  '/students/:id/guardians/:parentProfileId',
+  validate({ params: guardianParamSchema, body: updateGuardianSchema }),
+  asyncHandler(async (req, res) => {
+    const { id, parentProfileId } = params<{ id: string; parentProfileId: string }>(req);
+    res.json(
+      await studentService.updateGuardian(
+        id,
+        parentProfileId,
+        body<UpdateGuardianInput>(req),
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+schoolAdminRouter.delete(
+  '/students/:id/guardians/:parentProfileId',
+  validate({ params: guardianParamSchema }),
+  asyncHandler(async (req, res) => {
+    const { id, parentProfileId } = params<{ id: string; parentProfileId: string }>(req);
+    res.json(await studentService.removeGuardian(id, parentProfileId, req.auth!.userId));
+  }),
+);
+
+/** Everything recorded about a child's record: who changed what, and when. */
+schoolAdminRouter.get(
+  '/students/:id/history',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await studentService.studentHistory(idOf(req)));
   }),
 );
 
@@ -805,6 +863,24 @@ schoolAdminRouter.get(
   validate({ query: listRegistrationsQuerySchema }),
   asyncHandler(async (req, res) => {
     res.json(await registrationService.listRegistrations(query<ListRegistrationsQuery>(req)));
+  }),
+);
+
+/**
+ * Correcting a family's request while it waits for verification. Refused once
+ * it is verified or turned down — the record of what was decided is locked.
+ */
+schoolAdminRouter.patch(
+  '/registrations/:id',
+  validate({ params: idParamSchema, body: updateRegistrationSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await registrationService.updateRegistration(
+        idOf(req),
+        body<UpdateRegistrationInput>(req),
+        req.auth!.userId,
+      ),
+    );
   }),
 );
 

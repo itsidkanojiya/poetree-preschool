@@ -232,42 +232,6 @@ export async function resolveExistingAccountAction(
   };
 }
 
-export async function createStudentAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const parentProfileId = text(formData, 'parentProfileId');
-
-  if (!parentProfileId) {
-    return { error: 'Choose a guardian. Every child is reached through a parent account.' };
-  }
-
-  try {
-    await apiFetch('/students', {
-      method: 'POST',
-      redirectOnAuthFailure: false,
-      body: {
-        firstName: text(formData, 'firstName'),
-        middleName: text(formData, 'middleName'),
-        lastName: text(formData, 'lastName'),
-        dateOfBirth: text(formData, 'dateOfBirth'),
-        gender: text(formData, 'gender'),
-        admissionNo: text(formData, 'admissionNo'),
-        rollNo: text(formData, 'rollNo'),
-        classroomId: text(formData, 'classroomId'),
-        guardians: [
-          { parentProfileId, relation: text(formData, 'relation') ?? 'GUARDIAN', isPrimary: true },
-        ],
-      },
-    });
-  } catch (error) {
-    return { error: errorMessage(error, 'Could not add the student.') };
-  }
-
-  revalidatePath('/school/students');
-  return { success: 'Student added.' };
-}
-
 export async function createClassroomAction(
   _prev: ActionState,
   formData: FormData,

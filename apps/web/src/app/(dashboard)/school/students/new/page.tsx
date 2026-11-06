@@ -1,18 +1,15 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import type { ClassroomSummary, Paginated, ParentSummary } from '@poetree/shared';
+import type { ClassroomSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
-import { StudentForm } from '../../forms';
+import { AddStudentForm } from './add-student-form';
 
 export const metadata: Metadata = { title: 'Add a student · Poetree' };
 
 export default async function NewStudentPage() {
-  const [parents, classrooms] = await Promise.all([
-    apiFetch<Paginated<ParentSummary>>('/parents', { query: { pageSize: 100 } }),
-    apiFetch<ClassroomSummary[]>('/classrooms'),
-  ]);
+  const classrooms = await apiFetch<ClassroomSummary[]>('/classrooms');
 
   return (
     <>
@@ -27,11 +24,11 @@ export default async function NewStudentPage() {
           </Link>
         }
         title="Add a student"
-        description="A child holds no sign-in of their own — everything about them reaches the family through the parent linked here."
+        description="The child and their parent together. Everything about the child then reaches the family through that parent’s app."
       />
       <div className="max-w-3xl">
         <Card>
-          <StudentForm parents={parents.items} classrooms={classrooms} />
+          <AddStudentForm classrooms={classrooms} />
         </Card>
       </div>
     </>

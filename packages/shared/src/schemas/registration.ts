@@ -183,6 +183,38 @@ export interface SubmitRegistrationResponse {
   message: string;
 }
 
+/**
+ * The office correcting a family's request while it waits for verification —
+ * a misspelt name, the wrong birthday, the class they meant.
+ *
+ * Not the two mobiles or the email: those were proved with codes, and an
+ * account opened on a number nobody proved would undo that. Nothing here is
+ * accepted once the request is verified or turned down.
+ */
+export const updateRegistrationSchema = z
+  .object({
+    studentFirstName: z.string().trim().min(1).max(60),
+    studentMiddleName: z.string().trim().max(60).nullable(),
+    studentLastName: z.string().trim().max(60).nullable(),
+    studentDateOfBirth: z.coerce
+      .date()
+      .refine((value) => value.getTime() < Date.now(), {
+        message: 'A date of birth cannot be in the future',
+      }),
+    classLevelId: idSchema.nullable(),
+    bloodGroup: z.string().trim().max(8).nullable(),
+    guardianName: nameSchema,
+    fatherName: z.string().trim().max(120).nullable(),
+    secondContactRelation: z.enum(['MOTHER', 'GUARDIAN']),
+    motherName: z.string().trim().max(120).nullable(),
+    motherEmail: emailSchema.nullable(),
+    address: z.string().trim().min(5).max(300).nullable(),
+    emergencyContactName: z.string().trim().max(120).nullable(),
+    emergencyContactPhone: phoneSchema.nullable(),
+  })
+  .partial();
+export type UpdateRegistrationInput = z.infer<typeof updateRegistrationSchema>;
+
 export const listRegistrationsQuerySchema = paginationQuerySchema.extend({
   status: z.enum(REGISTRATION_STATUSES).optional(),
 });
@@ -238,6 +270,10 @@ export interface RegistrationSummary {
   } | null;
   /** The three parts written out, which is what the queue shows and searches. */
   studentName: string;
+  /** The parts as typed, for correcting them. Null on rows from before the form asked. */
+  studentFirstName: string | null;
+  studentMiddleName: string | null;
+  studentLastName: string | null;
   /** ISO date. Null on rows submitted before the form asked for it. */
   studentDateOfBirth: string | null;
   fatherName: string | null;

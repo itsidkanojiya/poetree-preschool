@@ -148,7 +148,16 @@ export const createStudentSchema = z
     classroomId: idSchema.nullable().optional(),
     avatarUrl: urlSchema.optional(),
     bloodGroup: z.string().trim().max(8).optional(),
-    guardians: z.array(guardianLinkSchema).min(1, 'Link at least one guardian').max(4),
+    guardians: z.array(guardianLinkSchema).max(4).default([]),
+    /**
+     * A parent the school does not have yet, opened with the child so the
+     * office types the family in once. They become the primary guardian.
+     */
+    newParent: createParentSchema.optional(),
+  })
+  .refine((v) => v.guardians.length > 0 || v.newParent !== undefined, {
+    message: 'Link at least one guardian',
+    path: ['guardians'],
   })
   .refine((v) => v.guardians.filter((g) => g.isPrimary).length <= 1, {
     message: 'Only one guardian can be marked primary',
@@ -160,18 +169,66 @@ export const createStudentSchema = z
   });
 export type CreateStudentInput = z.infer<typeof createStudentSchema>;
 
+/**
+ * Linking a parent to a child from the child's page: one the school already
+ * has, or a new one opened there and then.
+ */
+export const addGuardianSchema = z
+  .object({
+    parentProfileId: idSchema.optional(),
+    parent: createParentSchema.optional(),
+    relation: z.enum(GUARDIAN_RELATIONS).default('GUARDIAN'),
+    isPrimary: z.boolean().default(false),
+  })
+  .refine((v) => (v.parentProfileId === undefined) !== (v.parent === undefined), {
+    message: 'Choose a parent already at the school, or give a new parent’s details',
+    path: ['parentProfileId'],
+  });
+export type AddGuardianInput = z.infer<typeof addGuardianSchema>;
+
+/** How a linked parent stands to the child: their relation, or becoming the main contact. */
+export const updateGuardianSchema = z
+  .object({
+    relation: z.enum(GUARDIAN_RELATIONS).optional(),
+    isPrimary: z.literal(true).optional(),
+  })
+  .refine((v) => v.relation !== undefined || v.isPrimary !== undefined, {
+    message: 'Nothing to change',
+  });
+export type UpdateGuardianInput = z.infer<typeof updateGuardianSchema>;
+
+/** A text field that may be cleared: null empties it, absent leaves it. */
+const clearable = (max: number) => z.string().trim().max(max).nullable().optional();
+
+/**
+ * Everything about a child the office may change — all of it, verified or not,
+ * because a verified record still needs correcting when a family moves house.
+ * Every change is recorded with what it was and what it became. The admission
+ * number is not here: it is the key a returning child is matched on.
+ */
 export const updateStudentSchema = z.object({
   firstName: z.string().trim().min(1).max(60).optional(),
-  middleName: z.string().trim().max(60).optional(),
-  lastName: z.string().trim().max(60).optional(),
+  middleName: clearable(60),
+  lastName: clearable(60),
   dateOfBirth: z.coerce.date().optional(),
   gender: z.enum(GENDERS).optional(),
   rollNo: z.string().trim().max(20).optional(),
   classroomId: idSchema.nullable().optional(),
   avatarUrl: urlSchema.optional(),
-  bloodGroup: z.string().trim().max(8).optional(),
+  bloodGroup: clearable(8),
   status: z.enum(STUDENT_STATUSES).optional(),
   guardians: z.array(guardianLinkSchema).min(1).max(4).optional(),
+  addressLine1: clearable(200),
+  addressLine2: clearable(200),
+  city: clearable(100),
+  postalCode: clearable(20),
+  emergencyContactName: clearable(120),
+  emergencyContactPhone: z
+    .union([phoneSchema, z.literal('').transform(() => null)])
+    .nullable()
+    .optional(),
+  allergies: clearable(2000),
+  medicalNotes: clearable(2000),
 });
 export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
 
@@ -266,6 +323,8 @@ export interface ParentSummary {
      * them, which the portal warns about before it happens.
      */
     hasOtherGuardian: boolean;
+    /** Removed from the roll — with this parent, or on their own. */
+    removed: boolean;
   }>;
   /** True when the same account is also a teacher here. */
   isTeacher: boolean;
@@ -307,17 +366,53 @@ export interface StudentSummary {
   avatarUrl: string | null;
   bloodGroup: string | null;
   status: (typeof STUDENT_STATUSES)[number];
-  classroom: { id: string; label: string } | null;
+  classroom: {
+    id: string;
+    label: string;
+    /** "JUNIOR KG" — the standard, apart from the section. */
+    standard: string;
+    section: string;
+    academicYear: string;
+  } | null;
   guardians: Array<{
     parentProfileId: string;
+    /** The parent's account, for opening and managing them. */
+    userId: string;
     name: string;
     phone: string | null;
     relation: (typeof GUARDIAN_RELATIONS)[number];
     isPrimary: boolean;
   }>;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  postalCode: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  allergies: string | null;
+  medicalNotes: string | null;
+  /**
+   * When the school verified the child — approved the family's registration
+   * for them. Null for a child the office entered itself.
+   */
+  verification: { verifiedAt: string; verifiedBy: string | null } | null;
   /** When the school removed the child. Null while on the roll. */
   removedAt: string | null;
+  /**
+   * The parent whose removal took the child with them — their only parent
+   * here. Restoring that parent brings the child back. Null otherwise.
+   */
+  removedWithParent: { userId: string; name: string } | null;
   createdAt: string;
+}
+
+/** One change to a child's record: who, when, and each field from what to what. */
+export interface StudentChange {
+  id: string;
+  action: string;
+  at: string;
+  by: string | null;
+  changes: Array<{ field: string; before: string | null; after: string | null }>;
 }
 
 export interface ClassroomSummary {

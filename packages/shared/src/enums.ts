@@ -364,6 +364,8 @@ export const AUDIT_ACTIONS = [
   // question asked months later, and a rejection is worth keeping too — a
   // family told no will ring the office about it.
   'REGISTRATION_SUBMITTED',
+  // The office correcting a family's request while it waits for verification.
+  'REGISTRATION_UPDATED',
   'REGISTRATION_APPROVED',
   'REGISTRATION_REJECTED',
   // Report cards reaching families, and being taken back to correct.

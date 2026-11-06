@@ -957,7 +957,10 @@ model Student {
   medicalNotes          String? @db.Text
 
   /// Soft delete only. Attendance, fees and history must remain reportable.
-  deletedAt DateTime?
+  deletedAt           DateTime?
+  /// The parent profile whose removal took this child with it — their only
+  /// parent here. Restoring that parent restores the child. Null otherwise.
+  removedWithParentId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1306,6 +1309,8 @@ model AuditLog {
   @@index([schoolId, createdAt])
   @@index([actorUserId])
   @@index([action])
+  /// One record's history — a child's changes — without reading the school's.
+  @@index([entity, entityId])
   @@map("audit_logs")
 }
 

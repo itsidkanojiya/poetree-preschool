@@ -6,6 +6,7 @@ import { Avatar, Card, EmptyState, Notice, PageHeader, Pill } from '@/components
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { IconCheck } from '@/components/icons';
 import { DecideButtons } from './decide';
+import { EditRegistration } from './edit-registration';
 
 export const metadata: Metadata = { title: 'Registrations · Poetree' };
 
@@ -16,8 +17,8 @@ const secondContactLabel = (row: RegistrationSummary) =>
   row.secondContactRelation === 'MOTHER' ? 'Mother' : 'Guardian';
 
 const TABS: Array<{ key: string; label: string }> = [
-  { key: 'PENDING', label: 'Waiting' },
-  { key: 'APPROVED', label: 'Approved' },
+  { key: 'PENDING', label: 'Pending verification' },
+  { key: 'APPROVED', label: 'Verified' },
   { key: 'REJECTED', label: 'Turned down' },
 ];
 
@@ -37,20 +38,24 @@ export default async function RegistrationsPage({
 }) {
   const { page = '1', search, status = 'PENDING' } = await searchParams;
 
-  const [registrations, classrooms] = await Promise.all([
+  const [registrations, classrooms, classLevels] = await Promise.all([
     apiFetch<Paginated<RegistrationSummary>>('/registrations', {
       query: { page, pageSize: 20, search, status },
     }),
     // Offered when the office creates the child on the spot. A preschool has a
     // handful, so this is one small request rather than a search box.
     apiFetch<ClassroomSummary[]>('/classrooms'),
+    // The standards a waiting request can be corrected to.
+    status === 'PENDING'
+      ? apiFetch<Array<{ id: string; name: string }>>('/class-levels')
+      : Promise.resolve([]),
   ]);
 
   return (
     <>
       <PageHeader
         title="Registrations"
-        description="Parents who registered themselves. Nobody can sign in until you approve them."
+        description="Families who registered from the app wait here to be verified. Correct their details while they wait; approving verifies them, and nobody can sign in until you do."
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -207,24 +212,27 @@ export default async function RegistrationsPage({
 
                     <TCell>
                       {row.status === 'PENDING' ? (
-                        <DecideButtons
-                          registrationId={row.id}
-                          guardianName={row.guardianName}
-                          studentName={row.studentName}
-                          matches={row.matches}
-                          classrooms={classrooms.map((classroom) => ({
-                            id: classroom.id,
-                            label: `${classroom.classLevel.name} — ${classroom.section}`,
-                            classLevelId: classroom.classLevel.id,
-                            isCurrentYear: classroom.academicYear.isCurrent,
-                          }))}
-                          classLevel={row.classLevel}
-                          parentAccountName={row.parentAccount?.name ?? null}
-                        />
+                        <span className="flex flex-col items-start gap-2">
+                          <DecideButtons
+                            registrationId={row.id}
+                            guardianName={row.guardianName}
+                            studentName={row.studentName}
+                            matches={row.matches}
+                            classrooms={classrooms.map((classroom) => ({
+                              id: classroom.id,
+                              label: `${classroom.classLevel.name} — ${classroom.section}`,
+                              classLevelId: classroom.classLevel.id,
+                              isCurrentYear: classroom.academicYear.isCurrent,
+                            }))}
+                            classLevel={row.classLevel}
+                            parentAccountName={row.parentAccount?.name ?? null}
+                          />
+                          <EditRegistration registration={row} classLevels={classLevels} />
+                        </span>
                       ) : (
                         <span className="flex flex-col gap-1">
                           <Pill tone={row.status === 'APPROVED' ? 'brand' : 'neutral'}>
-                            {row.status === 'APPROVED' ? 'Approved' : 'Turned down'}
+                            {row.status === 'APPROVED' ? 'Verified' : 'Turned down'}
                           </Pill>
                           {row.reviewedBy && (
                             <span className="text-[11px] text-slate-500">
@@ -235,6 +243,18 @@ export default async function RegistrationsPage({
                             <span className="text-[11px] text-slate-500">
                               {row.rejectionReason}
                             </span>
+                          )}
+                          {/* Locked now. The child it became is still edited —
+                              on their own page, where each change is logged. */}
+                          {row.student ? (
+                            <Link
+                              href={`/school/students/${row.student.id}`}
+                              className="text-[11px] font-medium text-navy-700 hover:text-navy-900"
+                            >
+                              Locked · edit the child
+                            </Link>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Locked</span>
                           )}
                         </span>
                       )}

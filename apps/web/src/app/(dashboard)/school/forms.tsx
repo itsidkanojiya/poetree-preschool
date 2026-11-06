@@ -3,14 +3,8 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
-import { GENDERS, GUARDIAN_RELATIONS } from '@poetree/shared';
-import type {
-  AcademicYearSummary,
-  ClassroomSummary,
-  ExistingAccount,
-  ParentSummary,
-  TeacherSummary,
-} from '@poetree/shared';
+import { GUARDIAN_RELATIONS } from '@poetree/shared';
+import type { AcademicYearSummary, ExistingAccount, TeacherSummary } from '@poetree/shared';
 import {
   Button,
   Field,
@@ -26,7 +20,6 @@ import {
   createAcademicYearAction,
   createClassroomAction,
   createParentAction,
-  createStudentAction,
   createTeacherAction,
   resolveExistingAccountAction,
   type ActionState,
@@ -245,93 +238,6 @@ export function ParentForm() {
       </FieldSet>
 
       <SubmitButton pendingLabel="Adding…">Add parent</SubmitButton>
-    </form>
-  );
-}
-
-export function StudentForm({
-  parents,
-  classrooms,
-}: {
-  parents: ParentSummary[];
-  classrooms: ClassroomSummary[];
-}) {
-  const [state, formAction] = useActionState<ActionState, FormData>(createStudentAction, {});
-
-  if (parents.length === 0) {
-    return (
-      <Notice tone="info" title="Add a parent first">
-        A child is always reached through a guardian&rsquo;s account and never has a login of their
-        own.
-      </Notice>
-    );
-  }
-
-  return (
-    <form action={formAction} className="space-y-6">
-      <Result state={state} />
-
-      {/* Three parts, as a school form in India asks for them: given name,
-          father's name, surname — "Dishan Krunal Patel". */}
-      <FieldSet legend="Child">
-        <Field label="Name" required>
-          <Input name="firstName" required placeholder="Dishan" />
-        </Field>
-        <Field label="Father’s name">
-          <Input name="middleName" placeholder="Krunal" />
-        </Field>
-        <Field label="Surname">
-          <Input name="lastName" placeholder="Patel" />
-        </Field>
-        <Field label="Date of birth" required>
-          <Input name="dateOfBirth" type="date" required />
-        </Field>
-        <Field label="Gender" required>
-          <Select name="gender" required defaultValue="">
-            <option value="" disabled>
-              Choose
-            </option>
-            {GENDERS.map((gender) => (
-              <option key={gender} value={gender}>
-                {titleCase(gender)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </FieldSet>
-
-      <FieldSet legend="Enrolment">
-        <Field label="Admission number" required>
-          <Input name="admissionNo" required placeholder="SUN-001" />
-        </Field>
-        <Field label="Roll number">
-          <Input name="rollNo" />
-        </Field>
-        <Field label="Classroom">
-          <Select name="classroomId" defaultValue="">
-            <option value="">Unassigned</option>
-            {classrooms.map((classroom) => (
-              <option key={classroom.id} value={classroom.id}>
-                {classroom.classLevel.name} — {classroom.section}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Guardian" required>
-          <Select name="parentProfileId" required defaultValue="">
-            <option value="" disabled>
-              Choose a parent
-            </option>
-            {parents.map((parent) => (
-              <option key={parent.id} value={parent.id}>
-                {parent.name} ({parent.phone})
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </FieldSet>
-
-      <SubmitButton pendingLabel="Adding…">Add student</SubmitButton>
     </form>
   );
 }

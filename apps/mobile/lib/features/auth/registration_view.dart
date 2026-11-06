@@ -458,7 +458,6 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
               labelText: 'Child’s name',
-              hintText: 'Dishan',
               prefixIcon: Icon(Icons.child_care_rounded),
             ),
             validator: (v) => _required(v, 'your child’s name'),
@@ -470,7 +469,6 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             textInputAction: TextInputAction.next,
             decoration: const InputDecoration(
               labelText: 'Father’s name',
-              hintText: 'Krunal',
               prefixIcon: Icon(Icons.person_rounded),
             ),
             validator: (v) => _required(v, 'the father’s name'),
@@ -481,7 +479,6 @@ class _RegistrationFormState extends State<_RegistrationForm> {
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(
               labelText: 'Surname',
-              hintText: 'Patel',
               prefixIcon: Icon(Icons.badge_rounded),
             ),
             validator: (v) => _required(v, 'your child’s surname'),

@@ -159,8 +159,8 @@ export async function createParentAction(
 
 /**
  * The way forward the 409 offered: the role added to the account the person
- * already has, or a removed account put back. One action for both forms —
- * `kind` says which list the form was adding to.
+ * already has. One action for both forms — `kind` says which list the form was
+ * adding to. (A removed account is no longer put back: removal is for good.)
  *
  * Its fields are `offer.`-prefixed: it is submitted from inside the add form,
  * whose own boxes share the plain names.
@@ -178,7 +178,7 @@ export async function resolveExistingAccountAction(
   if ((kind !== 'teachers' && kind !== 'parents') || !userId || !ID.test(userId)) {
     return { error: 'Unknown account.' };
   }
-  if (mode !== 'restore' && mode !== 'add-role') return { error: 'Unknown account.' };
+  if (mode !== 'add-role') return { error: 'Unknown account.' };
 
   const body =
     kind === 'teachers'
@@ -194,24 +194,13 @@ export async function resolveExistingAccountAction(
 
   let person: Person;
   try {
-    person =
-      mode === 'restore'
-        ? await apiFetch<Person>(`/${kind}/${userId}/restore`, {
-            method: 'POST',
-            redirectOnAuthFailure: false,
-          })
-        : await apiFetch<Person>(`/${kind}/${userId}/from-account`, {
-            method: 'POST',
-            redirectOnAuthFailure: false,
-            body,
-          });
+    person = await apiFetch<Person>(`/${kind}/${userId}/from-account`, {
+      method: 'POST',
+      redirectOnAuthFailure: false,
+      body,
+    });
   } catch (error) {
-    return {
-      error: errorMessage(
-        error,
-        mode === 'restore' ? 'Could not restore them.' : 'Could not add the role.',
-      ),
-    };
+    return { error: errorMessage(error, 'Could not add the role.') };
   }
 
   revalidatePath('/school/teachers');
@@ -221,10 +210,7 @@ export async function resolveExistingAccountAction(
   const role = kind === 'teachers' ? 'teacher' : 'parent';
   const list = kind === 'teachers' ? 'Teachers' : 'Parents';
   return {
-    success:
-      mode === 'restore'
-        ? `${person.name} is restored as a ${role}.`
-        : `${person.name} is now a ${role} here too, on the account they already have.`,
+    success: `${person.name} is now a ${role} here too, on the account they already have.`,
     link: {
       href: `/school/${kind}?search=${encodeURIComponent(person.email ?? person.phone ?? person.name)}`,
       label: `See ${person.name} on ${list}`,

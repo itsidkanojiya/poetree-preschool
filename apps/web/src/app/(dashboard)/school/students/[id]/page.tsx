@@ -18,11 +18,7 @@ import { AttachDocumentForm, RemoveDocumentButton, StudentPhotoForm } from './fo
 import { FeePlanCard } from './fee-plan';
 import { EditStudent } from './edit-student';
 import { FamilyCard } from './family';
-import {
-  removeStudentAction,
-  restoreParentAction,
-  restoreStudentAction,
-} from '../../removal-actions';
+import { removeStudentAction, restoreStudentAction } from '../../removal-actions';
 import { RestoreButton } from '../../restore-button';
 import { OutcomeToast } from '../../outcome-toast';
 
@@ -159,15 +155,13 @@ export default async function StudentDetailPage({
   const toast = (
     <OutcomeToast
       outcome={outcome}
-      removed={(name) => `${name} is removed. ${student.fullName} stays, with their other parent.`}
+      removed={(name) => `${name} is removed.`}
       restored={(name) => `${name} is back on the roll, without a class — place them in one.`}
       messages={{
         added: (name) => `${name} is added. Link a second parent below if there is one.`,
         primary: (name) => `${name} is the main contact now.`,
         unlinked: (name) =>
           `${name} is unlinked from ${student.fullName}. Their account is as it was.`,
-        'parent-restored': (name) =>
-          `${name} is restored, and ${student.fullName} with them — without a class, so place them in one.`,
       }}
     />
   );
@@ -175,7 +169,6 @@ export default async function StudentDetailPage({
   // Removed: their records are kept but closed, so the page offers the way
   // back and nothing else — through the parent they went with, if they did.
   if (student.removedAt) {
-    const parent = student.removedWithParent;
     return (
       <>
         <PageHeader
@@ -183,13 +176,7 @@ export default async function StudentDetailPage({
           title={student.fullName}
           description={`${student.admissionNo} · removed ${formatDate(student.removedAt)}`}
           action={
-            parent ? (
-              <RestoreButton
-                action={restoreParentAction.bind(null, parent.userId, student.id)}
-                name={parent.name}
-                label={`Restore with ${parent.name}`}
-              />
-            ) : (
+            student.removedForGood ? undefined : (
               <RestoreButton
                 action={restoreStudentAction.bind(null, student.id, 'child')}
                 name={student.fullName}
@@ -198,10 +185,10 @@ export default async function StudentDetailPage({
           }
         />
         <Notice tone="info" title="Removed from the roll">
-          {parent
-            ? `Removed with ${parent.name}, their only parent here. Restoring ${parent.name} brings ${student.fullName} back. `
-            : 'Restore them to see and change their record. '}
-          Attendance, fees and report cards are kept; they come back without a class.
+          {student.removedForGood
+            ? `Removed for good with their only parent, who was deleted from the school. ${student.fullName} cannot be restored; if the family comes back, add the child again. `
+            : 'Restore them to see and change their record; they come back without a class. '}
+          Attendance, fees and report cards are kept.
         </Notice>
         {toast}
       </>

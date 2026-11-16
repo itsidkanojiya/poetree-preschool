@@ -221,6 +221,77 @@ describe.skipIf(!dbUp)('verifying a registration', () => {
     );
   });
 
+  /** A parent removed the old way: hidden, still holding their phone and email. */
+  const removedTheOldWay = async (userId: string) => {
+    await prismaUnscoped.parentProfile.updateMany({
+      where: { userId },
+      data: { removedAt: new Date() },
+    });
+    await prismaUnscoped.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date(), status: 'INACTIVE' },
+    });
+  };
+
+  it('replaces an old removed account with a new one when the family registers again', async () => {
+    const phone = '+919820003601';
+    const old = await api.post(`${BASE}/parents`).set(auth(admin)).send({
+      name: 'Sunil Rao',
+      phone,
+      password: 'OldPass2020',
+      relation: 'FATHER',
+    });
+    const oldId = old.body.userId as string;
+    await removedTheOldWay(oldId);
+
+    // Registering again used to be accepted and then impossible to approve.
+    const { id } = await registration(phone);
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const row = queue.body.items.find((r: { id: string }) => r.id === id);
+    expect(row.removedAccounts).toEqual(['Sunil Rao']);
+
+    const approved = await api
+      .post(`${BASE}/registrations/${id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'CREATE', gender: 'MALE' });
+    expect(approved.status).toBe(200);
+
+    // A new account on the password from the form; the old one is erased.
+    const parent = await login(phone, 'Family@2026');
+    expect(parent.userId).not.toBe(oldId);
+    const erased = await prismaUnscoped.user.findUniqueOrThrow({ where: { id: oldId } });
+    expect(erased).toMatchObject({ name: 'Deleted account', phone: null, email: null });
+    const children = await api.get(`${BASE}/me/children`).set(auth(parent));
+    expect(children.body.map((c: { fullName: string }) => c.fullName)).toEqual(['Arush Mehta']);
+  });
+
+  it('replaces two old removed accounts holding the phone and the email', async () => {
+    const phone = '+919820003701';
+    const byPhone = await api.post(`${BASE}/parents`).set(auth(admin)).send({
+      name: 'First Person',
+      phone,
+      password: 'Someone2020',
+      relation: 'FATHER',
+    });
+    const byEmail = await api.post(`${BASE}/parents`).set(auth(admin)).send({
+      name: 'Second Person',
+      phone: '+919820003799',
+      email: '919820003701@example.test',
+      password: 'Someone2020',
+      relation: 'MOTHER',
+    });
+    await removedTheOldWay(byPhone.body.userId);
+    await removedTheOldWay(byEmail.body.userId);
+
+    const { id } = await registration(phone);
+    const approved = await api
+      .post(`${BASE}/registrations/${id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'CREATE', gender: 'MALE' });
+    expect(approved.status).toBe(200);
+    await login(phone, 'Family@2026');
+  });
+
   it('is the school office’s, not a teacher’s or another school’s', async () => {
     const { id } = await registration('+919820003501');
 

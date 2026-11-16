@@ -97,9 +97,10 @@ function ExistingAccountOffer({
   }
 
   const role = kind === 'teachers' ? 'teacher' : 'parent';
-  const mode = account.removed
-    ? 'restore'
-    : account.roles.includes(kind === 'teachers' ? 'PARENT' : 'TEACHER')
+  // Someone removed earlier is not put back — removal is for good — so the
+  // message says to delete the old account first, and nothing is offered.
+  const mode =
+    !account.removed && account.roles.includes(kind === 'teachers' ? 'PARENT' : 'TEACHER')
       ? 'add-role'
       : null;
 
@@ -123,18 +124,11 @@ function ExistingAccountOffer({
             formNoValidate
             disabled={pending}
           >
-            {pending
-              ? 'Working…'
-              : mode === 'restore'
-                ? `Restore ${account.name}`
-                : `Add the ${role} role to ${account.name}`}
+            {pending ? 'Working…' : `Add the ${role} role to ${account.name}`}
           </Button>
           <span className="min-w-[12rem] flex-1 text-xs text-slate-500">
-            {mode === 'restore'
-              ? 'They come back on the account they had, with the same sign-in.'
-              : `Their sign-in and password stay as they are; the app lets them switch between ${
-                  kind === 'teachers' ? 'parent and teacher' : 'teacher and parent'
-                }.`}
+            Their sign-in and password stay as they are; the app lets them switch between{' '}
+            {kind === 'teachers' ? 'parent and teacher' : 'teacher and parent'}.
           </span>
         </div>
       )}

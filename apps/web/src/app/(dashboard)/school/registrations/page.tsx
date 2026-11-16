@@ -151,6 +151,21 @@ export default async function RegistrationsPage({
                           </span>
                         </span>
                       )}
+                      {/* Somebody the school removed earlier still holds this
+                          number: approving deletes that old account. */}
+                      {row.removedAccounts.length > 0 && (
+                        <span className="mt-2 block max-w-[16rem] rounded-lg bg-gold-50 px-2.5 py-1.5 text-xs text-gold-900 ring-1 ring-inset ring-gold-200">
+                          <span className="font-medium">
+                            {row.removedAccounts.join(' and ')}, removed earlier, still{' '}
+                            {row.removedAccounts.length === 1 ? 'holds' : 'hold'} this phone or
+                            email
+                          </span>
+                          <span className="block">
+                            Approving deletes that old account for good and opens a new one with
+                            the password the family has just chosen.
+                          </span>
+                        </span>
+                      )}
                     </TCell>
 
                     <TCell>
@@ -226,6 +241,7 @@ export default async function RegistrationsPage({
                             }))}
                             classLevel={row.classLevel}
                             parentAccountName={row.parentAccount?.name ?? null}
+                            removedNames={row.removedAccounts}
                           />
                           <EditRegistration registration={row} classLevels={classLevels} />
                         </span>

@@ -6,6 +6,7 @@ import type {
   Paginated,
   TeacherSummary,
   UpdateTeacherInput,
+  PersonRemovedResponse,
 } from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
@@ -14,6 +15,7 @@ import { hashPassword } from '../lib/password.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { writeAuditLog } from './audit.service.js';
 import { endAllSessions } from './auth.service.js';
+import { eraseBySchool } from './accountDeletion.service.js';
 import { getPlanLimits } from './plan.service.js';
 import { existingAccount, holdsTeacher, profileRoles, rolesHeld } from './roles.service.js';
 
@@ -119,8 +121,8 @@ async function assertNoAccount(match: { email?: string | null; phone?: string | 
 
   if (clash.removed) {
     throw ApiError.conflict(
-      `${clash.name} was removed from your school and still holds that email or phone. ` +
-        'Restore them instead of adding them again.',
+      `${clash.name} was removed earlier and their old account still holds that email or phone. ` +
+        'Delete it permanently under Teachers → Removed, then add them again.',
       { existingAccount: clash },
     );
   }
@@ -313,48 +315,49 @@ export async function updateTeacher(
 }
 
 /**
- * The school taking a teacher off.
+ * The school removing a teacher — for good.
  *
- * Nothing is erased. Their name stays on the attendance they marked and the
- * homework they set; they leave their classes and the timetable, so the office
- * can put someone else there; and they are signed out and cannot sign in
- * again. Someone who is also a parent here keeps that — only the teacher role
- * goes, and they carry on as a parent.
+ * Their name, phone, email and password are erased and they cannot sign in.
+ * They leave their classes and the timetable, so the office can put someone
+ * else there; the attendance they marked and the homework they set stay, under
+ * "Deleted account". Someone who is also a parent here keeps their account as a
+ * parent: only the teacher role goes. A teacher the school removed before
+ * removal meant this — still holding their email — is deleted the same way.
  */
-export async function removeTeacher(userId: string, actorUserId: string): Promise<TeacherSummary> {
+export async function removeTeacher(
+  userId: string,
+  actorUserId: string,
+): Promise<PersonRemovedResponse> {
   const schoolId = requireSchoolId();
 
+  // Teachers here, and those removed before removal was for good.
   const user = await prisma.user.findFirst({
-    where: { id: userId, ...holdsTeacher },
-    select: { id: true, name: true, role: true, ...profileRoles },
+    where: { id: userId, teacherProfile: { isNot: null }, deletedAt: undefined },
+    select: { id: true, name: true, role: true, deletedAt: true, ...profileRoles },
   });
   if (!user) throw ApiError.notFound('Teacher not found');
 
-  const stillParent = rolesHeld(user).includes('PARENT');
-  const now = new Date();
+  const stillParent = !user.deletedAt && rolesHeld(user).includes('PARENT');
 
-  await prisma.$transaction(async (tx) => {
-    await tx.teacherProfile.updateMany({ where: { userId, schoolId }, data: { removedAt: now } });
-    // Their classes and their slots on the timetable wait for whoever the
-    // office puts there next.
-    await tx.classroomTeacher.deleteMany({ where: { userId, schoolId } });
-    await tx.timetableEntry.updateMany({
-      where: { teacherId: userId, schoolId },
-      data: { teacherId: null },
-    });
-
-    if (!stillParent) {
-      await tx.user.update({
-        where: { id: userId, schoolId },
-        data: { deletedAt: now, status: 'INACTIVE' },
+  if (stillParent) {
+    await prisma.$transaction(async (tx) => {
+      // Their classes and their slots on the timetable wait for whoever the
+      // office puts there next.
+      await tx.classroomTeacher.deleteMany({ where: { userId, schoolId } });
+      await tx.timetableEntry.updateMany({
+        where: { teacherId: userId, schoolId },
+        data: { teacherId: null },
       });
-    } else if (user.role === 'TEACHER') {
+      await tx.teacherProfile.deleteMany({ where: { userId, schoolId } });
       // The role the account opens as is the one it still holds.
-      await tx.user.update({ where: { id: userId, schoolId }, data: { role: 'PARENT' } });
-    }
-  });
-
-  await endAllSessions(userId, 'REMOVED_BY_SCHOOL');
+      if (user.role === 'TEACHER') {
+        await tx.user.update({ where: { id: userId, schoolId }, data: { role: 'PARENT' } });
+      }
+    });
+    await endAllSessions(userId, 'REMOVED_BY_SCHOOL');
+  } else {
+    await eraseBySchool(userId, actorUserId);
+  }
 
   await writeAuditLog({
     action: 'USER_REMOVED',
@@ -362,46 +365,13 @@ export async function removeTeacher(userId: string, actorUserId: string): Promis
     entityId: userId,
     schoolId,
     actorUserId,
-    metadata: { role: 'TEACHER', name: user.name, keptAsParent: stillParent },
-  });
-
-  return getTeacher(userId);
-}
-
-/** Putting a removed teacher back, with the account and history they had. */
-export async function restoreTeacher(userId: string, actorUserId: string): Promise<TeacherSummary> {
-  const schoolId = requireSchoolId();
-
-  const user = await prisma.user.findFirst({
-    where: {
-      id: userId,
-      teacherProfile: { is: { removedAt: { not: null } } },
-      deletedAt: undefined,
+    metadata: {
+      role: 'TEACHER',
+      permanent: true,
+      keptAsParent: stillParent,
+      ...(stillParent ? { name: user.name } : {}),
     },
-    select: { id: true, deletedAt: true },
-  });
-  if (!user) throw ApiError.notFound('There is no removed teacher with that id');
-
-  await assertTeacherSeatAvailable(schoolId);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.teacherProfile.updateMany({ where: { userId, schoolId }, data: { removedAt: null } });
-    if (user.deletedAt) {
-      await tx.user.update({
-        where: { id: userId, schoolId },
-        data: { deletedAt: null, status: 'ACTIVE' },
-      });
-    }
   });
 
-  await writeAuditLog({
-    action: 'USER_RESTORED',
-    entity: 'User',
-    entityId: userId,
-    schoolId,
-    actorUserId,
-    metadata: { role: 'TEACHER' },
-  });
-
-  return getTeacher(userId);
+  return { name: user.name, keptAsOtherRole: stillParent, childrenRemoved: [] };
 }

@@ -168,7 +168,7 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
     it('loses only the teacher role when removed as a teacher', async () => {
       const removed = await api.delete(`${BASE}/teachers/${parentUserId}`).set(auth(admin));
       expect(removed.status).toBe(200);
-      expect(removed.body.removedAt).not.toBeNull();
+      expect(removed.body).toMatchObject({ keptAsOtherRole: true, childrenRemoved: [] });
 
       const signedIn = await api
         .post(`${BASE}/auth/login`)
@@ -176,21 +176,33 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
       expect(signedIn.status).toBe(200);
       expect(signedIn.body.user.roles).toEqual(['PARENT']);
 
+      // The teacher role is gone, not waiting under Removed.
       const listed = await api.get(`${BASE}/teachers`).query({ removed: 'true' }).set(auth(admin));
-      expect(listed.body.items.map((t: { userId: string }) => t.userId)).toContain(parentUserId);
+      expect(listed.body.items.map((t: { userId: string }) => t.userId)).not.toContain(
+        parentUserId,
+      );
     });
   });
 
   describe('removing a teacher', () => {
-    it('signs them out at once, keeps their name, and can be undone', async () => {
-      const teacher = await login(school.teacherEmail);
-      const before = await prismaUnscoped.classroomTeacher.count({
-        where: { userId: school.teacherId },
+    it('deletes them for good: signed out, details erased, email free again', async () => {
+      const email = 'leaving.teacher@alpha.test';
+      const added = await api.post(`${BASE}/teachers`).set(auth(admin)).send({
+        name: 'Leaving Teacher',
+        email,
+        phone: '+919820008181',
+        password: 'Teach2026x',
       });
-      expect(before).toBeGreaterThan(0);
+      expect(added.status).toBe(201);
+      const teacherId = added.body.userId as string;
+      await prismaUnscoped.classroomTeacher.create({
+        data: { schoolId: school.id, classroomId: school.classroomId, userId: teacherId },
+      });
+      const teacher = await login(email, 'Teach2026x');
 
-      const removed = await api.delete(`${BASE}/teachers/${school.teacherId}`).set(auth(admin));
+      const removed = await api.delete(`${BASE}/teachers/${teacherId}`).set(auth(admin));
       expect(removed.status).toBe(200);
+      expect(removed.body).toMatchObject({ name: 'Leaving Teacher', keptAsOtherRole: false });
 
       // The token already on their phone stops working on its next request.
       const ended = await api.get(`${BASE}/me/classrooms`).set(auth(teacher));
@@ -198,37 +210,63 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
       expect(ended.body.error.code).toBe('ACCOUNT_INACTIVE');
       const again = await api
         .post(`${BASE}/auth/login`)
-        .send({ identifier: school.teacherEmail, password: TEST_PASSWORD });
-      expect(again.status).toBe(403);
+        .send({ identifier: email, password: 'Teach2026x' });
+      expect(again.status).toBeGreaterThanOrEqual(400);
 
-      // Off their classes; still a name on the records they left.
-      expect(
-        await prismaUnscoped.classroomTeacher.count({ where: { userId: school.teacherId } }),
-      ).toBe(0);
-      const row = await prismaUnscoped.user.findUniqueOrThrow({ where: { id: school.teacherId } });
-      expect(row.name).not.toBe('');
+      // Off their classes; the row stays for the records, with nothing on it.
+      expect(await prismaUnscoped.classroomTeacher.count({ where: { userId: teacherId } })).toBe(0);
+      const row = await prismaUnscoped.user.findUniqueOrThrow({ where: { id: teacherId } });
+      expect(row).toMatchObject({ name: 'Deleted account', email: null, phone: null });
       expect(row.deletedAt).not.toBeNull();
+      expect(await prismaUnscoped.teacherProfile.count({ where: { userId: teacherId } })).toBe(0);
 
-      const active = await api.get(`${BASE}/teachers`).set(auth(admin));
-      expect(active.body.items.map((t: { userId: string }) => t.userId)).not.toContain(
-        school.teacherId,
-      );
-
-      // Adding them again is refused in favour of putting them back.
+      // No way back, and nothing in the way of adding the person again.
+      const restore = await api.post(`${BASE}/teachers/${teacherId}/restore`).set(auth(admin));
+      expect(restore.status).not.toBe(200);
       const readded = await api.post(`${BASE}/teachers`).set(auth(admin)).send({
-        name: 'Same Teacher',
-        email: school.teacherEmail,
+        name: 'Leaving Teacher',
+        email,
         password: 'Teach2026x',
       });
-      expect(readded.status).toBe(409);
-      expect(readded.body.error.details.existingAccount.removed).toBe(true);
+      expect(readded.status).toBe(201);
+    });
 
-      const restored = await api
-        .post(`${BASE}/teachers/${school.teacherId}/restore`)
-        .set(auth(admin));
-      expect(restored.status).toBe(200);
-      expect(restored.body.removedAt).toBeNull();
-      await login(school.teacherEmail);
+    it('deletes one removed before removal was for good, freeing their email', async () => {
+      const added = await api.post(`${BASE}/teachers`).set(auth(admin)).send({
+        name: 'Old Removal',
+        email: 'old.removal@alpha.test',
+        password: 'Teach2026x',
+      });
+      const teacherId = added.body.userId as string;
+      // As the old Remove left people: hidden, still holding their email.
+      await prismaUnscoped.teacherProfile.updateMany({
+        where: { userId: teacherId },
+        data: { removedAt: new Date() },
+      });
+      await prismaUnscoped.user.update({
+        where: { id: teacherId },
+        data: { deletedAt: new Date(), status: 'INACTIVE' },
+      });
+
+      const blocked = await api.post(`${BASE}/teachers`).set(auth(admin)).send({
+        name: 'Old Removal',
+        email: 'old.removal@alpha.test',
+        password: 'Teach2026x',
+      });
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.error.message).toContain('Delete it permanently');
+
+      const listed = await api.get(`${BASE}/teachers`).query({ removed: 'true' }).set(auth(admin));
+      expect(listed.body.items.map((t: { userId: string }) => t.userId)).toContain(teacherId);
+
+      const deleted = await api.delete(`${BASE}/teachers/${teacherId}`).set(auth(admin));
+      expect(deleted.status).toBe(200);
+      const readded = await api.post(`${BASE}/teachers`).set(auth(admin)).send({
+        name: 'Old Removal',
+        email: 'old.removal@alpha.test',
+        password: 'Teach2026x',
+      });
+      expect(readded.status).toBe(201);
     });
 
     it('is not something another school can do', async () => {
@@ -240,46 +278,57 @@ describe.skipIf(!dbUp)('roles, removal and families', () => {
   });
 
   describe('removing a parent', () => {
-    it('takes the child it would orphan along, and brings them back on restore', async () => {
-      const parentId = (
-        await prismaUnscoped.user.findFirstOrThrow({
-          where: { phone: other.parentPhone },
-          select: { id: true },
-        })
-      ).id;
+    it('deletes them, and the child they were the only parent of, for good', async () => {
+      const phone = '+919820008282';
+      const added = await api
+        .post(`${BASE}/students`)
+        .set(auth(admin))
+        .send({
+          firstName: 'Ira',
+          lastName: 'Sen',
+          dateOfBirth: '2021-01-01',
+          gender: 'FEMALE',
+          admissionNo: 'DEL-1',
+          newParent: { name: 'Mira Sen', phone, password: 'Family2026x', relation: 'MOTHER' },
+        });
+      expect(added.status).toBe(201);
+      const childId = added.body.id as string;
+      const parentId = added.body.guardians[0].userId as string;
 
-      const detail = await api.get(`${BASE}/parents/${parentId}`).set(auth(otherAdmin));
+      const detail = await api.get(`${BASE}/parents/${parentId}`).set(auth(admin));
       // The only parent this child has: the portal warns before removing them.
       expect(detail.body.children[0].hasOtherGuardian).toBe(false);
 
-      const removed = await api.delete(`${BASE}/parents/${parentId}`).set(auth(otherAdmin));
+      const removed = await api.delete(`${BASE}/parents/${parentId}`).set(auth(admin));
       expect(removed.status).toBe(200);
+      expect(removed.body).toMatchObject({
+        name: 'Mira Sen',
+        keptAsOtherRole: false,
+        childrenRemoved: [{ id: childId, name: 'Ira Sen' }],
+      });
 
-      // Their only parent: the child goes with them rather than being left on
-      // the roll with nobody to reach. Hidden, not erased.
-      const child = await api.get(`${BASE}/students/${other.studentId}`).set(auth(otherAdmin));
-      expect(child.status).toBe(200);
+      // The child goes too, for good: records kept, no way back.
+      const child = await api.get(`${BASE}/students/${childId}`).set(auth(admin));
+      expect(child.body).toMatchObject({ removedForGood: true });
       expect(child.body.removedAt).not.toBeNull();
-      expect(child.body.guardians).toHaveLength(0);
+      const restore = await api.post(`${BASE}/students/${childId}/restore`).set(auth(admin));
+      expect(restore.status).toBe(409);
 
       const signIn = await api
         .post(`${BASE}/auth/login`)
-        .send({ identifier: other.parentPhone, password: TEST_PASSWORD });
-      expect(signIn.status).toBe(403);
+        .send({ identifier: phone, password: 'Family2026x' });
+      expect(signIn.status).toBeGreaterThanOrEqual(400);
+      const row = await prismaUnscoped.user.findUniqueOrThrow({ where: { id: parentId } });
+      expect(row).toMatchObject({ name: 'Deleted account', phone: null, email: null });
 
-      const listed = await api
-        .get(`${BASE}/parents`)
-        .query({ removed: 'true' })
-        .set(auth(otherAdmin));
-      expect(listed.body.items.map((p: { userId: string }) => p.userId)).toContain(parentId);
-
-      const restored = await api.post(`${BASE}/parents/${parentId}/restore`).set(auth(otherAdmin));
-      expect(restored.status).toBe(200);
-      const back = await api.get(`${BASE}/students/${other.studentId}`).set(auth(otherAdmin));
-      expect(back.body.removedAt).toBeNull();
-      const parent = await login(other.parentPhone);
-      const children = await api.get(`${BASE}/me/children`).set(auth(parent));
-      expect(children.body).toHaveLength(1);
+      // The number is free: the family can be added again as new.
+      const again = await api.post(`${BASE}/parents`).set(auth(admin)).send({
+        name: 'Mira Sen',
+        phone,
+        password: 'Family2026x',
+        relation: 'MOTHER',
+      });
+      expect(again.status).toBe(201);
     });
 
     it('ends their session the moment they are made inactive', async () => {

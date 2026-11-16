@@ -95,7 +95,9 @@ export function AddStudentForm({ classrooms }: { classrooms: ClassroomSummary[] 
       </fieldset>
 
       {/* With an account to use instead, the reason sits beside that offer. */}
-      <FormError message={state.existingAccount ? undefined : state.error} />
+      <FormError
+        message={state.existingAccount && !state.existingAccount.removed ? undefined : state.error}
+      />
 
       <PendingButton pending={pending} pendingLabel="Adding…">
         Add the child

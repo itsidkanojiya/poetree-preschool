@@ -98,16 +98,15 @@ export async function findParentsAction(search: string): Promise<ParentOption[]>
 
 /**
  * The parent profile for an account the school already has: a parent as they
- * are, a teacher given the parent role on the account they hold, or a removed
- * parent put back.
+ * are, or a teacher given the parent role on the account they hold. Someone
+ * removed earlier is not put back — removal is for good now — so their old
+ * account has to be deleted first.
  */
 async function profileFor(account: ExistingAccount, relation: Relation): Promise<string> {
   if (account.removed) {
-    const parent = await apiFetch<ParentSummary>(`/parents/${account.userId}/restore`, {
-      method: 'POST',
-      redirectOnAuthFailure: false,
-    });
-    return parent.id;
+    throw new Error(
+      `${account.name} was removed earlier. Delete their old account under Students → Removed, then add them as a new parent.`,
+    );
   }
   if (account.roles.includes('PARENT')) {
     return (

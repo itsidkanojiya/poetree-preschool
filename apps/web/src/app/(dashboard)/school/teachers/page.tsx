@@ -10,8 +10,7 @@ import { SignatureButton } from '@/components/signature-form';
 import { uploadTeacherSignatureAction } from '../actions';
 import { ConfirmButton } from '@/components/ui/confirm-button';
 import { TabStrip } from '@/components/ui/tab-strip';
-import { removeTeacherAction, restoreTeacherAction } from '../removal-actions';
-import { RestoreButton } from '../restore-button';
+import { removeTeacherAction } from '../removal-actions';
 import { OutcomeToast } from '../outcome-toast';
 import { StatusToggle } from '../status-toggle';
 import { ExcelExportButton } from '@/components/excel-export';
@@ -19,8 +18,8 @@ import { ExcelExportButton } from '@/components/excel-export';
 /** The consequences, said before they happen. */
 function removalBody(teacher: TeacherSummary): string {
   return teacher.isParent
-    ? 'They are signed out at once and can no longer sign in as a teacher. They leave their classes and the timetable; their name stays on past attendance and homework. They stay a parent here — only the teacher role is removed. You can restore them.'
-    : 'They are signed out at once and cannot sign in. They leave their classes and the timetable; their name stays on past attendance and homework. You can restore them.';
+    ? 'They stay a parent here, on the same account — only the teacher role is deleted. They leave their classes and the timetable, and are signed out. This cannot be undone.'
+    : 'They are deleted for good: their name, phone, email and password are erased and they cannot sign in. They leave their classes and the timetable; the attendance they marked and the homework they set stay, under “Deleted account”. Their phone and email can be used again. This cannot be undone.';
 }
 
 export default async function TeachersPage({
@@ -91,7 +90,7 @@ export default async function TeachersPage({
         current={showRemoved ? 'removed' : 'current'}
         tabs={[
           { key: 'current', label: 'Current', href: '/school/teachers' },
-          { key: 'removed', label: 'Removed', href: '/school/teachers?removed=true' },
+          { key: 'removed', label: 'Removed earlier', href: '/school/teachers?removed=true' },
         ]}
       />
 
@@ -108,8 +107,8 @@ export default async function TeachersPage({
         {teachers.items.length === 0 ? (
           showRemoved ? (
             <EmptyState
-              title="Nobody removed"
-              description="Teachers you remove appear here, and can be restored."
+              title="Nobody left to delete"
+              description="Removing a teacher deletes them at once. Teachers removed before that are listed here — their old accounts still hold their email and phone — until you delete them."
             />
           ) : (
             <EmptyState title="No teachers yet" description="Add your first teacher to get started." />
@@ -159,9 +158,12 @@ export default async function TeachersPage({
                       <>
                         <TCell>{formatDate(teacher.removedAt)}</TCell>
                         <TCell numeric>
-                          <RestoreButton
-                            action={restoreTeacherAction.bind(null, teacher.userId)}
-                            name={teacher.name}
+                          <ConfirmButton
+                            action={removeTeacherAction.bind(null, teacher.userId, true)}
+                            label="Delete permanently"
+                            title={`Delete ${teacher.name} permanently?`}
+                            body={removalBody(teacher)}
+                            confirmLabel={`Delete ${teacher.name}`}
                           />
                         </TCell>
                       </>
@@ -198,7 +200,9 @@ export default async function TeachersPage({
                             label="Remove"
                             title={`Remove ${teacher.name}?`}
                             body={removalBody(teacher)}
-                            confirmLabel="Remove teacher"
+                            confirmLabel={
+                              teacher.isParent ? 'Remove teacher role' : `Delete ${teacher.name}`
+                            }
                           />
                         </TCell>
                       </>
@@ -220,8 +224,8 @@ export default async function TeachersPage({
 
       <OutcomeToast
         outcome={{ done, who, problem }}
-        removed={(name) => `${name} is removed. They are under Removed if they come back.`}
-        restored={(name) => `${name} is restored. Put them back on their classes from Classrooms.`}
+        removed={(name) => `${name} is removed.`}
+        restored={(name) => `${name} is restored.`}
       />
     </>
   );

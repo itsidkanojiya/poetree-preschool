@@ -1,10 +1,5 @@
 import { z } from 'zod';
-import {
-  GENDERS,
-  GUARDIAN_RELATIONS,
-  OTP_CHANNELS,
-  REGISTRATION_STATUSES,
-} from '../enums.js';
+import { GENDERS, GUARDIAN_RELATIONS, OTP_CHANNELS, REGISTRATION_STATUSES } from '../enums.js';
 import {
   emailSchema,
   idSchema,
@@ -196,11 +191,9 @@ export const updateRegistrationSchema = z
     studentFirstName: z.string().trim().min(1).max(60),
     studentMiddleName: z.string().trim().max(60).nullable(),
     studentLastName: z.string().trim().max(60).nullable(),
-    studentDateOfBirth: z.coerce
-      .date()
-      .refine((value) => value.getTime() < Date.now(), {
-        message: 'A date of birth cannot be in the future',
-      }),
+    studentDateOfBirth: z.coerce.date().refine((value) => value.getTime() < Date.now(), {
+      message: 'A date of birth cannot be in the future',
+    }),
     classLevelId: idSchema.nullable(),
     bloodGroup: z.string().trim().max(8).nullable(),
     guardianName: nameSchema,
@@ -268,6 +261,12 @@ export interface RegistrationSummary {
     name: string;
     roles: Array<'TEACHER' | 'PARENT'>;
   } | null;
+  /**
+   * People the school removed earlier whose old accounts still hold this phone
+   * or email. Approving deletes those accounts for good and opens a new one.
+   * Empty when there are none.
+   */
+  removedAccounts: string[];
   /** The three parts written out, which is what the queue shows and searches. */
   studentName: string;
   /** The parts as typed, for correcting them. Null on rows from before the form asked. */
@@ -372,7 +371,10 @@ export const otpChannelSchema = z.enum(OTP_CHANNELS);
 
 export const verifyOtpSchema = z.object({
   challengeId: idSchema,
-  code: z.string().trim().regex(/^[0-9]{4,6}$/, 'The code is 4 to 6 digits'),
+  code: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{4,6}$/, 'The code is 4 to 6 digits'),
 });
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 

@@ -36,12 +36,22 @@ export function OutcomeToast({
   if (outcome.done === 'restored') return <Toast message={restored(who)} />;
   if (outcome.done === 'activated') return <Toast message={activated(who)} />;
   if (outcome.done === 'deactivated') return <Toast message={deactivated(who)} />;
-  // A parent removed with the children who went with them: "parent|children".
+  // Deleted for good: their phone and email can be used again.
+  if (outcome.done === 'deleted') {
+    return <Toast message={`${who} is deleted. Their phone and email are free to use again.`} />;
+  }
+  // Someone with both roles here: only the one removed went.
+  if (outcome.done === 'removed-role') {
+    return (
+      <Toast message={`${who} keeps their account for their other role; this one is removed.`} />
+    );
+  }
+  // A parent deleted with the children who went with them: "parent|children".
   if (outcome.done === 'removed-with') {
     const [parent, children] = who.split('|');
     return (
       <Toast
-        message={`${parent} is removed, and ${children} with them — nobody else here was their parent. Restore ${parent} to bring them back.`}
+        message={`${parent} is deleted, and ${children} removed for good with them — nobody else here was their parent.`}
       />
     );
   }

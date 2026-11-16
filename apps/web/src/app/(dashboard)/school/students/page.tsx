@@ -11,11 +11,12 @@ import { Avatar, Card, EmptyState, PageHeader, Pill } from '@/components/ui/layo
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { IconPlus, IconSearch } from '@/components/icons';
 import { formatDate } from '@/lib/format';
-import { restoreParentAction, restoreStudentAction } from '../removal-actions';
+import { restoreStudentAction } from '../removal-actions';
 import { RestoreButton } from '../restore-button';
 import { OutcomeToast } from '../outcome-toast';
 import { ExcelExportButton } from '@/components/excel-export';
 import { StudentsSectionTabs } from './section-tabs';
+import { RemoveParentButton } from './parent-removal';
 
 /** The parent the school contacts first, and how many others there are. */
 function FamilyCell({ student }: { student: StudentSummary }) {
@@ -205,7 +206,7 @@ export default async function StudentsPage({
           <Card
             className="mb-6"
             title="Children"
-            description="Off the roll, every record kept. A child removed with their only parent comes back when that parent is restored."
+            description="Off the roll, every record kept. A child removed with their only parent stays removed for good; if the family comes back, add the child again."
           >
             {students.items.length === 0 ? (
               <EmptyState
@@ -232,25 +233,17 @@ export default async function StudentsPage({
                         </TCell>
                         <TCell>{formatDate(student.removedAt)}</TCell>
                         <TCell>
-                          {student.removedWithParent ? (
+                          {student.removedForGood ? (
                             <span className="text-sm text-slate-600">
-                              With {student.removedWithParent.name}, their only parent
+                              With their only parent, who was deleted
                             </span>
                           ) : (
                             <span className="text-sm text-slate-500">Removed by the office</span>
                           )}
                         </TCell>
                         <TCell numeric>
-                          {student.removedWithParent ? (
-                            <RestoreButton
-                              action={restoreParentAction.bind(
-                                null,
-                                student.removedWithParent.userId,
-                                undefined,
-                              )}
-                              name={student.removedWithParent.name}
-                              label={`Restore with ${student.removedWithParent.name}`}
-                            />
+                          {student.removedForGood ? (
+                            <span className="text-xs text-slate-400">Cannot be restored</span>
                           ) : (
                             <RestoreButton
                               action={restoreStudentAction.bind(null, student.id, 'list')}
@@ -273,17 +266,15 @@ export default async function StudentsPage({
             )}
           </Card>
 
-          <Card
-            className="mb-6"
-            title="Parents"
-            description="Signed out and unable to sign in. Restoring one brings back the children removed with them."
-          >
-            {!removedParents || removedParents.items.length === 0 ? (
-              <EmptyState
-                title={filtered ? 'No removed parents match that search' : 'No parents removed'}
-                description="Parents you remove appear here and can be restored."
-              />
-            ) : (
+          {/* Parents removed before removal was for good: their old accounts
+              still hold their phone and email until they are deleted. Removing
+              a parent now deletes them at once, so this list only shrinks. */}
+          {removedParents && removedParents.items.length > 0 && (
+            <Card
+              className="mb-6"
+              title="Parents removed earlier"
+              description="Removed before removal deleted people for good. Their old accounts still hold their phone and email — delete them to free those for a new account."
+            >
               <>
                 <Table>
                   <THead
@@ -313,10 +304,7 @@ export default async function StudentsPage({
                         </TCell>
                         <TCell>{formatDate(parent.removedAt)}</TCell>
                         <TCell numeric>
-                          <RestoreButton
-                            action={restoreParentAction.bind(null, parent.userId, undefined)}
-                            name={parent.name}
-                          />
+                          <RemoveParentButton parent={parent} fromRemoved />
                         </TCell>
                       </TRow>
                     ))}
@@ -329,8 +317,8 @@ export default async function StudentsPage({
                   </p>
                 )}
               </>
-            )}
-          </Card>
+            </Card>
+          )}
         </>
       ) : (
         <Card className="mb-6">
@@ -410,10 +398,6 @@ export default async function StudentsPage({
           `${name} is removed. Attendance, fees and report cards are kept; they are under Removed.`
         }
         restored={(name) => `${name} is back on the roll, without a class — place them in one.`}
-        messages={{
-          'parent-restored': (name) =>
-            `${name} is restored, with any children removed with them. Those children come back without a class — place them in one.`,
-        }}
       />
     </>
   );

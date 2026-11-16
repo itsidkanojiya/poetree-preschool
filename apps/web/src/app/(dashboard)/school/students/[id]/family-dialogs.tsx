@@ -81,7 +81,11 @@ export function LinkParentDialog({
           )}
 
           {/* With an account to use instead, the reason sits beside that offer. */}
-          <FormError message={state.existingAccount ? undefined : state.error} />
+          <FormError
+            message={
+              state.existingAccount && !state.existingAccount.removed ? undefined : state.error
+            }
+          />
 
           <div className="flex justify-end gap-2">
             <CancelButton onClick={() => setOpen(false)} />

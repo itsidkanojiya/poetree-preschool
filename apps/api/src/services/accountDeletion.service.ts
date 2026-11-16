@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import type { AccountDeletedResponse, DeleteAccountInput } from '@poetree/shared';
 import { prismaUnscoped } from '../db/prisma.js';
+import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
 import { profileRoles, rolesHeld } from './roles.service.js';
 import { burnPasswordComparison, hashPassword, verifyPassword } from '../lib/password.js';
@@ -50,7 +51,33 @@ const accountSelect = {
 
 type Account = Prisma.UserGetPayload<{ select: typeof accountSelect }>;
 
-type Channel = 'APP' | 'WEBSITE';
+type Channel = 'APP' | 'WEBSITE' | 'SCHOOL';
+
+/**
+ * The school deleting a parent or a teacher for good, when it removes them.
+ *
+ * The same erasure as a family closing their own account — name, phone,
+ * email, password, sign-ins, devices, notifications, their registrations and
+ * their details in the audit trail — plus a teacher's profile, classes and
+ * timetable slots. The school's records stay and read "Deleted account". The
+ * phone and email are free again, so the person can be added, or register,
+ * afresh.
+ *
+ * `keepRegistrationIds`: a registration not to erase — the one being approved
+ * when a family the school removed earlier registers again.
+ */
+export async function eraseBySchool(
+  userId: string,
+  actorUserId: string,
+  keepRegistrationIds: string[] = [],
+): Promise<void> {
+  const account = await prismaUnscoped.user.findFirst({
+    where: { id: userId, schoolId: requireSchoolId() },
+    select: accountSelect,
+  });
+  if (!account) throw ApiError.notFound('Account not found');
+  await eraseAccount(account, 'SCHOOL', { actorUserId, keepRegistrationIds });
+}
 
 /** The app: the signed-in parent, with their password typed again. */
 export async function deleteOwnAccount(
@@ -138,10 +165,19 @@ function assertParent(account: Account): void {
   }
 }
 
-async function eraseAccount(account: Account, via: Channel): Promise<void> {
+async function eraseAccount(
+  account: Account,
+  via: Channel,
+  options: { actorUserId?: string; keepRegistrationIds?: string[] } = {},
+): Promise<void> {
   const userId = account.id;
   const schoolId = account.schoolId;
   const contact = [account.phone, account.email].filter((value): value is string => !!value);
+  const keep = options.keepRegistrationIds ?? [];
+  // A teacher's own actions — attendance marked, homework set — are the
+  // school's records about pupils, so their details stay; only what is about
+  // the person goes. A parent's own actions are about their own family.
+  const wasStaff = account.teacherProfile !== null;
 
   const [profile, registrations] = await Promise.all([
     prismaUnscoped.parentProfile.findUnique({ where: { userId }, select: { id: true } }),
@@ -149,6 +185,7 @@ async function eraseAccount(account: Account, via: Channel): Promise<void> {
       ? prismaUnscoped.parentRegistration.findMany({
           where: {
             schoolId,
+            ...(keep.length > 0 ? { id: { notIn: keep } } : {}),
             OR: [
               ...(account.phone ? [{ phone: account.phone }] : []),
               ...(account.email ? [{ email: account.email }] : []),
@@ -181,10 +218,14 @@ async function eraseAccount(account: Account, via: Channel): Promise<void> {
     await tx.noticeRead.deleteMany({ where: { userId } });
     // Takes the links to their children with it (StudentGuardian cascades).
     await tx.parentProfile.deleteMany({ where: { userId } });
+    // A teacher's classes and timetable slots wait for whoever comes next.
+    await tx.classroomTeacher.deleteMany({ where: { userId } });
+    await tx.timetableEntry.updateMany({ where: { teacherId: userId }, data: { teacherId: null } });
+    await tx.teacherProfile.deleteMany({ where: { userId } });
 
     await redactAuditTrail(tx, {
       entityIds: [userId, ...(profile ? [profile.id] : []), ...registrationIds],
-      actorUserId: userId,
+      actorUserId: wasStaff ? undefined : userId,
       identifiers: contact,
     });
 
@@ -200,6 +241,7 @@ async function eraseAccount(account: Account, via: Channel): Promise<void> {
         currentSessionId: closedSession,
         lastLoginAt: null,
         mustChangePassword: false,
+        signatureFileId: null,
       },
     });
 
@@ -211,7 +253,7 @@ async function eraseAccount(account: Account, via: Channel): Promise<void> {
         entity: 'User',
         entityId: userId,
         schoolId,
-        actorUserId: userId,
+        actorUserId: options.actorUserId ?? userId,
         metadata: { via },
       },
       tx,

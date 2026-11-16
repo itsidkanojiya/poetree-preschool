@@ -118,17 +118,16 @@ function ParentPicker({ exclude }: { exclude: string[] }) {
 function AccountOffer({ state, pending }: { state: FamilyState; pending: boolean }) {
   const account = state.existingAccount;
   if (!account) return null;
+  // Removed earlier: nothing to link. The reason, which says to delete the old
+  // account first, is shown as the form's error.
+  if (account.removed) return null;
 
-  const label = account.removed
-    ? `Restore ${account.name} and link them`
-    : account.roles.includes('PARENT')
-      ? `Link ${account.name}`
-      : `Make ${account.name} a parent too and link them`;
-  const explain = account.removed
-    ? 'They come back on the account they had, with the same sign-in — and any child removed with them comes back too.'
-    : account.roles.includes('PARENT')
-      ? 'Their sign-in stays as it is; this child appears in their app beside their other children.'
-      : 'They keep teaching on the same account and switch to parent in the app.';
+  const label = account.roles.includes('PARENT')
+    ? `Link ${account.name}`
+    : `Make ${account.name} a parent too and link them`;
+  const explain = account.roles.includes('PARENT')
+    ? 'Their sign-in stays as it is; this child appears in their app beside their other children.'
+    : 'They keep teaching on the same account and switch to parent in the app.';
 
   return (
     <div className="space-y-3 rounded-xl bg-navy-50/60 px-3.5 py-3 ring-1 ring-inset ring-navy-100">

@@ -399,11 +399,25 @@ export interface StudentSummary {
   /** When the school removed the child. Null while on the roll. */
   removedAt: string | null;
   /**
-   * The parent whose removal took the child with them — their only parent
-   * here. Restoring that parent brings the child back. Null otherwise.
+   * Removed for good: their only parent here was deleted, and the child went
+   * with them. Such a child cannot be restored — if the family comes back, the
+   * child is added again as a new one.
    */
-  removedWithParent: { userId: string; name: string } | null;
+  removedForGood: boolean;
   createdAt: string;
+}
+
+/**
+ * What removing a parent or a teacher did. They are deleted for good — name,
+ * phone, email and password erased — unless they hold the other role here,
+ * when only this one goes and they keep their account.
+ */
+export interface PersonRemovedResponse {
+  name: string;
+  /** They are also a teacher (or a parent) here, and keep their account for that. */
+  keptAsOtherRole: boolean;
+  /** Children removed for good with them: they had no other parent here. */
+  childrenRemoved: Array<{ id: string; name: string }>;
 }
 
 /** One change to a child's record: who, when, and each field from what to what. */

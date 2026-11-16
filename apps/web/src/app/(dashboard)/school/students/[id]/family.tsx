@@ -192,8 +192,8 @@ export function FamilyCard({
 
       {only && (
         <p className="mt-4 text-xs text-slate-500">
-          The only parent here: removing them removes {student.fullName} too. Link a second parent
-          to keep {student.fullName} on the roll whatever happens to one account.
+          The only parent here: removing them removes {student.fullName} too, for good. Link a
+          second parent to keep {student.fullName} on the roll whatever happens to one account.
         </p>
       )}
     </Card>

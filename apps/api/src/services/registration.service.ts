@@ -21,6 +21,7 @@ import { consumeVerifiedChallenges } from './otp.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
 import { grantParentRole } from './parent.service.js';
+import { eraseBySchool } from './accountDeletion.service.js';
 import { holdsParent, profileRoles, rolesHeld } from './roles.service.js';
 import { studentName } from '../lib/names.js';
 
@@ -92,7 +93,38 @@ type RegistrationRow = Prisma.ParentRegistrationGetPayload<{
   include: typeof registrationInclude;
 }>;
 
-function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): RegistrationSummary {
+/**
+ * People the school removed before removal was for good, whose old accounts
+ * still hold a request's phone or email — or the account the request was made
+ * for, if that was removed since. Approving deletes them and opens a new one.
+ *
+ * An account a parent deleted themselves, or one the school has deleted, is
+ * not one: deleting wipes its phone and email, so nothing matches it.
+ */
+async function removedAccountsFor(row: {
+  phone: string;
+  email: string | null;
+  parentUserId: string | null;
+}): Promise<Array<{ id: string; name: string }>> {
+  return prisma.user.findMany({
+    where: {
+      deletedAt: { not: null },
+      OR: [
+        { phone: row.phone },
+        ...(row.email ? [{ email: row.email }] : []),
+        ...(row.parentUserId ? [{ id: row.parentUserId, phone: { not: null } }] : []),
+      ],
+    },
+    select: { id: true, name: true },
+    take: 3,
+  });
+}
+
+function toSummary(
+  row: RegistrationRow,
+  matches: StudentMatch[] = [],
+  removed: Array<{ name: string }> = [],
+): RegistrationSummary {
   return {
     id: row.id,
     status: row.status,
@@ -119,6 +151,7 @@ function toSummary(row: RegistrationRow, matches: StudentMatch[] = []): Registra
             ),
           }
         : null,
+    removedAccounts: removed.map((account) => account.name),
     studentName: row.studentName,
     studentFirstName: row.studentFirstName,
     studentMiddleName: row.studentMiddleName,
@@ -501,7 +534,11 @@ export async function listRegistrations(
   // Only for the rows still waiting: a decided one has its child already, and
   // a page of twenty would otherwise run twenty pointless queries.
   const items = await Promise.all(
-    rows.map(async (row) => toSummary(row, row.status === 'PENDING' ? await matchesFor(row) : [])),
+    rows.map(async (row) =>
+      row.status === 'PENDING'
+        ? toSummary(row, await matchesFor(row), await removedAccountsFor(row))
+        : toSummary(row),
+    ),
   );
 
   return {
@@ -607,7 +644,9 @@ export async function updateRegistration(
     (data as Record<string, unknown>)[field] = value;
   }
 
-  if (Object.keys(after).length === 0) return toSummary(row, await matchesFor(row));
+  if (Object.keys(after).length === 0) {
+    return toSummary(row, await matchesFor(row), await removedAccountsFor(row));
+  }
 
   // The log says which standard, not which id.
   if ('classLevelId' in after) {
@@ -648,7 +687,7 @@ export async function updateRegistration(
     where: { id: registrationId },
     include: registrationInclude,
   });
-  return toSummary(updated, await matchesFor(updated));
+  return toSummary(updated, await matchesFor(updated), await removedAccountsFor(updated));
 }
 
 /** How many are waiting, for the badge on the nav. */
@@ -696,37 +735,34 @@ export async function approveRegistration(
     );
   }
 
-  // For a family that already has an account: it must still be here.
-  if (
-    registration.parentUserId &&
-    (!registration.parentUser || registration.parentUser.deletedAt)
-  ) {
-    throw ApiError.conflict(
-      'The account this child was asked for has been removed. Restore it first, or turn this down.',
-    );
-  }
+  // The account the child was asked for, while it is still here.
+  const linkTo =
+    registration.parentUserId && registration.parentUser && !registration.parentUser.deletedAt
+      ? registration.parentUserId
+      : null;
 
   // Checked again at approval, not only at submission. Weeks can pass, and the
   // office may have created the account by hand in the meantime.
-  const clash = registration.parentUserId
+  const clash = linkTo
     ? null
     : await prisma.user.findFirst({
         where: {
-          deletedAt: undefined,
           OR: [
             { phone: registration.phone },
             ...(registration.email ? [{ email: registration.email }] : []),
           ],
         },
-        select: { id: true, deletedAt: true },
+        select: { id: true },
       });
   if (clash) {
     throw ApiError.conflict(
-      clash.deletedAt
-        ? 'That phone number belonged to an account that was removed. The office will need to restore it rather than approve this.'
-        : 'An account with that phone number already exists at your school.',
+      'An account with that phone number or email already exists at your school.',
     );
   }
+
+  // Somebody the school removed earlier still holds this phone or email. Their
+  // old account is deleted for good when the request is approved, below.
+  const removedAccounts = linkTo ? [] : await removedAccountsFor(registration);
 
   // Linking: the child must be one of this school's, which the scoped client
   // settles — another school's id is simply not found.
@@ -788,16 +824,22 @@ export async function approveRegistration(
   // approved on screen and no account behind it. On the server the database is
   // local and this is nowhere near the limit; the limit is there for the day it
   // is not.
+  // Last, after every check that could refuse: the old accounts are erased,
+  // keeping this request, so the phone and email are free for the new one.
+  for (const account of removedAccounts) {
+    await eraseBySchool(account.id, actorUserId, [registrationId]);
+  }
+
   const { userId, student } = await prisma.$transaction(
     async (tx) => {
     // A family already here — a parent's next child, or a teacher's own — is
     // linked to the account they have. Everyone else gets theirs now.
-    const { user, profile } = registration.parentUserId
+    const { user, profile } = linkTo
       ? {
-          user: { id: registration.parentUserId },
+          user: { id: linkTo },
           profile: {
             id: await grantParentRole(
-              registration.parentUserId,
+              linkTo,
               { relation: registration.relation, address: registration.address ?? undefined },
               tx,
             ),
@@ -967,8 +1009,10 @@ export async function approveRegistration(
       studentId: student.id,
       admissionNo: student.admissionNo,
       mode: input.mode,
+      ...(removedAccounts.length > 0 ? { replacedRemovedAccounts: removedAccounts.length } : {}),
     },
   });
+
 
   const approved = await prisma.parentRegistration.findUniqueOrThrow({
     where: { id: registrationId },

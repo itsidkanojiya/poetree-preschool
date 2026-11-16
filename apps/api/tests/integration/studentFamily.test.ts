@@ -199,41 +199,53 @@ describe.skipIf(!dbUp)("a child's family", () => {
     ]);
   });
 
-  it('removes a child with their only parent; the child alone cannot come back', async () => {
+  it('removes a child with their only parent, for good', async () => {
     const child = await family('+919830001601', 'Leela Iyer');
     const parent = child.guardians[0]!;
 
     const detail = await api.get(`${BASE}/parents/${parent.userId}`).set(auth(admin));
     expect(detail.body.children[0]).toMatchObject({ hasOtherGuardian: false, removed: false });
 
-    await api.delete(`${BASE}/parents/${parent.userId}`).set(auth(admin));
-    const gone = await api.get(`${BASE}/students/${child.id}`).set(auth(admin));
-    expect(gone.body.removedAt).not.toBeNull();
+    const removed = await api.delete(`${BASE}/parents/${parent.userId}`).set(auth(admin));
+    expect(removed.body.childrenRemoved).toEqual([{ id: child.id, name: child.fullName }]);
 
-    // Not on the roll with nobody to reach: the parent comes back first.
+    const gone = await api.get(`${BASE}/students/${child.id}`).set(auth(admin));
+    expect(gone.body).toMatchObject({ removedForGood: true });
+
+    // There is no parent to come back with, and no coming back alone.
     const alone = await api.post(`${BASE}/students/${child.id}/restore`).set(auth(admin));
     expect(alone.status).toBe(409);
-    expect(alone.body.error.message).toContain('Leela Iyer');
-
-    const restored = await api.post(`${BASE}/parents/${parent.userId}/restore`).set(auth(admin));
-    expect(restored.status).toBe(200);
-    expect(restored.body.children[0]).toMatchObject({ id: child.id, removed: false });
-
-    const back = await api.get(`${BASE}/students/${child.id}`).set(auth(admin));
-    expect(back.body.removedAt).toBeNull();
-    expect(back.body.guardians).toHaveLength(1);
+    expect(alone.body.error.message).toContain('cannot be restored');
+    const parentBack = await api.post(`${BASE}/parents/${parent.userId}/restore`).set(auth(admin));
+    expect(parentBack.status).not.toBe(200);
   });
 
-  it('does not bring back a child who was removed on their own', async () => {
+  it('restores a child removed on their own while their parent is still here', async () => {
     const child = await family('+919830001701');
-    const parent = child.guardians[0]!;
 
     await api.delete(`${BASE}/students/${child.id}`).set(auth(admin));
-    await api.delete(`${BASE}/parents/${parent.userId}`).set(auth(admin));
-    await api.post(`${BASE}/parents/${parent.userId}/restore`).set(auth(admin));
+    const back = await api.post(`${BASE}/students/${child.id}/restore`).set(auth(admin));
+    expect(back.status).toBe(200);
+    expect(back.body.removedAt).toBeNull();
+  });
 
-    const still = await api.get(`${BASE}/students/${child.id}`).set(auth(admin));
-    expect(still.body.removedAt).not.toBeNull();
+  it('keeps a teacher who was also the parent, as a teacher', async () => {
+    const child = await family('+919830001751', 'Nalini Rao');
+    const parent = child.guardians[0]!;
+    // The same person teaches here too.
+    await api.post(`${BASE}/teachers/${parent.userId}/from-account`).set(auth(admin)).send({});
+
+    const removed = await api.delete(`${BASE}/parents/${parent.userId}`).set(auth(admin));
+    expect(removed.status).toBe(200);
+    expect(removed.body).toMatchObject({ keptAsOtherRole: true });
+
+    const teacher = await api.get(`${BASE}/teachers/${parent.userId}`).set(auth(admin));
+    expect(teacher.status).toBe(200);
+    expect(teacher.body).toMatchObject({ name: 'Nalini Rao', isParent: false });
+    const signIn = await api
+      .post(`${BASE}/auth/login`)
+      .send({ identifier: '+919830001751', password: 'Family@2026' });
+    expect(signIn.status).toBe(200);
   });
 
   it("is this school's alone", async () => {

@@ -60,10 +60,7 @@ const studentInclude = {
 
 type StudentRow = Prisma.StudentGetPayload<{ include: typeof studentInclude }>;
 
-function toSummary(
-  student: StudentRow,
-  removedWith: Map<string, { userId: string; name: string }> = new Map(),
-): StudentSummary {
+function toSummary(student: StudentRow): StudentSummary {
   const enrolment = student.enrolments[0] ?? null;
 
   return {
@@ -114,24 +111,9 @@ function toSummary(
         }
       : null,
     removedAt: student.deletedAt?.toISOString() ?? null,
-    removedWithParent: student.removedWithParentId
-      ? (removedWith.get(student.removedWithParentId) ?? null)
-      : null,
+    removedForGood: student.deletedAt !== null && student.removedWithParentId !== null,
     createdAt: student.createdAt.toISOString(),
   };
-}
-
-/** Who each removed child went with, by parent profile, for a page of children. */
-async function removedWithParents(
-  rows: StudentRow[],
-): Promise<Map<string, { userId: string; name: string }>> {
-  const ids = [...new Set(rows.map((row) => row.removedWithParentId).filter(Boolean))];
-  if (ids.length === 0) return new Map();
-  const profiles = await prisma.parentProfile.findMany({
-    where: { id: { in: ids as string[] } },
-    select: { id: true, userId: true, user: { select: { name: true } } },
-  });
-  return new Map(profiles.map((p) => [p.id, { userId: p.userId, name: p.user.name }]));
 }
 
 /** The child's own fields the office may change, compared one by one. */
@@ -227,12 +209,7 @@ export async function listStudents(query: ListStudentsQuery): Promise<Paginated<
     prisma.student.count({ where }),
   ]);
 
-  const removedWith = await removedWithParents(rows);
-  return paginate(
-    rows.map((row) => toSummary(row, removedWith)),
-    total,
-    query,
-  );
+  return paginate(rows.map(toSummary), total, query);
 }
 
 /** One child — a removed one too, so the portal can show them and put them back. */
@@ -244,7 +221,7 @@ export async function getStudent(studentId: string): Promise<StudentSummary> {
   // Another school's student is reported missing — never "forbidden", which
   // would confirm the id exists somewhere.
   if (!student) throw ApiError.notFound('Student not found');
-  return toSummary(student, await removedWithParents([student]));
+  return toSummary(student);
 }
 
 async function assertGuardiansBelongToSchool(parentProfileIds: string[]): Promise<void> {
@@ -270,11 +247,17 @@ async function assertClassroomBelongsToSchool(classroomId: string): Promise<void
 }
 
 export async function assertStudentSeatAvailable(schoolId: string): Promise<void> {
+  await assertStudentSeatsAvailable(schoolId, 1);
+}
+
+/** Room on the plan for `count` more children on the roll at once. */
+export async function assertStudentSeatsAvailable(schoolId: string, count: number): Promise<void> {
+  if (count <= 0) return;
   const limits = await getPlanLimits(schoolId);
   if (limits?.maxStudents == null) return;
 
   const current = await prisma.student.count({ where: { status: 'ACTIVE' } });
-  if (current >= limits.maxStudents) {
+  if (current + count > limits.maxStudents) {
     throw ApiError.planLimitExceeded(
       `Your plan allows ${limits.maxStudents} students. Contact Poetree Publication to upgrade.`,
       { limit: limits.maxStudents, current },
@@ -996,28 +979,26 @@ export async function restoreStudent(
       middleName: true,
       lastName: true,
       removedWithParentId: true,
-      _count: { select: { guardians: true } },
     },
   });
   if (!student) throw ApiError.notFound('There is no removed child with that id');
 
-  // Not back on the roll with nobody to reach: a child whose parents here are
-  // all removed comes back with a parent, not alone.
+  const child = studentName(student);
+  // Removed with their only parent, who was deleted: removed for good.
+  if (student.removedWithParentId) {
+    throw ApiError.conflict(
+      `${child} was removed with their only parent, who was deleted from the school, so they ` +
+        'cannot be restored. If the family comes back, add the child again as a new one.',
+    );
+  }
+  // Not back on the roll with nobody to reach.
   const reachable = await prisma.studentGuardian.count({
     where: { studentId, parentProfile: { removedAt: null, user: { deletedAt: null } } },
   });
-  if (student._count.guardians > 0 && reachable === 0) {
-    const child = studentName(student);
-    const parent = student.removedWithParentId
-      ? await prisma.parentProfile.findFirst({
-          where: { id: student.removedWithParentId },
-          select: { user: { select: { name: true } } },
-        })
-      : null;
+  if (reachable === 0) {
     throw ApiError.conflict(
-      parent
-        ? `${child} was removed with ${parent.user.name}, their only parent here. Restore ${parent.user.name} — that brings ${child} back too.`
-        : `${child} has no parent at the school any more. Restore one of their parents first, then ${child}.`,
+      `${child} has no parent at the school any more, so they cannot be restored. ` +
+        'If the family comes back, add the child again with their parent.',
     );
   }
 

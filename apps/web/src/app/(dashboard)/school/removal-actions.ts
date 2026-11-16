@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import type { ParentSummary, StudentSummary, TeacherSummary } from '@poetree/shared';
+import type { PersonRemovedResponse, StudentSummary } from '@poetree/shared';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { ID } from '@/lib/document-proxy';
 
@@ -39,15 +39,32 @@ function assertId(id: string): void {
   if (!ID.test(id)) throw new Error('Not a valid id');
 }
 
-export async function removeTeacherAction(userId: string): Promise<void> {
+/** What removing someone did, as the toast says it. */
+function removedOutcome(person: PersonRemovedResponse): Record<string, string> {
+  if (person.childrenRemoved.length > 0) {
+    return {
+      done: 'removed-with',
+      who: `${person.name}|${person.childrenRemoved.map((child) => child.name).join(', ')}`,
+    };
+  }
+  return { done: person.keptAsOtherRole ? 'removed-role' : 'deleted', who: person.name };
+}
+
+/**
+ * Removing a teacher — deleted for good, unless they are also a parent here,
+ * when only the teacher role goes. `fromRemoved`: done from the Removed list,
+ * deleting someone removed before removal was for good.
+ */
+export async function removeTeacherAction(userId: string, fromRemoved = false): Promise<void> {
   assertId(userId);
   let outcome: Record<string, string>;
   try {
-    const teacher = await apiFetch<TeacherSummary>(`/teachers/${userId}`, {
-      method: 'DELETE',
-      redirectOnAuthFailure: false,
-    });
-    outcome = { done: 'removed', who: teacher.name };
+    outcome = removedOutcome(
+      await apiFetch<PersonRemovedResponse>(`/teachers/${userId}`, {
+        method: 'DELETE',
+        redirectOnAuthFailure: false,
+      }),
+    );
   } catch (error) {
     outcome = failure(error, 'Could not remove the teacher.');
   }
@@ -55,86 +72,43 @@ export async function removeTeacherAction(userId: string): Promise<void> {
   refreshRoster();
   revalidatePath('/school/classrooms');
   revalidatePath('/school/timetable');
-  backTo('/school/teachers', outcome);
-}
-
-export async function restoreTeacherAction(userId: string): Promise<void> {
-  assertId(userId);
-  let outcome: Record<string, string>;
-  try {
-    const teacher = await apiFetch<TeacherSummary>(`/teachers/${userId}/restore`, {
-      method: 'POST',
-      redirectOnAuthFailure: false,
-    });
-    outcome = { done: 'restored', who: teacher.name };
-  } catch (error) {
-    outcome = failure(error, 'Could not restore the teacher.');
-  }
-
-  refreshRoster();
-  backTo('/school/teachers', { removed: 'true', ...outcome });
+  backTo('/school/teachers', fromRemoved ? { removed: 'true', ...outcome } : outcome);
 }
 
 /**
- * Removing a parent. A child for whom they were the only parent goes with them
- * (the API does that), so the toast says how many children went too.
+ * Removing a parent — deleted for good, unless they also teach here. A child
+ * for whom they were the only parent is removed with them (the API does that),
+ * so the toast names the children who went too.
  *
  * `studentId` is the child's page it was done from: back there if the child
  * is still on the roll, or to the list if they went with the parent.
+ * `fromRemoved`: done from the Removed list.
  */
-export async function removeParentAction(userId: string, studentId?: string): Promise<void> {
+export async function removeParentAction(
+  userId: string,
+  studentId?: string,
+  fromRemoved = false,
+): Promise<void> {
   assertId(userId);
   if (studentId) assertId(studentId);
   let outcome: Record<string, string>;
-  let childStays = false;
+  let childStays = Boolean(studentId);
   try {
-    // Who was on the roll before, so the toast names only the children who
-    // went with this parent — not ones removed on their own some time ago.
-    const before = await apiFetch<ParentSummary>(`/parents/${userId}`, {
-      redirectOnAuthFailure: false,
-    });
-    const onRoll = new Set(before.children.filter((c) => !c.removed).map((c) => c.id));
-    const parent = await apiFetch<ParentSummary>(`/parents/${userId}`, {
+    const person = await apiFetch<PersonRemovedResponse>(`/parents/${userId}`, {
       method: 'DELETE',
       redirectOnAuthFailure: false,
     });
-    const went = parent.children.filter((child) => child.removed && onRoll.has(child.id));
-    outcome = went.length
-      ? { done: 'removed-with', who: `${parent.name}|${went.map((c) => c.name).join(', ')}` }
-      : { done: 'removed', who: parent.name };
-    childStays = Boolean(studentId) && !went.some((child) => child.id === studentId);
+    outcome = removedOutcome(person);
+    childStays = childStays && !person.childrenRemoved.some((child) => child.id === studentId);
   } catch (error) {
     outcome = failure(error, 'Could not remove the parent.');
-    childStays = Boolean(studentId);
   }
 
   refreshRoster();
   if (studentId) revalidatePath(`/school/students/${studentId}`);
   if (studentId && childStays) backTo(`/school/students/${studentId}`, outcome);
+  if (fromRemoved) backTo('/school/students', { removed: 'true', ...outcome });
   backTo(studentId ? '/school/students' : '/school/parents', outcome);
-}
-
-/** Back with the children removed with them. `studentId`: done from that child's page. */
-export async function restoreParentAction(userId: string, studentId?: string): Promise<void> {
-  assertId(userId);
-  if (studentId) assertId(studentId);
-  let outcome: Record<string, string>;
-  try {
-    const parent = await apiFetch<ParentSummary>(`/parents/${userId}/restore`, {
-      method: 'POST',
-      redirectOnAuthFailure: false,
-    });
-    outcome = { done: 'parent-restored', who: parent.name };
-  } catch (error) {
-    outcome = failure(error, 'Could not restore the parent.');
-  }
-
-  refreshRoster();
-  if (studentId) {
-    revalidatePath(`/school/students/${studentId}`);
-    backTo(`/school/students/${studentId}`, outcome);
-  }
-  backTo('/school/students', { removed: 'true', ...outcome });
 }
 
 /**

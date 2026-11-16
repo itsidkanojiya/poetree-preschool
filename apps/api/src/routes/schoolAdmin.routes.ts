@@ -221,13 +221,6 @@ schoolAdminRouter.delete(
   }),
 );
 
-schoolAdminRouter.post(
-  '/teachers/:id/restore',
-  validate({ params: idParamSchema }),
-  asyncHandler(async (req, res) => {
-    res.json(await teacherService.restoreTeacher(idOf(req), req.auth!.userId));
-  }),
-);
 
 /** A parent here who comes to teach, on the account they already have. */
 schoolAdminRouter.post(
@@ -326,13 +319,6 @@ schoolAdminRouter.delete(
   }),
 );
 
-schoolAdminRouter.post(
-  '/parents/:id/restore',
-  validate({ params: idParamSchema }),
-  asyncHandler(async (req, res) => {
-    res.json(await parentService.restoreParent(idOf(req), req.auth!.userId));
-  }),
-);
 
 /** A teacher here whose own child joins, on the account they already have. */
 schoolAdminRouter.post(

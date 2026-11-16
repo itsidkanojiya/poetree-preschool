@@ -29,6 +29,7 @@ export function DecideButtons({
   classrooms,
   classLevel,
   parentAccountName,
+  removedNames = [],
 }: {
   registrationId: string;
   guardianName: string;
@@ -40,6 +41,8 @@ export function DecideButtons({
   classLevel: { id: string; name: string } | null;
   /** Set when the child is for an account the family already has here. */
   parentAccountName: string | null;
+  /** People removed earlier whose old accounts approving deletes. */
+  removedNames?: string[];
 }) {
   const [mode, setMode] = useState<'idle' | 'approving' | 'rejecting'>('idle');
   // Empty means "a child the school does not have yet".
@@ -104,6 +107,12 @@ export function DecideButtons({
           <p className="text-xs text-gold-900">
             The child is added to {parentAccountName}’s existing account — no new account or
             password.
+          </p>
+        )}
+        {removedNames.length > 0 && (
+          <p className="text-xs text-gold-900">
+            {removedNames.join(' and ')}’s old removed account is deleted for good, and a new one
+            opened with the password the family has just chosen.
           </p>
         )}
 

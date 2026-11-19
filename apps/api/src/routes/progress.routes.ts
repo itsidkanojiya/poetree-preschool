@@ -5,6 +5,8 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { body, params, validate } from '../middleware/validate.js';
 import * as progress from '../services/progress.service.js';
+import * as erase from '../services/erase.service.js';
+import { requireRole } from '../middleware/requireRole.js';
 
 export const progressRouter = Router();
 
@@ -77,5 +79,16 @@ progressRouter.get(
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
     res.json({ students: await progress.classroomProgress(id(req)) });
+  }),
+);
+
+/** A child's progress from zero: activity results, skills, tracing and games. */
+progressRouter.delete(
+  '/students/:id',
+  requireRole('SCHOOL_ADMIN', 'ORG_ADMIN'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.resetProgress(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );

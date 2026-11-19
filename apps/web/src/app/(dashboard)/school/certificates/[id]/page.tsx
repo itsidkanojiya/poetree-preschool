@@ -16,8 +16,10 @@ import { ConfirmButton } from '@/components/ui/confirm-button';
 import { IconArrowLeft } from '@/components/icons';
 import { CertificateThumb } from '@/components/certificates/thumb';
 import { StepButton } from '@/components/results/step-button';
-import { deleteCertificateAction, issueCertificateAction, revokeAwardAction } from '../actions';
+import { issueCertificateAction, revokeAwardAction } from '../actions';
 import { CertificateForm, RecipientsForm } from '../forms';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { eraseCertificateAction } from '../../delete-actions';
 
 const LINK =
   'rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 hover:bg-navy-50';
@@ -63,16 +65,27 @@ export default async function CertificatePage({
           title={certificate.title}
           description={`${CERTIFICATE_CATEGORY_LABELS[certificate.category]} · ${CERTIFICATE_DESIGN_LABELS[certificate.design]} · dated ${formatDate(certificate.issuedOn)} · issued ${formatDate(certificate.issuedAt)}`}
           action={
-            live.length > 0 ? (
-              <a
-                href={`/school/documents?kind=certificate&id=${certificate.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className={LINK}
-              >
-                Print all ({live.length})
-              </a>
-            ) : undefined
+            <span className="flex flex-wrap items-center gap-2">
+              {live.length > 0 && (
+                <a
+                  href={`/school/documents?kind=certificate&id=${certificate.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={LINK}
+                >
+                  Print all ({live.length})
+                </a>
+              )}
+              <DeleteButton
+                action={eraseCertificateAction.bind(null, certificate.id)}
+                label="Delete"
+                title={`Delete “${certificate.title}”?`}
+                body={`It is taken out of every family’s app — ${certificate.recipients.length} ${
+                  certificate.recipients.length === 1 ? 'copy' : 'copies'
+                } — and erased.`}
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200 hover:bg-rose-50"
+              />
+            </span>
           }
         />
 
@@ -172,8 +185,8 @@ export default async function CertificatePage({
               variant="gold"
               disabled={count === 0}
             />
-            <ConfirmButton
-              action={deleteCertificateAction.bind(null, certificate.id)}
+            <DeleteButton
+              action={eraseCertificateAction.bind(null, certificate.id)}
               label="Delete"
               title="Delete this draft?"
               body="Nobody has received it yet, so nothing is taken from any family."

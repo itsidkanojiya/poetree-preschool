@@ -7,6 +7,8 @@ import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui
 import { IconCheck } from '@/components/icons';
 import { DecideButtons } from './decide';
 import { EditRegistration } from './edit-registration';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteRegistrationAction } from '../delete-actions';
 
 export const metadata: Metadata = { title: 'Registrations · Poetree' };
 
@@ -244,6 +246,11 @@ export default async function RegistrationsPage({
                             removedNames={row.removedAccounts}
                           />
                           <EditRegistration registration={row} classLevels={classLevels} />
+                          <DeleteButton
+                            action={deleteRegistrationAction.bind(null, row.id)}
+                            title={`Delete ${row.guardianName}’s request?`}
+                            body="The request and the details on it are erased. Nobody is approved or told; they can register again."
+                          />
                         </span>
                       ) : (
                         <span className="flex flex-col gap-1">
@@ -272,6 +279,15 @@ export default async function RegistrationsPage({
                           ) : (
                             <span className="text-[11px] text-slate-400">Locked</span>
                           )}
+                          <DeleteButton
+                            action={deleteRegistrationAction.bind(null, row.id)}
+                            title={`Delete ${row.guardianName}’s request?`}
+                            body={
+                              row.status === 'APPROVED'
+                                ? 'Only the request is erased. The child and the family’s account stay as they are.'
+                                : 'The request and the details on it are erased.'
+                            }
+                          />
                         </span>
                       )}
                     </TCell>

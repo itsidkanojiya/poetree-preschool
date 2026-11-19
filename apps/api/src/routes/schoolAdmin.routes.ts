@@ -36,6 +36,7 @@ import {
   rejectRegistrationSchema,
   addGuardianSchema,
   updateGuardianSchema,
+  confirmDeleteSchema,
   setPasswordSchema,
   updateTeacherSchema,
 } from '@poetree/shared';
@@ -64,6 +65,7 @@ import type {
   UpdateRegistrationInput,
   AddGuardianInput,
   UpdateGuardianInput,
+  ConfirmDeleteInput,
   UpdateSubjectInput,
   UpdateTeacherInput,
   ListRegistrationsQuery,
@@ -93,6 +95,7 @@ import * as driveService from '../services/drive.service.js';
 import * as schoolService from '../services/school.service.js';
 import * as idCards from '../services/idCard.service.js';
 import * as studentService from '../services/student.service.js';
+import * as erase from '../services/erase.service.js';
 import * as exportService from '../services/export.service.js';
 import { exportLimiter } from '../middleware/exportLimiter.js';
 import { writeAuditLogSafe } from '../services/audit.service.js';
@@ -987,5 +990,40 @@ schoolAdminRouter.get(
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.send(buffer);
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Permanent deletes — none can be undone                                     */
+/* -------------------------------------------------------------------------- */
+
+/** A child and every record of them. The admission number is typed back. */
+schoolAdminRouter.delete(
+  '/students/:id/permanently',
+  validate({ params: idParamSchema, body: confirmDeleteSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await erase.eraseStudent(idOf(req), body<ConfirmDeleteInput>(req).confirm, req.auth!.userId),
+    );
+  }),
+);
+
+/** A family's request, in any state. */
+schoolAdminRouter.delete(
+  '/registrations/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.deleteRegistration(idOf(req), req.auth!.userId);
+    res.status(204).end();
+  }),
+);
+
+/** A class with nobody in it, and its registers, homework, timetable and report cards. */
+schoolAdminRouter.delete(
+  '/classrooms/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.deleteClassroom(idOf(req), req.auth!.userId);
+    res.status(204).end();
   }),
 );

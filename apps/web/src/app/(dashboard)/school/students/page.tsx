@@ -398,6 +398,7 @@ export default async function StudentsPage({
           `${name} is removed. Attendance, fees and report cards are kept; they are under Removed.`
         }
         restored={(name) => `${name} is back on the roll, without a class — place them in one.`}
+        messages={{ erased: (name) => `${name} is deleted permanently, with every record.` }}
       />
     </>
   );

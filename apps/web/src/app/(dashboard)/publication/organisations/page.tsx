@@ -4,6 +4,8 @@ import type { OrganisationSummary } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, PageHeader } from '@/components/ui/layout';
 import { NewOrganisationForm } from './forms';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteOrganisationAction } from '../delete-actions';
 
 export const metadata: Metadata = { title: 'Groups · Poetree' };
 
@@ -34,10 +36,10 @@ export default async function OrganisationsPage() {
           ) : (
             <ul className="divide-y divide-navy-950/5">
               {organisations.map((organisation) => (
-                <li key={organisation.id}>
+                <li key={organisation.id} className="flex items-center gap-3">
                   <Link
                     href={`/publication/organisations/${organisation.id}`}
-                    className="flex items-center justify-between gap-4 py-3 transition-colors hover:text-navy-900"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-4 py-3 transition-colors hover:text-navy-900"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-navy-950">
@@ -52,6 +54,21 @@ export default async function OrganisationsPage() {
                       {organisation.branchCount === 1 ? 'branch' : 'branches'}
                     </span>
                   </Link>
+                  <DeleteButton
+                    action={deleteOrganisationAction.bind(null, organisation.id)}
+                    title={`Delete the group ${organisation.name}?`}
+                    body={
+                      <>
+                        <p>The group is erased, with its administrators’ accounts.</p>
+                        <p>
+                          Its {organisation.branchCount}{' '}
+                          {organisation.branchCount === 1 ? 'branch carries' : 'branches carry'} on
+                          as independent {organisation.branchCount === 1 ? 'school' : 'schools'} —
+                          nothing in them is touched.
+                        </p>
+                      </>
+                    }
+                  />
                 </li>
               ))}
             </ul>

@@ -287,3 +287,34 @@ export async function setSchoolValidityAction(
           : 'Saved. That date has passed, so they are locked out now.',
   };
 }
+
+/**
+ * Deleting a school for good. The School ID typed in the window is sent as the
+ * confirmation, and the API checks it again — a form can be got round, the API
+ * cannot.
+ */
+export async function deleteSchoolAction(
+  schoolId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  if (!/^[a-z0-9]{20,32}$/.test(schoolId)) return { error: 'Not a school.' };
+  const confirmCode = text(formData, 'confirmCode');
+  if (!confirmCode) return { error: 'Type the School ID to confirm.' };
+
+  let name: string;
+  try {
+    const deleted = await apiFetch<{ name: string }>(`/publication/schools/${schoolId}`, {
+      method: 'DELETE',
+      redirectOnAuthFailure: false,
+      body: { confirmCode },
+    });
+    name = deleted.name;
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not delete the school.') };
+  }
+
+  revalidatePath('/publication/schools');
+  revalidatePath('/publication');
+  redirect(`/publication/schools?deleted=${encodeURIComponent(name)}`);
+}

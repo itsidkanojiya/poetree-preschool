@@ -12,6 +12,7 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { TypeFilterBar } from './filters';
 import { IconPlus } from '@/components/icons';
+import { Toast } from '@/components/ui/toast';
 
 export const metadata: Metadata = { title: 'Activity types · Poetree Admin' };
 
@@ -38,9 +39,11 @@ export default async function ActivitiesPage({
     chapterId?: string;
     type?: string;
     search?: string;
+    deleted?: string;
   }>;
 }) {
-  const { page = '1', ...filters } = await searchParams;
+  // `deleted` is the toast after a delete, not a filter for the API.
+  const { page = '1', deleted, ...filters } = await searchParams;
 
   const [activities, books, chapters, standards] = await Promise.all([
     apiFetch<Paginated<CatalogueActivity>>('/publication/activities', {
@@ -172,6 +175,7 @@ export default async function ActivitiesPage({
           </>
         )}
       </Card>
+      {deleted && <Toast message={`${deleted.slice(0, 120)} is deleted permanently.`} />}
     </>
   );
 }

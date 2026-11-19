@@ -264,12 +264,13 @@ export function BookCoverForm({ book }: { book: BookSummary }) {
       <FormError message={state.error} />
       <Toast message={state.success} />
 
-      <div className="flex items-start gap-4">
+      {/* Stacked: it sits in the narrow column beside the chapters. */}
+      <div className="flex flex-col items-start gap-4">
         {/* Drawn at the size and shape the shelf draws it, so what you are
             looking at is what a child will see. */}
         <BookCover book={book} large />
 
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="w-full min-w-0 space-y-3">
           <Input
             name="cover"
             type="file"

@@ -26,6 +26,13 @@ export const phoneSchema = z
   .trim()
   .regex(/^\+?[0-9][0-9\s\-()]{6,19}$/, 'Invalid phone number');
 
+/**
+ * The name or number of what is being deleted for good, typed back. The API
+ * compares it with the record itself, so a form cannot skip it.
+ */
+export const confirmDeleteSchema = z.object({ confirm: z.string().trim().min(1).max(200) });
+export type ConfirmDeleteInput = z.infer<typeof confirmDeleteSchema>;
+
 export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters')

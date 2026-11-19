@@ -52,6 +52,24 @@ export const updateSchoolSchema = createSchoolSchema.omit({ code: true }).partia
 export type UpdateSchoolInput = z.infer<typeof updateSchoolSchema>;
 
 /**
+ * Deleting a school for good. The School ID is typed back as the
+ * confirmation, and checked by the API, not only by the form.
+ */
+export const deleteSchoolSchema = z.object({
+  confirmCode: z.string().trim().min(1).max(60),
+});
+export type DeleteSchoolInput = z.infer<typeof deleteSchoolSchema>;
+
+/** What deleting a school took with it. */
+export interface SchoolDeletedResponse {
+  name: string;
+  code: string;
+  students: number;
+  accounts: number;
+  files: number;
+}
+
+/**
  * How long this school's access lasts.
  *
  * Null means no end date — they stay on until somebody sets one. A date in the

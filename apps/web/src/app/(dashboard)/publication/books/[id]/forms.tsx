@@ -191,7 +191,7 @@ export function ChapterFields({
         coverUrl={chapter.coverUrl}
       />
 
-      <span className="w-56">
+      <span className="w-full sm:w-56">
         <Input
           name="name"
           defaultValue={chapter.name}
@@ -202,7 +202,7 @@ export function ChapterFields({
       {/* The animation that opens this chapter: one YouTube link. Beside the
           name because it is part of what the chapter is, not a separate
           screen to remember. */}
-      <span className="min-w-[16rem] flex-1">
+      <span className="w-full sm:w-auto sm:min-w-[16rem] sm:flex-1">
         <Input
           name="animationUrl"
           defaultValue={film}

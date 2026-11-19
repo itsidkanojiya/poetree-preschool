@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { Dialog } from '@/components/ui/dialog';
 import type { PlanSummary, SchoolSummary } from '@poetree/shared';
 import {
   Button,
@@ -23,6 +24,7 @@ import {
   setSchoolValidityAction,
   updateSchoolAction,
   uploadSchoolLogoAction,
+  deleteSchoolAction,
   type ActionState,
 } from '../actions';
 
@@ -340,5 +342,107 @@ export function CreateAdminPanel({ schoolId }: { schoolId: string }) {
 
       <SubmitButton pendingLabel="Creating…">Create administrator</SubmitButton>
     </form>
+  );
+}
+
+/**
+ * Deleting the school, for good: every child, every attendance mark, fee and
+ * report card, every account and every file. The window says what goes, and
+ * the button only works once the School ID is typed back — a deliberate act,
+ * not a slip of the pointer.
+ */
+export function DeleteSchoolPanel({
+  school,
+}: {
+  school: SchoolSummary;
+}) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    deleteSchoolAction.bind(null, school.id),
+    {},
+  );
+  const matches = typed.trim().toLowerCase() === school.code.toLowerCase();
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-600">
+        Erases {school.name} and everything in it. This cannot be undone. To stop them using the
+        product but keep their records, suspend them on the Access tab instead.
+      </p>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-300 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
+      >
+        Delete school permanently
+      </button>
+
+      <Dialog
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          setTyped('');
+        }}
+        title={`Delete ${school.name} permanently?`}
+        description="Everything in this school is erased at once, and it cannot be brought back."
+      >
+        <form action={formAction} className="space-y-4">
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
+            <li>
+              {school.counts.students} {school.counts.students === 1 ? 'child' : 'children'}, with
+              their attendance, fees, homework, report cards and certificates
+            </li>
+            <li>
+              {school.counts.users} {school.counts.users === 1 ? 'account' : 'accounts'} —
+              administrators, {school.counts.teachers}{' '}
+              {school.counts.teachers === 1 ? 'teacher' : 'teachers'} and parents — who can no
+              longer sign in
+            </li>
+            <li>Classes, timetable, announcements, gallery, uploaded files and registrations</li>
+          </ul>
+
+          <label className="block text-sm text-navy-950">
+            <span className="mb-1.5 block font-medium">
+              Type the School ID, <span className="font-mono">{school.code}</span>, to confirm
+            </span>
+            <input
+              name="confirmCode"
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-xl border-0 px-3.5 py-2.5 font-mono text-sm ring-1 ring-inset ring-navy-950/15 focus:ring-2 focus:ring-inset focus:ring-rose-600"
+            />
+          </label>
+
+          {state.error && (
+            <p role="alert" className="text-sm font-medium text-rose-700">
+              {state.error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setTyped('');
+              }}
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+            >
+              Keep the school
+            </button>
+            <button
+              type="submit"
+              disabled={!matches || pending}
+              className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+            >
+              {pending ? 'Deleting…' : 'Delete for good'}
+            </button>
+          </div>
+        </form>
+      </Dialog>
+    </div>
   );
 }

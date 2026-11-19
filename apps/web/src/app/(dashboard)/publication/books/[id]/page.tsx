@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import type {
@@ -8,23 +9,64 @@ import type {
   Paginated,
 } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
-import { IconArrowLeft } from '@/components/icons';
+import { Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
+import { IconAlert, IconArrowLeft, IconCheck, IconPlus } from '@/components/icons';
 import { NewChapterForm } from './forms';
 import { ChapterList } from './chapter-list';
 import { BookCoverForm, BookDetailsForm, BookLiveSwitch } from '../forms';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteBookAction } from '../../delete-actions';
 
 export const metadata: Metadata = { title: 'Book · Poetree Admin' };
 
+/** One focus style for everything clickable, so keyboard users never lose their place. */
+const FOCUS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 focus-visible:ring-offset-2';
+
 /**
- * One book: everything true of it, and the chapters it is divided into.
+ * One fact about the book's readiness: a word, a value, and a mark that is a
+ * shape as well as a colour — done, needs doing, or simply information.
+ */
+function Check({
+  label,
+  value,
+  state,
+}: {
+  label: string;
+  value: ReactNode;
+  state: 'done' | 'todo' | 'info';
+}) {
+  const mark = {
+    done: { box: 'bg-leaf-50 text-leaf-700', icon: <IconCheck size={15} strokeWidth={2.25} /> },
+    todo: { box: 'bg-gold-50 text-gold-700', icon: <IconAlert size={15} strokeWidth={2} /> },
+    info: { box: 'bg-navy-50 text-navy-700', icon: null },
+  }[state];
+
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${mark.box}`}
+        aria-hidden="true"
+      >
+        {mark.icon ?? <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xs text-slate-500">{label}</span>
+        <span className="block text-sm font-medium text-navy-950">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * One book: where it stands, the chapters it is divided into, and its own
+ * settings beside them.
  *
  * Standard → Book → Chapter → Question type → Questions. This is the middle of
  * that, and it is where an author works: a chapter is what a teacher and a
- * publisher both think in — "we're on chapter three".
- *
- * The book's own fields live here rather than in the list, so the list can be
- * read as a list.
+ * publisher both think in — "we're on chapter three". The readiness line at the
+ * top answers the question the old page buried in a grey subtitle: can a school
+ * that has this book actually use it?
  */
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,6 +88,9 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
   // Pages filed in the book but not in any chapter. Not an error — a short book
   // may have no chapters at all — but worth being able to see.
   const unfiled = activities.items.filter((activity) => !activity.chapter);
+  const empty = activities.total === 0;
+  const plural = (count: number, one: string, many: string) =>
+    `${count} ${count === 1 ? one : many}`;
 
   return (
     <>
@@ -54,98 +99,171 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           <span className="flex items-center gap-2">
             <Link
               href="/publication/books"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-navy-900"
+              className={`inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-navy-900 ${FOCUS}`}
             >
-              <IconArrowLeft size={16} />
+              <IconArrowLeft size={16} aria-hidden="true" />
               All books
             </Link>
             {!book.isActive && <Pill tone="neutral">Withdrawn</Pill>}
           </span>
         }
         title={book.name}
-        description={`${book.classLevel.name} · ${activities.total} activity ${
-          activities.total === 1 ? 'type' : 'types'
-        } · ${book.schoolCount} ${book.schoolCount === 1 ? 'school' : 'schools'}`}
+        description={`${book.classLevel.name}${book.subject ? ` · ${book.subject.name}` : ''} · ${book.code}`}
+        action={
+          <Link
+            href={`/publication/questions/new?bookId=${book.id}`}
+            className={`inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800 ${FOCUS}`}
+          >
+            <IconPlus size={17} aria-hidden="true" />
+            Add activity
+          </Link>
+        }
       />
 
-      {/* Chapters first. This is the contents page — the thing an author works
-          through, and the thing anybody opening the book wants to see. The
-          book's own name, cover and film are set once and then left alone, so
-          they sit underneath. */}
-      <Card
-        title="Chapters"
-        description="The contents page. A child opens the subject and then a chapter: its video, its activities and its PDF."
+      {/* Readiness: what a school that has this book will find in it. */}
+      <section
+        aria-label="Readiness"
+        className="mb-6 grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-card ring-1 ring-navy-950/[0.07] md:grid-cols-3 xl:grid-cols-5"
       >
-        {chapters.length === 0 ? (
-          <p className="mb-4 text-sm text-slate-500">
-            None yet. A short book may not need any — its pages simply sit in the book itself.
-          </p>
-        ) : (
-          <ChapterList
-            bookId={id}
-            chapters={chapters}
-            pages={activities.items.map((activity) => ({
-              id: activity.id,
-              title: activity.title,
-              itemCount: activity.itemCount,
-              chapterId: activity.chapter?.id ?? null,
-            }))}
-          />
-        )}
+        <Check
+          label="On sale"
+          value={book.isActive ? 'Yes' : 'Withdrawn'}
+          state={book.isActive ? 'done' : 'info'}
+        />
+        <Check
+          label="Activities"
+          value={empty ? 'None yet' : plural(activities.total, 'type', 'types')}
+          state={empty ? 'todo' : 'done'}
+        />
+        <Check
+          label="Chapters"
+          value={chapters.length === 0 ? 'None' : plural(chapters.length, 'chapter', 'chapters')}
+          state="info"
+        />
+        <Check
+          label="Cover"
+          value={book.coverUrl ? 'Uploaded' : 'Not yet'}
+          state={book.coverUrl ? 'done' : 'todo'}
+        />
+        <Check
+          label="Schools using it"
+          value={plural(book.schoolCount, 'school', 'schools')}
+          state="info"
+        />
+      </section>
 
-        {/* At the end of the list, which is where the next chapter appears. */}
-        <div className="border-t border-navy-950/[0.06] pt-4">
-          <NewChapterForm bookId={id} />
+      {book.isActive && empty && book.schoolCount > 0 && (
+        <div className="mb-6">
+          <Notice tone="danger" title="Schools have this book, and it is empty">
+            {plural(book.schoolCount, 'school has', 'schools have')} it switched on and{' '}
+            {book.schoolCount === 1 ? 'sees' : 'see'} an empty shelf. Add activities to a chapter
+            below, or withdraw the book until it is ready.
+          </Notice>
         </div>
-      </Card>
-
-      {unfiled.length > 0 && (
-        <Card
-          className="mt-4"
-          title="Not in a chapter"
-          description="These are in the book but not filed under any chapter. Children still see them."
-        >
-          <ul className="divide-y divide-navy-950/[0.06]">
-            {unfiled.map((page) => (
-              <li key={page.id} className="flex items-center justify-between gap-3 py-2">
-                <Link
-                  href={`/publication/question-types/${page.id}`}
-                  className="text-sm text-navy-950 hover:underline"
-                >
-                  {page.title}
-                </Link>
-                <span className="text-xs text-slate-500">
-                  {page.itemCount} {page.itemCount === 1 ? 'activity' : 'activities'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
       )}
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wider text-slate-400">
-        The book itself
-      </h2>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0 space-y-6">
+          {/* Chapters first. This is the contents page — the thing an author
+              works through, and the thing anybody opening the book wants. */}
+          <Card
+            title="Chapters"
+            description="The contents page. A child opens the subject and then a chapter: its video, its activities and its PDF."
+          >
+            {chapters.length === 0 ? (
+              <p className="mb-4 text-sm text-slate-500">
+                None yet. A short book may not need any — its pages simply sit in the book itself.
+              </p>
+            ) : (
+              <ChapterList
+                bookId={id}
+                chapters={chapters}
+                pages={activities.items.map((activity) => ({
+                  id: activity.id,
+                  title: activity.title,
+                  itemCount: activity.itemCount,
+                  chapterId: activity.chapter?.id ?? null,
+                }))}
+              />
+            )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card title="The book">
-          <BookDetailsForm book={book} subjects={subjects} />
-        </Card>
+            {/* At the end of the list, which is where the next chapter appears. */}
+            <div className="border-t border-navy-950/[0.06] pt-4">
+              <NewChapterForm bookId={id} />
+            </div>
+          </Card>
 
-        <div className="space-y-4">
+          {unfiled.length > 0 && (
+            <Card
+              title="Not in a chapter"
+              description="These are in the book but not filed under any chapter. Children still see them."
+            >
+              <ul className="divide-y divide-navy-950/[0.06]">
+                {unfiled.map((page) => (
+                  <li key={page.id}>
+                    <Link
+                      href={`/publication/question-types/${page.id}`}
+                      className={`-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-navy-50 ${FOCUS}`}
+                    >
+                      <span className="text-sm text-navy-950">{page.title}</span>
+                      <span className="text-xs tabular-nums text-slate-500">
+                        {plural(page.itemCount, 'activity', 'activities')}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          <Card title="The book" description="Its name, and what the app files it under.">
+            <BookDetailsForm book={book} subjects={subjects} />
+          </Card>
+        </div>
+
+        {/* Beside the chapters, not below them: whether it is on sale is the
+            most consequential switch on the page, and it was the last thing on
+            it. */}
+        <aside className="space-y-6 xl:sticky xl:top-6">
+          <Card title="Availability">
+            <BookLiveSwitch book={book} />
+          </Card>
           <Card
             title="Cover"
             description="What a child looks for on the shelf, long before they can read the name."
           >
             <BookCoverForm book={book} />
           </Card>
-
-          <Card title="Availability">
-            <BookLiveSwitch book={book} />
+          {/* The one thing on the page that cannot be undone, last. */}
+          <Card tone="danger" title="Delete this book">
+            <p className="mb-3 text-sm text-slate-600">
+              Erases the book, its chapters, the activity types only it holds and every child’s
+              results on them, and takes it off every school. To stop selling it but keep it, switch
+              it off above.
+            </p>
+            <DeleteButton
+              action={deleteBookAction.bind(null, book.id)}
+              label="Delete book permanently"
+              title={`Delete ${book.name} permanently?`}
+              body={
+                <>
+                  <p>
+                    {book.name} is erased with its {chapters.length}{' '}
+                    {chapters.length === 1 ? 'chapter' : 'chapters'} and the activity types filed only
+                    in it, with every child’s results on them at every school.
+                  </p>
+                  <p>
+                    {book.schoolCount} {book.schoolCount === 1 ? 'school loses' : 'schools lose'} it
+                    from their app. Activity types shared with another book stay there.
+                  </p>
+                </>
+              }
+              confirmText={book.name}
+              className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-300 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
+            />
           </Card>
-        </div>
+        </aside>
       </div>
-
     </>
   );
 }

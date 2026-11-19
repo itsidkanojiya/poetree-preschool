@@ -90,7 +90,7 @@ certificateRouter.delete(
   manage,
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
-    await certificates.deleteCertificate(idOf(req));
+    await certificates.deleteCertificate(idOf(req), req.auth!.userId);
     res.status(204).end();
   }),
 );

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import type { ChapterSummary } from '@poetree/shared';
 import { Pill } from '@/components/ui/layout';
-import { IconGrip } from '@/components/icons';
+import { IconChevronRight, IconGrip } from '@/components/icons';
 import { reorderChaptersAction, saveChaptersAction, type ChapterState } from './actions';
 import { ChapterFields, DeleteChapterButton } from './forms';
 import { ChapterPdf } from './chapter-pdf';
@@ -73,6 +73,14 @@ export function ChapterList({
     });
   };
 
+  // The same move without dragging: a button press works from a keyboard, a
+  // switch device or a shaky hand, which a drag does not (WCAG 2.2, 2.5.7).
+  const step = (id: string, by: -1 | 1) => {
+    const index = order.findIndex((row) => row.id === id);
+    const target = order[index + by];
+    if (target) move(id, target.id);
+  };
+
   return (
     <form action={formAction}>
       <Toast message={state.success} />
@@ -106,17 +114,48 @@ export function ChapterList({
               dragging === chapter.id ? 'opacity-40' : ''
             } ${over === chapter.id && dragging !== chapter.id ? 'border-navy-300 bg-navy-50/60' : ''}`}
           >
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Handle and arrows stay beside the chapter on a phone; the
+                fields wrap within the space left, not onto a line of their own. */}
+            <div className="flex items-center gap-3">
               <span
                 className="cursor-grab text-slate-300 transition-colors hover:text-slate-500 active:cursor-grabbing"
                 aria-hidden
               >
                 <IconGrip size={16} />
               </span>
+              <span className="flex flex-col">
+                <button
+                  type="button"
+                  onClick={() => step(chapter.id, -1)}
+                  disabled={position === 0 || pending}
+                  aria-label={`Move ${chapter.name} up`}
+                  title="Move up"
+                  className="grid h-6 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-navy-50 hover:text-navy-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <IconChevronRight size={14} className="-rotate-90" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => step(chapter.id, 1)}
+                  disabled={position === order.length - 1 || pending}
+                  aria-label={`Move ${chapter.name} down`}
+                  title="Move down"
+                  className="grid h-6 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-navy-50 hover:text-navy-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <IconChevronRight size={14} className="rotate-90" aria-hidden="true" />
+                </button>
+              </span>
 
-              <ChapterFields chapter={chapter} position={position + 1} />
+              <div className="min-w-0 flex-1">
+                <ChapterFields chapter={chapter} position={position + 1} />
+              </div>
+            </div>
 
-              <span className="ml-auto flex items-center gap-2">
+            {/* Under the name: the chapter's PDF on the left, what it holds and
+                what can be done to it on the right — one line, not three. */}
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 md:ml-[4.25rem]">
+              <ChapterPdf bookId={bookId} chapter={chapter} />
+              <span className="flex flex-wrap items-center gap-2">
                 {chapter.questionCount === 0 ? (
                   /* Named but not written: the state worth seeing at a glance,
                      because it looks finished from the outside. */
@@ -129,16 +168,13 @@ export function ChapterList({
                 {/* Straight to choosing a type: the book and chapter are this. */}
                 <Link
                   href={`/publication/questions/new?bookId=${bookId}&chapterId=${chapter.id}`}
-                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
+                  className="rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
                 >
                   + Add activity
                 </Link>
                 <DeleteChapterButton chapter={chapter} />
               </span>
             </div>
-
-            {/* The chapter's pages, which a child reads inside the chapter. */}
-            <ChapterPdf bookId={bookId} chapter={chapter} />
 
             {inside.length > 0 && (
               <ul className="mt-2 space-y-1 border-l-2 border-navy-950/[0.06] pl-4 md:ml-7">
@@ -165,9 +201,12 @@ export function ChapterList({
       {/* One Save for the whole contents page. Remove stays per row, because
           removing one chapter is not part of saving the others. */}
       <div className="mt-4 flex items-center gap-3 border-t border-navy-950/[0.06] pt-4">
-        <SubmitButton pendingLabel="Saving…">Save chapters</SubmitButton>
+        <SubmitButton pendingLabel="Saving…" className="shrink-0 whitespace-nowrap">
+          Save chapters
+        </SubmitButton>
         <span className="text-xs text-slate-500">
-          Names, films and pictures together. Dragging saves the order on its own.
+          Names, films and pictures together. Moving a chapter — by dragging or the arrows —
+          saves the order on its own.
         </span>
       </div>
     </form>

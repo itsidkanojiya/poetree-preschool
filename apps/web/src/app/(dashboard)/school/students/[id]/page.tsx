@@ -14,6 +14,9 @@ import { TabStrip } from '@/components/ui/tab-strip';
 import { IconArrowLeft, IconChart, IconSpark } from '@/components/icons';
 import { formatDate } from '@/lib/format';
 import { ConfirmButton } from '@/components/ui/confirm-button';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { eraseStudentAction } from '../../delete-actions';
+import { LedgerCard, type Ledger } from './ledger';
 import { AttachDocumentForm, RemoveDocumentButton, StudentPhotoForm } from './forms';
 import { FeePlanCard } from './fee-plan';
 import { EditStudent } from './edit-student';
@@ -120,6 +123,19 @@ function Detail({ label, value, wide }: { label: string; value: ReactNode; wide?
   );
 }
 
+/** What deleting a child takes, said before it happens. */
+function eraseBody(name: string) {
+  return (
+    <>
+      <p>
+        {name} is erased from the school, with every record: attendance, fees and payments, report
+        cards, progress, certificates and documents.
+      </p>
+      <p>Their parents’ accounts stay. To keep the records and only hide the child, use Remove.</p>
+    </>
+  );
+}
+
 const TABS = ['overview', 'fees', 'documents', 'history'] as const;
 type Tab = (typeof TABS)[number];
 
@@ -176,12 +192,21 @@ export default async function StudentDetailPage({
           title={student.fullName}
           description={`${student.admissionNo} · removed ${formatDate(student.removedAt)}`}
           action={
-            student.removedForGood ? undefined : (
-              <RestoreButton
-                action={restoreStudentAction.bind(null, student.id, 'child')}
-                name={student.fullName}
+            <span className="flex flex-wrap items-center gap-2">
+              {!student.removedForGood && (
+                <RestoreButton
+                  action={restoreStudentAction.bind(null, student.id, 'child')}
+                  name={student.fullName}
+                />
+              )}
+              <DeleteButton
+                action={eraseStudentAction.bind(null, student.id)}
+                label="Delete permanently"
+                title={`Delete ${student.fullName} permanently?`}
+                body={eraseBody(student.fullName)}
+                confirmText={student.admissionNo}
               />
-            )
+            </span>
           }
         />
         <Notice tone="info" title="Removed from the roll">
@@ -195,7 +220,7 @@ export default async function StudentDetailPage({
     );
   }
 
-  const [classrooms, parents, documents, history] = await Promise.all([
+  const [classrooms, parents, documents, history, ledger] = await Promise.all([
     apiFetch<ClassroomSummary[]>('/classrooms'),
     tab === 'overview'
       ? Promise.all(
@@ -210,6 +235,7 @@ export default async function StudentDetailPage({
         )
       : Promise.resolve([]),
     tab === 'history' ? apiFetch<StudentChange[]>(`/students/${id}/history`) : Promise.resolve([]),
+    tab === 'fees' ? apiFetch<Ledger>(`/fees/students/${id}/ledger`) : Promise.resolve(null),
   ]);
 
   // This year's sections to move between, and the child's own even if it is
@@ -271,6 +297,14 @@ export default async function StudentDetailPage({
               body="Withdrawn from their class and hidden from lists and the parent app. Attendance, fees and report cards are kept. Their parents' accounts are not touched. You can restore them."
               confirmLabel="Remove child"
               className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200 transition-colors hover:bg-rose-50"
+            />
+            <DeleteButton
+              action={eraseStudentAction.bind(null, student.id)}
+              label="Delete permanently"
+              title={`Delete ${student.fullName} permanently?`}
+              body={eraseBody(student.fullName)}
+              confirmText={student.admissionNo}
+              className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2"
             />
           </span>
         }
@@ -371,8 +405,9 @@ export default async function StudentDetailPage({
       )}
 
       {tab === 'fees' && (
-        <div className="max-w-3xl">
+        <div className="max-w-3xl space-y-6">
           <FeePlanCard studentId={student.id} studentName={student.fullName} />
+          {ledger && <LedgerCard studentId={student.id} ledger={ledger} />}
         </div>
       )}
 

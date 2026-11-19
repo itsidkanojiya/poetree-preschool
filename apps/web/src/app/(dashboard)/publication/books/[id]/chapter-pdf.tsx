@@ -89,7 +89,7 @@ export function ChapterPdf({ bookId, chapter }: { bookId: string; chapter: Chapt
   const choose = () => input.current?.click();
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 md:ml-7">
+    <div className="flex flex-wrap items-center gap-2">
       <input
         ref={input}
         type="file"

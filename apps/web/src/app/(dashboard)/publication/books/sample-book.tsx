@@ -15,10 +15,10 @@ export function SampleBookCard({ bookId }: { bookId?: string }) {
   const openId = result && 'bookId' in result ? result.bookId : bookId;
 
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-950 ring-1 ring-sky-200">
-      <div className="min-w-0 flex-1">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm text-navy-950 shadow-card ring-1 ring-navy-950/[0.07]">
+      <div className="min-w-[15rem] flex-1">
         <p className="font-medium">Sample activities from the Pre-Primary A books</p>
-        <p className="mt-0.5 text-xs text-sky-900/80">
+        <p className="mt-0.5 text-xs text-slate-500">
           One or two of every type — match the shadow, healthy or junk, colour 11 balls, the number
           train — in a sample book that no school is given. Copy what you like.
         </p>
@@ -45,7 +45,7 @@ export function SampleBookCard({ bookId }: { bookId?: string }) {
       {openId && (
         <Link
           href={`/publication/books/${openId}`}
-          className="rounded-xl px-3.5 py-2 text-sm font-medium text-sky-950 ring-1 ring-sky-300 transition-colors hover:bg-sky-100"
+          className="rounded-xl px-3.5 py-2 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 transition-colors hover:bg-navy-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600"
         >
           Open the sample book
         </Link>
@@ -54,7 +54,7 @@ export function SampleBookCard({ bookId }: { bookId?: string }) {
         type="button"
         disabled={pending}
         onClick={() => startTransition(async () => setResult(await addSampleBookAction()))}
-        className="rounded-xl bg-sky-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-800 disabled:opacity-60"
+        className="rounded-xl bg-navy-900 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-navy-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 focus-visible:ring-offset-2 disabled:opacity-60"
       >
         {pending ? 'Adding…' : bookId ? 'Add anything missing' : 'Add the sample book'}
       </button>

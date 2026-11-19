@@ -34,6 +34,8 @@ import {
   updateQuestionSchema,
   updateStandardSchema,
   updateSchoolSchema,
+  deleteSchoolSchema,
+  confirmDeleteSchema,
   createTracingItemSchema,
   tracingSettingsSchema,
   updateTracingCategorySchema,
@@ -73,6 +75,8 @@ import type {
   UpdateQuestionInput,
   UpdateStandardInput,
   UpdateSchoolInput,
+  DeleteSchoolInput,
+  ConfirmDeleteInput,
   CreateTracingItemInput,
   TracingSettingsInput,
   UpdateTracingCategoryInput,
@@ -96,6 +100,7 @@ import { exportLimiter } from '../middleware/exportLimiter.js';
 import { writeAuditLogSafe } from '../services/audit.service.js';
 import { prismaUnscoped } from '../db/prisma.js';
 import * as schoolService from '../services/school.service.js';
+import * as erase from '../services/erase.service.js';
 import * as organisationService from '../services/organisation.service.js';
 import * as bookSubjects from '../services/bookSubject.service.js';
 import * as planService from '../services/plan.service.js';
@@ -143,18 +148,51 @@ publicationRouter.get(
       prismaUnscoped.teacherProfile.count(),
     ]);
 
-    const expiringSoon = await prismaUnscoped.schoolSubscription.count({
-      where: {
-        isCurrent: true,
-        status: 'ACTIVE',
-        expiresAt: { gt: new Date(), lt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
-      },
-    });
+    const soon = {
+      isCurrent: true,
+      status: 'ACTIVE' as const,
+      expiresAt: { gt: new Date(), lt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+    };
+    const [expiringSoon, expiring, blocked] = await Promise.all([
+      prismaUnscoped.schoolSubscription.count({ where: soon }),
+      // Which schools, not only how many: the overview is where the office
+      // starts its day, and a count sends them hunting through the list.
+      prismaUnscoped.schoolSubscription.findMany({
+        where: soon,
+        orderBy: { expiresAt: 'asc' },
+        take: 6,
+        select: {
+          expiresAt: true,
+          school: { select: { id: true, name: true, code: true, city: true, status: true } },
+        },
+      }),
+      prismaUnscoped.school.findMany({
+        where: { status: { in: ['SUSPENDED', 'EXPIRED'] } },
+        orderBy: { updatedAt: 'desc' },
+        take: 6,
+        select: { id: true, name: true, code: true, city: true, status: true },
+      }),
+    ]);
+
+    // Expiring first, soonest at the top: those can still be saved.
+    const attention = [
+      ...expiring.map(({ school, expiresAt }) => ({
+        ...school,
+        reason: 'EXPIRING' as const,
+        expiresAt: expiresAt.toISOString(),
+      })),
+      ...blocked.map((school) => ({
+        ...school,
+        reason: school.status === 'SUSPENDED' ? ('SUSPENDED' as const) : ('EXPIRED' as const),
+        expiresAt: null,
+      })),
+    ].slice(0, 8);
 
     res.json({
       schools: { total, active, trial, suspended, expired, expiringSoon },
       students,
       teachers,
+      attention,
     });
   }),
 );
@@ -264,6 +302,24 @@ publicationRouter.patch(
       req.auth!.userId,
     );
     res.json(updated);
+  }),
+);
+
+/**
+ * Deletes a school and everything in it, for good. The School ID is typed back
+ * in the body as the confirmation.
+ */
+publicationRouter.delete(
+  '/schools/:id',
+  validate({ params: idParamSchema, body: deleteSchoolSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await schoolService.deleteSchoolPermanently(
+        params<{ id: string }>(req).id,
+        body<DeleteSchoolInput>(req).confirmCode,
+        req.auth!.userId,
+      ),
+    );
   }),
 );
 
@@ -1187,5 +1243,48 @@ publicationRouter.delete(
   '/google-drive',
   asyncHandler(async (req, res) => {
     res.json(await drive.clearGoogleDriveSettings(req.auth!.userId));
+  }),
+);
+
+/* -------------------------------------------------------------------------- */
+/* Permanent deletes in the catalogue — none can be undone                    */
+/* -------------------------------------------------------------------------- */
+
+/** A book: its chapters, the activity types only it holds, and its place at every school. */
+publicationRouter.delete(
+  '/books/:id',
+  validate({ params: idParamSchema, body: confirmDeleteSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await erase.deleteBook(
+        params<{ id: string }>(req).id,
+        body<ConfirmDeleteInput>(req).confirm,
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** An activity type, its activities and every child's results on it. */
+publicationRouter.delete(
+  '/activities/:id',
+  validate({ params: idParamSchema, body: confirmDeleteSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await erase.deleteActivity(
+        params<{ id: string }>(req).id,
+        body<ConfirmDeleteInput>(req).confirm,
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
+/** A group. Its branches carry on as independent schools. */
+publicationRouter.delete(
+  '/organisations/:id',
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await erase.deleteOrganisation(params<{ id: string }>(req).id, req.auth!.userId));
   }),
 );

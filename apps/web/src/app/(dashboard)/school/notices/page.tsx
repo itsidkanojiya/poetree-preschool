@@ -4,6 +4,8 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { formatDate } from '@/lib/format';
 import Link from 'next/link';
 import { IconPlus } from '@/components/icons';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteNoticeAction } from '../delete-actions';
 
 const TYPE_TONE: Record<string, 'neutral' | 'brand' | 'gold'> = {
   GENERAL: 'neutral',
@@ -52,6 +54,13 @@ export default async function NoticesPage() {
                       {notice.type.charAt(0) + notice.type.slice(1).toLowerCase()}
                     </Pill>
                     {notice.status === 'DRAFT' && <Pill tone="neutral">Draft</Pill>}
+                    <span className="ml-auto">
+                      <DeleteButton
+                        action={deleteNoticeAction.bind(null, notice.id)}
+                        title={`Delete “${notice.title}”?`}
+                        body="It disappears from every family’s and teacher’s app, with its attachments and who read it."
+                      />
+                    </span>
                   </div>
 
                   <p className="mt-1 line-clamp-2 text-xs text-slate-600">{notice.body}</p>

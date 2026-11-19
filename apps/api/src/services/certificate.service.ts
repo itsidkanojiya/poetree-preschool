@@ -203,9 +203,25 @@ export async function setRecipients(id: string, studentIds: string[]): Promise<C
   return getCertificate(id);
 }
 
-export async function deleteCertificate(id: string): Promise<void> {
-  await draft(id);
-  await prisma.certificate.delete({ where: { id } });
+/**
+ * A certificate, for good — a draft, or one already issued, which then leaves
+ * every family's app with all its copies.
+ */
+export async function deleteCertificate(id: string, actorUserId: string): Promise<void> {
+  const row = await prisma.certificate.findFirst({
+    where: { id },
+    select: { id: true, title: true, issuedAt: true, _count: { select: { awards: true } } },
+  });
+  if (!row) throw ApiError.notFound('Certificate not found');
+  await prisma.certificate.deleteMany({ where: { id } });
+  await writeAuditLog({
+    action: 'CERTIFICATE_DELETED',
+    entity: 'Certificate',
+    entityId: id,
+    schoolId: requireSchoolId(),
+    actorUserId,
+    before: { title: row.title, issued: Boolean(row.issuedAt), copies: row._count.awards },
+  });
 }
 
 /**

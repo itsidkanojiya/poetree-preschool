@@ -25,6 +25,8 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { body, params, query, validate } from '../middleware/validate.js';
 import * as results from '../services/result.service.js';
+import * as erase from '../services/erase.service.js';
+import { requireRole } from '../middleware/requireRole.js';
 
 /**
  * Term report cards. The office configures and publishes; class teachers
@@ -231,5 +233,17 @@ resultRouter.get(
   asyncHandler(async (req, res) => {
     const { classroomId, termId } = params<ClassTerm>(req);
     sendPdf(res, await results.classPdf(classroomId, termId));
+  }),
+);
+
+/** A term, and every report card written for it. */
+resultRouter.delete(
+  '/terms/:id',
+  configure,
+  requireRole('SCHOOL_ADMIN', 'ORG_ADMIN'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.deleteTerm(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );

@@ -6,6 +6,8 @@ import { Card, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { formatDate } from '@/lib/format';
 import { ActivityLiveSwitch, EditActivityForm } from '../forms';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteActivityAction } from '../../delete-actions';
 
 export const metadata: Metadata = { title: 'Activity type · Poetree Admin' };
 
@@ -61,6 +63,25 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
         description={`${activity.code} · played ${activity.attemptCount} ${
           activity.attemptCount === 1 ? 'time' : 'times'
         } across every school`}
+        action={
+          <DeleteButton
+            action={deleteActivityAction.bind(null, activity.id)}
+            label="Delete permanently"
+            title={`Delete “${activity.title}” permanently?`}
+            body={
+              <>
+                <p>The activity type is erased with all its activities.</p>
+                <p>
+                  It was played {activity.attemptCount}{' '}
+                  {activity.attemptCount === 1 ? 'time' : 'times'}: those results are erased at every
+                  school, and children’s skill scores are worked out again from what is left.
+                </p>
+              </>
+            }
+            confirmText={activity.title}
+            className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-300 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
+          />
+        }
       />
 
       <div className="mb-5 flex flex-wrap items-center gap-2">

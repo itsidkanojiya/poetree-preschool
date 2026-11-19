@@ -108,12 +108,6 @@ export async function issueCertificateAction(id: string): Promise<CertificateSta
   return { success: 'Issued. Each family has been told.' };
 }
 
-export async function deleteCertificateAction(id: string): Promise<void> {
-  await apiFetch(`/certificates/${id}`, { method: 'DELETE' });
-  refresh();
-  redirect('/school/certificates');
-}
-
 export async function revokeAwardAction(certificateId: string, awardId: string): Promise<void> {
   await apiFetch(`/certificates/awards/${awardId}/revoke`, { method: 'POST' });
   refresh(certificateId);

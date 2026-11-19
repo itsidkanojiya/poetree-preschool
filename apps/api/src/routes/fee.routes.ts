@@ -21,6 +21,7 @@ import { body, params, query, validate } from '../middleware/validate.js';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import * as fees from '../services/fee.service.js';
+import * as erase from '../services/erase.service.js';
 import * as documents from '../services/document.service.js';
 import * as plans from '../services/feePlan.service.js';
 import * as followUps from '../services/feeFollowUp.service.js';
@@ -441,5 +442,27 @@ feeRouter.patch(
   validate({ params: idParamSchema, body: closeFeeFollowUpSchema }),
   asyncHandler(async (req, res) => {
     res.json(await followUps.closeFollowUp(id(req), body<CloseFeeFollowUpInput>(req)));
+  }),
+);
+
+/** A payment, for good: what it paid is owed again, and its refund goes with it. */
+feeRouter.delete(
+  '/payments/:id',
+  requireRole('SCHOOL_ADMIN', 'ORG_ADMIN'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.deletePayment(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
+  }),
+);
+
+/** An invoice with no payment on it, for good. */
+feeRouter.delete(
+  '/invoices/:id',
+  requireRole('SCHOOL_ADMIN', 'ORG_ADMIN'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.deleteInvoice(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );

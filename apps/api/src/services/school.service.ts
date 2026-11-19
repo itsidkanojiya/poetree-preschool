@@ -8,6 +8,7 @@ import type {
   Paginated,
   ReactivateSchoolInput,
   SchoolAdminSummary,
+  SchoolDeletedResponse,
   SchoolSummary,
   SuspendSchoolInput,
   UpdateSchoolInput,
@@ -20,6 +21,7 @@ import { hashPassword } from '../lib/password.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { codeFromName, nextFreeCode, scopeKeyFor, slugify } from '../lib/scope.js';
 import { logger } from '../lib/logger.js';
+import { storage } from '../lib/storage.js';
 import { writeAuditLog } from './audit.service.js';
 import { seedEntitlementsForSchool } from './book.service.js';
 import { invalidateSchoolAccess } from './schoolAccess.service.js';
@@ -834,4 +836,145 @@ export async function updateOwnSchoolProfile(
   invalidateSchoolAccess(schoolId);
 
   return toProfile(updated);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Deleting a school, for good                                                */
+/* -------------------------------------------------------------------------- */
+
+/** A table name as information_schema gives it — held to that shape before it is spliced into SQL. */
+const TABLE_NAME = /^[A-Za-z0-9_]+$/;
+
+interface ForeignKey {
+  table: string;
+  referenced: string;
+  columns: Array<{ column: string; referencedColumn: string }>;
+}
+
+/**
+ * Every foreign key in the database, grouped by constraint so a key across
+ * two columns is checked as one.
+ */
+async function foreignKeys(client: Prisma.TransactionClient): Promise<ForeignKey[]> {
+  const rows = await client.$queryRaw<
+    Array<{ name: string; tbl: string; col: string; ref: string; refCol: string }>
+  >`
+    SELECT CONSTRAINT_NAME AS name, TABLE_NAME AS tbl, COLUMN_NAME AS col,
+           REFERENCED_TABLE_NAME AS ref, REFERENCED_COLUMN_NAME AS refCol
+    FROM information_schema.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL
+    ORDER BY TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION`;
+  const keys = new Map<string, ForeignKey>();
+  for (const row of rows) {
+    const id = `${row.tbl}.${row.name}`;
+    const key = keys.get(id) ?? { table: row.tbl, referenced: row.ref, columns: [] };
+    key.columns.push({ column: row.col, referencedColumn: row.refCol });
+    keys.set(id, key);
+  }
+  return [...keys.values()];
+}
+
+/**
+ * The publisher deleting a school, and everything in it, for good: its
+ * children, their attendance, fees and report cards, every account, every
+ * file. Nothing is kept and nothing can be restored.
+ *
+ * Every table a school owns carries its `schoolId`, so the school is erased
+ * table by table on that column — with key checks off, so the order of the
+ * tables does not matter — and then, before anything is committed, every
+ * foreign key in the database is checked for a row left pointing at something
+ * that is gone. If one is, the whole delete is undone. The School ID is typed
+ * back as the confirmation.
+ */
+export async function deleteSchoolPermanently(
+  schoolId: string,
+  confirmCode: string,
+  actorUserId: string,
+): Promise<SchoolDeletedResponse> {
+  const school = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true, name: true, code: true },
+  });
+  if (!school) throw ApiError.notFound('School not found');
+  if (confirmCode.trim().toLowerCase() !== school.code.toLowerCase()) {
+    throw ApiError.badRequest(`Type the School ID, ${school.code}, exactly to confirm.`);
+  }
+
+  const [students, accounts, files] = await Promise.all([
+    prismaUnscoped.student.count({ where: { schoolId } }),
+    prismaUnscoped.user.count({ where: { schoolId } }),
+    prismaUnscoped.fileObject.findMany({ where: { schoolId }, select: { storageKey: true } }),
+  ]);
+
+  const tables = (
+    await prismaUnscoped.$queryRaw<Array<{ name: string }>>`
+      SELECT DISTINCT TABLE_NAME AS name FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'schoolId' AND TABLE_NAME <> 'schools'`
+  ).map((row) => row.name);
+  if (tables.some((name) => !TABLE_NAME.test(name))) {
+    throw ApiError.internal('Unexpected table name in the schema');
+  }
+  const emptied = new Set([...tables, 'schools', 'refresh_tokens']);
+
+  await prismaUnscoped.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0');
+      try {
+        // Sign-ins hang off the school's accounts, not the school.
+        await tx.$executeRaw`
+          DELETE rt FROM refresh_tokens rt INNER JOIN users u ON u.id = rt.userId
+          WHERE u.schoolId = ${schoolId}`;
+        for (const table of tables) {
+          await tx.$executeRawUnsafe(`DELETE FROM \`${table}\` WHERE \`schoolId\` = ?`, schoolId);
+        }
+        await tx.$executeRaw`DELETE FROM schools WHERE id = ${schoolId}`;
+
+        // Nothing anywhere may be left pointing at what has gone.
+        const broken: string[] = [];
+        for (const key of await foreignKeys(tx)) {
+          if (!emptied.has(key.referenced)) continue;
+          if (![key.table, key.referenced].every((name) => TABLE_NAME.test(name))) continue;
+          const columns = key.columns.filter(
+            (c) => TABLE_NAME.test(c.column) && TABLE_NAME.test(c.referencedColumn),
+          );
+          const set = columns.map((c) => `c.\`${c.column}\` IS NOT NULL`).join(' AND ');
+          const match = columns
+            .map((c) => `p.\`${c.referencedColumn}\` = c.\`${c.column}\``)
+            .join(' AND ');
+          const [row] = await tx.$queryRawUnsafe<Array<{ n: bigint | number }>>(
+            `SELECT COUNT(*) AS n FROM \`${key.table}\` c WHERE ${set} AND NOT EXISTS (SELECT 1 FROM \`${key.referenced}\` p WHERE ${match})`,
+          );
+          const n = Number(row?.n ?? 0);
+          if (n > 0) broken.push(`${key.table} → ${key.referenced} (${n})`);
+        }
+        if (broken.length > 0) {
+          logger.error('School delete would leave rows behind; undone', { schoolId, broken });
+          throw ApiError.internal(
+            'The school could not be deleted cleanly, so nothing was deleted. Please report this.',
+          );
+        }
+      } finally {
+        await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
+      }
+    },
+    { timeout: 120_000, maxWait: 10_000 },
+  );
+
+  // The bytes go after the rows: a failure here leaves a file nobody can
+  // reach, never a record pointing at a missing file.
+  for (const file of files) {
+    await storage.remove(file.storageKey).catch(() => undefined);
+  }
+  invalidateSchoolAccess(schoolId);
+
+  await writeAuditLog({
+    action: 'SCHOOL_DELETED',
+    entity: 'School',
+    entityId: schoolId,
+    schoolId: null,
+    actorUserId,
+    metadata: { name: school.name, code: school.code, students, accounts, files: files.length },
+  });
+
+  return { name: school.name, code: school.code, students, accounts, files: files.length };
 }

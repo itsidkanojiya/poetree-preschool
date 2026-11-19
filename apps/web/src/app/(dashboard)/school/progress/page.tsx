@@ -5,6 +5,8 @@ import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
 import { Table, TCell, THead, TPrimary, TRow } from '@/components/ui/table';
 import { IconArrowLeft, IconSpark } from '@/components/icons';
 import { formatDate } from '@/lib/format';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { resetProgressAction } from '../delete-actions';
 
 /**
  * What each child can actually do, and the evidence for it.
@@ -236,6 +238,18 @@ async function StudentView({
           attempted.length === 0
             ? 'This child has not attempted any activities yet.'
             : `Averaging ${average}% across ${attempted.length} skill${attempted.length === 1 ? '' : 's'} tried.`
+        }
+        action={
+          attempted.length > 0 ? (
+            <DeleteButton
+              action={resetProgressAction.bind(null, studentId)}
+              label="Reset progress"
+              title="Reset this child’s progress to zero?"
+              body="Every activity result, skill score, tracing and game played is erased, here and in the family’s app. Attendance, fees and report cards are not touched."
+              confirmLabel="Reset to zero"
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200 transition-colors hover:bg-rose-50"
+            />
+          ) : undefined
         }
       />
 

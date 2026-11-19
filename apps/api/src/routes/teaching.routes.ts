@@ -26,6 +26,8 @@ import { body, params, query, validate } from '../middleware/validate.js';
 import { ApiError } from '../lib/apiError.js';
 import * as homework from '../services/homework.service.js';
 import * as notices from '../services/notice.service.js';
+import * as erase from '../services/erase.service.js';
+import { requireRole } from '../middleware/requireRole.js';
 
 const id = (req: Request) => params<{ id: string }>(req).id;
 
@@ -201,5 +203,17 @@ noticeRouter.get(
   validate({ params: idParamSchema }),
   asyncHandler(async (req, res) => {
     res.json(await notices.noticeReadReceipts(id(req)));
+  }),
+);
+
+/** An announcement, for good: out of every app, with its attachments. The office's call alone. */
+noticeRouter.delete(
+  '/:id',
+  requirePermission('notice:manage'),
+  requireRole('SCHOOL_ADMIN', 'ORG_ADMIN'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    await erase.deleteNotice(params<{ id: string }>(req).id, req.auth!.userId);
+    res.status(204).end();
   }),
 );

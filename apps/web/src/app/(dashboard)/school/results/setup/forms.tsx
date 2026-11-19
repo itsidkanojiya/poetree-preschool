@@ -23,6 +23,8 @@ import {
   updateTermAction,
   type SetupState,
 } from './actions';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteTermAction } from '../../delete-actions';
 
 const SMALL =
   'rounded-lg px-2.5 py-1 text-xs font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 hover:bg-navy-50 disabled:opacity-40';
@@ -228,6 +230,14 @@ function TermRow({ term }: { term: TermSummary }) {
           {term.isActive ? 'Hide' : 'Show again'}
         </Button>
       </form>
+      <div className="mt-2 flex justify-end">
+        <DeleteButton
+          action={deleteTermAction.bind(null, term.id)}
+          label="Delete term"
+          title={`Delete ${term.name}?`}
+          body="The term is erased with every report card written for it, in every class — draft or already sent to families."
+        />
+      </div>
       <FormError message={state.error} />
       <Toast message={state.success} />
     </li>

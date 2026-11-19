@@ -16,6 +16,7 @@ import { daysUntil, formatDate } from '@/lib/format';
 import { SchoolBooksPanel } from '../../books/forms';
 import {
   CreateAdminPanel,
+  DeleteSchoolPanel,
   LogoPanel,
   ReactivatePanel,
   SchoolDetailsForm,
@@ -285,6 +286,11 @@ export default async function SchoolDetailPage({
             description="Shown on their app's sign-in screen and beside their name everywhere."
           >
             <LogoPanel school={school} />
+          </Card>
+
+          {/* Last on the last tab: the one thing here that cannot be undone. */}
+          <Card tone="danger" title="Delete this school">
+            <DeleteSchoolPanel school={school} />
           </Card>
         </div>
       )}

@@ -5,6 +5,7 @@ import { Card, EmptyState, PageHeader, StatusBadge } from '@/components/ui/layou
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { IconPlus, IconSearch } from '@/components/icons';
 import { daysUntil, formatDate } from '@/lib/format';
+import { Toast } from '@/components/ui/toast';
 
 const STATUSES = [
   { value: '', label: 'All statuses' },
@@ -17,9 +18,9 @@ const STATUSES = [
 export default async function SchoolsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; search?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; search?: string; status?: string; deleted?: string }>;
 }) {
-  const { page = '1', search, status } = await searchParams;
+  const { page = '1', search, status, deleted } = await searchParams;
 
   const data = await apiFetch<Paginated<SchoolSummary>>('/publication/schools', {
     query: { page, pageSize: 20, search, status },
@@ -199,6 +200,8 @@ export default async function SchoolsPage({
           </>
         )}
       </Card>
+      {/* After a school is deleted: the name, shown only as text. */}
+      {deleted && <Toast message={`${deleted.slice(0, 120)} is deleted, with everything in it.`} />}
     </>
   );
 }

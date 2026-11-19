@@ -250,7 +250,7 @@ export async function generateInvoices(
 }
 
 /** Recomputes an invoice's paid total and status from its allocations. */
-async function settleInvoice(tx: TenantTransactionClient, invoiceId: string): Promise<void> {
+export async function settleInvoice(tx: TenantTransactionClient, invoiceId: string): Promise<void> {
   const invoice = await tx.feeInvoice.findFirstOrThrow({
     where: { id: invoiceId },
     select: { netInPaise: true, status: true },
@@ -573,7 +573,13 @@ export async function assertMayReadLedger(studentId: string): Promise<void> {
 
 export async function studentLedger(studentId: string): Promise<{
   invoices: LedgerEntry[];
-  payments: Array<{ receiptNo: string; amountInPaise: number; paidOn: string; method: string }>;
+  payments: Array<{
+    id: string;
+    receiptNo: string;
+    amountInPaise: number;
+    paidOn: string;
+    method: string;
+  }>;
   totals: { billed: number; paid: number; outstanding: number };
   years: Array<{ id: string; name: string; isCurrent: boolean }>;
 }> {
@@ -634,6 +640,7 @@ export async function studentLedger(studentId: string): Promise<{
   return {
     invoices: entries,
     payments: payments.map((p) => ({
+      id: p.id,
       receiptNo: p.receiptNo,
       amountInPaise: p.amountInPaise,
       paidOn: p.paidOn.toISOString().slice(0, 10),

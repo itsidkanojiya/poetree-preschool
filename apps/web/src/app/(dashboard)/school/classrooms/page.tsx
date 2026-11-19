@@ -6,6 +6,8 @@ import { TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import { IconPlus } from '@/components/icons';
 import { ExcelExportButton } from '@/components/excel-export';
+import { DeleteButton } from '@/components/ui/delete-button';
+import { deleteClassroomAction } from '../delete-actions';
 
 export default async function ClassroomsPage() {
   const [classrooms, academicYears, standards] = await Promise.all([
@@ -100,6 +102,14 @@ export default async function ClassroomsPage() {
                       >
                         ID cards
                       </a>
+                    )}
+                    {/* Only an empty class: children are moved first. */}
+                    {classroom.studentCount === 0 && (
+                      <DeleteButton
+                        action={deleteClassroomAction.bind(null, classroom.id)}
+                        title={`Delete ${classroom.classLevel.name} — ${classroom.section}?`}
+                        body="The class is erased with its timetable, homework, attendance registers and report cards. Nobody is in it now."
+                      />
                     )}
                   </TCell>
                 </TRow>

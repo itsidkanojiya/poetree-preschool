@@ -41,12 +41,7 @@ export const ORG_ADMIN_ROLE = 'ORG_ADMIN';
  * desktop as well as in the app. Parents remain app-only; students never sign in
  * at all.
  */
-export const PORTAL_ROLES = [
-  'PUBLICATION_ADMIN',
-  'ORG_ADMIN',
-  'SCHOOL_ADMIN',
-  'TEACHER',
-] as const;
+export const PORTAL_ROLES = ['PUBLICATION_ADMIN', 'ORG_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'] as const;
 export type PortalRole = (typeof PORTAL_ROLES)[number];
 
 export const USER_STATUSES = ['ACTIVE', 'INACTIVE', 'SUSPENDED'] as const;
@@ -166,11 +161,7 @@ export const ENROLMENT_STATUSES = [
 ] as const;
 export type EnrolmentStatus = (typeof ENROLMENT_STATUSES)[number];
 
-export const CLASSROOM_TEACHER_ROLES = [
-  'CLASS_TEACHER',
-  'ASSISTANT',
-  'SUBJECT_TEACHER',
-] as const;
+export const CLASSROOM_TEACHER_ROLES = ['CLASS_TEACHER', 'ASSISTANT', 'SUBJECT_TEACHER'] as const;
 export type ClassroomTeacherRole = (typeof CLASSROOM_TEACHER_ROLES)[number];
 
 /**
@@ -270,6 +261,21 @@ export const AUDIT_ACTIONS = [
   'SCHOOL_UPDATED',
   'SCHOOL_SUSPENDED',
   'SCHOOL_REACTIVATED',
+  // Permanent deletes: each erases the record and what hangs off it, for good.
+  'STUDENT_ERASED',
+  'PAYMENT_DELETED',
+  'INVOICE_DELETED',
+  'NOTICE_DELETED',
+  'CERTIFICATE_DELETED',
+  'REGISTRATION_DELETED',
+  'TERM_DELETED',
+  'PROGRESS_RESET',
+  'CLASSROOM_DELETED',
+  'BOOK_DELETED',
+  'ACTIVITY_DELETED',
+  'ORGANISATION_DELETED',
+  // A school erased by the publisher: every record of it, for good.
+  'SCHOOL_DELETED',
   'SUBSCRIPTION_ASSIGNED',
   'SCHOOL_ADMIN_CREATED',
   'ORGANISATION_CREATED',

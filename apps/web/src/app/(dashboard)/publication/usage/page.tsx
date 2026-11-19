@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { ACTIVITY_TYPE_LABELS, type ActivityType } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, EmptyState, PageHeader, Pill, StatTile } from '@/components/ui/layout';
+import { Card, EmptyState, PageHeader, Pill, StatTile, StatusBadge } from '@/components/ui/layout';
 import { TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { IconChart, IconSchool, IconSpark } from '@/components/icons';
 import { formatDate } from '@/lib/format';
@@ -56,7 +57,7 @@ export default async function UsagePage({
     <>
       <PageHeader
         title="Usage"
-        description={`Since ${formatDate(report.window.since)}. Schools and plans say what has been sold; this says what is being opened.`}
+        description={`Since ${formatDate(report.window.since)}. The Schools page says what has been sold; this says what children actually open.`}
       />
 
       <div className="mb-5 flex gap-2">
@@ -111,8 +112,11 @@ export default async function UsagePage({
                 <TRow key={school.schoolId}>
                   <TCell>
                     <Link href={`/publication/schools/${school.schoolId}`} className="hover:underline">
-                      <TPrimary sub={school.status.toLowerCase()}>{school.schoolName}</TPrimary>
+                      <TPrimary>{school.schoolName}</TPrimary>
                     </Link>
+                    <span className="mt-1 block">
+                      <StatusBadge status={school.status} />
+                    </span>
                   </TCell>
                   <TCell numeric>{school.students}</TCell>
                   {/* Distinct children, not attempts: one child playing forty
@@ -181,10 +185,13 @@ export default async function UsagePage({
                     href={`/publication/question-types/${activity.activityId}`}
                     className="hover:underline"
                   >
-                    <TPrimary sub={activity.code}>{activity.title}</TPrimary>
+                    <TPrimary>{activity.title}</TPrimary>
                   </Link>
                 </TCell>
-                <TCell>{activity.type.charAt(0) + activity.type.slice(1).toLowerCase()}</TCell>
+                <TCell>
+                  {ACTIVITY_TYPE_LABELS[activity.type as ActivityType]?.label ??
+                    activity.type.charAt(0) + activity.type.slice(1).toLowerCase()}
+                </TCell>
                 <TCell numeric>{activity.attempts}</TCell>
                 <TCell numeric>{activity.schools}</TCell>
                 <TCell numeric>
@@ -200,7 +207,7 @@ export default async function UsagePage({
                   {activity.isActive ? (
                     <Pill tone="brand">Live</Pill>
                   ) : (
-                    <Pill tone="neutral">Retired</Pill>
+                    <Pill tone="neutral">Off</Pill>
                   )}
                 </TCell>
               </TRow>

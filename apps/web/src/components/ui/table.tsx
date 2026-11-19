@@ -86,13 +86,16 @@ export function Pagination({
   totalPages,
   total,
   basePath,
+  noun: [one, many] = ['record', 'records'],
 }: {
   page: number;
   totalPages: number;
   total: number;
   basePath: string;
+  /** What is being counted: ["school", "schools"] reads better than "records". */
+  noun?: [string, string];
 }) {
-  const noun = total === 1 ? 'record' : 'records';
+  const noun = total === 1 ? one : many;
 
   if (totalPages <= 1) {
     return (

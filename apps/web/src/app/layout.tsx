@@ -4,17 +4,27 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 /**
- * Poppins is bundled rather than fetched from Google Fonts so the VPS build
- * never depends on outbound network access at build time.
+ * Inter for everything read and typed — tables, forms, numbers — and Nunito,
+ * rounded like the children's books, for page and card titles.
+ *
+ * Both are bundled rather than fetched from Google Fonts so the build never
+ * depends on outbound network access. Each is one variable file, cut down to
+ * Latin (with ₹) — a quarter of the four Poppins files they replace. Licences
+ * (SIL OFL 1.1) sit beside them in assets/fonts.
  */
-const poppins = localFont({
-  src: [
-    { path: '../assets/fonts/Poppins-Regular.ttf', weight: '400', style: 'normal' },
-    { path: '../assets/fonts/Poppins-Medium.ttf', weight: '500', style: 'normal' },
-    { path: '../assets/fonts/Poppins-SemiBold.ttf', weight: '600', style: 'normal' },
-    { path: '../assets/fonts/Poppins-Bold.ttf', weight: '700', style: 'normal' },
-  ],
+const inter = localFont({
+  src: '../assets/fonts/Inter.woff2',
+  weight: '100 900',
+  style: 'normal',
   variable: '--font-sans',
+  display: 'swap',
+});
+
+const nunito = localFont({
+  src: '../assets/fonts/Nunito.woff2',
+  weight: '200 1000',
+  style: 'normal',
+  variable: '--font-display',
   display: 'swap',
 });
 
@@ -25,7 +35,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={`${inter.variable} ${nunito.variable}`}>
       <body className="font-sans">{children}</body>
     </html>
   );

@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import type {
@@ -10,7 +9,8 @@ import type {
 } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
 import { Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
-import { IconAlert, IconArrowLeft, IconCheck, IconPlus } from '@/components/icons';
+import { IconArrowLeft, IconPlus } from '@/components/icons';
+import { Check, FOCUS, Readiness } from '../../readiness';
 import { NewChapterForm } from './forms';
 import { ChapterList } from './chapter-list';
 import { BookCoverForm, BookDetailsForm, BookLiveSwitch } from '../forms';
@@ -18,45 +18,6 @@ import { DeleteButton } from '@/components/ui/delete-button';
 import { deleteBookAction } from '../../delete-actions';
 
 export const metadata: Metadata = { title: 'Book · Poetree Admin' };
-
-/** One focus style for everything clickable, so keyboard users never lose their place. */
-const FOCUS =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-600 focus-visible:ring-offset-2';
-
-/**
- * One fact about the book's readiness: a word, a value, and a mark that is a
- * shape as well as a colour — done, needs doing, or simply information.
- */
-function Check({
-  label,
-  value,
-  state,
-}: {
-  label: string;
-  value: ReactNode;
-  state: 'done' | 'todo' | 'info';
-}) {
-  const mark = {
-    done: { box: 'bg-leaf-50 text-leaf-700', icon: <IconCheck size={15} strokeWidth={2.25} /> },
-    todo: { box: 'bg-gold-50 text-gold-700', icon: <IconAlert size={15} strokeWidth={2} /> },
-    info: { box: 'bg-navy-50 text-navy-700', icon: null },
-  }[state];
-
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${mark.box}`}
-        aria-hidden="true"
-      >
-        {mark.icon ?? <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-xs text-slate-500">{label}</span>
-        <span className="block text-sm font-medium text-navy-950">{value}</span>
-      </span>
-    </div>
-  );
-}
 
 /**
  * One book: where it stands, the chapters it is divided into, and its own
@@ -121,10 +82,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
       />
 
       {/* Readiness: what a school that has this book will find in it. */}
-      <section
-        aria-label="Readiness"
-        className="mb-6 grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-card ring-1 ring-navy-950/[0.07] md:grid-cols-3 xl:grid-cols-5"
-      >
+      <Readiness label="Readiness" columns={5}>
         <Check
           label="On sale"
           value={book.isActive ? 'Yes' : 'Withdrawn'}
@@ -150,7 +108,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           value={plural(book.schoolCount, 'school', 'schools')}
           state="info"
         />
-      </section>
+      </Readiness>
 
       {book.isActive && empty && book.schoolCount > 0 && (
         <div className="mb-6">

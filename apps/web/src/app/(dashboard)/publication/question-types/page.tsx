@@ -8,10 +8,11 @@ import type {
   StandardSummary,
 } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, EmptyState, PageHeader, Pill } from '@/components/ui/layout';
+import { Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
 import { Pagination, TCell, THead, TPrimary, TRow, Table } from '@/components/ui/table';
 import { TypeFilterBar } from './filters';
 import { IconPlus } from '@/components/icons';
+import { FOCUS } from '../readiness';
 import { Toast } from '@/components/ui/toast';
 
 export const metadata: Metadata = { title: 'Activity types · Poetree Admin' };
@@ -60,6 +61,7 @@ export default async function ActivitiesPage({
     Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
   ).toString();
 
+  const basePath = query ? `/publication/question-types?${query}` : '/publication/question-types';
   const unplayable = activities.items.filter((item) => !item.isPlayable).length;
 
   return (
@@ -81,103 +83,146 @@ export default async function ActivitiesPage({
       <TypeFilterBar filters={filters} standards={standards} books={books} chapters={chapters} />
 
       {unplayable > 0 && (
-        <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          {unplayable === 1 ? 'One activity type has' : `${unplayable} activity types have`} no
-          activities a child can do, so {unplayable === 1 ? 'it is' : 'they are'} invisible in the
-          app. Open one to add activities.
+        <div className="mb-5">
+          <Notice tone="warning">
+            {unplayable === 1 ? 'One activity type has' : `${unplayable} activity types have`} no
+            activities a child can do, so {unplayable === 1 ? 'it is' : 'they are'} invisible in the
+            app. Open one to add activities.
+          </Notice>
         </div>
       )}
 
-      <Card>
-        {activities.items.length === 0 ? (
+      {activities.items.length === 0 ? (
+        <Card>
           <EmptyState
-            title="No activity types yet"
-            description="Add the first one — “Circle the correct letter”, say — then write its activities."
+            title={query ? 'No activity types match' : 'No activity types yet'}
+            description={
+              query
+                ? 'Try another filter, or clear them.'
+                : 'Add the first one — “Circle the correct letter”, say — then write its activities.'
+            }
           />
-        ) : (
-          <>
-            <Table>
-              <THead
-                columns={[
-                  'Activity type',
-                  'Played as',
-                  'Book',
-                  'Chapter',
-                  'Skill',
-                  'Level',
-                  { label: 'Activities', numeric: true },
-                  { label: 'Played', numeric: true },
-                  'State',
-                ]}
-              />
-              <tbody>
-                {activities.items.map((activity) => (
-                  <TRow key={activity.id}>
-                    <TCell>
-                      <Link
-                        href={`/publication/question-types/${activity.id}`}
-                        className="hover:underline"
-                      >
-                        <TPrimary sub={activity.code}>{activity.title}</TPrimary>
-                      </Link>
-                    </TCell>
-                    <TCell>
-                      {ACTIVITY_TYPE_LABELS[activity.type as ActivityType]?.label ??
-                        titleCase(activity.type)}
-                    </TCell>
-                    <TCell>
-                      {activity.book ? (
-                        activity.book.name
-                      ) : (
-                        /* Reaches nobody: a school is given books, not loose
-                           question types. */
-                        <span className="text-amber-700">No book</span>
-                      )}
-                    </TCell>
-                    <TCell>
-                      {activity.chapter?.name ?? <span className="text-slate-400">—</span>}
-                    </TCell>
-                    <TCell>{activity.skill.name}</TCell>
-                    <TCell>{activity.classLevelCode ?? 'Every level'}</TCell>
-                    <TCell numeric>
-                      <Link
-                        href={`/publication/question-types/${activity.id}/questions`}
-                        className="hover:underline"
-                      >
-                        {activity.itemCount}
-                      </Link>
-                    </TCell>
-                    {/* Across every school. The one number that says whether
-                        writing this was worth the afternoon. */}
-                    <TCell numeric>{activity.attemptCount}</TCell>
-                    <TCell>
-                      {!activity.isPlayable ? (
-                        <Pill tone="neutral">No activities</Pill>
-                      ) : activity.isActive ? (
-                        <Pill tone="brand">Live</Pill>
-                      ) : (
-                        <Pill tone="neutral">Retired</Pill>
-                      )}
-                    </TCell>
-                  </TRow>
-                ))}
-              </tbody>
-            </Table>
-
+        </Card>
+      ) : (
+        <>
+          {/* Phones: a card each, nothing cut off. */}
+          <ul className="space-y-3 md:hidden" aria-label="Activity types">
+            {activities.items.map((activity) => (
+              <li key={activity.id}>
+                <Link
+                  href={`/publication/question-types/${activity.id}`}
+                  className={`block rounded-2xl bg-white p-4 shadow-card ring-1 ring-navy-950/[0.07] transition-colors hover:ring-navy-950/15 ${FOCUS}`}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 font-medium text-navy-950 [overflow-wrap:anywhere]">
+                      {activity.title}
+                    </span>
+                    <TypeState activity={activity} />
+                  </span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    {playedAs(activity.type)} · <Where activity={activity} />
+                  </span>
+                  <span className="mt-2 block text-xs tabular-nums text-slate-600">
+                    {activity.itemCount} {activity.itemCount === 1 ? 'activity' : 'activities'} ·
+                    played {activity.attemptCount} {activity.attemptCount === 1 ? 'time' : 'times'}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="md:hidden">
             <Pagination
               page={activities.page}
               totalPages={activities.totalPages}
               total={activities.total}
-              basePath={
-                query ? `/publication/question-types?${query}` : '/publication/question-types'
-              }
+              basePath={basePath}
+              noun={['activity type', 'activity types']}
             />
-          </>
-        )}
-      </Card>
+          </div>
+
+          {/* Laptops: the table — five columns, the book and chapter under the name. */}
+          <div className="hidden md:block">
+            <Card>
+              <Table>
+                <THead
+                  columns={[
+                    'Activity type',
+                    'Played as',
+                    { label: 'Activities', numeric: true },
+                    { label: 'Played', numeric: true },
+                    'State',
+                  ]}
+                />
+                <tbody>
+                  {activities.items.map((activity) => (
+                    <TRow key={activity.id}>
+                      <TCell>
+                        <TPrimary sub={<Where activity={activity} />}>
+                          <Link
+                            href={`/publication/question-types/${activity.id}`}
+                            className={`rounded-sm hover:text-navy-700 hover:underline ${FOCUS}`}
+                          >
+                            {activity.title}
+                          </Link>
+                        </TPrimary>
+                      </TCell>
+                      <TCell>{playedAs(activity.type)}</TCell>
+                      <TCell numeric>
+                        <Link
+                          href={`/publication/question-types/${activity.id}/questions`}
+                          className={`rounded-sm hover:underline ${FOCUS}`}
+                          aria-label={`${activity.itemCount} activities in ${activity.title}`}
+                        >
+                          {activity.itemCount}
+                        </Link>
+                      </TCell>
+                      {/* Across every school. The one number that says whether
+                          writing this was worth the afternoon. */}
+                      <TCell numeric>{activity.attemptCount}</TCell>
+                      <TCell>
+                        <TypeState activity={activity} />
+                      </TCell>
+                    </TRow>
+                  ))}
+                </tbody>
+              </Table>
+
+              <Pagination
+                page={activities.page}
+                totalPages={activities.totalPages}
+                total={activities.total}
+                basePath={basePath}
+                noun={['activity type', 'activity types']}
+              />
+            </Card>
+          </div>
+        </>
+      )}
       {deleted && <Toast message={`${deleted.slice(0, 120)} is deleted permanently.`} />}
     </>
   );
 }
 
 const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
+
+/** How the app plays it, in the words the author picked it by. */
+const playedAs = (type: string) =>
+  ACTIVITY_TYPE_LABELS[type as ActivityType]?.label ?? titleCase(type);
+
+/** Book › chapter, or a warning when it is in no book and so reaches nobody. */
+function Where({ activity }: { activity: CatalogueActivity }) {
+  if (!activity.book) return <span className="text-gold-700">In no book — reaches nobody</span>;
+  return (
+    <>
+      {activity.book.name}
+      {activity.chapter && <> › {activity.chapter.name}</>}
+    </>
+  );
+}
+
+/** Live, switched off, or with nothing a child can do yet. */
+function TypeState({ activity }: { activity: CatalogueActivity }) {
+  if (!activity.isPlayable) return <Pill tone="gold">No activities</Pill>;
+  if (activity.isActive) return <Pill tone="brand">Live</Pill>;
+  return <Pill tone="neutral">Off</Pill>;
+}

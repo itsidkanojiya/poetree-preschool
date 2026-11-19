@@ -21,7 +21,7 @@ export function PageHeader({
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
-        <h1 className="text-[1.6rem] font-semibold leading-tight tracking-tight text-navy-950">
+        <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight text-navy-950">
           {title}
         </h1>
         {description && <p className="mt-1.5 max-w-2xl text-sm text-slate-500">{description}</p>}
@@ -58,7 +58,7 @@ export function Card({
       {(title || action) && (
         <header className="flex items-start justify-between gap-4 border-b border-navy-950/[0.06] px-5 py-4">
           <div className="min-w-0">
-            {title && <h2 className="font-semibold text-navy-950">{title}</h2>}
+            {title && <h2 className="text-[1.0625rem] font-bold text-navy-950">{title}</h2>}
             {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}

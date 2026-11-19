@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { Dialog } from '@/components/ui/dialog';
 import type { PlanSummary, SchoolSummary } from '@poetree/shared';
 import {
@@ -24,6 +24,7 @@ import {
   setSchoolValidityAction,
   updateSchoolAction,
   uploadSchoolLogoAction,
+  removeSchoolLogoAction,
   deleteSchoolAction,
   type ActionState,
 } from '../actions';
@@ -78,42 +79,94 @@ export function SchoolDetailsForm({ school }: { school: SchoolSummary }) {
  * Shown on their app's sign-in screen, which is a screen nobody is signed in
  * to — so this is served publicly by school code, and a stranger who knows the
  * code can see it. That is the same as walking past the gate.
+ *
+ * Save works only once a picture is chosen, and taking the logo away is its
+ * own button: pressing Save with nothing chosen used to remove the logo.
  */
 export function LogoPanel({ school }: { school: SchoolSummary }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
     uploadSchoolLogoAction.bind(null, school.id),
     {},
   );
+  const [removed, removeAction] = useActionState<ActionState, FormData>(
+    removeSchoolLogoAction.bind(null, school.id),
+    {},
+  );
+  const [chosen, setChosen] = useState(false);
+
+  // The form empties itself after a save; the button follows it.
+  useEffect(() => {
+    if (state.success) setChosen(false);
+  }, [state]);
 
   return (
-    <form action={formAction} className="space-y-4">
-      <FormError message={state.error} />
-      <FormSuccess message={state.success} />
+    <div className="space-y-4">
+      <FormError message={state.error ?? removed.error} />
+      <FormSuccess message={state.success ?? removed.success} />
 
-      {school.logoUrl && (
-        <div className="flex items-center gap-3">
-          {/* A plain img: next/image wants known dimensions and a loader
-              configured for the host, and this is one small picture served
-              from our own API. */}
+      <div className="flex items-center gap-4">
+        {school.logoUrl ? (
+          /* A plain img: next/image wants known dimensions and a loader
+             configured for the host, and this is one small picture served
+             from our own API. */
           <img
             src={school.logoUrl}
             alt={`${school.name} logo`}
-            className="h-14 w-14 rounded-xl object-contain ring-1 ring-navy-950/10"
+            className="h-16 w-16 shrink-0 rounded-xl object-contain ring-1 ring-navy-950/10"
           />
-          <p className="text-xs text-slate-500">
-            This is what families see when they open the app.
-          </p>
-        </div>
+        ) : (
+          <span
+            aria-hidden="true"
+            className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-navy-50 font-display text-xl font-extrabold text-navy-800 ring-1 ring-navy-950/10"
+          >
+            {initialsOf(school.name)}
+          </span>
+        )}
+        <p className="text-sm text-slate-600">
+          {school.logoUrl
+            ? 'This is what families see when they open the app.'
+            : 'No logo yet. The app shows the school’s initials instead.'}
+        </p>
+      </div>
+
+      <form action={formAction} className="space-y-4">
+        <Field
+          label={school.logoUrl ? 'Replace it with' : 'Upload a logo'}
+          hint="PNG, JPEG or WebP. Square works best."
+        >
+          <Input
+            name="logo"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => setChosen(Boolean(event.currentTarget.files?.length))}
+            className="file:mr-3 file:rounded-lg file:border-0 file:bg-navy-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-navy-900"
+          />
+        </Field>
+        <SubmitButton disabled={!chosen} pendingLabel="Saving…">
+          Save logo
+        </SubmitButton>
+      </form>
+
+      {school.logoUrl && (
+        <form action={removeAction} className="border-t border-navy-950/[0.06] pt-4">
+          <SubmitButton variant="secondary" pendingLabel="Removing…">
+            Remove logo
+          </SubmitButton>
+        </form>
       )}
+    </div>
+  );
+}
 
-      <Field label="Logo" hint="PNG or JPEG. Square works best. Submit with nothing chosen to remove it.">
-        <Input name="logo" type="file" accept="image/png,image/jpeg,image/webp" />
-      </Field>
-
-      <SubmitButton variant="secondary" pendingLabel="Saving…">
-        Save logo
-      </SubmitButton>
-    </form>
+/** Up to two letters from the name, for the badge stand-in. */
+function initialsOf(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter((word) => /^[A-Za-z]/.test(word))
+      .slice(0, 2)
+      .map((word) => word[0]!.toUpperCase())
+      .join('') || 'S'
   );
 }
 
@@ -145,14 +198,14 @@ export function ValidityPanel({ school }: { school: SchoolSummary }) {
       )}
 
       <Field
-        label="Valid until"
-        hint="Leave blank for no end date. When it passes, everybody at the school is locked out."
+        label="Access ends"
+        hint="Leave it blank for no end date. When the date passes, everybody at the school is signed out."
       >
         <Input name="validUntil" type="date" defaultValue={current} />
       </Field>
 
       <SubmitButton variant="secondary" pendingLabel="Saving…">
-        Save validity
+        Save end date
       </SubmitButton>
     </form>
   );
@@ -227,10 +280,14 @@ export function SuspendPanel({
       </Notice>
 
       {!confirming ? (
-        <Button type="button" variant="danger" onClick={() => setConfirming(true)}>
-          <IconBan size={17} />
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-300 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
+        >
+          <IconBan size={17} aria-hidden="true" />
           Suspend this school…
-        </Button>
+        </button>
       ) : (
         <form action={formAction} className="space-y-4">
           <Field label="Reason" required hint="Recorded in the audit log against your account.">
@@ -270,8 +327,8 @@ export function ReactivatePanel({ school }: { school: SchoolSummary }) {
       <FormSuccess message={state.success} />
 
       {expired && (
-        <Notice tone="warning" title="This plan has already lapsed.">
-          A new expiry date is required — without one it would block again on the next request.
+        <Notice tone="warning" title="Their access date has passed.">
+          Give a new end date — without one they would be blocked again straight away.
         </Notice>
       )}
 
@@ -279,7 +336,7 @@ export function ReactivatePanel({ school }: { school: SchoolSummary }) {
         Reactivating restores access for everyone at {school.name}.
       </p>
 
-      <Field label={expired ? 'New expiry date' : 'Extend expiry (optional)'} required={expired}>
+      <Field label={expired ? 'New end date' : 'New end date (optional)'} required={expired}>
         <Input
           name="expiresAt"
           type="date"

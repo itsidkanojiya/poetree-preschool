@@ -143,4 +143,49 @@ describe.skipIf(!dbUp)('school branding', () => {
     });
     expect(stored!.logoFileId).toBeNull();
   });
+
+  // The portal's Logo card uploads as the Super Admin, who belongs to no
+  // school — and POST /files needs one, so every upload there was a 500.
+  it('lets the publisher upload a school’s logo in one step', async () => {
+    const response = await api
+      .post(`${BASE}/publication/schools/${schoolA.id}/logo`)
+      .set(auth(publisher))
+      .attach('file', TINY_PNG, 'logo.png');
+
+    expect(response.status).toBe(200);
+    expect(response.body.logoUrl).toBeTruthy();
+
+    const logo = await api.get(`${BASE}/public/schools/alpha/logo`);
+    expect(logo.status).toBe(200);
+    expect(logo.headers['content-type']).toContain('image/png');
+
+    // Filed under the school, so deleting the school takes the file with it.
+    const school = await prismaUnscoped.school.findUnique({
+      where: { id: schoolA.id },
+      select: { logoFileId: true },
+    });
+    const file = await prismaUnscoped.fileObject.findUnique({
+      where: { id: school!.logoFileId! },
+      select: { schoolId: true },
+    });
+    expect(file!.schoolId).toBe(schoolA.id);
+  });
+
+  it('refuses a non-picture uploaded as a logo', async () => {
+    const response = await api
+      .post(`${BASE}/publication/schools/${schoolB.id}/logo`)
+      .set(auth(publisher))
+      .attach('file', Buffer.from('%PDF-1.4\n%����\n1 0 obj\n<<>>\nendobj\n'), 'letter.pdf');
+
+    expect(response.status).toBe(400);
+  });
+
+  it('keeps the logo upload to the publisher', async () => {
+    const response = await api
+      .post(`${BASE}/publication/schools/${schoolA.id}/logo`)
+      .set(auth(adminA))
+      .attach('file', TINY_PNG, 'logo.png');
+
+    expect(response.status).toBe(403);
+  });
 });

@@ -8,6 +8,7 @@ import {
   type StandardSummary,
 } from '@poetree/shared';
 import { Input, Select } from '@/components/ui/form';
+import { AutoSubmitForm } from '@/components/ui/auto-submit-form';
 
 const OLDER_TYPES = ACTIVITY_TYPES.filter(
   (type) => !(AUTHORED_ACTIVITY_TYPES as readonly ActivityType[]).includes(type),
@@ -49,7 +50,7 @@ export function TypeFilterBar({
   const active = Object.values(filters).filter(Boolean).length;
 
   return (
-    <form method="get" className="mb-5 space-y-3">
+    <AutoSubmitForm className="mb-5 space-y-3">
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <Select name="classLevelId" defaultValue={filters.classLevelId ?? ''} aria-label="Standard">
           <option value="">Every standard</option>
@@ -107,9 +108,9 @@ export function TypeFilterBar({
         />
         <button
           type="submit"
-          className="rounded-lg bg-navy-900 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-navy-800"
+          className="rounded-lg bg-white px-3.5 py-2 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 transition-colors hover:bg-navy-50"
         >
-          Filter
+          Search
         </button>
         {active > 0 && (
           <Link
@@ -120,6 +121,6 @@ export function TypeFilterBar({
           </Link>
         )}
       </div>
-    </form>
+    </AutoSubmitForm>
   );
 }

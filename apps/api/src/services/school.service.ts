@@ -21,7 +21,8 @@ import { hashPassword } from '../lib/password.js';
 import { paginate, toSkipTake } from '../lib/pagination.js';
 import { codeFromName, nextFreeCode, scopeKeyFor, slugify } from '../lib/scope.js';
 import { logger } from '../lib/logger.js';
-import { storage } from '../lib/storage.js';
+import { sniffMime, storage, typeFor } from '../lib/storage.js';
+import { stripImageMetadata } from '../lib/exif.js';
 import { writeAuditLog } from './audit.service.js';
 import { seedEntitlementsForSchool } from './book.service.js';
 import { invalidateSchoolAccess } from './schoolAccess.service.js';
@@ -658,6 +659,59 @@ export async function setSchoolLogo(
   });
 
   return toSummary(school);
+}
+
+/**
+ * Uploads a picture and makes it the school's logo, in one step.
+ *
+ * POST /files files an upload under the caller's own school, and the Super
+ * Admin who sets logos has none — so that route answered every logo from the
+ * portal with a 500. This stores the picture under the school it is for, which
+ * also means deleting the school takes the file with it.
+ */
+export async function uploadSchoolLogo(
+  schoolId: string,
+  file: { buffer: Buffer; originalname: string; size: number } | undefined,
+  actorUserId: string,
+): Promise<SchoolSummary> {
+  const school = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true },
+  });
+  if (!school) throw ApiError.notFound('School not found');
+  if (!file) throw ApiError.badRequest('No file was uploaded');
+
+  // By content, never by the name or the Content-Type the browser sent.
+  const mime = sniffMime(file.buffer);
+  const allowed = mime ? typeFor(mime) : undefined;
+  if (!mime || !allowed || !mime.startsWith('image/')) {
+    throw ApiError.badRequest('A logo has to be a picture: PNG, JPEG or WebP');
+  }
+  if (file.size > allowed.maxBytes) {
+    throw ApiError.badRequest(
+      `${mime} files may be at most ${Math.round(allowed.maxBytes / (1024 * 1024))} MB`,
+    );
+  }
+
+  // A phone photograph carries where it was taken; none of that is kept.
+  const bytes = stripImageMetadata(file.buffer, mime);
+  const stored = await storage.put({ schoolId, originalName: file.originalname, bytes });
+
+  const record = await prismaUnscoped.fileObject.create({
+    data: {
+      schoolId,
+      storageKey: stored.key,
+      originalName: file.originalname.slice(0, 200),
+      mimeType: mime,
+      sizeBytes: stored.sizeBytes,
+      checksum: stored.checksum,
+      uploadedById: actorUserId,
+      visibility: 'SCHOOL',
+    },
+    select: { id: true },
+  });
+
+  return setSchoolLogo(schoolId, record.id, actorUserId);
 }
 
 

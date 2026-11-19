@@ -2,8 +2,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import type { CatalogueActivity, QuestionRow } from '@poetree/shared';
 import { apiFetch } from '@/lib/api';
-import { Card, PageHeader, Pill } from '@/components/ui/layout';
-import { IconArrowLeft } from '@/components/icons';
+import { Card, Notice, PageHeader, Pill } from '@/components/ui/layout';
+import { IconArrowLeft, IconPlus } from '@/components/icons';
+import { FOCUS } from '../../../readiness';
 import { AddQuestionForm, EditQuestionForm, QuestionControls } from './forms';
 import { editorDescription } from './editors/kinds';
 
@@ -28,22 +29,37 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <Link
-        href={`/publication/question-types/${id}`}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-navy-900"
-      >
-        <IconArrowLeft size={16} /> {activity.title}
-      </Link>
-
       <PageHeader
-        title="Activities"
-        description={`${activity.title}${activity.book ? ` · ${activity.book.name}` : ''}`}
+        eyebrow={
+          <Link
+            href={`/publication/question-types/${id}`}
+            className={`inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-navy-900 ${FOCUS}`}
+          >
+            <IconArrowLeft size={16} aria-hidden="true" />
+            The activity type
+          </Link>
+        }
+        title={activity.title}
+        description={`${questions.length} ${questions.length === 1 ? 'activity' : 'activities'}${
+          activity.book ? ` · ${activity.book.name}` : ''
+        }${activity.chapter ? ` › ${activity.chapter.name}` : ''}`}
+        action={
+          <a
+            href="#add"
+            className={`inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800 ${FOCUS}`}
+          >
+            <IconPlus size={17} aria-hidden="true" />
+            Add an activity
+          </a>
+        }
       />
 
       {broken.length > 0 && (
-        <div className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-          {broken.length === 1 ? 'One activity is' : `${broken.length} activities are`} not being
-          shown to children: {broken.map((question) => question.problem).join('; ')}.
+        <div className="mb-5">
+          <Notice tone="warning">
+            {broken.length === 1 ? 'One activity is' : `${broken.length} activities are`} not being
+            shown to children: {broken.map((question) => question.problem).join('; ')}.
+          </Notice>
         </div>
       )}
 
@@ -80,7 +96,8 @@ export default async function QuestionsPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <div className="max-w-3xl">
+      {/* The jump target for "Add an activity" — at the end, where the next one goes. */}
+      <div id="add" className="max-w-3xl scroll-mt-6">
         <Card title="Add an activity" description={editorDescription(activity.type)}>
           <AddQuestionForm activityId={id} type={activity.type} count={questions.length} />
         </Card>

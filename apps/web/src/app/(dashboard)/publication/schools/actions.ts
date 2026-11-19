@@ -47,7 +47,7 @@ export async function createSchoolAction(
   }
 
   revalidatePath('/publication/schools');
-  // Straight to the detail page, which is where the plan and the admin are set up.
+  // Straight to the school's page, where the administrator, books and access are set up.
   redirect(`/publication/schools/${created.id}`);
 }
 
@@ -149,9 +149,12 @@ export async function suspendSchoolAction(
 
   revalidatePath(`/publication/schools/${schoolId}`);
   revalidatePath('/publication/schools');
-  return {
-    success: `School suspended. ${result.affectedUsers} user(s) blocked, ${result.revokedSessions} live session(s) ended.`,
-  };
+  // Back to the Access tab with the outcome in the address: the Suspend card
+  // is replaced by Restore access the moment this lands, and a message held
+  // in its state went with it — so suspending used to say nothing at all.
+  redirect(
+    `/publication/schools/${schoolId}?tab=access&done=suspended&users=${result.affectedUsers}`,
+  );
 }
 
 export async function reactivateSchoolAction(
@@ -174,15 +177,17 @@ export async function reactivateSchoolAction(
 
   revalidatePath(`/publication/schools/${schoolId}`);
   revalidatePath('/publication/schools');
-  return { success: 'School reactivated. Its users can sign in again.' };
+  redirect(`/publication/schools/${schoolId}?tab=access&done=reactivated`);
 }
 
 /**
- * Uploads a logo and points the school at it.
+ * Uploads a picture as the school's logo, in one call.
  *
- * Two calls, like every other attachment in the system: POST /files owns the
- * sniffing and the size caps, and this only records which file is the badge.
- * Done from the server so the token stays in its httpOnly cookie.
+ * Sent from the server so the token stays in its httpOnly cookie. It used to
+ * go through POST /files, which files an upload under the caller's own school
+ * — and the Super Admin has none, so every logo failed. Choosing nothing is
+ * refused here: taking the logo away is its own button now, not an accident
+ * of pressing Save with an empty field.
  */
 export async function uploadSchoolLogoAction(
   schoolId: string,
@@ -190,64 +195,55 @@ export async function uploadSchoolLogoAction(
   formData: FormData,
 ): Promise<ActionState> {
   const file = formData.get('logo');
-
-  // An empty submit means "take it away", which is a real thing to want.
   if (!(file instanceof File) || file.size === 0) {
-    try {
-      await apiFetch(`/publication/schools/${schoolId}/logo`, {
-        method: 'PUT',
-        redirectOnAuthFailure: false,
-        body: { fileId: null },
-      });
-    } catch (error) {
-      return { error: errorMessage(error, 'Could not remove the logo.') };
-    }
-
-    revalidatePath(`/publication/schools/${schoolId}`);
-    return { success: 'Logo removed.' };
+    return { error: 'Choose a picture first.' };
   }
-
-  let fileId: string;
 
   try {
     const token = (await cookies()).get(ACCESS_COOKIE)?.value;
     const upload = new FormData();
     upload.append('file', file);
 
-    const response = await fetch(`${API_BASE_URL}/files`, {
+    const response = await fetch(`${API_BASE_URL}/publication/schools/${schoolId}/logo`, {
       method: 'POST',
       headers: token ? { authorization: `Bearer ${token}` } : {},
       body: upload,
       cache: 'no-store',
     });
 
-    const data: unknown = await response.json().catch(() => null);
-
     if (!response.ok) {
+      const data: unknown = await response.json().catch(() => null);
       const message =
         data && typeof data === 'object' && 'error' in data
           ? String((data as { error: { message?: string } }).error.message ?? 'Upload failed')
           : 'Upload failed';
       return { error: message };
     }
-
-    fileId = (data as { id: string }).id;
   } catch (error) {
     return { error: errorMessage(error, 'Could not upload the logo.') };
   }
 
+  revalidatePath(`/publication/schools/${schoolId}`);
+  return { success: 'Saved. It will show on the app and on their sign-in screen.' };
+}
+
+/** Takes the logo away; the app shows the school's initials instead. */
+export async function removeSchoolLogoAction(
+  schoolId: string,
+  _prev: ActionState,
+): Promise<ActionState> {
   try {
     await apiFetch(`/publication/schools/${schoolId}/logo`, {
       method: 'PUT',
       redirectOnAuthFailure: false,
-      body: { fileId },
+      body: { fileId: null },
     });
   } catch (error) {
-    return { error: errorMessage(error, 'The file uploaded but would not attach.') };
+    return { error: errorMessage(error, 'Could not remove the logo.') };
   }
 
   revalidatePath(`/publication/schools/${schoolId}`);
-  return { success: 'Saved. It will show on the app and on their sign-in screen.' };
+  return { success: 'Logo removed.' };
 }
 
 

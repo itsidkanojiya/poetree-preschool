@@ -48,16 +48,19 @@ export function SubmitButton({
   variant = 'primary',
   pendingLabel,
   className = '',
+  disabled = false,
 }: {
   children: ReactNode;
   variant?: Variant;
   pendingLabel?: string;
   className?: string;
+  /** Held off until the form has what it needs (a file chosen, say). */
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant={variant} disabled={pending} className={className}>
+    <Button type="submit" variant={variant} disabled={pending || disabled} className={className}>
       {pending && <Spinner />}
       {pending ? (pendingLabel ?? 'Working…') : children}
     </Button>
@@ -94,8 +97,9 @@ export function Field({
   );
 }
 
+// 16px on phones (below that, iOS zooms the page in on every tap); 14px from sm up.
 const CONTROL =
-  'w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-sm text-navy-950 shadow-sm ring-1 ring-inset ring-navy-950/15 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-navy-600 disabled:bg-slate-50 disabled:text-slate-500';
+  'w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-base sm:text-sm text-navy-950 shadow-sm ring-1 ring-inset ring-navy-950/15 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-navy-600 disabled:bg-slate-50 disabled:text-slate-500';
 
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${CONTROL} ${className}`} {...props} />;

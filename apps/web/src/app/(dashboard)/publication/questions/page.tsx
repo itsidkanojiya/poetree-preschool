@@ -191,6 +191,7 @@ export default async function QuestionsPage({
                 totalPages={questions.totalPages}
                 total={questions.total}
                 basePath={query ? `/publication/questions?${query}` : '/publication/questions'}
+                noun={['activity', 'activities']}
               />
             </>
           )}

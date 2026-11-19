@@ -487,6 +487,22 @@ publicationRouter.put(
   }),
 );
 
+/** Uploads a picture as this school's logo, in one step (multipart field `file`). */
+publicationRouter.post(
+  '/schools/:id/logo',
+  assetUpload.single('file'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(
+      await schoolService.uploadSchoolLogo(
+        params<{ id: string }>(req).id,
+        req.file,
+        req.auth!.userId,
+      ),
+    );
+  }),
+);
+
 /* -------------------------------------------------------------------------- */
 /* Catalogue artwork                                                          */
 /* -------------------------------------------------------------------------- */

@@ -5,14 +5,21 @@ import type { OrganisationSummary } from '@poetree/shared';
 import { Field, FieldSet, FormError, Input, Select, SubmitButton } from '@/components/ui/form';
 import { createSchoolAction, type ActionState } from '../actions';
 
-export function NewSchoolForm({ organisations }: { organisations: OrganisationSummary[] }) {
+export function NewSchoolForm({
+  organisations,
+  defaultOrganisationId,
+}: {
+  organisations: OrganisationSummary[];
+  /** Already chosen when the form is opened from a group's "Add a branch". */
+  defaultOrganisationId?: string;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(createSchoolAction, {});
 
   return (
     <form action={formAction} className="space-y-7">
       <FormError message={state.error} />
 
-      <FieldSet legend="Identity">
+      <FieldSet legend="The school">
         <Field label="School name" required>
           <Input name="name" required placeholder="Sunrise Preschool" />
         </Field>
@@ -20,9 +27,9 @@ export function NewSchoolForm({ organisations }: { organisations: OrganisationSu
         {organisations.length > 0 && (
           <Field
             label="Group"
-            hint="A branch of a group, or a school on its own. Branches are numbered under the group's code."
+            hint="Only if this school is a branch of a group."
           >
-            <Select name="organisationId" defaultValue="">
+            <Select name="organisationId" defaultValue={defaultOrganisationId ?? ''}>
               <option value="">Independent school</option>
               {organisations.map((organisation) => (
                 <option key={organisation.id} value={organisation.id}>
@@ -35,7 +42,7 @@ export function NewSchoolForm({ organisations }: { organisations: OrganisationSu
 
         <Field
           label="School ID"
-          hint="Left blank, it is generated from the name — sunrisepreschool, or sunrise01 for a branch. Permanent either way: parents and teachers type it into the Poetree Kids app to sign in."
+          hint="Made from the name if left blank. It can't be changed later."
         >
           <Input
             name="code"
@@ -56,7 +63,7 @@ export function NewSchoolForm({ organisations }: { organisations: OrganisationSu
         <Field label="Principal">
           <Input name="principalName" />
         </Field>
-        <Field label="Brand colour" hint="Used on the school's app in Phase 2.">
+        <Field label="Brand colour" hint="Their app and portal take this colour.">
           <Input name="primaryColor" type="color" defaultValue="#16307C" className="h-11 px-1.5 py-1" />
         </Field>
       </FieldSet>

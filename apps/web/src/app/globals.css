@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* --font-sans and --font-display come from next/font in app/layout.tsx.
+     Defining them here as well wins the cascade and points at a family name
+     nobody has installed — which is how Poppins never actually loaded. */
 
   /* Page plane sits a touch warm so white cards lift off it. */
   --plane: #f6f7fa;
@@ -15,6 +17,12 @@
   body {
     background-color: var(--plane);
     @apply text-slate-800 antialiased;
+  }
+
+  /* Titles in the rounded face; everything read and typed stays in Inter. */
+  h1,
+  h2 {
+    font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
   }
 
   /* Admins live in these tables all day — keyboard focus must never be subtle. */

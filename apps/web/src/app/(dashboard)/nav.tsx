@@ -37,12 +37,22 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Grouped the way the School Admin's is, so a page is found by what it is
+// about rather than by reading a list of eleven. Same pages, same addresses.
 const PUBLICATION_NAV: NavGroup[] = [
   {
+    items: [{ href: '/publication', label: 'Overview', icon: <IconHome size={18} />, exact: true }],
+  },
+  {
+    heading: 'Customers',
     items: [
-      { href: '/publication', label: 'Overview', icon: <IconHome size={18} />, exact: true },
       { href: '/publication/schools', label: 'Schools', icon: <IconSchool size={18} /> },
       { href: '/publication/organisations', label: 'Groups', icon: <IconParents size={18} /> },
+    ],
+  },
+  {
+    heading: 'Content',
+    items: [
       { href: '/publication/books', label: 'Books', icon: <IconPlan size={18} /> },
       {
         href: '/publication/question-types',
@@ -53,11 +63,21 @@ const PUBLICATION_NAV: NavGroup[] = [
       // The tracing module: its switch for every school, and each letter's video.
       { href: '/publication/tracing', label: 'Tracing', icon: <IconTrace size={18} /> },
       { href: '/publication/games', label: 'Games', icon: <IconGame size={18} /> },
-      // Poetree's Google sign-in, through which each school connects its own Drive.
-      { href: '/publication/google-drive', label: 'Google Drive', icon: <IconCloud size={18} /> },
+    ],
+  },
+  {
+    heading: 'Data',
+    items: [
       { href: '/publication/usage', label: 'Usage', icon: <IconChart size={18} /> },
       // Records across schools as Excel files.
       { href: '/publication/exports', label: 'Export data', icon: <IconDownload size={18} /> },
+    ],
+  },
+  {
+    heading: 'Settings',
+    items: [
+      // Poetree's Google sign-in, through which each school connects its own Drive.
+      { href: '/publication/google-drive', label: 'Google Drive', icon: <IconCloud size={18} /> },
     ],
   },
 ];

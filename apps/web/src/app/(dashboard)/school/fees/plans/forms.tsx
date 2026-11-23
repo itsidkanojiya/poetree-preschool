@@ -3,6 +3,9 @@
 import { useState, useTransition, type FormEvent } from 'react';
 import {
   saveFeePlanSchema,
+  scheduleYear,
+  yearOfFees,
+  type StructureItem,
   type AcademicYearSummary,
   type FeePlanView,
   type FeeReminderPolicyView,
@@ -11,6 +14,7 @@ import { Button, Field, FormError, Input } from '@/components/ui/form';
 import { ConfirmButton } from '@/components/ui/confirm-button';
 import { Notice } from '@/components/ui/layout';
 import { Toast } from '@/components/ui/toast';
+import { formatPrice } from '@/lib/format';
 import { addMonths, monthName, monthsSpanned } from '../calendar';
 import {
   deletePlanAction,
@@ -27,6 +31,13 @@ const SMALL =
 const CHECKBOX = 'h-4 w-4 rounded border-navy-300';
 
 type ClassLevel = { id: string; name: string };
+
+/** One standard's fee structure for the plan's year, for the live preview. */
+export interface StandardFees {
+  classLevelId: string;
+  classLevelName: string;
+  items: StructureItem[];
+}
 
 /* -------------------------------------------------------------------------- */
 /* Installment rows                                                           */
@@ -114,6 +125,77 @@ function checkPlan(body: PlanBody): string | null {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * What each standard's installments come to as the plan is edited — worked
+ * out by the same code that bills them, so the preview is the bill. A child
+ * new to the school pays any admission fee whole in the first installment;
+ * a returning child does not pay it.
+ */
+function LivePreview({
+  structures,
+  classIds,
+  rows,
+}: {
+  structures: StandardFees[];
+  classIds: string[];
+  rows: Row[];
+}) {
+  const installments = rows.map((row, index) => ({
+    label: row.label.trim() || `#${index + 1}`,
+    dueDate: row.dueDate,
+    weight: Math.max(0, Math.floor(Number(row.weight) || 0)),
+  }));
+  if (installments.length === 0 || installments.every((i) => i.weight === 0)) return null;
+
+  const shown = structures.filter(
+    (s) => s.items.length > 0 && (classIds.length === 0 || classIds.includes(s.classLevelId)),
+  );
+  const line = (nets: number[]) =>
+    nets.map((net, index) => `${installments[index]!.label} ${formatPrice(net)}`).join(' · ');
+
+  return (
+    <div data-plan-preview className="rounded-xl bg-navy-50/50 p-3 ring-1 ring-navy-950/[0.06]">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        What each installment comes to
+      </p>
+      {shown.length === 0 ? (
+        <p className="text-sm text-slate-600">
+          No fees are set for {classIds.length === 0 ? 'any standard' : 'these standards'} this
+          year. Set them under Fees → Fee structure.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {shown.map((standard) => {
+            const fresh = scheduleYear(
+              yearOfFees(standard.items, [], { newChild: true }),
+              installments,
+            );
+            const back = scheduleYear(
+              yearOfFees(standard.items, [], { newChild: false }),
+              installments,
+            );
+            const differs = fresh.some((i, index) => i.netInPaise !== back[index]!.netInPaise);
+            return (
+              <li key={standard.classLevelId} className="text-sm">
+                <span className="font-medium text-navy-950">{standard.classLevelName}</span>
+                <span className="block text-slate-600">
+                  {differs ? 'New children: ' : ''}
+                  {line(fresh.map((i) => i.netInPaise))}
+                </span>
+                {differs && (
+                  <span className="block text-slate-500">
+                    Returning children: {line(back.map((i) => i.netInPaise))}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * A plan's name, the classes it is offered to and its installments, edited as
  * a whole and saved at once.
  *
@@ -125,11 +207,14 @@ export function PlanForm({
   plan,
   year,
   classLevels,
+  structures = [],
   onSaved,
 }: {
   plan?: FeePlanView;
   year: AcademicYearSummary;
   classLevels: ClassLevel[];
+  /** The year's fee structures, for the live rupee preview. */
+  structures?: StandardFees[];
   /** After an edit is saved; the new-plan form clears itself instead. */
   onSaved?: (message: string) => void;
 }) {
@@ -376,8 +461,11 @@ export function PlanForm({
         <p className="text-xs text-slate-500">
           The weight is an installment’s share of the year’s fees: 1, 1, 1 is three equal parts; 2,
           1, 1 is half up front and a quarter twice. Keep them in date order. Once a family chooses
-          the plan, each installment becomes an invoice due on its date.
+          the plan, each installment becomes an invoice due on its date. An admission fee is not
+          divided: it is paid whole with the first installment.
         </p>
+
+        <LivePreview structures={structures} classIds={classIds} rows={rows} />
       </fieldset>
 
       <Button type="submit" disabled={pending}>
@@ -395,10 +483,12 @@ export function PlanControls({
   plan,
   year,
   classLevels,
+  structures = [],
 }: {
   plan: FeePlanView;
   year: AcademicYearSummary;
   classLevels: ClassLevel[];
+  structures?: StandardFees[];
 }) {
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState<PlanState>({});
@@ -451,6 +541,7 @@ export function PlanControls({
             plan={plan}
             year={year}
             classLevels={classLevels}
+            structures={structures}
             onSaved={(message) => {
               setEditing(false);
               setState({ success: message });

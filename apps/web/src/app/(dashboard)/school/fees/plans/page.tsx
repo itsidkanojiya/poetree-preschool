@@ -6,18 +6,33 @@ import { formatPrice } from '@/lib/format';
 import { Card, EmptyState, Notice, PageHeader, Pill } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
 import { formatDay } from '../calendar';
-import { PlanControls, PlanForm, ReminderForm } from './forms';
+import { PlanControls, PlanForm, ReminderForm, type StandardFees } from './forms';
 
 export const metadata: Metadata = { title: 'Installment plans · Poetree' };
+
+interface StructureRow {
+  academicYearId: string;
+  classLevelId: string;
+  isActive: boolean;
+  classLevel: { name: string };
+  items: Array<{
+    feeHeadId: string;
+    amountInPaise: number;
+    frequency: 'ONE_TIME' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'ANNUAL';
+    feeHead: { name: string };
+  }>;
+}
 
 function PlanCard({
   plan,
   year,
   classLevels,
+  structures,
 }: {
   plan: FeePlanView;
   year: AcademicYearSummary;
   classLevels: Array<{ id: string; name: string }>;
+  structures: StandardFees[];
 }) {
   return (
     <Card
@@ -101,7 +116,7 @@ function PlanCard({
           )}
         </div>
 
-        <PlanControls plan={plan} year={year} classLevels={classLevels} />
+        <PlanControls plan={plan} year={year} classLevels={classLevels} structures={structures} />
       </div>
     </Card>
   );
@@ -131,9 +146,25 @@ export default async function FeePlansPage({
   // The year asked for, else the current one. Always named to the API, so a
   // school with no current year still sees the plans of the year it picked.
   const selected = years.find((y) => y.id === year) ?? years.find((y) => y.isCurrent) ?? years[0];
-  const plans = selected
-    ? await apiFetch<FeePlanView[]>('/fees/plans', { query: { academicYearId: selected.id } })
-    : [];
+  const [plans, allStructures] = selected
+    ? await Promise.all([
+        apiFetch<FeePlanView[]>('/fees/plans', { query: { academicYearId: selected.id } }),
+        apiFetch<StructureRow[]>('/fees/structures'),
+      ])
+    : [[], []];
+  // This year's fees per standard, for the plan form's live rupee preview.
+  const structures: StandardFees[] = allStructures
+    .filter((s) => s.academicYearId === selected?.id && s.isActive)
+    .map((s) => ({
+      classLevelId: s.classLevelId,
+      classLevelName: s.classLevel.name,
+      items: s.items.map((item) => ({
+        feeHeadId: item.feeHeadId,
+        name: item.feeHead.name,
+        amountInPaise: item.amountInPaise,
+        frequency: item.frequency,
+      })),
+    }));
   const levels = classLevels.map(({ id, name }) => ({ id, name }));
 
   return (
@@ -189,7 +220,13 @@ export default async function FeePlansPage({
                 </Card>
               ) : (
                 plans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} year={selected} classLevels={levels} />
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    year={selected}
+                    classLevels={levels}
+                    structures={structures}
+                  />
                 ))
               )}
 
@@ -197,7 +234,12 @@ export default async function FeePlansPage({
                 title="Add a plan"
                 description={`For ${selected.name}. Families in its classes can choose it in the app until their year’s fees are billed.`}
               >
-                <PlanForm key={selected.id} year={selected} classLevels={levels} />
+                <PlanForm
+                  key={selected.id}
+                  year={selected}
+                  classLevels={levels}
+                  structures={structures}
+                />
               </Card>
             </div>
 

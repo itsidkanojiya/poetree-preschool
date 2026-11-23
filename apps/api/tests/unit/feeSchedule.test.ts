@@ -203,3 +203,48 @@ describe('the school’s day', () => {
     expect(schoolToday(new Date('2026-10-14T18:00:00Z'))).toBe('2026-10-14');
   });
 });
+
+describe('one-time fees (admission)', () => {
+  /** ₹48,000 a year of tuition, and ₹5,000 admission charged once. */
+  const withAdmission: StructureItem[] = [
+    { feeHeadId: 'tuition', name: 'Tuition', amountInPaise: rupees(48_000), frequency: 'ANNUAL' },
+    {
+      feeHeadId: 'admission',
+      name: 'Admission',
+      amountInPaise: rupees(5_000),
+      frequency: 'ONE_TIME',
+    },
+  ];
+
+  it('charges a new child the admission fee, marked to be paid up front', () => {
+    const heads = yearOfFees(withAdmission, [], { newChild: true });
+    const admission = heads.find((h) => h.feeHeadId === 'admission');
+    expect(admission?.grossInPaise).toBe(rupees(5_000));
+    expect(admission?.upfront).toBe(true);
+    expect(heads.find((h) => h.feeHeadId === 'tuition')?.upfront).toBeFalsy();
+  });
+
+  it('does not charge a returning child the admission fee again', () => {
+    const heads = yearOfFees(withAdmission, [], { newChild: false });
+    expect(heads.map((h) => h.feeHeadId)).toEqual(['tuition']);
+  });
+
+  it('puts the whole admission fee in the first installment', () => {
+    const installments = scheduleYear(yearOfFees(withAdmission, [], { newChild: true }), plan(4));
+    expect(nets(installments)).toEqual([17_000, 12_000, 12_000, 12_000].map(rupees));
+    expect(installments[0]!.lines.map((l) => l.feeHeadId).sort()).toEqual(['admission', 'tuition']);
+    for (const later of installments.slice(1)) {
+      expect(later.lines.map((l) => l.feeHeadId)).toEqual(['tuition']);
+    }
+  });
+
+  it('keeps a concession on the admission fee inside the first installment', () => {
+    const heads = yearOfFees(
+      withAdmission,
+      [{ kind: 'PERCENT', value: 50, feeHeadId: 'admission' }],
+      { newChild: true },
+    );
+    const installments = scheduleYear(heads, plan(4));
+    expect(nets(installments)).toEqual([14_500, 12_000, 12_000, 12_000].map(rupees));
+  });
+});

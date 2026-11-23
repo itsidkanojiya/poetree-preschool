@@ -238,12 +238,20 @@ async function assertGuardiansBelongToSchool(parentProfileIds: string[]): Promis
   }
 }
 
-async function assertClassroomBelongsToSchool(classroomId: string): Promise<void> {
+/**
+ * The class, at this school, and the academic year it belongs to.
+ *
+ * A child joins the year their class is in. Asking for the school's "current"
+ * year instead refused every class change at a school that had made its year
+ * without ticking "current" — the child stayed in no class with no way out.
+ */
+async function classroomAtSchool(classroomId: string): Promise<{ academicYearId: string }> {
   const classroom = await prisma.classroom.findFirst({
     where: { id: classroomId },
-    select: { id: true },
+    select: { academicYearId: true },
   });
   if (!classroom) throw ApiError.badRequest('That classroom does not exist at your school');
+  return classroom;
 }
 
 export async function assertStudentSeatAvailable(schoolId: string): Promise<void> {
@@ -275,7 +283,6 @@ export async function createStudent(
   if (input.guardians.length > 0) {
     await assertGuardiansBelongToSchool(input.guardians.map((g) => g.parentProfileId));
   }
-  if (input.classroomId) await assertClassroomBelongsToSchool(input.classroomId);
   // A new parent typed in with the child: refused, before anything is
   // written, if the school already has someone with that phone or email.
   const newParent = input.newParent;
@@ -292,13 +299,10 @@ export async function createStudent(
     });
   }
 
-  // A classroom means an enrolment, and an enrolment needs a year to belong to.
-  const academicYearId = input.classroomId ? await currentAcademicYearId() : null;
-  if (input.classroomId && !academicYearId) {
-    throw ApiError.badRequest(
-      'Set a current academic year before assigning a child to a classroom.',
-    );
-  }
+  // A classroom means an enrolment, in the year the classroom belongs to.
+  const academicYearId = input.classroomId
+    ? (await classroomAtSchool(input.classroomId)).academicYearId
+    : null;
 
   let newParentUserId: string | null = null;
   const studentId = await prisma.$transaction(async (tx) => {
@@ -398,7 +402,9 @@ export async function updateStudent(
   if (input.guardians) {
     await assertGuardiansBelongToSchool(input.guardians.map((g) => g.parentProfileId));
   }
-  if (input.classroomId) await assertClassroomBelongsToSchool(input.classroomId);
+  const classYearId = input.classroomId
+    ? (await classroomAtSchool(input.classroomId)).academicYearId
+    : null;
 
   const { guardians, classroomId, rollNo, ...fields } = input;
   const enrolment = existing.enrolments[0] ?? null;
@@ -478,25 +484,18 @@ export async function updateStudent(
           where: { id: enrolment.id },
           data: {
             classroomId: classroomId ?? undefined,
+            // The year follows the class, so the enrolment never points at a
+            // class in one year while counting in another.
+            academicYearId: classYearId ?? undefined,
             rollNo: rollNo ?? undefined,
           },
         });
-      } else if (classroomId) {
-        const academicYearId = await tx.academicYear
-          .findFirst({ where: { schoolId, isCurrent: true }, select: { id: true } })
-          .then((year) => year?.id ?? null);
-
-        if (!academicYearId) {
-          throw ApiError.badRequest(
-            'Set a current academic year before assigning a child to a classroom.',
-          );
-        }
-
+      } else if (classroomId && classYearId) {
         await tx.studentEnrolment.create({
           data: {
             schoolId,
             studentId,
-            academicYearId,
+            academicYearId: classYearId,
             classroomId,
             rollNo: rollNo ?? null,
             status: 'ACTIVE',

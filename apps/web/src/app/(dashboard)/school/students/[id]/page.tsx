@@ -240,13 +240,21 @@ export default async function StudentDetailPage({
 
   // This year's sections to move between, and the child's own even if it is
   // not one of them, so opening the window never changes their class.
+  // A school that never ticked a year as current still has classes: offer all
+  // of them, each with its year, rather than an empty list.
+  const hasCurrentYear = classrooms.some((classroom) => classroom.academicYear.isCurrent);
   const sections = classrooms
     .filter(
-      (classroom) => classroom.academicYear.isCurrent || classroom.id === student.classroom?.id,
+      (classroom) =>
+        !hasCurrentYear ||
+        classroom.academicYear.isCurrent ||
+        classroom.id === student.classroom?.id,
     )
     .map((classroom) => ({
       id: classroom.id,
-      label: `${classroom.classLevel.name} — ${classroom.section}`,
+      label: `${classroom.classLevel.name} — ${classroom.section}${
+        hasCurrentYear ? '' : ` (${classroom.academicYear.name})`
+      }`,
     }));
 
   const address = [

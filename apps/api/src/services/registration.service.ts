@@ -19,7 +19,7 @@ import { isSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLog } from './audit.service.js';
 import { consumeVerifiedChallenges } from './otp.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
-import { assertStudentSeatAvailable, currentAcademicYearId } from './student.service.js';
+import { assertStudentSeatAvailable } from './student.service.js';
 import { grantParentRole } from './parent.service.js';
 import { eraseBySchool } from './accountDeletion.service.js';
 import { holdsParent, profileRoles, rolesHeld } from './roles.service.js';
@@ -784,6 +784,7 @@ export async function approveRegistration(
     throw ApiError.notFound('That child is no longer on the roll');
   }
 
+  let classYearId: string | null = null;
   if (input.mode === 'CREATE') {
     // A new child takes a seat, the same as one entered by hand.
     await assertStudentSeatAvailable(schoolId);
@@ -803,18 +804,16 @@ export async function approveRegistration(
     if (input.classroomId) {
       const classroom = await prisma.classroom.findFirst({
         where: { id: input.classroomId },
-        select: { id: true },
+        select: { id: true, academicYearId: true },
       });
       if (!classroom) throw ApiError.notFound('Classroom not found');
+      classYearId = classroom.academicYearId;
     }
   }
 
-  // A class means an enrolment, and an enrolment needs a year to belong to.
-  const academicYearId =
-    input.mode === 'CREATE' && input.classroomId ? await currentAcademicYearId() : null;
-  if (input.mode === 'CREATE' && input.classroomId && !academicYearId) {
-    throw ApiError.badRequest('Set a current academic year before putting a child in a classroom.');
-  }
+  // A class means an enrolment, in the year that class belongs to — not the
+  // school's "current" year, which a school may never have ticked.
+  const academicYearId = input.mode === 'CREATE' ? classYearId : null;
 
   // Longer than the five seconds Prisma allows by default. Approving writes
   // eight statements — the account, the profile, the child, its admission

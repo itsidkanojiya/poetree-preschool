@@ -21,7 +21,7 @@ import {
   type PlanInstallment,
 } from '../lib/feeSchedule.js';
 import { writeAuditLog } from './audit.service.js';
-import { assertMayReadLedger } from './fee.service.js';
+import { assertMayReadLedger, isFirstYear } from './fee.service.js';
 import { nextDocumentNumber } from './sequence.service.js';
 
 /**
@@ -68,7 +68,7 @@ async function yearFor(academicYearId?: string) {
 async function childYear(
   db: Pick<TenantTransactionClient, 'studentEnrolment' | 'feeStructure' | 'feeConcession'>,
   studentId: string,
-  year: { id: string; name: string },
+  year: { id: string; name: string; startDate: Date },
 ): Promise<ChildYear | null> {
   const enrolment = await db.studentEnrolment.findFirst({
     where: {
@@ -117,6 +117,7 @@ async function childYear(
         frequency: item.frequency as Frequency,
       })),
       concessions,
+      { newChild: await isFirstYear(db, studentId, year.startDate) },
     ),
   };
 }

@@ -90,6 +90,23 @@ export interface GenerationResult {
  * Idempotent: children who already have an invoice for this period are counted
  * as skipped rather than charged again.
  */
+/**
+ * Whether this is the child's first year at the school: no enrolment in any
+ * year that began before this one. One-time fees — admission — are charged
+ * only then, so a child coming back next year is not charged admission again.
+ */
+export async function isFirstYear(
+  db: Pick<TenantTransactionClient, 'studentEnrolment'>,
+  studentId: string,
+  yearStart: Date,
+): Promise<boolean> {
+  const earlier = await db.studentEnrolment.findFirst({
+    where: { studentId, academicYear: { startDate: { lt: yearStart } } },
+    select: { id: true },
+  });
+  return earlier === null;
+}
+
 export async function generateInvoices(
   input: GenerateInvoicesInput,
   actorUserId: string,
@@ -189,7 +206,15 @@ export async function generateInvoices(
         select: { kind: true, value: true, feeHeadId: true },
       });
 
-      const lines = dueItems.map((item) => {
+      // Admission is charged in a child's first year only.
+      const firstYear = await isFirstYear(prisma, enrolment.studentId, year.startDate);
+      const chargeable = dueItems.filter((item) => item.frequency !== 'ONE_TIME' || firstYear);
+      if (chargeable.length === 0) {
+        skipped += 1;
+        continue;
+      }
+
+      const lines = chargeable.map((item) => {
         const discount = applyConcessions(item.amountInPaise, concessions, item.feeHeadId);
         return {
           feeHeadId: item.feeHeadId,

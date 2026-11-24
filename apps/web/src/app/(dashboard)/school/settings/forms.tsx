@@ -2,8 +2,6 @@
 
 import { useActionState } from 'react';
 import {
-  ID_CARD_LAYOUTS,
-  ID_CARD_LAYOUT_CODES,
   ID_CARD_SIZES,
   ID_CARD_SIZE_CODES,
   type IdCardLayout,
@@ -12,6 +10,7 @@ import {
 import { Field, FieldSet, FormError, Input, Select, SubmitButton } from '@/components/ui/form';
 import { Toast } from '@/components/ui/toast';
 import {
+  updateAdmissionNoModeAction,
   updateIdCardAction,
   updateSchoolProfileAction,
   uploadSchoolLogoAction,
@@ -134,41 +133,90 @@ export function LogoForm({ school }: { school: SchoolProfile }) {
   );
 }
 
-/** How the cards look, what size they are, and what goes on them. */
+/**
+ * The four kinds of card a school orders from a print shop: one side or front
+ * and back, each landscape or upright. Each is a design and a way up.
+ */
+const CARD_TYPES = [
+  {
+    value: 'SINGLE_HORIZONTAL',
+    label: 'Single side',
+    way: 'Horizontal',
+    layout: 'CLASSIC',
+    orientation: 'HORIZONTAL',
+  },
+  {
+    value: 'SINGLE_VERTICAL',
+    label: 'Single side',
+    way: 'Vertical',
+    layout: 'BANNER',
+    orientation: 'VERTICAL',
+  },
+  {
+    value: 'FRONT_BACK_HORIZONTAL',
+    label: 'Front & back',
+    way: 'Horizontal',
+    layout: 'FRONT_BACK',
+    orientation: 'HORIZONTAL',
+  },
+  {
+    value: 'FRONT_BACK_VERTICAL',
+    label: 'Front & back',
+    way: 'Vertical',
+    layout: 'FRONT_BACK',
+    orientation: 'VERTICAL',
+  },
+] as const;
+
+/** The type a school's saved settings amount to. */
+function cardTypeOf(school: SchoolProfile): (typeof CARD_TYPES)[number]['value'] {
+  const vertical = school.idCardOrientation === 'VERTICAL';
+  if (school.idCardLayout === 'FRONT_BACK') {
+    return vertical ? 'FRONT_BACK_VERTICAL' : 'FRONT_BACK_HORIZONTAL';
+  }
+  return vertical ? 'SINGLE_VERTICAL' : 'SINGLE_HORIZONTAL';
+}
+
+/** The sizes, named the same either way up; A6 is half A5 stood upright. */
+const CARD_SIZES = ID_CARD_SIZE_CODES.filter((code) => code !== 'A6');
+
+/** Which of the four kinds of card, what size, and what goes on it. */
 export function IdCardForm({ school }: { school: SchoolProfile }) {
   const [state, formAction] = useActionState<SettingsState, FormData>(updateIdCardAction, {});
+  const colour = school.primaryColor ?? '#16307C';
+  const size = school.idCardSize === 'A6' ? 'HALF_A5' : school.idCardSize;
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <FormError message={state.error} />
       <Toast message={state.success} />
 
       <fieldset>
         <legend className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Layout
+          Card type
         </legend>
-        <div className="grid gap-2.5 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-          {ID_CARD_LAYOUT_CODES.map((code) => (
+        <div className="grid grid-cols-2 gap-2.5">
+          {CARD_TYPES.map((type) => (
             <label
-              key={code}
+              key={type.value}
               className="flex cursor-pointer flex-col gap-2 rounded-xl p-2.5 ring-1 ring-navy-950/10 transition has-[:checked]:bg-navy-50 has-[:checked]:ring-2 has-[:checked]:ring-navy-900"
             >
-              <LayoutThumb layout={code} colour={school.primaryColor ?? '#16307C'} />
+              <CardTypeThumb
+                layout={type.layout}
+                vertical={type.orientation === 'VERTICAL'}
+                colour={colour}
+              />
               <span className="flex items-start gap-2">
                 <input
                   type="radio"
-                  name="idCardLayout"
-                  value={code}
-                  defaultChecked={school.idCardLayout === code}
+                  name="cardType"
+                  value={type.value}
+                  defaultChecked={cardTypeOf(school) === type.value}
                   className="mt-0.5 h-4 w-4 border-navy-300 text-navy-900"
                 />
                 <span>
-                  <span className="block text-sm font-medium text-navy-950">
-                    {ID_CARD_LAYOUTS[code].label}
-                  </span>
-                  <span className="block text-xs text-slate-500">
-                    {ID_CARD_LAYOUTS[code].description}
-                  </span>
+                  <span className="block text-sm font-medium text-navy-950">{type.label}</span>
+                  <span className="block text-xs text-slate-500">{type.way}</span>
                 </span>
               </span>
             </label>
@@ -179,9 +227,12 @@ export function IdCardForm({ school }: { school: SchoolProfile }) {
         </p>
       </fieldset>
 
-      <Field label="Card size" hint="Cards are generated at exactly this size, ready to print.">
-        <Select name="idCardSize" defaultValue={school.idCardSize}>
-          {ID_CARD_SIZE_CODES.map((code) => (
+      <Field
+        label="Card size"
+        hint="Vertical stands the same card upright: a standard card becomes 54 × 85.6 mm."
+      >
+        <Select name="idCardSize" defaultValue={size}>
+          {CARD_SIZES.map((code) => (
             <option key={code} value={code}>
               {ID_CARD_SIZES[code].label} — {ID_CARD_SIZES[code].widthMm} ×{' '}
               {ID_CARD_SIZES[code].heightMm} mm
@@ -194,39 +245,129 @@ export function IdCardForm({ school }: { school: SchoolProfile }) {
         <legend className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
           What goes on the card
         </legend>
-        <p className="mb-2 text-xs text-slate-500">
-          The child’s name, photograph, class and admission number are always on it. These are
-          the ones schools disagree about — a card goes home in a bag with a four-year-old.
+        <p className="text-sm text-navy-950">
+          On every card: Name · Grade · Address · Mobile · Birth date · Batch
         </p>
-
+        <p className="mb-1 text-xs text-slate-500">
+          Mobile is the main parent’s number. Also show:
+        </p>
+        <Toggle
+          name="idCardShowAdmissionNo"
+          label="Admission No."
+          hint="The school’s own number for the child."
+          defaultChecked={school.idCardShowAdmissionNo}
+        />
+        <Toggle
+          name="idCardShowGrNo"
+          label="GR No."
+          hint="From the General Register, where the child has one."
+          defaultChecked={school.idCardShowGrNo}
+        />
         <Toggle
           name="idCardShowBloodGroup"
           label="Blood group"
-          hint="Useful in an emergency, and personal."
+          hint="Useful in an emergency."
           defaultChecked={school.idCardShowBloodGroup}
-        />
-        <Toggle
-          name="idCardShowGuardianPhone"
-          label="Guardian’s phone number"
-          hint="So a lost child can be got home."
-          defaultChecked={school.idCardShowGuardianPhone}
-        />
-        <Toggle
-          name="idCardShowAddress"
-          label="Home address"
-          hint="Off by default — a card with an address on it is a map to a child’s house."
-          defaultChecked={school.idCardShowAddress}
-        />
-        <Toggle
-          name="idCardShowDateOfBirth"
-          label="Date of birth"
-          hint="Off by default — with a name, it is most of what it takes to pass as a parent on a phone call."
-          defaultChecked={school.idCardShowDateOfBirth}
         />
       </fieldset>
 
       <SubmitButton pendingLabel="Saving…">Save card settings</SubmitButton>
     </form>
+  );
+}
+
+/**
+ * How children's admission numbers are given: by the school's series, or typed
+ * by the office every time.
+ */
+export function AdmissionNoForm({
+  school,
+  next,
+}: {
+  school: SchoolProfile;
+  next: string;
+}) {
+  const [state, formAction] = useActionState<SettingsState, FormData>(
+    updateAdmissionNoModeAction,
+    {},
+  );
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <FormError message={state.error} />
+      <Toast message={state.success} />
+      {(
+        [
+          [
+            'AUTO',
+            'Automatic',
+            `The next number is issued: ${next}. The office can still type its own for a child, such as one joining from another school.`,
+          ],
+          ['MANUAL', 'Manual', 'The office types every admission number.'],
+        ] as const
+      ).map(([value, label, hint]) => (
+        <label key={value} className="flex min-h-[44px] items-start gap-2.5 text-sm text-navy-950">
+          <input
+            type="radio"
+            name="admissionNoMode"
+            value={value}
+            defaultChecked={school.admissionNoMode === value}
+            className="mt-0.5 h-4 w-4 border-navy-300 text-navy-900"
+          />
+          <span>
+            <span className="block font-medium">{label}</span>
+            <span className="block text-xs text-slate-500">{hint}</span>
+          </span>
+        </label>
+      ))}
+      <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
+    </form>
+  );
+}
+
+/** A small sketch of a card type, upright or on its side, in the school's colour. */
+function CardTypeThumb({
+  layout,
+  vertical,
+  colour,
+}: {
+  layout: IdCardLayout;
+  vertical: boolean;
+  colour: string;
+}) {
+  if (!vertical) return <LayoutThumb layout={layout} colour={colour} />;
+
+  const ink = '#1A1D29';
+  const pale = `${colour}22`;
+  const card = (x: number, back: boolean) => (
+    <g key={x} transform={`translate(${x} 0)`}>
+      <rect x="0.5" y="0.5" width="52" height="79" rx="4" fill="#fff" stroke="#0001" />
+      {back ? (
+        <>
+          <circle cx="26" cy="17" r="11" fill={colour} opacity="0.8" />
+          <rect x="5" y="34" width="42" height="34" rx="3" fill={pale} />
+          {[0, 1, 2, 3].map((i) => (
+            <rect key={i} x="9" y={39 + i * 7} width={32 - (i % 2) * 8} height="2.4" rx="1.2" fill={ink} opacity="0.55" />
+          ))}
+        </>
+      ) : (
+        <>
+          <rect x="0.5" y="0.5" width="52" height="15" rx="4" fill={colour} />
+          <rect x="10" y="6" width="32" height="3.5" rx="1.75" fill="#fff" />
+          <circle cx="26" cy="29" r="10" fill="#c9d6e8" stroke={colour} strokeWidth="1.5" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <rect key={i} x="7" y={45 + i * 5} width={36 - (i % 2) * 9} height="2.2" rx="1.1" fill={ink} opacity="0.55" />
+          ))}
+        </>
+      )}
+      <rect x="0.5" y="73" width="52" height="6.5" fill={colour} />
+    </g>
+  );
+
+  return (
+    <svg viewBox="0 0 120 80" className="h-auto w-full" aria-hidden="true">
+      {layout === 'FRONT_BACK' ? [card(5, false), card(62, true)] : card(33.5, false)}
+    </svg>
   );
 }
 

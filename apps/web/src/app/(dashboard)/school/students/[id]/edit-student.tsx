@@ -102,6 +102,9 @@ export function EditStudent({
               <Field label="Blood group">
                 <Input name="bloodGroup" maxLength={8} defaultValue={student.bloodGroup ?? ''} />
               </Field>
+              <Field label="GR No.">
+                <Input name="grNo" maxLength={40} defaultValue={student.grNo ?? ''} />
+              </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="sm:col-span-2">

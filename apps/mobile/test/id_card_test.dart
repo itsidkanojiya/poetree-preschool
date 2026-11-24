@@ -28,6 +28,10 @@ final _png = base64Decode(
 );
 
 class _Api implements HttpClientAdapter {
+  _Api([this.extra = const {}]);
+
+  /// Fields that differ from the card below, for one test.
+  final Map<String, Object?> extra;
   final asked = <String>[];
 
   @override
@@ -58,6 +62,7 @@ class _Api implements HttpClientAdapter {
                 'name': 'Aarav Shah',
                 'admissionNo': 'A1',
                 'photoUrl': '/api/v1/files/photo1',
+                ...extra,
               }
             : {
                 'error': {'code': 'X', 'message': 'Not found'},
@@ -101,4 +106,43 @@ void main() {
     expect(api.asked.where((path) => path.contains('/api/v1')), isEmpty);
     expect(find.text('Tap to retry'), findsNothing);
   });
+
+  for (final layout in ['CLASSIC', 'BANNER', 'FRONT_BACK']) {
+    testWidgets(
+      '$layout shows the GR number, and no admission number when not ticked',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(420, 1600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        Get.put<ApiService>(
+          ApiService()
+            ..client = ApiClient(
+              _NoTokens(),
+              dio: Dio()
+                ..httpClientAdapter = _Api({
+                  'layout': layout,
+                  'admissionNo': null,
+                  'grNo': 'GR-9',
+                  'classroom': 'Jr.KG A',
+                  'batch': '2026-27',
+                  'dateOfBirth': '04/02/2022',
+                  'guardianPhone': '+919820000201',
+                  'address': '7 Rose Villa, Pune',
+                }),
+            ),
+        );
+        Get.put(IdCardController(studentId: 's1', childName: 'Aarav'));
+
+        await tester.pumpWidget(const GetMaterialApp(home: IdCardView()));
+        for (var i = 0; i < 12; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+
+        expect(find.textContaining('GR-9'), findsWidgets);
+        expect(find.textContaining('A1'), findsNothing);
+        expect(find.text('—'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

@@ -383,6 +383,14 @@ schoolAdminRouter.post(
   }),
 );
 
+/** How the school numbers children, and what leaving the number blank issues. */
+schoolAdminRouter.get(
+  '/students/next-admission-no',
+  asyncHandler(async (_req, res) => {
+    res.json(await studentService.nextAdmissionNo());
+  }),
+);
+
 schoolAdminRouter.get(
   '/students/:id',
   validate({ params: idParamSchema }),

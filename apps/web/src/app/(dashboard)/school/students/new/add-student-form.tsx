@@ -17,7 +17,15 @@ const titleCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCas
  * opened with the child, or one already here is found by name or number — and
  * the office lands on the child's page, where a second parent can be linked.
  */
-export function AddStudentForm({ classrooms }: { classrooms: ClassroomSummary[] }) {
+export function AddStudentForm({
+  classrooms,
+  numbering,
+}: {
+  classrooms: ClassroomSummary[];
+  /** How the school numbers children, and what a blank number issues. */
+  numbering: { mode: 'AUTO' | 'MANUAL'; next: string };
+}) {
+  const manual = numbering.mode === 'MANUAL';
   const [state, formAction, pending] = useActionState<FamilyState, FormData>(
     createStudentWithFamilyAction,
     {},
@@ -63,8 +71,24 @@ export function AddStudentForm({ classrooms }: { classrooms: ClassroomSummary[] 
       </FieldSet>
 
       <FieldSet legend="Class">
-        <Field label="Admission number" required>
-          <Input name="admissionNo" required maxLength={40} />
+        <Field
+          label="Admission No."
+          required={manual}
+          hint={
+            manual
+              ? 'Your school types every admission number.'
+              : `Leave blank for ${numbering.next}, or type the child’s own.`
+          }
+        >
+          <Input
+            name="admissionNo"
+            required={manual}
+            maxLength={40}
+            placeholder={manual ? undefined : numbering.next}
+          />
+        </Field>
+        <Field label="GR No." hint="From the General Register, if the school keeps one.">
+          <Input name="grNo" maxLength={40} />
         </Field>
         <Field label="Class">
           <Select name="classroomId" defaultValue="">

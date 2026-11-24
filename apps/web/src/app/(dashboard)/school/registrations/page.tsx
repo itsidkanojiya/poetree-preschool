@@ -40,13 +40,14 @@ export default async function RegistrationsPage({
 }) {
   const { page = '1', search, status = 'PENDING' } = await searchParams;
 
-  const [registrations, classrooms, classLevels] = await Promise.all([
+  const [registrations, classrooms, numbering, classLevels] = await Promise.all([
     apiFetch<Paginated<RegistrationSummary>>('/registrations', {
       query: { page, pageSize: 20, search, status },
     }),
     // Offered when the office creates the child on the spot. A preschool has a
     // handful, so this is one small request rather than a search box.
     apiFetch<ClassroomSummary[]>('/classrooms'),
+    apiFetch<{ mode: 'AUTO' | 'MANUAL'; next: string }>('/students/next-admission-no'),
     // The standards a waiting request can be corrected to.
     status === 'PENDING'
       ? apiFetch<Array<{ id: string; name: string }>>('/class-levels')
@@ -237,13 +238,15 @@ export default async function RegistrationsPage({
                             matches={row.matches}
                             classrooms={classrooms.map((classroom) => ({
                               id: classroom.id,
-                              label: `${classroom.classLevel.name} — ${classroom.section}`,
+                              // "Jr.KG A", as the school names its classes.
+                              label: `${classroom.classLevel.name} ${classroom.section}`,
                               classLevelId: classroom.classLevel.id,
                               isCurrentYear: classroom.academicYear.isCurrent,
                             }))}
                             classLevel={row.classLevel}
                             parentAccountName={row.parentAccount?.name ?? null}
                             removedNames={row.removedAccounts}
+                            numbering={numbering}
                           />
                           <EditRegistration registration={row} classLevels={classLevels} />
                           <DeleteButton

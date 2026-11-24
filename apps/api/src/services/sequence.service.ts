@@ -29,6 +29,58 @@ interface SequenceRow {
   prefix: string;
 }
 
+const formatNumber = (prefix: string, value: number, padTo: number) =>
+  `${prefix}${String(value).padStart(padTo, '0')}`;
+
+/**
+ * The number the series would issue next, without issuing it — for a form to
+ * say "leave it blank for ADM-0043". Another clerk may take it first; the
+ * number actually issued is whatever nextDocumentNumber hands out.
+ */
+export async function peekDocumentNumber(
+  db: Pick<TenantTransactionClient, 'documentSequence'>,
+  input: NextNumberInput,
+): Promise<string> {
+  const row = await db.documentSequence.findFirst({
+    where: {
+      schoolId: input.schoolId,
+      kind: input.kind,
+      academicYearId: input.academicYearId ?? null,
+    },
+    select: { nextNumber: true, prefix: true },
+  });
+  return formatNumber(
+    row?.prefix ?? input.defaultPrefix ?? '',
+    row?.nextNumber ?? 1,
+    input.padTo ?? 4,
+  );
+}
+
+/**
+ * The next admission number nobody holds. A school that numbers automatically
+ * may still type a number by hand, so the series skips any it meets that is
+ * already a child's rather than issuing it twice.
+ */
+export async function issueAdmissionNo(
+  tx: TenantTransactionClient,
+  schoolId: string,
+): Promise<string> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const candidate = await nextDocumentNumber(tx, {
+      schoolId,
+      kind: 'ADMISSION',
+      academicYearId: null,
+      defaultPrefix: 'ADM-',
+    });
+    const taken = await tx.student.findFirst({
+      where: { schoolId, admissionNo: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+  throw new Error('Could not find a free admission number');
+}
+
 export async function nextDocumentNumber(
   tx: TenantTransactionClient,
   input: NextNumberInput,

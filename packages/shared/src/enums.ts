@@ -97,6 +97,14 @@ export const ID_CARD_SIZES: Readonly<
   A6: { label: 'A6 (portrait)', widthMm: 105, heightMm: 148 },
 };
 
+/** Which way up a card prints, at whichever size: upright for a lanyard, or landscape. */
+export const ID_CARD_ORIENTATIONS = ['HORIZONTAL', 'VERTICAL'] as const;
+export type IdCardOrientation = (typeof ID_CARD_ORIENTATIONS)[number];
+
+/** Whether the school's series issues admission numbers, or the office types them. */
+export const ADMISSION_NO_MODES = ['AUTO', 'MANUAL'] as const;
+export type AdmissionNoMode = (typeof ADMISSION_NO_MODES)[number];
+
 export const ID_CARD_LAYOUT_CODES = ['CLASSIC', 'BANNER', 'FRONT_BACK'] as const;
 export type IdCardLayout = (typeof ID_CARD_LAYOUT_CODES)[number];
 

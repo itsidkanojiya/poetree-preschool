@@ -19,6 +19,7 @@ import { getPlanLimits } from './plan.service.js';
 import { studentName } from '../lib/names.js';
 import { hashPassword } from '../lib/password.js';
 import { assertNoAccount, auditParentCreated, createParentRecords } from './parent.service.js';
+import { issueAdmissionNo, peekDocumentNumber } from './sequence.service.js';
 
 /**
  * A student's class and roll number live on their enrolment for the current
@@ -66,6 +67,7 @@ function toSummary(student: StudentRow): StudentSummary {
   return {
     id: student.id,
     admissionNo: student.admissionNo,
+    grNo: student.grNo,
     firstName: student.firstName,
     middleName: student.middleName,
     lastName: student.lastName,
@@ -125,6 +127,7 @@ const EDITABLE_FIELDS = [
   'gender',
   'avatarUrl',
   'bloodGroup',
+  'grNo',
   'status',
   'addressLine1',
   'addressLine2',
@@ -178,6 +181,7 @@ export async function listStudents(query: ListStudentsQuery): Promise<Paginated<
       { middleName: { contains: search } },
       { lastName: { contains: search } },
       { admissionNo: { contains: search } },
+      { grNo: { contains: search } },
       // The office is as likely to have the parent on the phone as the child's
       // name in front of them.
       {
@@ -289,15 +293,15 @@ export async function createStudent(
   if (newParent) await assertNoAccount({ phone: newParent.phone, email: newParent.email });
   const parentPasswordHash = newParent ? await hashPassword(newParent.password) : null;
 
-  const duplicate = await prisma.student.findFirst({
-    where: { admissionNo: input.admissionNo },
-    select: { id: true },
-  });
-  if (duplicate) {
-    throw ApiError.conflict(`Admission number "${input.admissionNo}" is already in use`, {
+  // Typed, or issued: the school's own choice. A school that types every
+  // number is asked for one; one that numbers automatically still may.
+  if (!input.admissionNo && (await admissionNoMode(schoolId)) === 'MANUAL') {
+    throw ApiError.badRequest('Enter the admission number. Your school types them itself.', {
       field: 'admissionNo',
     });
   }
+  if (input.admissionNo) await assertAdmissionNoFree(input.admissionNo);
+  if (input.grNo) await assertGrNoFree(input.grNo);
 
   // A classroom means an enrolment, in the year the classroom belongs to.
   const academicYearId = input.classroomId
@@ -321,7 +325,8 @@ export async function createStudent(
     const student = await tx.student.create({
       data: {
         schoolId,
-        admissionNo: input.admissionNo,
+        admissionNo: input.admissionNo ?? (await issueAdmissionNo(tx, schoolId)),
+        grNo: input.grNo ?? null,
         admissionDate: new Date(),
         firstName: input.firstName,
         middleName: input.middleName ?? null,
@@ -377,6 +382,58 @@ export async function createStudent(
   return getStudent(studentId);
 }
 
+/** How the school numbers its children, read from its own record. */
+export async function admissionNoMode(schoolId: string): Promise<'AUTO' | 'MANUAL'> {
+  const school = await prismaUnscoped.school.findUnique({
+    where: { id: schoolId },
+    select: { admissionNoMode: true },
+  });
+  return school?.admissionNoMode ?? 'AUTO';
+}
+
+/** Refused with the child who already holds it, so the office knows where to look. */
+async function assertAdmissionNoFree(admissionNo: string): Promise<void> {
+  const holder = await prisma.student.findFirst({
+    where: { admissionNo },
+    select: { firstName: true, middleName: true, lastName: true },
+  });
+  if (holder) {
+    throw ApiError.conflict(
+      `Admission number "${admissionNo}" is already ${studentName(holder)}’s.`,
+      { field: 'admissionNo' },
+    );
+  }
+}
+
+async function assertGrNoFree(grNo: string, exceptStudentId?: string): Promise<void> {
+  const holder = await prisma.student.findFirst({
+    where: { grNo, ...(exceptStudentId ? { NOT: { id: exceptStudentId } } : {}) },
+    select: { firstName: true, middleName: true, lastName: true },
+  });
+  if (holder) {
+    throw ApiError.conflict(`GR No. "${grNo}" is already ${studentName(holder)}’s.`, {
+      field: 'grNo',
+    });
+  }
+}
+
+/** What "leave it blank" will issue, for the form to say so. */
+export async function nextAdmissionNo(): Promise<{
+  mode: 'AUTO' | 'MANUAL';
+  next: string;
+}> {
+  const schoolId = requireSchoolId();
+  return {
+    mode: await admissionNoMode(schoolId),
+    next: await peekDocumentNumber(prisma, {
+      schoolId,
+      kind: 'ADMISSION',
+      academicYearId: null,
+      defaultPrefix: 'ADM-',
+    }),
+  };
+}
+
 export async function updateStudent(
   studentId: string,
   input: UpdateStudentInput,
@@ -402,6 +459,7 @@ export async function updateStudent(
   if (input.guardians) {
     await assertGuardiansBelongToSchool(input.guardians.map((g) => g.parentProfileId));
   }
+  if (input.grNo) await assertGrNoFree(input.grNo, studentId);
   const classYearId = input.classroomId
     ? (await classroomAtSchool(input.classroomId)).academicYearId
     : null;
@@ -464,6 +522,7 @@ export async function updateStudent(
         gender: fields.gender,
         avatarUrl: fields.avatarUrl,
         bloodGroup: fields.bloodGroup,
+        grNo: fields.grNo,
         status: fields.status,
         addressLine1: fields.addressLine1,
         addressLine2: fields.addressLine2,

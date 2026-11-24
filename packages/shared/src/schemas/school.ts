@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import {
   ID_CARD_LAYOUT_CODES,
+  ID_CARD_ORIENTATIONS,
+  ADMISSION_NO_MODES,
+  type IdCardOrientation,
+  type AdmissionNoMode,
   ID_CARD_SIZE_CODES,
   SCHOOL_STATUSES,
   type IdCardLayout,
@@ -108,6 +112,10 @@ export const updateSchoolProfileSchema = z.object({
   idCardShowGuardianPhone: z.boolean().optional(),
   idCardShowAddress: z.boolean().optional(),
   idCardShowDateOfBirth: z.boolean().optional(),
+  idCardOrientation: z.enum(ID_CARD_ORIENTATIONS).optional(),
+  idCardShowAdmissionNo: z.boolean().optional(),
+  idCardShowGrNo: z.boolean().optional(),
+  admissionNoMode: z.enum(ADMISSION_NO_MODES).optional(),
 });
 export type UpdateSchoolProfileInput = z.infer<typeof updateSchoolProfileSchema>;
 
@@ -136,6 +144,10 @@ export interface SchoolProfile {
   idCardShowGuardianPhone: boolean;
   idCardShowAddress: boolean;
   idCardShowDateOfBirth: boolean;
+  idCardOrientation: IdCardOrientation;
+  idCardShowAdmissionNo: boolean;
+  idCardShowGrNo: boolean;
+  admissionNoMode: AdmissionNoMode;
 }
 
 /** Null clears it. */

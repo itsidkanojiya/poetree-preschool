@@ -347,6 +347,28 @@ export async function updateParent(
     }
 
     if (relation !== undefined || occupation !== undefined || address !== undefined) {
+      // A family that moves takes its children with it: a child whose address
+      // was this parent's old one gets the new one. One the school set
+      // differently is left alone.
+      if (address) {
+        const profile = await tx.parentProfile.findFirst({
+          where: { userId, schoolId },
+          select: { id: true, address: true },
+        });
+        if (profile?.address && profile.address !== address) {
+          await tx.student.updateMany({
+            where: {
+              schoolId,
+              addressLine1: profile.address.slice(0, 200),
+              guardians: { some: { parentProfileId: profile.id } },
+            },
+            data: {
+              addressLine1: address.slice(0, 200),
+              addressLine2: address.length > 200 ? address.slice(200, 400) : null,
+            },
+          });
+        }
+      }
       await tx.parentProfile.updateMany({
         where: { userId, schoolId },
         data: {

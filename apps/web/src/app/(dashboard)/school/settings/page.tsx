@@ -4,7 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
 import { SignatureForm } from '@/components/signature-form';
 import { uploadPrincipalSignatureAction } from './actions';
-import { IdCardForm, LogoForm, SchoolDetailsForm } from './forms';
+import { AdmissionNoForm, IdCardForm, LogoForm, SchoolDetailsForm } from './forms';
 
 export const metadata: Metadata = { title: 'Settings · Poetree' };
 
@@ -16,13 +16,16 @@ export const metadata: Metadata = { title: 'Settings · Poetree' };
  * status, or how long its access lasts.
  */
 export default async function SchoolSettingsPage() {
-  const school = await apiFetch<SchoolProfile>('/school/profile');
+  const [school, numbering] = await Promise.all([
+    apiFetch<SchoolProfile>('/school/profile'),
+    apiFetch<{ next: string }>('/students/next-admission-no'),
+  ]);
 
   return (
     <>
       <PageHeader
         title="Settings"
-        description="Your school’s own details, and what goes on a child’s ID card."
+        description="Your school’s own details, how children are numbered, and what goes on a child’s ID card."
       />
 
       <div className="grid items-start gap-5 xl:grid-cols-[1.4fr_1fr]">
@@ -47,6 +50,13 @@ export default async function SchoolSettingsPage() {
               signatureUrl={school.principalSignatureUrl}
               name={school.principalName ?? 'The principal'}
             />
+          </Card>
+
+          <Card
+            title="Admission numbers"
+            description="Given by the school’s series, or typed by the office."
+          >
+            <AdmissionNoForm school={school} next={numbering.next} />
           </Card>
 
           <Card

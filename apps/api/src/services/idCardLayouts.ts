@@ -44,7 +44,10 @@ export interface CardData {
   };
   student: {
     name: string;
-    admissionNo: string;
+    /** Null when the school has not ticked it for the card. */
+    admissionNo: string | null;
+    /** The General Register number, when the school ticks it. */
+    grNo: string | null;
     classroom: string | null;
     /** The academic year, e.g. "2025-2026". */
     batch: string | null;
@@ -211,6 +214,68 @@ function colonRows(
   return y;
 }
 
+/** How tall colonRows would be, without drawing: every row at its wanted lines. */
+function colonRowsHeight(
+  doc: PDFKit.PDFDocument,
+  rows: Row[],
+  width: number,
+  style: { size: number; gap: number; uppercase?: boolean },
+): number {
+  doc.font(FONT.bold).fontSize(style.size);
+  const labelWidth =
+    Math.max(0, ...rows.map(([label]) => doc.widthOfString(label))) + style.size * 0.5;
+  const valueWidth = width - labelWidth - doc.widthOfString(':  ');
+  const lineHeight = doc.currentLineHeight(true);
+  return rows.reduce((total, [, raw, wanted = 1]) => {
+    const value = style.uppercase ? raw.toUpperCase() : raw;
+    const lines = Math.min(
+      wanted,
+      Math.max(1, Math.ceil(doc.heightOfString(value, { width: valueWidth, lineGap: 0 }) / lineHeight)),
+    );
+    return total + lineHeight * lines + style.gap;
+  }, 0);
+}
+
+/** The smallest text, in points, a card is allowed to shrink to. */
+const MIN_PRINTED_POINTS = 4;
+
+/**
+ * The scale, from 1 down to where `size` would fall below what can still be
+ * read, at which the whole of `height(scale)` fits in `room`. A long address
+ * shrinks the text a little rather than pushing a line off the card. The floor
+ * is in points, not a share of the design, so a large card may shrink further
+ * than a small one and still print larger.
+ */
+function fitScale(height: (scale: number) => number, room: number, size: number): number {
+  const floor = Math.min(1, Math.max(0.5, MIN_PRINTED_POINTS / size));
+  for (let scale = 1; scale > floor; scale -= 0.04) {
+    if (height(scale) <= room) return scale;
+  }
+  return floor;
+}
+
+/** colonRows at the largest size that fits them all. */
+function fittedColonRows(
+  doc: PDFKit.PDFDocument,
+  rows: Row[],
+  x: number,
+  y: number,
+  width: number,
+  bottom: number,
+  style: { size: number; labelColor: string; gap: number; uppercase?: boolean },
+): number {
+  const scale = fitScale(
+    (k) => colonRowsHeight(doc, rows, width, { ...style, size: style.size * k, gap: style.gap * k }),
+    bottom - y,
+    style.size,
+  );
+  return colonRows(doc, rows, x, y, width, bottom, {
+    ...style,
+    size: style.size * scale,
+    gap: style.gap * scale,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Classic — header with the school's badge, a large photograph, a tidy grid
 // ---------------------------------------------------------------------------
@@ -226,23 +291,22 @@ interface Field {
   lines?: number;
 }
 
+/**
+ * The grid under the name and grade: birth date, batch, mobile and address on
+ * every card, then the numbers the school ticked.
+ */
 function classicFields(student: CardData['student']): Field[] {
-  const facts: Field[] = [{ label: 'Admission no.', value: student.admissionNo }];
-  if (student.bloodGroup) facts.push({ label: 'Blood group', value: student.bloodGroup });
-  if (student.dateOfBirth) facts.push({ label: 'Date of birth', value: student.dateOfBirth });
-  if (student.batch) facts.push({ label: 'Academic year', value: student.batch });
-
-  // The first row of facts, then who to call — the guardian and their number
-  // side by side, never split across rows — then the rest.
-  const fields = facts.slice(0, 2);
-  if (student.guardianPhone) {
-    fields.push({ label: 'Guardian', value: student.guardianName ?? '—', newRow: true });
-    fields.push({ label: 'Phone', value: student.guardianPhone });
-  }
-  fields.push(...facts.slice(2).map((field, i) => (i === 0 ? { ...field, newRow: true } : field)));
-  if (student.address) {
-    fields.push({ label: 'Address', value: student.address, wide: true, lines: 2 });
-  }
+  const fields: Field[] = [
+    { label: 'Birth date', value: student.dateOfBirth ?? '—' },
+    { label: 'Batch', value: student.batch ?? '—' },
+    { label: 'Mobile', value: student.guardianPhone ?? '—', newRow: true },
+  ];
+  if (student.bloodGroup) fields.push({ label: 'Blood group', value: student.bloodGroup });
+  // The address before the numbers: it is compulsory, they are not, and if
+  // anything has to give way on a small card it is the optional one.
+  fields.push({ label: 'Address', value: student.address ?? '—', wide: true, lines: 2 });
+  if (student.admissionNo) fields.push({ label: 'Admission no', value: student.admissionNo });
+  if (student.grNo) fields.push({ label: 'GR no', value: student.grNo });
   return fields;
 }
 
@@ -312,6 +376,74 @@ function fieldGrid(
   }
 
   return column === 1 ? y + rowHeight : y;
+}
+
+/** How tall fieldGrid would be, without drawing — the same walk, no ink. */
+function fieldGridHeight(
+  doc: PDFKit.PDFDocument,
+  fields: Field[],
+  width: number,
+  style: { label: number; value: number; gap: number; columnGap: number },
+): number {
+  const columnWidth = (width - style.columnGap) / 2;
+  const labelStep = style.label * 1.45;
+  const valueLine = style.value * 1.35;
+  doc.font(FONT.bold).fontSize(style.value);
+  let y = 0;
+  let column = 0;
+  let rowHeight = 0;
+  for (const field of fields) {
+    if ((field.wide || field.newRow) && column === 1) {
+      y += rowHeight;
+      column = 0;
+      rowHeight = 0;
+    }
+    const cellWidth = field.wide ? width : columnWidth;
+    const wrapped = Math.min(
+      field.lines ?? 1,
+      Math.max(
+        1,
+        Math.ceil(
+          doc.heightOfString(field.value, { width: cellWidth, lineGap: 0 }) /
+            doc.currentLineHeight(true),
+        ),
+      ),
+    );
+    const cellHeight = labelStep + valueLine * wrapped + style.gap;
+    if (field.wide || column === 1) {
+      y += Math.max(rowHeight, cellHeight);
+      column = 0;
+      rowHeight = 0;
+    } else {
+      rowHeight = cellHeight;
+      column = 1;
+    }
+  }
+  return column === 1 ? y + rowHeight : y;
+}
+
+/** fieldGrid at the largest size that fits every field. */
+function fittedFieldGrid(
+  doc: PDFKit.PDFDocument,
+  fields: Field[],
+  x: number,
+  y: number,
+  width: number,
+  bottom: number,
+  style: { label: number; value: number; gap: number; columnGap: number },
+): number {
+  const scaled = (k: number) => ({
+    ...style,
+    label: style.label * k,
+    value: style.value * k,
+    gap: style.gap * k,
+  });
+  const scale = fitScale(
+    (k) => fieldGridHeight(doc, fields, width, scaled(k)),
+    bottom - y,
+    style.value,
+  );
+  return fieldGrid(doc, fields, x, y, width, bottom, scaled(scale));
 }
 
 /** A rounded pill of tinted colour, for the class. Returns its height. */
@@ -513,7 +645,7 @@ function drawClassic(doc: PDFKit.PDFDocument, data: CardData): void {
     }
 
     const gridWidth = width - pad * 3;
-    fieldGrid(doc, classicFields(student), pad * 1.5, y, gridWidth, bodyBottom - pad * 0.4, grid);
+    fittedFieldGrid(doc, classicFields(student), pad * 1.5, y, gridWidth, bodyBottom - pad * 0.4, grid);
     return;
   }
 
@@ -542,7 +674,7 @@ function drawClassic(doc: PDFKit.PDFDocument, data: CardData): void {
     y += pad * 0.7;
   }
 
-  fieldGrid(doc, classicFields(student), textX, y, textWidth, bodyBottom - pad * 0.3, {
+  fittedFieldGrid(doc, classicFields(student), textX, y, textWidth, bodyBottom - pad * 0.3, {
     ...grid,
     label: 3.9 * u,
     value: 5.9 * u,
@@ -554,14 +686,19 @@ function drawClassic(doc: PDFKit.PDFDocument, data: CardData): void {
 // Banner — bold header, round photograph, the school's address along the foot
 // ---------------------------------------------------------------------------
 
+/** NAME, GRADE, BATCH, BIRTH DATE, MOBILE and ADDRESS always; the ticked ones after, so they give way first. */
 function bannerRows(student: CardData['student']): Row[] {
-  const rows: Row[] = [['Name', student.name, 2]];
-  if (student.classroom) rows.push(['Grade', student.classroom]);
-  rows.push(['Adm. no.', student.admissionNo]);
-  if (student.dateOfBirth) rows.push(['Birth date', student.dateOfBirth]);
-  if (student.bloodGroup) rows.push(['Blood', student.bloodGroup]);
-  if (student.guardianPhone) rows.push(['Mobile', student.guardianPhone]);
-  if (student.address) rows.push(['Address', student.address, 2]);
+  const rows: Row[] = [
+    ['NAME', student.name, 2],
+    ['GRADE', student.classroom ?? '—'],
+    ['BATCH', student.batch ?? '—'],
+    ['BIRTH DATE', student.dateOfBirth ?? '—'],
+    ['MOBILE', student.guardianPhone ?? '—'],
+    ['ADDRESS', student.address ?? '—', 3],
+  ];
+  if (student.admissionNo) rows.push(['ADMISSION NO', student.admissionNo]);
+  if (student.grNo) rows.push(['GR NO', student.grNo]);
+  if (student.bloodGroup) rows.push(['BLOOD GROUP', student.bloodGroup]);
   return rows;
 }
 
@@ -624,7 +761,7 @@ function drawBanner(doc: PDFKit.PDFDocument, data: CardData): void {
     const cy = headerHeight + radius + mm(3) * u;
     roundPhoto(doc, data, width / 2, cy, radius);
 
-    colonRows(
+    fittedColonRows(
       doc,
       bannerRows(student),
       pad * 1.3,
@@ -663,7 +800,7 @@ function drawBanner(doc: PDFKit.PDFDocument, data: CardData): void {
   const radius = photoColumn / 2 - pad * 0.9;
   roundPhoto(doc, data, photoColumn / 2, (height - footHeight) / 2, radius);
 
-  colonRows(
+  fittedColonRows(
     doc,
     bannerRows(student),
     headerX + mm(1) * u,
@@ -726,10 +863,10 @@ function drawFront(doc: PDFKit.PDFDocument, data: CardData): void {
     align: hasLogo ? 'left' : 'center',
   });
 
-  const rows: Row[] = [['Adm. no.', student.admissionNo]];
-  if (student.dateOfBirth) rows.push(['Birth date', student.dateOfBirth]);
-  if (student.batch) rows.push(['Batch', student.batch]);
-  if (student.bloodGroup) rows.push(['Blood group', student.bloodGroup]);
+  // The front says who the child is; the back, how to reach their family.
+  const rows: Row[] = [['BATCH', student.batch ?? '—']];
+  if (student.admissionNo) rows.push(['ADMISSION NO', student.admissionNo]);
+  if (student.grNo) rows.push(['GR NO', student.grNo]);
 
   const bottom = height - footHeight;
   const tagHeight = mm(6) * u;
@@ -750,7 +887,7 @@ function drawFront(doc: PDFKit.PDFDocument, data: CardData): void {
       lines: 2,
     });
 
-    colonRows(doc, rows, pad * 2, nameY + used + mm(2.5) * u, width - pad * 4, tagY - mm(1) * u, {
+    fittedColonRows(doc, rows, pad * 2, nameY + used + mm(2.5) * u, width - pad * 4, tagY - mm(1) * u, {
       size: 6.5 * u,
       labelColor: brand,
       gap: mm(1) * u,
@@ -771,7 +908,7 @@ function drawFront(doc: PDFKit.PDFDocument, data: CardData): void {
       lines: 2,
     });
 
-    colonRows(doc, rows, textX, photoY + used + mm(2) * u, textWidth, tagY, {
+    fittedColonRows(doc, rows, textX, photoY + used + mm(2) * u, textWidth, tagY, {
       size: 6.5 * u,
       labelColor: brand,
       gap: mm(0.9) * u,
@@ -824,9 +961,7 @@ function drawBack(doc: PDFKit.PDFDocument, data: CardData): void {
 
   // "The address above" only when a child's address is printed above it; the
   // footer has to be true about what it points at.
-  const returnTo = student.address
-    ? 'If found, please return to the address above'
-    : 'If found, please return to the school';
+  const returnTo = 'If found, please return to the school';
   box(doc, returnTo, pad, bottom + footHeight * 0.28, width - pad * 2, {
     font: FONT.bold,
     size: 5.5 * u,
@@ -834,9 +969,12 @@ function drawBack(doc: PDFKit.PDFDocument, data: CardData): void {
     align: 'center',
   });
 
-  const rows: Row[] = [];
-  if (student.address) rows.push(['Address', student.address, 4]);
-  if (student.guardianPhone) rows.push(['Mobile', student.guardianPhone]);
+  const rows: Row[] = [
+    ['BIRTH DATE', student.dateOfBirth ?? '—'],
+    ['MOBILE', student.guardianPhone ?? '—'],
+    ['ADDRESS', student.address ?? '—', 5],
+  ];
+  if (student.bloodGroup) rows.push(['BLOOD GROUP', student.bloodGroup]);
 
   const panelX = portrait ? pad * 1.5 : width * 0.4;
   const panelWidth = portrait ? width - pad * 3 : width - panelX - pad;
@@ -868,7 +1006,7 @@ function drawBack(doc: PDFKit.PDFDocument, data: CardData): void {
   const inset = mm(2.5) * u;
   const size = 5.8 * u;
   const innerBottom = panelY + panelHeight - inset;
-  let y = colonRows(doc, rows, panelX + inset, panelY + inset, panelWidth - inset * 2, innerBottom, {
+  let y = fittedColonRows(doc, rows, panelX + inset, panelY + inset, panelWidth - inset * 2, innerBottom, {
     size,
     labelColor: brand,
     gap: mm(1.2) * u,

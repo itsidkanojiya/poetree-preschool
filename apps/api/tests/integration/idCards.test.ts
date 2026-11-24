@@ -60,49 +60,92 @@ describe.skipIf(!dbUp)('student ID cards', () => {
     expect(isPdf(card.body)).toBe(true);
   });
 
-  it('is the size the school asked for, not A4', async () => {
+  it('is the size the school asked for, either way up, not A4', async () => {
     // The whole reason the setting exists. A card laid out on A4 is not a card,
     // and the page size is the one thing about the artwork a machine can check.
-    // Derived from the same table the renderer reads, rather than typed out:
-    // 85.6mm is 242.6pt, and writing 242 by hand is how a test ends up
-    // asserting the author's arithmetic instead of the program's.
-    const sizes: IdCardSize[] = ['CR80', 'LARGE', 'A6'];
+    // Derived from the same table the renderer reads, rather than typed out.
+    const sizes: IdCardSize[] = ['CR80', 'LARGE', 'HALF_A5'];
+    const pt = (millimetres: number) => (millimetres * 72) / 25.4;
 
     for (const size of sizes) {
-      const { widthMm, heightMm } = ID_CARD_SIZES[size];
-      const expectedWidthPt = (widthMm * 72) / 25.4;
-      await prismaUnscoped.school.update({
-        where: { id: school.id },
-        data: { idCardSize: size as 'CR80' },
-      });
-
-      const card = await api
-        .get(`${BASE}/students/${school.studentId}/id-card`)
-        .set(auth(admin))
-        .buffer(true)
-        .parse((res, cb) => {
-          const chunks: Buffer[] = [];
-          res.on('data', (chunk: Buffer) => chunks.push(chunk));
-          res.on('end', () => cb(null, Buffer.concat(chunks)));
+      for (const orientation of ['HORIZONTAL', 'VERTICAL'] as const) {
+        const { widthMm, heightMm } = ID_CARD_SIZES[size];
+        const long = pt(Math.max(widthMm, heightMm));
+        const short = pt(Math.min(widthMm, heightMm));
+        await prismaUnscoped.school.update({
+          where: { id: school.id },
+          data: { idCardSize: size, idCardOrientation: orientation },
         });
 
-      const mediaBox = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(
-        card.body.toString('latin1'),
-      );
+        const card = await api
+          .get(`${BASE}/students/${school.studentId}/id-card`)
+          .set(auth(admin))
+          .buffer(true)
+          .parse((res, cb) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => cb(null, Buffer.concat(chunks)));
+          });
 
-      expect(mediaBox, `no MediaBox for ${size}`).not.toBeNull();
-      expect(Number(mediaBox![1]), size).toBeCloseTo(expectedWidthPt, 1);
-      expect(Number(mediaBox![2]), size).toBeCloseTo((heightMm * 72) / 25.4, 1);
-
-      // A6 is the portrait one, and the only way to tell it from LARGE.
-      if (size === 'A6') {
-        expect(Number(mediaBox![2])).toBeGreaterThan(Number(mediaBox![1]));
+        const mediaBox = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(
+          card.body.toString('latin1'),
+        );
+        const label = `${size} ${orientation}`;
+        expect(mediaBox, `no MediaBox for ${label}`).not.toBeNull();
+        const [width, height] = [Number(mediaBox![1]), Number(mediaBox![2])];
+        // Vertical stands the same card upright: 54 x 85.6 for a standard one.
+        expect(width, label).toBeCloseTo(orientation === 'VERTICAL' ? short : long, 1);
+        expect(height, label).toBeCloseTo(orientation === 'VERTICAL' ? long : short, 1);
       }
     }
 
     await prismaUnscoped.school.update({
       where: { id: school.id },
-      data: { idCardSize: 'CR80' },
+      data: { idCardSize: 'CR80', idCardOrientation: 'HORIZONTAL' },
+    });
+  });
+
+  it('prints every type at every size without failing', async () => {
+    // The four types the school chooses between, at each size, with every
+    // optional field on and long values: what a layout most often breaks on.
+    await prismaUnscoped.student.update({
+      where: { id: school.studentId },
+      data: {
+        grNo: 'GR-000123456',
+        bloodGroup: 'AB+',
+        addressLine1: 'Flat 1203, Sunshine Heights, Behind the Big Temple, Karve Nagar Road',
+        city: 'Pune',
+      },
+    });
+    for (const size of ['CR80', 'LARGE', 'HALF_A5'] as const) {
+      for (const orientation of ['HORIZONTAL', 'VERTICAL'] as const) {
+        for (const layout of ['CLASSIC', 'BANNER', 'FRONT_BACK'] as const) {
+          await prismaUnscoped.school.update({
+            where: { id: school.id },
+            data: {
+              idCardSize: size,
+              idCardOrientation: orientation,
+              idCardLayout: layout,
+              idCardShowGrNo: true,
+              idCardShowAdmissionNo: true,
+              idCardShowBloodGroup: true,
+            },
+          });
+          const card = await api
+            .get(`${BASE}/students/${school.studentId}/id-card`)
+            .set(auth(admin));
+          expect(card.status, `${size} ${orientation} ${layout}`).toBe(200);
+        }
+      }
+    }
+    await prismaUnscoped.school.update({
+      where: { id: school.id },
+      data: {
+        idCardSize: 'CR80',
+        idCardOrientation: 'HORIZONTAL',
+        idCardLayout: 'CLASSIC',
+        idCardShowGrNo: false,
+      },
     });
   });
 
@@ -194,14 +237,18 @@ describe.skipIf(!dbUp)('student ID cards', () => {
   });
 
   it('lets the office choose a layout, and refuses one that does not exist', async () => {
-    const saved = await api
-      .patch(`${BASE}/school/profile`)
-      .set(auth(admin))
-      .send({ idCardLayout: 'BANNER', idCardShowDateOfBirth: true });
+    const saved = await api.patch(`${BASE}/school/profile`).set(auth(admin)).send({
+      idCardLayout: 'BANNER',
+      idCardOrientation: 'VERTICAL',
+      idCardShowGrNo: true,
+      idCardShowAdmissionNo: false,
+    });
 
     expect(saved.status).toBe(200);
     expect(saved.body.idCardLayout).toBe('BANNER');
-    expect(saved.body.idCardShowDateOfBirth).toBe(true);
+    expect(saved.body.idCardOrientation).toBe('VERTICAL');
+    expect(saved.body.idCardShowGrNo).toBe(true);
+    expect(saved.body.idCardShowAdmissionNo).toBe(false);
 
     const refused = await api
       .patch(`${BASE}/school/profile`)
@@ -211,7 +258,12 @@ describe.skipIf(!dbUp)('student ID cards', () => {
 
     await prismaUnscoped.school.update({
       where: { id: school.id },
-      data: { idCardLayout: 'CLASSIC', idCardShowDateOfBirth: false },
+      data: {
+        idCardLayout: 'CLASSIC',
+        idCardOrientation: 'HORIZONTAL',
+        idCardShowGrNo: false,
+        idCardShowAdmissionNo: true,
+      },
     });
   });
 
@@ -241,8 +293,28 @@ describe.skipIf(!dbUp)('student ID cards', () => {
     expect(shown.body.admissionNo).toBeTruthy();
     expect(shown.body.bloodGroup).toBe('B+');
     expect(shown.body.layout).toBe('CLASSIC');
-    // Off by default: a birthday is not on the card until the school says so.
-    expect(shown.body.dateOfBirth).toBeNull();
+    expect(shown.body.orientation).toBe('HORIZONTAL');
+    // On every card, whatever the old switches said: name, grade, address,
+    // mobile, birth date and batch.
+    expect(shown.body.dateOfBirth).toBeTruthy();
+    expect(shown.body.batch).toBeTruthy();
+    expect(shown.body.classroom).toBeTruthy();
+    expect(shown.body.guardianPhone).toBeTruthy();
+    // GR No. only when the school ticks it.
+    expect(shown.body.grNo).toBeNull();
+    await prismaUnscoped.school.update({
+      where: { id: school.id },
+      data: { idCardShowGrNo: true, idCardShowAdmissionNo: false },
+    });
+    const ticked = await api
+      .get(`${BASE}/me/children/${school.studentId}/id-card`)
+      .set(auth(parent));
+    expect(ticked.body.grNo).toBe('GR-000123456');
+    expect(ticked.body.admissionNo).toBeNull();
+    await prismaUnscoped.school.update({
+      where: { id: school.id },
+      data: { idCardShowGrNo: false, idCardShowAdmissionNo: true },
+    });
 
     // Turned off in settings, gone from the phone too — or the screen would say
     // more than the card in the child's bag.

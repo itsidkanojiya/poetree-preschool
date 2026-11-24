@@ -215,6 +215,7 @@ export async function updateStudentAction(
         dateOfBirth,
         gender,
         bloodGroup: text('bloodGroup'),
+        grNo: text('grNo'),
         // Moving between sections only; taking a child out of their class is
         // Remove, which keeps their records.
         ...(classroomId ? { classroomId } : {}),

@@ -18,8 +18,8 @@ import { hashPassword } from '../lib/password.js';
 import { isSchoolUsable } from './schoolAccess.service.js';
 import { writeAuditLog } from './audit.service.js';
 import { consumeVerifiedChallenges } from './otp.service.js';
-import { nextDocumentNumber } from './sequence.service.js';
-import { assertStudentSeatAvailable } from './student.service.js';
+import { issueAdmissionNo } from './sequence.service.js';
+import { admissionNoMode, assertStudentSeatAvailable } from './student.service.js';
 import { grantParentRole } from './parent.service.js';
 import { eraseBySchool } from './accountDeletion.service.js';
 import { holdsParent, profileRoles, rolesHeld } from './roles.service.js';
@@ -729,6 +729,17 @@ export async function approveRegistration(
   });
   if (!registration) throw ApiError.notFound('Registration not found');
 
+  // A school that types every number is asked for one here too.
+  if (
+    input.mode === 'CREATE' &&
+    !input.admissionNo &&
+    (await admissionNoMode(schoolId)) === 'MANUAL'
+  ) {
+    throw ApiError.badRequest('Enter the admission number. Your school types them itself.', {
+      field: 'admissionNo',
+    });
+  }
+
   if (registration.status !== 'PENDING') {
     throw ApiError.conflict(
       registration.status === 'APPROVED'
@@ -778,6 +789,7 @@ export async function approveRegistration(
             bloodGroup: true,
             emergencyContactName: true,
             emergencyContactPhone: true,
+            addressLine1: true,
           },
         })
       : null;
@@ -892,12 +904,7 @@ export async function approveRegistration(
         const admissionNo =
           input.mode === 'CREATE' && input.admissionNo
             ? input.admissionNo
-            : await nextDocumentNumber(tx, {
-                schoolId,
-                kind: 'ADMISSION',
-                academicYearId: null,
-                defaultPrefix: 'ADM-',
-              });
+            : await issueAdmissionNo(tx, schoolId);
 
         const created = await tx.student.create({
           data: {
@@ -923,6 +930,7 @@ export async function approveRegistration(
             bloodGroup: true,
             emergencyContactName: true,
             emergencyContactPhone: true,
+            addressLine1: true,
           },
         });
 
@@ -957,6 +965,14 @@ export async function approveRegistration(
 
     // Only where the school holds nothing. Never over the office's own record.
     const fill: Prisma.StudentUpdateInput = {};
+    // The family's address is where the child lives, unless the school
+    // already holds one. Split at the columns' sizes, never cut short.
+    if (!child.addressLine1 && registration.address) {
+      fill.addressLine1 = registration.address.slice(0, 200);
+      if (registration.address.length > 200) {
+        fill.addressLine2 = registration.address.slice(200, 400);
+      }
+    }
     if (!child.bloodGroup && registration.bloodGroup) {
       fill.bloodGroup = registration.bloodGroup;
     }

@@ -1,4 +1,9 @@
-import { ID_CARD_SIZES, type IdCardLayout, type IdCardSize } from '@poetree/shared';
+import {
+  ID_CARD_SIZES,
+  type IdCardLayout,
+  type IdCardOrientation,
+  type IdCardSize,
+} from '@poetree/shared';
 import { prisma } from '../db/prisma.js';
 import { requireSchoolId } from '../context/requestContext.js';
 import { ApiError } from '../lib/apiError.js';
@@ -14,11 +19,11 @@ import { studentName } from '../lib/names.js';
  * The school chooses the size and the layout; the artwork for each layout lives
  * in idCardLayouts.ts and is drawn against whatever page it lands on.
  *
- * What appears is the school's choice too — blood group, guardian's phone,
- * address and birth date are each a switch, because a card that goes home in a
- * bag with a four-year-old is not the place for everything a school holds. The
- * switches are applied once, here, so neither a layout nor the phone can print
- * a field the office turned off.
+ * Name, grade, address, mobile, birth date and batch are on every card; the
+ * admission number, GR number and blood group are the school's to tick. The
+ * ticks are applied once, here, so neither a layout nor the phone can print a
+ * field the office left off. Vertical or horizontal stands the chosen size
+ * upright or on its side.
  */
 
 /** dd/mm/yyyy, as every form a parent in India has filled in writes it. */
@@ -38,7 +43,9 @@ function printedDate(value: Date): string {
  */
 async function load(studentId: string): Promise<{
   size: IdCardSize;
+  orientation: IdCardOrientation;
   layout: IdCardLayout;
+  fileKey: string;
   logoFileId: string | null;
   photoFileId: string | null;
   school: Omit<CardData['school'], 'logo'>;
@@ -63,6 +70,9 @@ async function load(studentId: string): Promise<{
       idCardShowGuardianPhone: true,
       idCardShowAddress: true,
       idCardShowDateOfBirth: true,
+      idCardOrientation: true,
+      idCardShowAdmissionNo: true,
+      idCardShowGrNo: true,
     },
   });
 
@@ -73,6 +83,7 @@ async function load(studentId: string): Promise<{
       middleName: true,
       lastName: true,
       admissionNo: true,
+      grNo: true,
       dateOfBirth: true,
       bloodGroup: true,
       addressLine1: true,
@@ -109,7 +120,10 @@ async function load(studentId: string): Promise<{
 
   return {
     size: school.idCardSize,
+    orientation: school.idCardOrientation,
     layout: school.idCardLayout,
+    /** For the file's name, whether or not the card prints it. */
+    fileKey: student.admissionNo,
     logoFileId: school.logoFileId,
     photoFileId: student.photoFileId,
     school: {
@@ -123,21 +137,28 @@ async function load(studentId: string): Promise<{
     },
     student: {
       name: studentName(student),
-      admissionNo: student.admissionNo,
-      classroom: classroom ? `${classroom.classLevel.name} — ${classroom.section}` : null,
+      // Name, grade, address, mobile, birth date and batch are on every card;
+      // the admission number, GR number and blood group when ticked.
+      admissionNo: school.idCardShowAdmissionNo ? student.admissionNo : null,
+      grNo: school.idCardShowGrNo ? student.grNo : null,
+      classroom: classroom ? `${classroom.classLevel.name} ${classroom.section}` : null,
       batch: classroom?.academicYear.name ?? null,
-      dateOfBirth: school.idCardShowDateOfBirth ? printedDate(student.dateOfBirth) : null,
+      dateOfBirth: printedDate(student.dateOfBirth),
       bloodGroup: school.idCardShowBloodGroup ? student.bloodGroup : null,
-      address: school.idCardShowAddress ? address : null,
-      guardianName: school.idCardShowGuardianPhone ? (guardian?.name ?? null) : null,
-      guardianPhone: school.idCardShowGuardianPhone ? (guardian?.phone ?? null) : null,
+      address,
+      guardianName: guardian?.name ?? null,
+      guardianPhone: guardian?.phone ?? null,
     },
   };
 }
 
-async function gather(
-  studentId: string,
-): Promise<{ size: IdCardSize; layout: IdCardLayout; card: CardData }> {
+async function gather(studentId: string): Promise<{
+  size: IdCardSize;
+  orientation: IdCardOrientation;
+  layout: IdCardLayout;
+  fileKey: string;
+  card: CardData;
+}> {
   const loaded = await load(studentId);
 
   const [logo, photo] = await Promise.all([
@@ -147,7 +168,9 @@ async function gather(
 
   return {
     size: loaded.size,
+    orientation: loaded.orientation,
     layout: loaded.layout,
+    fileKey: loaded.fileKey,
     card: {
       school: { ...loaded.school, logo },
       student: { ...loaded.student, photo },
@@ -155,9 +178,18 @@ async function gather(
   };
 }
 
-function pageFor(size: IdCardSize): { size: [number, number]; margin: number } {
+/**
+ * The page: the chosen size, stood upright or laid on its side. A6 is half A5
+ * by another name, so it turns the same way.
+ */
+function pageFor(
+  size: IdCardSize,
+  orientation: IdCardOrientation,
+): { size: [number, number]; margin: number } {
   const { widthMm, heightMm } = ID_CARD_SIZES[size];
-  return { size: [mm(widthMm), mm(heightMm)], margin: 0 };
+  const long = mm(Math.max(widthMm, heightMm));
+  const short = mm(Math.min(widthMm, heightMm));
+  return { size: orientation === 'VERTICAL' ? [short, long] : [long, short], margin: 0 };
 }
 
 /**
@@ -184,15 +216,15 @@ export async function studentIdCard(studentId: string): Promise<{
   buffer: Buffer;
   filename: string;
 }> {
-  const { size, layout, card } = await gather(studentId);
-  const page = pageFor(size);
-  const doc = createDocument(`ID card — ${card.student.admissionNo}`, page);
+  const { size, orientation, layout, fileKey, card } = await gather(studentId);
+  const page = pageFor(size, orientation);
+  const doc = createDocument(`ID card — ${fileKey}`, page);
 
   drawChild(doc, page, layout, card, true);
 
   return {
     buffer: await toBuffer(doc),
-    filename: `id-card-${card.student.admissionNo}.pdf`,
+    filename: `id-card-${fileKey}.pdf`,
   };
 }
 
@@ -231,7 +263,7 @@ export async function classroomIdCards(classroomId: string): Promise<{
   }
 
   const first = await gather(children[0]!.id);
-  const page = pageFor(first.size);
+  const page = pageFor(first.size, first.orientation);
   const doc = createDocument(`ID cards — ${classroom.classLevel.name} ${classroom.section}`, page);
 
   drawChild(doc, page, first.layout, first.card, true);
@@ -253,13 +285,15 @@ export async function classroomIdCards(classroomId: string): Promise<{
 /** The same card as data, for the app to draw on a phone. */
 export async function studentIdCardData(studentId: string): Promise<{
   layout: IdCardLayout;
+  orientation: IdCardOrientation;
   schoolName: string;
   schoolLogoUrl: string | null;
   schoolAddress: string | null;
   schoolPhone: string | null;
   primaryColor: string;
   name: string;
-  admissionNo: string;
+  admissionNo: string | null;
+  grNo: string | null;
   classroom: string | null;
   batch: string | null;
   dateOfBirth: string | null;
@@ -271,10 +305,11 @@ export async function studentIdCardData(studentId: string): Promise<{
 }> {
   // The switches are already applied by load(), so the phone cannot say more
   // than the card in the child's pocket.
-  const { layout, logoFileId, photoFileId, school, student } = await load(studentId);
+  const { layout, orientation, logoFileId, photoFileId, school, student } = await load(studentId);
 
   return {
     layout,
+    orientation,
     schoolName: school.name,
     schoolLogoUrl: logoFileId ? `/api/v1/files/${logoFileId}` : null,
     schoolAddress: school.addressLine,
@@ -282,6 +317,7 @@ export async function studentIdCardData(studentId: string): Promise<{
     primaryColor: school.primaryColor,
     name: student.name,
     admissionNo: student.admissionNo,
+    grNo: student.grNo,
     classroom: student.classroom,
     batch: student.batch,
     dateOfBirth: student.dateOfBirth,

@@ -52,6 +52,47 @@ export async function updateSchoolProfileAction(
   return { success: 'Saved.' };
 }
 
+/** A card type, as the design and the way up the API stores. */
+function cardType(value: string): { idCardLayout?: string; idCardOrientation?: string } {
+  switch (value) {
+    case 'SINGLE_HORIZONTAL':
+      return { idCardLayout: 'CLASSIC', idCardOrientation: 'HORIZONTAL' };
+    case 'SINGLE_VERTICAL':
+      return { idCardLayout: 'BANNER', idCardOrientation: 'VERTICAL' };
+    case 'FRONT_BACK_HORIZONTAL':
+      return { idCardLayout: 'FRONT_BACK', idCardOrientation: 'HORIZONTAL' };
+    case 'FRONT_BACK_VERTICAL':
+      return { idCardLayout: 'FRONT_BACK', idCardOrientation: 'VERTICAL' };
+    default:
+      return {};
+  }
+}
+
+/** Automatic or manual admission numbers. */
+export async function updateAdmissionNoModeAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const mode = String(formData.get('admissionNoMode') ?? '');
+  if (mode !== 'AUTO' && mode !== 'MANUAL') return { error: 'Choose automatic or manual.' };
+  try {
+    await apiFetch('/school/profile', {
+      method: 'PATCH',
+      redirectOnAuthFailure: false,
+      body: { admissionNoMode: mode },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save how admission numbers are given.') };
+  }
+  refresh();
+  return {
+    success:
+      mode === 'AUTO'
+        ? 'Saved. Leave the number blank and the next one is issued.'
+        : 'Saved. The office types every admission number.',
+  };
+}
+
 export async function updateIdCardAction(
   _prev: SettingsState,
   formData: FormData,
@@ -62,12 +103,11 @@ export async function updateIdCardAction(
       redirectOnAuthFailure: false,
       body: {
         idCardSize: text(formData, 'idCardSize'),
-        idCardLayout: text(formData, 'idCardLayout'),
+        ...cardType(String(formData.get('cardType') ?? '')),
         // Checkboxes: absent means off, and every one is sent so unticking works.
+        idCardShowAdmissionNo: formData.get('idCardShowAdmissionNo') === 'on',
+        idCardShowGrNo: formData.get('idCardShowGrNo') === 'on',
         idCardShowBloodGroup: formData.get('idCardShowBloodGroup') === 'on',
-        idCardShowGuardianPhone: formData.get('idCardShowGuardianPhone') === 'on',
-        idCardShowAddress: formData.get('idCardShowAddress') === 'on',
-        idCardShowDateOfBirth: formData.get('idCardShowDateOfBirth') === 'on',
       },
     });
   } catch (error) {

@@ -83,6 +83,7 @@ class _Card {
     required this.brand,
     required this.name,
     required this.admissionNo,
+    required this.grNo,
     required this.classroom,
     required this.batch,
     required this.dateOfBirth,
@@ -120,7 +121,9 @@ class _Card {
           ? const Color(0xFF16307C)
           : Color(0xFF000000 | value),
       name: text('name') ?? '',
-      admissionNo: text('admissionNo') ?? '—',
+      // Null when the school has not ticked it for the card.
+      admissionNo: text('admissionNo'),
+      grNo: text('grNo'),
       classroom: text('classroom'),
       batch: text('batch'),
       dateOfBirth: text('dateOfBirth'),
@@ -139,7 +142,10 @@ class _Card {
   final String? schoolPhone;
   final Color brand;
   final String name;
-  final String admissionNo;
+  final String? admissionNo;
+
+  /// The General Register number, when the school ticks it.
+  final String? grNo;
   final String? classroom;
   final String? batch;
   final String? dateOfBirth;
@@ -378,23 +384,24 @@ class _ClassicCard extends StatelessWidget {
     final theme = Theme.of(context);
     const ink = Color(0xFF1A1D29);
 
-    // Guardian and phone side by side, never split across rows — as printed.
-    final facts = <(String, String)>[
-      ('Admission no.', card.admissionNo),
-      if (card.bloodGroup != null) ('Blood group', card.bloodGroup!),
-      if (card.dateOfBirth != null) ('Date of birth', card.dateOfBirth!),
-      if (card.batch != null) ('Academic year', card.batch!),
+    // As printed: birth date and batch, mobile and blood group, the address
+    // across the card, then the numbers the school ticked.
+    final numbers = <(String, String)>[
+      if (card.admissionNo != null) ('Admission no.', card.admissionNo!),
+      if (card.grNo != null) ('GR no.', card.grNo!),
     ];
     final rows = <List<(String, String)>>[
-      facts.take(2).toList(),
-      if (card.guardianPhone != null)
-        [
-          ('Guardian', card.guardianName ?? '—'),
-          ('Phone', card.guardianPhone!),
-        ],
-      if (facts.length > 2) facts.skip(2).toList(),
+      [
+        if (card.dateOfBirth != null) ('Birth date', card.dateOfBirth!),
+        if (card.batch != null) ('Batch', card.batch!),
+      ],
+      [
+        if (card.guardianPhone != null) ('Mobile', card.guardianPhone!),
+        if (card.bloodGroup != null) ('Blood group', card.bloodGroup!),
+      ],
       if (card.address != null) [('Address', card.address!)],
-    ];
+      if (numbers.isNotEmpty) numbers,
+    ].where((row) => row.isNotEmpty).toList();
 
     final contact = [
       card.schoolAddress,
@@ -654,11 +661,13 @@ class _BannerCard extends StatelessWidget {
     final rows = <(String, String)>[
       ('Name', card.name),
       if (card.classroom != null) ('Grade', card.classroom!),
-      ('Adm. no.', card.admissionNo),
+      if (card.batch != null) ('Batch', card.batch!),
       if (card.dateOfBirth != null) ('Birth date', card.dateOfBirth!),
-      if (card.bloodGroup != null) ('Blood', card.bloodGroup!),
       if (card.guardianPhone != null) ('Mobile', card.guardianPhone!),
       if (card.address != null) ('Address', card.address!),
+      if (card.admissionNo != null) ('Adm. no.', card.admissionNo!),
+      if (card.grNo != null) ('GR no.', card.grNo!),
+      if (card.bloodGroup != null) ('Blood group', card.bloodGroup!),
     ];
 
     return ColoredBox(
@@ -808,9 +817,10 @@ class _FrontCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     final rows = <(String, String)>[
-      ('Adm. no.', card.admissionNo),
-      if (card.dateOfBirth != null) ('Birth date', card.dateOfBirth!),
       if (card.batch != null) ('Batch', card.batch!),
+      if (card.admissionNo != null) ('Adm. no.', card.admissionNo!),
+      if (card.grNo != null) ('GR no.', card.grNo!),
+      if (card.dateOfBirth != null) ('Birth date', card.dateOfBirth!),
       if (card.bloodGroup != null) ('Blood group', card.bloodGroup!),
     ];
 

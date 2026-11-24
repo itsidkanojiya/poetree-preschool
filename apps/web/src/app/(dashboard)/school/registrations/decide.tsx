@@ -30,6 +30,7 @@ export function DecideButtons({
   classLevel,
   parentAccountName,
   removedNames = [],
+  numbering,
 }: {
   registrationId: string;
   guardianName: string;
@@ -43,19 +44,23 @@ export function DecideButtons({
   parentAccountName: string | null;
   /** People removed earlier whose old accounts approving deletes. */
   removedNames?: string[];
+  /** How the school numbers children, and what a blank number issues. */
+  numbering: { mode: 'AUTO' | 'MANUAL'; next: string };
 }) {
   const [mode, setMode] = useState<'idle' | 'approving' | 'rejecting'>('idle');
   // Empty means "a child the school does not have yet".
   const [studentId, setStudentId] = useState(matches[0]?.id ?? '');
 
-  // The standard asked for first — this year's sections before older ones —
-  // and the first of them chosen, so the usual case is no choice at all.
-  const asked = classLevel
-    ? classrooms
-        .filter((classroom) => classroom.classLevelId === classLevel.id)
-        .sort((a, b) => Number(b.isCurrentYear) - Number(a.isCurrentYear))
+  // This year's classes — last year's would repeat every name — or every
+  // class when no year is ticked current. Of those, the sections of the
+  // standard the family chose; all of them when that standard has none yet.
+  const thisYear = classrooms.some((classroom) => classroom.isCurrentYear)
+    ? classrooms.filter((classroom) => classroom.isCurrentYear)
+    : classrooms;
+  const ofStandard = classLevel
+    ? thisYear.filter((classroom) => classroom.classLevelId === classLevel.id)
     : [];
-  const others = classrooms.filter((classroom) => !asked.includes(classroom));
+  const offered = ofStandard.length > 0 ? ofStandard : thisYear;
 
   const [rejectState, rejectAction] = useActionState<RegistrationState, FormData>(
     rejectRegistrationAction.bind(null, registrationId),
@@ -180,46 +185,31 @@ export function DecideButtons({
               ))}
             </Select>
 
+            {/* Optional: the office picks the section, or leaves it for later. */}
             <Select
               name="classroomId"
-              defaultValue={asked[0]?.id ?? ''}
+              defaultValue=""
               className="py-1.5 text-xs"
-              aria-label="Class"
+              aria-label="Class (optional)"
             >
-              <option value="">No class yet</option>
-              {asked.length > 0 ? (
-                <>
-                  <optgroup label={`${classLevel?.name} — asked for`}>
-                    {asked.map((classroom) => (
-                      <option key={classroom.id} value={classroom.id}>
-                        {classroom.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  {others.length > 0 && (
-                    <optgroup label="Other classes">
-                      {others.map((classroom) => (
-                        <option key={classroom.id} value={classroom.id}>
-                          {classroom.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </>
-              ) : (
-                classrooms.map((classroom) => (
-                  <option key={classroom.id} value={classroom.id}>
-                    {classroom.label}
-                  </option>
-                ))
-              )}
+              <option value="">Class (optional)</option>
+              {offered.map((classroom) => (
+                <option key={classroom.id} value={classroom.id}>
+                  {classroom.label}
+                </option>
+              ))}
             </Select>
 
             <Input
               name="admissionNo"
-              placeholder="Admission number (issued automatically)"
+              required={numbering.mode === 'MANUAL'}
+              placeholder={
+                numbering.mode === 'MANUAL'
+                  ? 'Admission No. (required)'
+                  : `Admission No. (blank for ${numbering.next})`
+              }
               className="py-1.5 text-xs"
-              aria-label="Admission number"
+              aria-label="Admission No."
             />
           </div>
         )}

@@ -143,7 +143,23 @@ export const createStudentSchema = z
     lastName: z.string().trim().max(60).optional(),
     dateOfBirth: z.coerce.date(),
     gender: z.enum(GENDERS),
-    admissionNo: z.string().trim().min(1).max(40),
+    /**
+     * Left out, or blank, when the school issues numbers itself; the server
+     * refuses that when the school types every number.
+     */
+    admissionNo: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((value) => value || undefined),
+    /** The school's General Register number. Always typed; optional. */
+    grNo: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((value) => value || undefined),
     rollNo: z.string().trim().max(20).optional(),
     classroomId: idSchema.nullable().optional(),
     avatarUrl: urlSchema.optional(),
@@ -216,6 +232,8 @@ export const updateStudentSchema = z.object({
   classroomId: idSchema.nullable().optional(),
   avatarUrl: urlSchema.optional(),
   bloodGroup: clearable(8),
+  /** Blank clears it, like null. */
+  grNo: clearable(40).transform((value) => (value === '' ? null : value)),
   status: z.enum(STUDENT_STATUSES).optional(),
   guardians: z.array(guardianLinkSchema).min(1).max(4).optional(),
   addressLine1: clearable(200),
@@ -355,6 +373,8 @@ export type SetStudentPhotoInput = z.infer<typeof setStudentPhotoSchema>;
 export interface StudentSummary {
   id: string;
   admissionNo: string;
+  /** The General Register number, when the school keeps one. */
+  grNo: string | null;
   firstName: string;
   /** The father's given name — the middle part of "Dishan Krunal Patel". */
   middleName: string | null;

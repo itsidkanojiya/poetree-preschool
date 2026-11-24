@@ -652,6 +652,110 @@ describe.skipIf(!dbUp)('parent registration', () => {
     expect(invoices.map((i) => i.netInPaise)).toEqual([2_800_000]);
   });
 
+  it('gives the child the address the family registered with', async () => {
+    await submit(
+      'alpha',
+      form({
+        phone: '+919820007031',
+        studentFirstName: 'Kabir',
+        studentLastName: 'Addressed',
+        address: '14 Hill View, Baner, Pune',
+      }),
+    );
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const waiting = queue.body.items.find((r: { phone: string }) => r.phone === '+919820007031');
+
+    const approved = await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'CREATE', gender: 'MALE' })
+      .expect(200);
+
+    const child = await prismaUnscoped.student.findUniqueOrThrow({
+      where: { id: approved.body.student.id },
+    });
+    expect(child.addressLine1).toBe('14 Hill View, Baner, Pune');
+
+    // And when the office changes the parent's address, the child moves too.
+    const parent = await prismaUnscoped.user.findFirstOrThrow({
+      where: { phone: '+919820007031' },
+    });
+    await api
+      .patch(`${BASE}/parents/${parent.id}`)
+      .set(auth(admin))
+      .send({ address: '2 River Road, Aundh, Pune' })
+      .expect(200);
+    const moved = await prismaUnscoped.student.findUniqueOrThrow({ where: { id: child.id } });
+    expect(moved.addressLine1).toBe('2 River Road, Aundh, Pune');
+  });
+
+  it('keeps an address the school already holds for the child', async () => {
+    const kept = await prismaUnscoped.student.create({
+      data: {
+        schoolId: school.id,
+        admissionNo: 'ADDR-KEEP',
+        firstName: 'Tara',
+        lastName: 'Kept',
+        dateOfBirth: new Date('2021-04-09'),
+        gender: 'FEMALE',
+        addressLine1: 'Office record, 1 School Lane',
+      },
+    });
+    await submit(
+      'alpha',
+      form({
+        phone: '+919820007032',
+        studentFirstName: 'Tara',
+        studentLastName: 'Kept',
+        address: 'Something else, Pune',
+      }),
+    );
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const waiting = queue.body.items.find((r: { phone: string }) => r.phone === '+919820007032');
+    await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'LINK', studentId: kept.id })
+      .expect(200);
+
+    const child = await prismaUnscoped.student.findUniqueOrThrow({ where: { id: kept.id } });
+    expect(child.addressLine1).toBe('Office record, 1 School Lane');
+  });
+
+  it('needs the admission number typed when the school numbers by hand', async () => {
+    await api
+      .patch(`${BASE}/school/profile`)
+      .set(auth(admin))
+      .send({ admissionNoMode: 'MANUAL' })
+      .expect(200);
+    await submit(
+      'alpha',
+      form({ phone: '+919820007041', studentFirstName: 'Manu', studentLastName: 'Typed' }),
+    );
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const waiting = queue.body.items.find((r: { phone: string }) => r.phone === '+919820007041');
+
+    const refused = await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'CREATE', gender: 'MALE' })
+      .expect(400);
+    expect(refused.body.error.message).toMatch(/admission number/i);
+
+    const approved = await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({ mode: 'CREATE', gender: 'MALE', admissionNo: 'HAND-01' })
+      .expect(200);
+    expect(approved.body.admissionNo).toBe('HAND-01');
+
+    await api
+      .patch(`${BASE}/school/profile`)
+      .set(auth(admin))
+      .send({ admissionNoMode: 'AUTO' })
+      .expect(200);
+  });
+
   it('refuses a mismatched confirmation before anything else happens', async () => {
     const typo = await submit(
       'alpha',

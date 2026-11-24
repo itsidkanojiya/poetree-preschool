@@ -189,7 +189,8 @@ export async function createStudentWithFamilyAction(
   if (!gender || !(GENDERS as readonly string[]).includes(gender)) {
     return { error: 'Choose boy, girl or other.' };
   }
-  if (!admissionNo) return { error: 'The admission number is needed.' };
+  // Blank is the school's series issuing one; a school that types every
+  // number is told so by the API.
 
   let student: StudentSummary;
   try {
@@ -205,7 +206,8 @@ export async function createStudentWithFamilyAction(
         lastName: text(formData, 'lastName'),
         dateOfBirth,
         gender,
-        admissionNo,
+        ...(admissionNo ? { admissionNo } : {}),
+        grNo: text(formData, 'grNo') ?? undefined,
         rollNo: text(formData, 'rollNo'),
         classroomId: text(formData, 'classroomId'),
         bloodGroup: text(formData, 'bloodGroup'),

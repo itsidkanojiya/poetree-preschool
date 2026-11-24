@@ -9,7 +9,10 @@ import { AddStudentForm } from './add-student-form';
 export const metadata: Metadata = { title: 'Add a student · Poetree' };
 
 export default async function NewStudentPage() {
-  const classrooms = await apiFetch<ClassroomSummary[]>('/classrooms');
+  const [classrooms, numbering] = await Promise.all([
+    apiFetch<ClassroomSummary[]>('/classrooms'),
+    apiFetch<{ mode: 'AUTO' | 'MANUAL'; next: string }>('/students/next-admission-no'),
+  ]);
 
   return (
     <>
@@ -28,7 +31,7 @@ export default async function NewStudentPage() {
       />
       <div className="max-w-3xl">
         <Card>
-          <AddStudentForm classrooms={classrooms} />
+          <AddStudentForm classrooms={classrooms} numbering={numbering} />
         </Card>
       </div>
     </>

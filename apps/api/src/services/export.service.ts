@@ -183,6 +183,7 @@ function studentQuery(scope: ExportScope, f: Filters) {
             { firstName: { contains: f.search } },
             { lastName: { contains: f.search } },
             { admissionNo: { contains: f.search } },
+            { grNo: { contains: f.search } },
           ],
         }
       : {}),
@@ -191,6 +192,7 @@ function studentQuery(scope: ExportScope, f: Filters) {
   const select = {
     id: true,
     admissionNo: true,
+    grNo: true,
     firstName: true,
     middleName: true,
     lastName: true,
@@ -242,6 +244,7 @@ function studentColumns(scope: ExportScope): Array<Column<StudentRow>> {
   return [
     ...schoolColumns<StudentRow>(scope),
     { header: 'Admission no.', value: (r) => r.admissionNo },
+    { header: 'GR No.', value: (r) => r.grNo },
     { header: 'Name', width: 28, value: (r) => studentName(r) },
     { header: 'First name', value: (r) => r.firstName },
     { header: 'Father’s name', value: (r) => r.middleName },

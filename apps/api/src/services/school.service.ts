@@ -793,6 +793,10 @@ const profileSelect = {
   idCardShowGuardianPhone: true,
   idCardShowAddress: true,
   idCardShowDateOfBirth: true,
+  idCardOrientation: true,
+  idCardShowAdmissionNo: true,
+  idCardShowGrNo: true,
+  admissionNoMode: true,
 } as const;
 
 function toProfile(row: {
@@ -824,6 +828,10 @@ function toProfile(row: {
     idCardShowGuardianPhone: school.idCardShowGuardianPhone,
     idCardShowAddress: school.idCardShowAddress,
     idCardShowDateOfBirth: school.idCardShowDateOfBirth,
+    idCardOrientation: school.idCardOrientation,
+    idCardShowAdmissionNo: school.idCardShowAdmissionNo,
+    idCardShowGrNo: school.idCardShowGrNo,
+    admissionNoMode: school.admissionNoMode,
   };
 }
 

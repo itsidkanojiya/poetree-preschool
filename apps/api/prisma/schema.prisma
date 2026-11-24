@@ -67,6 +67,20 @@ enum IdCardSize {
 
 /// How an ID card is drawn. Independent of the size: every layout is drawn
 /// against the page it lands on. See ID_CARD_LAYOUTS in the shared package.
+/// Which way up a card is printed. The size is the card; this stands it upright.
+enum IdCardOrientation {
+  HORIZONTAL
+  VERTICAL
+}
+
+/// Whether the school's series issues admission numbers or the office types them.
+enum AdmissionNoMode {
+  /// The next number is issued; the office may still type one for a child.
+  AUTO
+  /// The office types every admission number.
+  MANUAL
+}
+
 enum IdCardLayout {
   /// A colour band, the photograph beside the details.
   CLASSIC
@@ -465,6 +479,15 @@ model School {
   /// Off by default, like the address: a birthday is half of what it takes to
   /// pass as a child's parent on a phone call.
   idCardShowDateOfBirth   Boolean @default(false)
+
+  /// Upright or landscape, at whichever size the school chose.
+  idCardOrientation     IdCardOrientation @default(HORIZONTAL)
+  /// Optional on the card. Name, grade, address, mobile, birth date and batch
+  /// always appear; the switches above for those are no longer read.
+  idCardShowAdmissionNo Boolean           @default(true)
+  idCardShowGrNo        Boolean           @default(false)
+
+  admissionNoMode AdmissionNoMode @default(AUTO)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -934,6 +957,8 @@ model Student {
   /// Immutable, unique per school, issued from DocumentSequence. Also the key a
   /// returning child is matched on, so their history reconnects.
   admissionNo   String        @db.VarChar(40)
+  /// The school's General Register number. Always typed by the school.
+  grNo          String?       @db.VarChar(40)
   admissionDate DateTime?
   firstName     String        @db.VarChar(60)
   /// The father's given name, which is the middle name on an Indian school
@@ -994,6 +1019,7 @@ model Student {
   gameSessions        GameSession[]
 
   @@unique([schoolId, admissionNo])
+  @@unique([schoolId, grNo])
   @@index([schoolId, status])
   @@index([schoolId, deletedAt])
   @@map("students")

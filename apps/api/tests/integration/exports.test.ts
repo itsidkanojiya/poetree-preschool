@@ -88,7 +88,14 @@ describe.skipIf(!dbUp)('exporting to Excel', () => {
 
       const [header, ...rows] = await sheetOf(response.body as Buffer);
       expect(header).toEqual(
-        expect.arrayContaining(['Admission no.', 'Name', 'Standard', 'Section', 'Parents']),
+        expect.arrayContaining([
+          'Admission no.',
+          'GR No.',
+          'Name',
+          'Standard',
+          'Section',
+          'Parents',
+        ]),
       );
       // One school: no School column.
       expect(header).not.toContain('School');

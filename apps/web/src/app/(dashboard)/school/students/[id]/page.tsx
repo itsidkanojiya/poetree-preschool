@@ -65,6 +65,7 @@ const FIELD_LABELS: Record<string, string> = {
   gender: 'Gender',
   avatarUrl: 'Photograph',
   bloodGroup: 'Blood group',
+  grNo: 'GR No.',
   status: 'Status',
   classroom: 'Class',
   rollNo: 'Roll no.',
@@ -378,6 +379,7 @@ export default async function StudentDetailPage({
                     value={student.gender.charAt(0) + student.gender.slice(1).toLowerCase()}
                   />
                   <Detail label="Blood group" value={student.bloodGroup} />
+                  <Detail label="GR No." value={student.grNo} />
                   <Detail label="Admitted" value={formatDate(student.createdAt)} />
                   <Detail
                     label="Verified"

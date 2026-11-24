@@ -224,6 +224,19 @@ export function DecideButtons({
           </div>
         )}
 
+        {/* Billed as the child is approved — needs the child in a class with
+            its fees set; otherwise the family chooses later in the app. */}
+        <Select
+          name="feeOption"
+          defaultValue=""
+          className="py-1.5 text-xs"
+          aria-label="How the fees are paid"
+        >
+          <option value="">Fees: let the family choose in the app</option>
+          <option value="INSTALLMENTS">Fees: installments</option>
+          <option value="PAY_IN_FULL">Fees: pay in full (with the discount)</option>
+        </Select>
+
         <div className="flex items-center gap-2">
           <button
             type="submit"

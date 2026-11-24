@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_REMINDER_POLICY,
   installmentState,
+  recurringYearInPaise,
   reminderDueToday,
   scheduleYear,
   schoolToday,
@@ -246,5 +247,17 @@ describe('one-time fees (admission)', () => {
     );
     const installments = scheduleYear(heads, plan(4));
     expect(nets(installments)).toEqual([14_500, 12_000, 12_000, 12_000].map(rupees));
+  });
+});
+
+describe('what a standard’s installments must add up to', () => {
+  it('is the recurring fees for a year, leaving out what new children pay once', () => {
+    expect(
+      recurringYearInPaise([
+        { amountInPaise: rupees(45_000), frequency: 'ANNUAL' },
+        { amountInPaise: rupees(1_000), frequency: 'MONTHLY' },
+        { amountInPaise: rupees(5_000), frequency: 'ONE_TIME' },
+      ]),
+    ).toBe(rupees(57_000));
   });
 });

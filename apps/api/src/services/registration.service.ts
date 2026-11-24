@@ -24,6 +24,8 @@ import { grantParentRole } from './parent.service.js';
 import { eraseBySchool } from './accountDeletion.service.js';
 import { holdsParent, profileRoles, rolesHeld } from './roles.service.js';
 import { studentName } from '../lib/names.js';
+import { logger } from '../lib/logger.js';
+import { changePlan } from './feePlan.service.js';
 
 /**
  * What a request for another child holds in the password column: nothing that
@@ -1012,6 +1014,35 @@ export async function approveRegistration(
     },
   });
 
+
+  // The fees the office chose as it approved: billed now, as if the family
+  // had chosen them in the app. Only once the child is in a class this year
+  // whose standard has its fees set — otherwise the family chooses later.
+  if (input.feeOption) {
+    const year = await prisma.academicYear.findFirst({
+      where: { isCurrent: true },
+      select: { id: true },
+    });
+    const enrolled =
+      year &&
+      (await prisma.studentEnrolment.count({
+        where: { studentId: student.id, academicYearId: year.id, status: 'ACTIVE' },
+      })) > 0;
+    if (year && enrolled) {
+      try {
+        await changePlan(
+          student.id,
+          { academicYearId: year.id, planId: input.feeOption },
+          actorUserId,
+        );
+      } catch (error) {
+        // The child is admitted either way; the office sets the fees from the
+        // child's page if their standard is not ready yet.
+        if (!(error instanceof ApiError)) throw error;
+        logger.warn('Fees not set at approval', { studentId: student.id, reason: error.message });
+      }
+    }
+  }
 
   const approved = await prisma.parentRegistration.findUniqueOrThrow({
     where: { id: registrationId },

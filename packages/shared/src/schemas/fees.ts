@@ -106,9 +106,12 @@ export type FeeReminderPolicyView = FeeReminderPolicyInput;
 /* -------------------------------------------------------------------------- */
 
 export interface FeePlanOption {
+  /** A plan's id, or INSTALLMENTS / PAY_IN_FULL for the standard's own. */
   id: string;
   name: string;
   installments: Array<{ label: string; dueDate: string; amountInPaise: number }>;
+  /** Pay in full: what paying the year at once saves. */
+  discountInPaise?: number;
 }
 
 export interface FeePlanChoice {
@@ -132,11 +135,177 @@ export interface FeePlanChoice {
   options: FeePlanOption[];
 }
 
+/**
+ * Paying by the standard's own installments, or the whole year at once. Sent
+ * where a plan's id would be, so an app that lists options and sends back the
+ * one tapped works for both.
+ */
+export const FEE_OPTIONS = ['INSTALLMENTS', 'PAY_IN_FULL'] as const;
+export type FeeOption = (typeof FEE_OPTIONS)[number];
+
 export const chooseFeePlanSchema = z.object({
   academicYearId: idSchema,
-  planId: idSchema,
+  planId: z.union([z.enum(FEE_OPTIONS), idSchema]),
 });
 export type ChooseFeePlanInput = z.infer<typeof chooseFeePlanSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* The office: a standard's installments and pay-in-full discount             */
+/* -------------------------------------------------------------------------- */
+
+export const structureInstallmentSchema = z.object({
+  dueDate: z.coerce.date(),
+  amountInPaise: z.coerce.number().int().min(1, 'Each installment needs an amount'),
+});
+
+export const payInFullSchema = z
+  .object({
+    enabled: z.boolean(),
+    discountKind: z.enum(['FIXED', 'PERCENT']),
+    /** Paise for FIXED, 0-100 for PERCENT. */
+    discountValue: z.coerce.number().int().min(0),
+  })
+  .refine((p) => p.discountKind !== 'PERCENT' || p.discountValue <= 100, {
+    path: ['discountValue'],
+    message: 'A percentage discount cannot be more than 100',
+  });
+export type PayInFullInput = z.infer<typeof payInFullSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* The school's bank account and UPI ID                                       */
+/* -------------------------------------------------------------------------- */
+
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullish()
+    .transform((value) => (value ? value : null));
+
+export const paymentDetailsSchema = z
+  .object({
+    bankEnabled: z.boolean(),
+    bankAccountName: optionalText(120),
+    bankAccountNo: optionalText(40),
+    bankIfsc: optionalText(20).transform((value) => (value ? value.toUpperCase() : null)),
+    bankName: optionalText(120),
+    upiEnabled: z.boolean(),
+    upiId: optionalText(100),
+    upiName: optionalText(120),
+  })
+  .superRefine((details, ctx) => {
+    if (details.bankEnabled) {
+      if (!details.bankAccountNo) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['bankAccountNo'],
+          message: 'Enter the account number',
+        });
+      }
+      if (!details.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(details.bankIfsc)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['bankIfsc'],
+          message: 'Enter the 11-character IFSC, like HDFC0001234',
+        });
+      }
+    }
+    if (details.upiEnabled && (!details.upiId || !/^[\w.-]+@[\w.-]+$/.test(details.upiId))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['upiId'],
+        message: 'Enter the UPI ID, like school@okhdfc',
+      });
+    }
+  });
+export type PaymentDetailsInput = z.infer<typeof paymentDetailsSchema>;
+export type PaymentDetailsView = PaymentDetailsInput;
+
+/* -------------------------------------------------------------------------- */
+/* A family's proof of payment                                                */
+/* -------------------------------------------------------------------------- */
+
+export const PROOF_METHODS = ['UPI', 'BANK_TRANSFER'] as const;
+export type ProofMethod = (typeof PROOF_METHODS)[number];
+
+const proofCommon = {
+  method: z.enum(PROOF_METHODS),
+  reference: z.string().trim().max(80).nullish(),
+  screenshotFileId: idSchema,
+};
+
+/** The amount is never the family's to type: it is what is owed. */
+export const submitPaymentProofSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('INSTALLMENT'), invoiceId: idSchema, ...proofCommon }),
+  z.object({ kind: z.literal('PAY_IN_FULL'), ...proofCommon }),
+]);
+export type SubmitPaymentProofInput = z.infer<typeof submitPaymentProofSchema>;
+
+export const approvePaymentProofSchema = z.object({
+  /** What the screenshot shows, when it is not what was owed. */
+  amountInPaise: z.coerce.number().int().min(1).optional(),
+});
+export type ApprovePaymentProofInput = z.infer<typeof approvePaymentProofSchema>;
+
+export const rejectPaymentProofSchema = z.object({
+  reason: z.string().trim().min(3, 'Tell the family why').max(200),
+});
+export type RejectPaymentProofInput = z.infer<typeof rejectPaymentProofSchema>;
+
+export type PaymentProofStatus = 'WAITING' | 'APPROVED' | 'REJECTED';
+
+export interface PaymentProofView {
+  id: string;
+  kind: 'INSTALLMENT' | 'PAY_IN_FULL';
+  status: PaymentProofStatus;
+  invoiceId: string | null;
+  /** "Installment 2" or "Full year", for the screen. */
+  label: string;
+  amountInPaise: number;
+  method: ProofMethod;
+  reference: string | null;
+  screenshotFileId: string;
+  rejectReason: string | null;
+  receiptNo: string | null;
+  paymentId: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  student: { id: string; name: string; admissionNo: string; classroomLabel: string | null };
+}
+
+/** What a family needs to pay: where to, what is waiting, and the full-year offer. */
+export interface FeePaymentInfo {
+  details: {
+    bank: {
+      accountName: string | null;
+      accountNo: string;
+      ifsc: string;
+      bankName: string | null;
+    } | null;
+    upi: { id: string; name: string | null } | null;
+  };
+  payInFull: {
+    available: boolean;
+    amountInPaise: number;
+    discountInPaise: number;
+    /** Why not, in words for the screen. */
+    reason: string | null;
+  };
+  proofs: PaymentProofView[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* The office: mark the year as fully paid                                    */
+/* -------------------------------------------------------------------------- */
+
+export const settleFeesSchema = z.object({
+  amountInPaise: z.coerce.number().int().min(1, 'Enter the amount received'),
+  method: z.enum(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI', 'CARD', 'ONLINE']),
+  paidOn: z.coerce.date(),
+  reference: z.string().trim().max(80).nullish(),
+});
+export type SettleFeesInput = z.infer<typeof settleFeesSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* A family: the ledger and one installment                                   */

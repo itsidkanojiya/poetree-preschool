@@ -8,6 +8,7 @@
  */
 export {
   CHARGES_PER_YEAR,
+  recurringYearInPaise,
   scheduleYear,
   splitByWeights,
   yearOfFees,

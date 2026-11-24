@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { ID } from '@/lib/document-proxy';
-import { isFrequency, type FrequencyValue } from './frequencies';
+import type { DeleteState } from '@/components/ui/delete-button';
 
 export interface StructureState {
   error?: string;
@@ -42,8 +42,9 @@ export async function addFeeHeadAction(
 }
 
 /**
- * What one standard pays this year: an amount and how often, per fee head.
- * A head left at 0 is not charged to this standard.
+ * What one standard pays this year — each fee head's yearly amount, the
+ * installments as typed, and the pay-in-full discount. A head left at 0 is not
+ * charged to this standard. The API checks the installments add up.
  */
 export async function saveStructureAction(
   academicYearId: string,
@@ -54,7 +55,11 @@ export async function saveStructureAction(
 ): Promise<StructureState> {
   if (!ID.test(academicYearId) || !ID.test(classLevelId)) return { error: 'Not a standard.' };
 
-  const items: Array<{ feeHeadId: string; amountInPaise: number; frequency: FrequencyValue }> = [];
+  const items: Array<{
+    feeHeadId: string;
+    amountInPaise: number;
+    frequency: 'ANNUAL' | 'ONE_TIME';
+  }> = [];
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith('amount-')) continue;
     const feeHeadId = key.slice('amount-'.length);
@@ -64,24 +69,62 @@ export async function saveStructureAction(
       return { error: 'An amount has to be a number of rupees, 0 or more.' };
     }
     if (rupees === 0) continue;
-    const frequency = String(formData.get(`frequency-${feeHeadId}`) ?? 'ANNUAL');
-    if (!isFrequency(frequency)) {
-      return { error: 'Choose how often each fee is charged.' };
-    }
-    items.push({ feeHeadId, amountInPaise: Math.round(rupees * 100), frequency });
+    items.push({
+      feeHeadId,
+      amountInPaise: Math.round(rupees * 100),
+      frequency: formData.get(`new-${feeHeadId}`) ? 'ONE_TIME' : 'ANNUAL',
+    });
   }
   if (items.length === 0) return { error: `Enter at least one amount for ${standardName}.` };
+
+  let plan: {
+    installments: Array<{ dueDate: string; amountInPaise: number }>;
+    payInFull: { enabled: boolean; discountKind: 'FIXED' | 'PERCENT'; discountValue: number };
+  };
+  try {
+    plan = JSON.parse(String(formData.get('plan') ?? ''));
+  } catch {
+    return { error: 'Something went wrong reading the installments. Reload and try again.' };
+  }
+  if (plan.installments.length === 0) {
+    return { error: 'Add at least one installment: its date and amount.' };
+  }
+  if (plan.installments.some((i) => !i.dueDate || !(i.amountInPaise > 0))) {
+    return { error: 'Give every installment a date and an amount.' };
+  }
 
   try {
     await apiFetch('/fees/structures', {
       method: 'PUT',
       redirectOnAuthFailure: false,
-      body: { academicYearId, classLevelId, name: standardName, items },
+      body: {
+        academicYearId,
+        classLevelId,
+        name: standardName,
+        items,
+        installments: plan.installments,
+        payInFull: plan.payInFull,
+      },
     });
   } catch (error) {
     return { error: errorMessage(error, `Could not save the ${standardName} fees.`) };
   }
   revalidatePath('/school/fees/structure');
-  revalidatePath('/school/fees/plans');
   return { success: `${standardName} fees saved.` };
+}
+
+/** A fee head, for good — refused by the API once it has been billed. */
+export async function deleteFeeHeadAction(
+  headId: string,
+  _prev: DeleteState,
+  _formData: FormData,
+): Promise<DeleteState> {
+  if (!ID.test(headId)) return { error: 'Not a fee head.' };
+  try {
+    await apiFetch(`/fees/heads/${headId}`, { method: 'DELETE', redirectOnAuthFailure: false });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not remove that fee.') };
+  }
+  revalidatePath('/school/fees/structure');
+  return { done: true };
 }

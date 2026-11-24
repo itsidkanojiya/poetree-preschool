@@ -255,6 +255,7 @@ class FeePlanOption {
     required this.id,
     required this.name,
     required this.installments,
+    this.discountInPaise = 0,
   });
 
   factory FeePlanOption.fromJson(Map<String, dynamic> json) => FeePlanOption(
@@ -270,11 +271,15 @@ class FeePlanOption {
           ),
         )
         .toList(),
+    discountInPaise: _int(json['discountInPaise']),
   );
 
   final String id;
   final String name;
   final List<PlanInstallment> installments;
+
+  /// Paying in full: what paying the year at once saves.
+  final int discountInPaise;
 
   int get count => installments.length;
 
@@ -338,6 +343,127 @@ class FeePlanChoice {
   final String? currentPlanId;
   final String? currentPlanName;
   final List<FeePlanOption> options;
+}
+
+/// Where a family's screenshot of a payment stands with the school.
+enum ProofStatus { waiting, approved, rejected }
+
+/// A payment the family made by UPI or bank transfer and sent to the school,
+/// with its screenshot. Nothing is paid until the school approves it.
+class PaymentProof {
+  PaymentProof({
+    required this.id,
+    required this.status,
+    required this.label,
+    required this.amountInPaise,
+    required this.createdAt,
+    this.invoiceId,
+    this.rejectReason,
+    this.receiptNo,
+    this.fullYear = false,
+  });
+
+  factory PaymentProof.fromJson(Map<String, dynamic> json) => PaymentProof(
+    id: json['id'] as String,
+    status: switch (json['status']) {
+      'APPROVED' => ProofStatus.approved,
+      'REJECTED' => ProofStatus.rejected,
+      _ => ProofStatus.waiting,
+    },
+    label: json['label'] as String? ?? '',
+    amountInPaise: _int(json['amountInPaise']),
+    createdAt: _date(json['createdAt']),
+    invoiceId: json['invoiceId'] as String?,
+    rejectReason: json['rejectReason'] as String?,
+    receiptNo: json['receiptNo'] as String?,
+    fullYear: json['kind'] == 'PAY_IN_FULL',
+  );
+
+  final String id;
+  final ProofStatus status;
+  final String label;
+  final int amountInPaise;
+  final DateTime createdAt;
+  final String? invoiceId;
+  final String? rejectReason;
+  final String? receiptNo;
+  final bool fullYear;
+}
+
+/// The school's bank account, as families are shown it.
+class SchoolBank {
+  SchoolBank({
+    required this.accountNo,
+    required this.ifsc,
+    this.accountName,
+    this.bankName,
+  });
+
+  final String accountNo;
+  final String ifsc;
+  final String? accountName;
+  final String? bankName;
+}
+
+/// How to pay the school from the app: where to, what has been sent, and
+/// whether the year can still be paid at once for less.
+class FeePaymentInfo {
+  FeePaymentInfo({
+    required this.proofs,
+    this.upiId,
+    this.upiName,
+    this.bank,
+    this.payInFullAvailable = false,
+    this.payInFullInPaise = 0,
+    this.payInFullDiscountInPaise = 0,
+  });
+
+  factory FeePaymentInfo.fromJson(Map<String, dynamic> json) {
+    final details = json['details'] as Map<String, dynamic>? ?? const {};
+    final upi = details['upi'] as Map<String, dynamic>?;
+    final bank = details['bank'] as Map<String, dynamic>?;
+    final full = json['payInFull'] as Map<String, dynamic>? ?? const {};
+    return FeePaymentInfo(
+      upiId: upi?['id'] as String?,
+      upiName: upi?['name'] as String?,
+      bank: bank == null
+          ? null
+          : SchoolBank(
+              accountNo: bank['accountNo'] as String? ?? '',
+              ifsc: bank['ifsc'] as String? ?? '',
+              accountName: bank['accountName'] as String?,
+              bankName: bank['bankName'] as String?,
+            ),
+      payInFullAvailable: full['available'] as bool? ?? false,
+      payInFullInPaise: _int(full['amountInPaise']),
+      payInFullDiscountInPaise: _int(full['discountInPaise']),
+      proofs: (json['proofs'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(PaymentProof.fromJson)
+          .toList(),
+    );
+  }
+
+  final String? upiId;
+  final String? upiName;
+  final SchoolBank? bank;
+  final bool payInFullAvailable;
+  final int payInFullInPaise;
+  final int payInFullDiscountInPaise;
+
+  /// Newest first, as the server sends them.
+  final List<PaymentProof> proofs;
+
+  /// Whether the school takes payments from the app at all.
+  bool get takesPayments => upiId != null || bank != null;
+
+  /// The latest payment sent for an installment, if any.
+  PaymentProof? latestFor(String invoiceId) {
+    for (final proof in proofs) {
+      if (proof.invoiceId == invoiceId) return proof;
+    }
+    return null;
+  }
 }
 
 /// "₹12,000", or "₹3,333.34" when there are paise — Indian grouping.

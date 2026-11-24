@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { FEE_OPTIONS, type FeeOption } from '@poetree/shared';
 import type {
   ChooseFeePlanInput,
   FeePlanChoice,
@@ -45,6 +46,13 @@ interface ChildYear {
   academicYearName: string;
   classLevelId: string;
   heads: HeadForYear[];
+  /** The year with the pay-in-full discount taken off too. */
+  fullYearHeads: HeadForYear[];
+  /** The standard's own installments, as the office typed them. */
+  standard: {
+    installments: Array<{ label: string; dueDate: string; amountInPaise: number }>;
+    payInFullEnabled: boolean;
+  };
 }
 
 /** The academic year asked for, or the school's current one. */
@@ -88,6 +96,9 @@ async function childYear(
       isActive: true,
     },
     select: {
+      payInFullEnabled: true,
+      payInFullDiscountKind: true,
+      payInFullDiscountValue: true,
       items: {
         select: {
           feeHeadId: true,
@@ -95,6 +106,10 @@ async function childYear(
           frequency: true,
           feeHead: { select: { name: true } },
         },
+      },
+      installments: {
+        orderBy: { position: 'asc' },
+        select: { label: true, dueDate: true, amountInPaise: true },
       },
     },
   });
@@ -105,21 +120,137 @@ async function childYear(
     select: { kind: true, value: true, feeHeadId: true },
   });
 
+  const items = structure.items.map((item) => ({
+    feeHeadId: item.feeHeadId,
+    name: item.feeHead.name,
+    amountInPaise: item.amountInPaise,
+    frequency: item.frequency as Frequency,
+  }));
+  const newChild = await isFirstYear(db, studentId, year.startDate);
+  // The pay-in-full discount is off the whole year — one more concession on
+  // top of the child's own, so it is worked out by the same arithmetic.
+  const payInFull =
+    structure.payInFullDiscountValue > 0
+      ? [
+          {
+            kind: structure.payInFullDiscountKind,
+            value: structure.payInFullDiscountValue,
+            feeHeadId: null,
+          },
+        ]
+      : [];
+
   return {
     academicYearId: year.id,
     academicYearName: year.name,
     classLevelId: enrolment.classroom.classLevelId,
-    heads: yearOfFees(
-      structure.items.map((item) => ({
-        feeHeadId: item.feeHeadId,
-        name: item.feeHead.name,
-        amountInPaise: item.amountInPaise,
-        frequency: item.frequency as Frequency,
+    heads: yearOfFees(items, concessions, { newChild }),
+    fullYearHeads: yearOfFees(items, [...concessions, ...payInFull], { newChild }),
+    standard: {
+      installments: structure.installments.map((i) => ({
+        label: i.label,
+        dueDate: dateOnly(i.dueDate),
+        amountInPaise: i.amountInPaise,
       })),
-      concessions,
-      { newChild: await isFirstYear(db, studentId, year.startDate) },
-    ),
+      payInFullEnabled: structure.payInFullEnabled,
+    },
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The standard's own installments, and paying in full                        */
+/* -------------------------------------------------------------------------- */
+
+export const OPTION_NAMES: Record<FeeOption, string> = {
+  INSTALLMENTS: 'Installments',
+  PAY_IN_FULL: 'Pay in full',
+};
+
+const isFeeOption = (planId: string): planId is FeeOption =>
+  (FEE_OPTIONS as readonly string[]).includes(planId);
+
+/**
+ * The typed installments as a plan: each one's amount is its weight, so the
+ * year divides exactly as typed when it adds up to the year — and in the same
+ * proportions when a concession makes it less.
+ */
+const standardInstallments = (fees: ChildYear): PlanInstallment[] =>
+  fees.standard.installments.map((i) => ({
+    label: i.label,
+    dueDate: i.dueDate,
+    weight: i.amountInPaise,
+  }));
+
+/** Paid in full: one installment, due with the first — or today, if that has gone by. */
+const fullYearInstallment = (fees: ChildYear, today: string): PlanInstallment[] => {
+  const first = fees.standard.installments[0]?.dueDate ?? today;
+  return [{ label: 'Full year', dueDate: first < today ? today : first, weight: 1 }];
+};
+
+/** A year's schedule by one of the standard's options. */
+function optionSchedule(fees: ChildYear, option: FeeOption, today: string) {
+  return option === 'PAY_IN_FULL'
+    ? scheduleYear(fees.fullYearHeads, fullYearInstallment(fees, today))
+    : scheduleYear(fees.heads, standardInstallments(fees));
+}
+
+/** Whether a family can be offered the standard's own options. */
+const hasStandardOptions = (fees: ChildYear | null): boolean =>
+  !!fees && fees.standard.installments.length > 0;
+
+const offersOption = (fees: ChildYear, option: FeeOption) =>
+  hasStandardOptions(fees) && (option === 'INSTALLMENTS' || fees.standard.payInFullEnabled);
+
+export interface PayInFullOffer {
+  available: boolean;
+  amountInPaise: number;
+  discountInPaise: number;
+  reason: string | null;
+}
+
+/**
+ * Whether this child's family may still pay the year at once, for how much.
+ * Only while nothing of the year has been paid, and nothing is waiting on
+ * the school.
+ */
+export async function payInFullOffer(
+  studentId: string,
+  academicYearId?: string,
+): Promise<PayInFullOffer & { academicYearId: string }> {
+  const year = await yearFor(academicYearId);
+  const fees = await childYear(prisma, studentId, year);
+  const none = { academicYearId: year.id, amountInPaise: 0, discountInPaise: 0 };
+  if (!fees || !hasStandardOptions(fees) || !fees.standard.payInFullEnabled) {
+    return { ...none, available: false, reason: 'The school does not offer paying in full.' };
+  }
+
+  const amountInPaise = yearTotal(fees.fullYearHeads);
+  const offer = {
+    academicYearId: year.id,
+    amountInPaise,
+    discountInPaise: yearTotal(fees.heads) - amountInPaise,
+  };
+
+  const [paid, current, waiting] = await Promise.all([
+    prisma.feeInvoice.aggregate({
+      where: { studentId, academicYearId: year.id, status: { not: 'CANCELLED' } },
+      _sum: { paidInPaise: true },
+    }),
+    prisma.studentFeePlan.findFirst({
+      where: { studentId, academicYearId: year.id },
+      select: { option: true },
+    }),
+    prisma.paymentProof.count({
+      where: { studentId, academicYearId: year.id, status: 'WAITING' },
+    }),
+  ]);
+
+  let reason: string | null = null;
+  if (current?.option === 'PAY_IN_FULL') reason = 'This year is already being paid in full.';
+  else if ((paid._sum.paidInPaise ?? 0) > 0) reason = 'Part of this year has already been paid.';
+  else if (waiting > 0) reason = 'A payment is waiting for the school to check it.';
+
+  return { ...offer, available: reason === null, reason };
 }
 
 const yearTotal = (heads: HeadForYear[]) =>
@@ -423,6 +554,7 @@ export async function planChoice(
       where: { studentId, academicYearId: year.id },
       select: {
         planId: true,
+        option: true,
         createdAt: true,
         chosenByRole: true,
         plan: { select: { name: true } },
@@ -434,11 +566,44 @@ export async function planChoice(
     }),
   ]);
 
-  const yearInPaise = fees ? yearTotal(fees.heads) : invoices.reduce((s, i) => s + i.netInPaise, 0);
+  // A child on a plan has the whole year billed, so the year is what was
+  // billed — the discounted year when paid in full, and what was kept when
+  // the office closed the year as fully paid.
+  const billed = invoices.reduce((s, i) => s + i.netInPaise, 0);
+  const yearInPaise =
+    current && invoices.length > 0 ? billed : fees ? yearTotal(fees.heads) : billed;
   const paidInPaise = invoices.reduce((s, i) => s + i.paidInPaise, 0);
 
   let options: FeePlanOption[] = [];
-  if (fees) {
+  if (fees && hasStandardOptions(fees)) {
+    // The standard's own installments replace the plans page: a school that
+    // has typed them offers these and nothing else.
+    const today = schoolToday(new Date());
+    options = [
+      {
+        id: 'INSTALLMENTS',
+        name: OPTION_NAMES.INSTALLMENTS,
+        installments: optionSchedule(fees, 'INSTALLMENTS', today).map((i) => ({
+          label: i.label,
+          dueDate: i.dueDate,
+          amountInPaise: i.netInPaise,
+        })),
+      },
+    ];
+    if (fees.standard.payInFullEnabled) {
+      const full = optionSchedule(fees, 'PAY_IN_FULL', today);
+      options.push({
+        id: 'PAY_IN_FULL',
+        name: OPTION_NAMES.PAY_IN_FULL,
+        installments: full.map((i) => ({
+          label: i.label,
+          dueDate: i.dueDate,
+          amountInPaise: i.netInPaise,
+        })),
+        discountInPaise: yearTotal(fees.heads) - yearTotal(fees.fullYearHeads),
+      });
+    }
+  } else if (fees) {
     const plans = await prisma.feePlan.findMany({
       where: { academicYearId: year.id, isEnabled: true },
       include: { installments: true },
@@ -478,8 +643,8 @@ export async function planChoice(
     remainingInPaise: Math.max(yearInPaise - paidInPaise, 0),
     current: current
       ? {
-          planId: current.planId,
-          planName: current.plan.name,
+          planId: current.planId ?? current.option ?? '',
+          planName: current.plan?.name ?? (current.option ? OPTION_NAMES[current.option] : 'Plan'),
           chosenAt: current.createdAt.toISOString(),
           byFamily: current.chosenByRole === 'PARENT',
         }
@@ -585,21 +750,25 @@ export async function choosePlan(
   await assertMayReadLedger(studentId);
 
   const year = await yearFor(input.academicYearId);
-  const plan = await prisma.feePlan.findFirst({
-    where: { id: input.planId, academicYearId: year.id, isEnabled: true },
-    include: { installments: true },
-  });
-  if (!plan) throw ApiError.notFound('That plan is not offered');
+  const option = isFeeOption(input.planId) ? input.planId : null;
+  const plan = option
+    ? null
+    : await prisma.feePlan.findFirst({
+        where: { id: input.planId, academicYearId: year.id, isEnabled: true },
+        include: { installments: true },
+      });
+  if (!option && !plan) throw ApiError.notFound('That plan is not offered');
+  const chosen = { planId: plan?.id ?? null, option, name: plan?.name ?? OPTION_NAMES[option!] };
 
   try {
     await prisma.$transaction(async (tx) => {
       const already = await tx.studentFeePlan.findFirst({
         where: { studentId, academicYearId: year.id },
-        select: { planId: true },
+        select: { planId: true, option: true },
       });
       // The same plan again is a second tap: the first choice stands. Another
       // plan is a change, and changes go through the office.
-      if (already?.planId === plan.id) return;
+      if (already && already.planId === chosen.planId && already.option === chosen.option) return;
       if (already) {
         throw ApiError.conflict(
           'Your installment plan is already set for this year. To change it, please contact the school office.',
@@ -618,14 +787,18 @@ export async function choosePlan(
       const fees = await childYear(tx, studentId, year);
       if (!fees)
         throw ApiError.conflict('The school has not set this year’s fees for this class yet.');
-      if (!offeredTo(plan, fees.classLevelId)) throw ApiError.notFound('That plan is not offered');
+      if (plan && !offeredTo(plan, fees.classLevelId)) {
+        throw ApiError.notFound('That plan is not offered');
+      }
+      if (option && !offersOption(fees, option)) throw ApiError.notFound('That is not offered');
 
       const selection = await tx.studentFeePlan.create({
         data: {
           schoolId,
           studentId,
           academicYearId: year.id,
-          planId: plan.id,
+          planId: chosen.planId,
+          option: chosen.option,
           chosenById: actorUserId,
           chosenByRole: context?.role ?? 'PARENT',
         },
@@ -636,7 +809,9 @@ export async function choosePlan(
         studentId,
         academicYearId: year.id,
         studentFeePlanId: selection.id,
-        installments: scheduleYear(fees.heads, asInstallments(plan)),
+        installments: option
+          ? optionSchedule(fees, option, schoolToday(new Date()))
+          : scheduleYear(fees.heads, asInstallments(plan!)),
       });
     });
   } catch (error) {
@@ -653,7 +828,7 @@ export async function choosePlan(
     entityId: studentId,
     schoolId,
     actorUserId,
-    after: { planId: plan.id, planName: plan.name, academicYearId: year.id },
+    after: { ...chosen, planName: chosen.name, academicYearId: year.id },
   });
 
   return planChoice(studentId, year.id);
@@ -684,21 +859,32 @@ export async function changePlan(
   });
   if (!student) throw ApiError.notFound('Student not found');
 
-  const plan = await prisma.feePlan.findFirst({
-    where: { id: input.planId, academicYearId: year.id },
-    include: { installments: true },
-  });
-  if (!plan) throw ApiError.notFound('Plan not found');
+  const option = isFeeOption(input.planId) ? input.planId : null;
+  const plan = option
+    ? null
+    : await prisma.feePlan.findFirst({
+        where: { id: input.planId, academicYearId: year.id },
+        include: { installments: true },
+      });
+  if (!option && !plan) throw ApiError.notFound('Plan not found');
+  const chosen = { planId: plan?.id ?? null, option, name: plan?.name ?? OPTION_NAMES[option!] };
 
   const today = schoolToday(new Date());
 
   const summary = await prisma.$transaction(async (tx) => {
     const fees = await childYear(tx, studentId, year);
     if (!fees) throw ApiError.conflict('This child has no fee structure for that year');
+    if (option && !offersOption(fees, option)) {
+      throw ApiError.conflict(
+        option === 'PAY_IN_FULL'
+          ? 'This standard does not offer paying in full.'
+          : 'This standard has no installments set yet.',
+      );
+    }
 
     const previous = await tx.studentFeePlan.findFirst({
       where: { studentId, academicYearId: year.id },
-      select: { id: true, planId: true },
+      select: { id: true, planId: true, option: true },
     });
 
     const open = await tx.feeInvoice.findMany({
@@ -710,13 +896,24 @@ export async function changePlan(
     const kept = open.filter((invoice) => invoice.paidInPaise > 0);
     const replaced = open.filter((invoice) => invoice.paidInPaise === 0);
 
+    // The discount is for paying the whole year at once — not the rest of a
+    // year that has already been part paid.
+    if (option === 'PAY_IN_FULL' && kept.length > 0) {
+      throw ApiError.conflict(
+        'Part of this year has already been paid, so it cannot be paid in full.',
+      );
+    }
+
     if (replaced.length > 0) {
       await tx.feeInvoice.updateMany({
         where: { id: { in: replaced.map((i) => i.id) } },
         data: {
           status: 'CANCELLED',
           cancelledAt: new Date(),
-          cancelledReason: `Replaced by the ${plan.name} plan`.slice(0, 200),
+          cancelledReason: (option
+            ? `Replaced: ${chosen.name.toLowerCase()}`
+            : `Replaced by the ${chosen.name} plan`
+          ).slice(0, 200),
         },
       });
       await tx.feeFollowUp.updateMany({
@@ -736,28 +933,37 @@ export async function changePlan(
         keptByHead.set(line.feeHeadId, sofar);
       }
     }
-    const remainingHeads = fees.heads.map((head) => {
-      const sofar = keptByHead.get(head.feeHeadId) ?? { gross: 0, discount: 0 };
-      const gross = Math.max(head.grossInPaise - sofar.gross, 0);
-      return {
-        ...head,
-        grossInPaise: gross,
-        discountInPaise: Math.min(Math.max(head.discountInPaise - sofar.discount, 0), gross),
-      };
-    });
+    const remainingHeads = (option === 'PAY_IN_FULL' ? fees.fullYearHeads : fees.heads).map(
+      (head) => {
+        const sofar = keptByHead.get(head.feeHeadId) ?? { gross: 0, discount: 0 };
+        const gross = Math.max(head.grossInPaise - sofar.gross, 0);
+        return {
+          ...head,
+          grossInPaise: gross,
+          discountInPaise: Math.min(Math.max(head.discountInPaise - sofar.discount, 0), gross),
+        };
+      },
+    );
 
     // The new plan's installments still to come; if all are past, one now.
-    const upcoming = asInstallments(plan).filter((i) => i.dueDate >= today);
+    const upcoming = (
+      option === 'PAY_IN_FULL'
+        ? fullYearInstallment(fees, today)
+        : option === 'INSTALLMENTS'
+          ? standardInstallments(fees)
+          : asInstallments(plan!)
+    ).filter((i) => i.dueDate >= today);
     const schedule =
       upcoming.length > 0
         ? upcoming
-        : [{ label: plan.name.slice(0, 40), dueDate: today, weight: 1 }];
+        : [{ label: chosen.name.slice(0, 40), dueDate: today, weight: 1 }];
 
     const selection = previous
       ? await tx.studentFeePlan.update({
           where: { id: previous.id },
           data: {
-            planId: plan.id,
+            planId: chosen.planId,
+            option: chosen.option,
             chosenById: actorUserId,
             chosenByRole: context?.role ?? 'SCHOOL_ADMIN',
           },
@@ -767,7 +973,8 @@ export async function changePlan(
             schoolId,
             studentId,
             academicYearId: year.id,
-            planId: plan.id,
+            planId: chosen.planId,
+            option: chosen.option,
             chosenById: actorUserId,
             chosenByRole: context?.role ?? 'SCHOOL_ADMIN',
           },
@@ -783,7 +990,7 @@ export async function changePlan(
     });
 
     return {
-      previousPlanId: previous?.planId ?? null,
+      previousPlanId: previous?.planId ?? previous?.option ?? null,
       kept: kept.length,
       cancelled: replaced.length,
       billedInPaise: billed,
@@ -797,7 +1004,7 @@ export async function changePlan(
     schoolId,
     actorUserId,
     before: { planId: summary.previousPlanId },
-    after: { planId: plan.id, ...summary },
+    after: { planId: chosen.planId, option: chosen.option, ...summary },
   });
 
   return planChoice(studentId, year.id);

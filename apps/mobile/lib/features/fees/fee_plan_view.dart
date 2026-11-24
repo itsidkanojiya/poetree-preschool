@@ -207,7 +207,12 @@ class _FeePlanViewState extends State<FeePlanView> {
 /// "₹3,000 × 4 installments", or the count when they differ.
 String _summary(FeePlanOption option) {
   if (option.count == 1) {
-    return 'One payment of ${rupees(option.installments.first.amountInPaise)}';
+    final once =
+        'One payment of ${rupees(option.installments.first.amountInPaise)}';
+    // Paying the year at once for less: the saving is the reason to.
+    return option.discountInPaise > 0
+        ? '$once, saving ${rupees(option.discountInPaise)}'
+        : once;
   }
   return option.even
       ? '${option.count} installments of ${rupees(option.installments.first.amountInPaise)}'

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'package:poetree_school/features/fees/fee_details_view.dart';
 import 'package:poetree_school/features/fees/fee_models.dart';
 import 'package:poetree_school/features/fees/fee_plan_view.dart';
 import 'package:poetree_school/features/fees/fees_view.dart';
+import 'package:poetree_school/features/fees/pay_view.dart';
 import 'package:poetree_school/features/parent/child_controller.dart';
 import 'package:poetree_school/features/parent/children_controller.dart';
 import 'package:poetree_school/features/parent/parent_home_view.dart';
@@ -209,6 +211,58 @@ final Map<String, dynamic> _detail = {
   'plan': {'name': 'Quarterly', 'position': 1, 'count': 4},
 };
 
+Map<String, dynamic> _payment({
+  List<Map<String, dynamic>> proofs = const [],
+  bool payInFull = true,
+}) => {
+  'details': {
+    'bank': null,
+    'upi': {'id': 'alpha@okhdfc', 'name': 'Alpha Preschool'},
+  },
+  'payInFull': {
+    'available': payInFull,
+    'amountInPaise': 1100000,
+    'discountInPaise': 100000,
+    'reason': payInFull ? null : 'Part of this year has already been paid.',
+  },
+  'proofs': proofs,
+};
+
+Map<String, dynamic> _proof(String status, {String? reason}) => {
+  'id': 'pr1',
+  'kind': 'INSTALLMENT',
+  'status': status,
+  'invoiceId': '1',
+  'label': 'Q1',
+  'amountInPaise': 300000,
+  'method': 'UPI',
+  'reference': null,
+  'screenshotFileId': 'f1',
+  'rejectReason': reason,
+  'receiptNo': null,
+  'paymentId': null,
+  'createdAt': '2026-10-20T10:00:00Z',
+  'reviewedAt': null,
+  'student': {
+    'id': 's1',
+    'name': 'Aarav',
+    'admissionNo': 'A1',
+    'classroomLabel': null,
+  },
+};
+
+/// A screenshot on disk, for the pay screen to send.
+Future<String> _screenshotFile() async {
+  final dir = await Directory.systemTemp.createTemp('pay');
+  final file = File('${dir.path}/paid.png');
+  await file.writeAsBytes(
+    base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    ),
+  );
+  return file.path;
+}
+
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 12; i += 1) {
     await tester.pump(const Duration(milliseconds: 50));
@@ -265,15 +319,18 @@ void main() {
       expect(find.text('Choose an installment plan'), findsOneWidget);
     });
 
-    testWidgets('has no Pay button anywhere', (tester) async {
-      await _phone(tester, const Size(400, 1600));
-      await open(tester);
-      expect(
-        find.textContaining(RegExp('pay now', caseSensitive: false)),
-        findsNothing,
-      );
-      expect(find.widgetWithText(FilledButton, 'Pay'), findsNothing);
-    });
+    testWidgets(
+      'has no Pay button when the school takes no payments in the app',
+      (tester) async {
+        await _phone(tester, const Size(400, 1600));
+        await open(tester);
+        expect(
+          find.textContaining(RegExp('pay now', caseSensitive: false)),
+          findsNothing,
+        );
+        expect(find.widgetWithText(FilledButton, 'Pay'), findsNothing);
+      },
+    );
 
     testWidgets('narrows to one year with the year filter', (tester) async {
       await _phone(tester, const Size(400, 1600));
@@ -415,6 +472,38 @@ void main() {
       },
     );
 
+    testWidgets('shows what paying in full saves', (tester) async {
+      await _phone(tester, const Size(400, 1400));
+      _install((method, path) => null);
+      final choice = _choice();
+      (choice['options'] as List).add({
+        'id': 'PAY_IN_FULL',
+        'name': 'Pay in full',
+        'discountInPaise': 100000,
+        'installments': [
+          {
+            'label': 'Full year',
+            'dueDate': '2026-10-31',
+            'amountInPaise': 1100000,
+          },
+        ],
+      });
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: FeePlanView(
+            studentId: 's1',
+            childName: 'Aarav',
+            initial: FeePlanChoice.fromJson(choice),
+          ),
+        ),
+      );
+      await _settle(tester);
+      expect(
+        find.text('One payment of ₹11,000, saving ₹1,000'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('says why, when the school refuses', (tester) async {
       await _phone(tester, const Size(400, 1400));
       await open(
@@ -439,6 +528,139 @@ void main() {
     testWidgets('fits a small phone', (tester) async {
       await _phone(tester, const Size(320, 640));
       await open(tester);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('paying the school', () {
+    Future<_Api> open(
+      WidgetTester tester, {
+      List<Map<String, dynamic>> proofs = const [],
+      bool payInFull = true,
+    }) async {
+      final api = _install(
+        (method, path) => switch (path) {
+          '/fees/students/s1/ledger' => _ledger,
+          '/me/children/s1/fee-plan' => _choice(chosen: true),
+          '/me/children/s1/fee-payment' => _payment(
+            proofs: proofs,
+            payInFull: payInFull,
+          ),
+          _ => null,
+        },
+      );
+      Get.put(FeesController(studentId: 's1', childName: 'Aarav'));
+      await tester.pumpWidget(const GetMaterialApp(home: FeesView()));
+      await _settle(tester);
+      return api;
+    }
+
+    testWidgets('offers Pay on what is owed, and the year at once for less', (
+      tester,
+    ) async {
+      await _phone(tester, const Size(400, 1800));
+      await open(tester);
+
+      // Q1-Q4 this year are owed; last year's is paid.
+      expect(find.widgetWithText(FilledButton, 'Pay'), findsNWidgets(4));
+      expect(find.text('Save ₹1,000'), findsOneWidget);
+      expect(find.text('Pay ₹11,000 at once'), findsOneWidget);
+    });
+
+    testWidgets('shows a payment waiting for the school, with no second Pay', (
+      tester,
+    ) async {
+      await _phone(tester, const Size(400, 1800));
+      await open(tester, proofs: [_proof('WAITING')], payInFull: false);
+
+      expect(find.text('Waiting for school'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Pay'), findsNWidgets(3));
+      expect(find.text('Save ₹1,000'), findsNothing);
+    });
+
+    testWidgets(
+      'says why a payment was not accepted, and lets them send again',
+      (tester) async {
+        await _phone(tester, const Size(400, 1800));
+        await open(
+          tester,
+          proofs: [_proof('REJECTED', reason: 'The screenshot is blurry')],
+          payInFull: false,
+        );
+
+        expect(
+          find.text('Not accepted: The screenshot is blurry'),
+          findsOneWidget,
+        );
+        expect(find.widgetWithText(FilledButton, 'Send again'), findsOneWidget);
+      },
+    );
+
+    testWidgets('fits a small phone', (tester) async {
+      await _phone(tester, const Size(320, 640));
+      await open(tester);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('the pay screen', () {
+    Future<_Api> open(WidgetTester tester, {required String photo}) async {
+      final api = _install(
+        (method, path) => switch ((method, path)) {
+          ('POST', '/files') => {'id': 'cl0000000000000000000file'},
+          ('POST', '/me/children/s1/fee-payment-proofs') => _proof('WAITING'),
+          _ => null,
+        },
+      );
+      await tester.pumpWidget(
+        GetMaterialApp(
+          home: PayView(
+            studentId: 's1',
+            info: FeePaymentInfo.fromJson(_payment()),
+            title: 'Q1',
+            amountInPaise: 300000,
+            invoiceId: '1',
+            pickImage: (_) async => photo,
+          ),
+        ),
+      );
+      await _settle(tester);
+      return api;
+    }
+
+    testWidgets('shows where to pay, and sends the screenshot once chosen', (
+      tester,
+    ) async {
+      await _phone(tester, const Size(400, 1400));
+      final photo = await tester.runAsync(_screenshotFile);
+      final api = await open(tester, photo: photo!);
+
+      expect(find.text('Pay ₹3,000 to the school'), findsOneWidget);
+      expect(find.text('alpha@okhdfc'), findsOneWidget);
+
+      final send = find.widgetWithText(FilledButton, 'Send to school');
+      expect(tester.widget<FilledButton>(send).onPressed, isNull);
+
+      await tester.tap(find.text('Choose from gallery'));
+      await _settle(tester);
+      expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
+
+      await tester.runAsync(() async {
+        await tester.tap(send);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await _settle(tester);
+
+      expect(api.sent, contains(('POST', '/files')));
+      expect(
+        api.sent,
+        contains(('POST', '/me/children/s1/fee-payment-proofs')),
+      );
+    });
+
+    testWidgets('fits a small phone', (tester) async {
+      await _phone(tester, const Size(320, 640));
+      await open(tester, photo: 'none');
       expect(tester.takeException(), isNull);
     });
   });

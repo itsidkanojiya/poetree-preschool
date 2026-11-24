@@ -25,6 +25,19 @@ export interface StructureItem {
   frequency: Frequency;
 }
 
+/**
+ * What a standard's typed installments must add up to: its recurring fees for
+ * a year. A one-time fee is left out — it is added to the first installment,
+ * and only for a child in their first year.
+ */
+export function recurringYearInPaise(
+  items: Array<{ amountInPaise: number; frequency: Frequency }>,
+): number {
+  return items
+    .filter((item) => item.frequency !== 'ONE_TIME')
+    .reduce((total, item) => total + item.amountInPaise * CHARGES_PER_YEAR[item.frequency], 0);
+}
+
 export interface Concession {
   kind: 'PERCENT' | 'FIXED';
   /** Percent (0–100) or paise. */

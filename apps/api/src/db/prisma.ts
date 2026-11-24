@@ -54,6 +54,10 @@ export const TENANT_MODELS = new Set<string>([
   'FeeReminderPolicy',
   'FeeReminderLog',
   'FeeFollowUp',
+  'FeeStructureInstallment',
+  // A school's bank account, and a family's screenshot of paying into it.
+  'SchoolPaymentDetails',
+  'PaymentProof',
   'SchoolDriveConnection',
   // Report cards and certificates: a child's grades and awards, the most
   // personal records a family receives from the school.

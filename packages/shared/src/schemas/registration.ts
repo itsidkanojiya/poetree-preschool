@@ -8,6 +8,7 @@ import {
   passwordSchema,
   phoneSchema,
 } from './common.js';
+import { FEE_OPTIONS } from './fees.js';
 
 /**
  * A parent asking their school for access.
@@ -322,10 +323,17 @@ export interface StudentMatch {
  * the first time has no record yet, and the office creating it at the moment it
  * says yes is one step instead of two.
  */
+/**
+ * How the child's fees are paid this year, billed as the child is approved.
+ * Left out: the family chooses in the app.
+ */
+const feeOptionSchema = z.enum(FEE_OPTIONS).optional();
+
 export const approveRegistrationSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('LINK'),
     studentId: idSchema,
+    feeOption: feeOptionSchema,
   }),
   z.object({
     mode: z.literal('CREATE'),
@@ -334,6 +342,7 @@ export const approveRegistrationSchema = z.discriminatedUnion('mode', [
     gender: z.enum(GENDERS),
     /** Optional: a child can be admitted before the class is settled. */
     classroomId: idSchema.optional(),
+    feeOption: feeOptionSchema,
   }),
 ]);
 export type ApproveRegistrationInput = z.infer<typeof approveRegistrationSchema>;

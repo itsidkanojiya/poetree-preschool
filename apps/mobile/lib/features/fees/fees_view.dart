@@ -11,6 +11,7 @@ import 'fee_details_view.dart';
 import 'fee_models.dart';
 import 'fee_plan_view.dart';
 import 'fees_ui.dart';
+import 'pay_view.dart';
 
 /// A child's fees: what is billed, what is paid, and each installment.
 class FeesController extends GetxController {
@@ -21,6 +22,9 @@ class FeesController extends GetxController {
 
   final account = Rxn<FeeAccount>();
   final choice = Rxn<FeePlanChoice>();
+
+  /// How to pay from the app; null when the school takes no payments here.
+  final payment = Rxn<FeePaymentInfo>();
   final isLoading = true.obs;
   final error = RxnString();
 
@@ -61,6 +65,32 @@ class FeesController extends GetxController {
     } on DioException {
       choice.value = null;
     }
+
+    // Paying from the app is extra too: without it, fees are paid at school.
+    try {
+      final data = await api.get<Map<String, dynamic>>(
+        '/me/children/$studentId/fee-payment',
+      );
+      payment.value = FeePaymentInfo.fromJson(data);
+    } on DioException {
+      payment.value = null;
+    }
+  }
+
+  /// Pays one installment, or the whole year when [entry] is null.
+  Future<void> openPay([FeeEntry? entry]) async {
+    final info = payment.value;
+    if (info == null) return;
+    final sent = await Get.to<bool>(
+      () => PayView(
+        studentId: studentId,
+        info: info,
+        title: entry?.periodLabel ?? 'Full year',
+        amountInPaise: entry?.outstandingInPaise ?? info.payInFullInPaise,
+        invoiceId: entry?.id,
+      ),
+    );
+    if (sent ?? false) await load();
   }
 
   Future<void> openPlans() async {
@@ -114,8 +144,9 @@ Future<void> openFees({
 }
 
 /// Drawn to the designer's Fees screen: the outstanding amount large, what
-/// was billed and paid, then each installment along a timeline — with no
-/// Pay button anywhere: fees are paid at the school.
+/// was billed and paid, then each installment along a timeline. Where the
+/// school takes UPI or bank transfer, each installment owed has a Pay button;
+/// otherwise fees are paid at the school.
 class FeesView extends GetView<FeesController> {
   const FeesView({super.key});
 
@@ -134,6 +165,7 @@ class FeesView extends GetView<FeesController> {
                   // Read here, where Obx sees them.
                   final yearId = controller.yearId.value;
                   final choice = controller.choice.value;
+                  final payment = controller.payment.value;
                   return AsyncView(
                     isLoading: controller.isLoading.value,
                     error: controller.error.value,
@@ -145,6 +177,7 @@ class FeesView extends GetView<FeesController> {
                         account: account ?? FeeAccount(entries: [], years: []),
                         yearId: yearId,
                         choice: choice,
+                        payment: payment,
                         controller: controller,
                       ),
                     ),
@@ -164,12 +197,14 @@ class _Body extends StatelessWidget {
     required this.account,
     required this.yearId,
     required this.choice,
+    required this.payment,
     required this.controller,
   });
 
   final FeeAccount account;
   final String? yearId;
   final FeePlanChoice? choice;
+  final FeePaymentInfo? payment;
   final FeesController controller;
 
   @override
@@ -215,6 +250,16 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 14),
           _PlanCard(choice: choice!, onOpen: controller.openPlans),
         ],
+        if (payment != null &&
+            payment!.takesPayments &&
+            payment!.payInFullAvailable &&
+            choice?.currentPlanName != null) ...[
+          const SizedBox(height: 14),
+          _PayInFullCard(
+            info: payment!,
+            onPay: () => unawaited(controller.openPay()),
+          ),
+        ],
         const SizedBox(height: 22),
         Row(
           children: [
@@ -244,6 +289,10 @@ class _Body extends StatelessWidget {
               first: index == 0,
               last: index == entries.length - 1,
               onTap: () => unawaited(controller.openInstallment(entry.id)),
+              proof: payment?.latestFor(entry.id),
+              onPay: payment != null && payment!.takesPayments
+                  ? () => unawaited(controller.openPay(entry))
+                  : null,
             ),
         const SizedBox(height: 22),
         const _StayOnTrack(),
@@ -493,6 +542,8 @@ class _TimelineRow extends StatelessWidget {
     required this.first,
     required this.last,
     required this.onTap,
+    this.proof,
+    this.onPay,
   });
 
   final FeeEntry entry;
@@ -500,11 +551,24 @@ class _TimelineRow extends StatelessWidget {
   final bool last;
   final VoidCallback onTap;
 
+  /// The latest payment the family sent for it, if any.
+  final PaymentProof? proof;
+
+  /// Null when the school takes no payments in the app.
+  final VoidCallback? onPay;
+
   @override
   Widget build(BuildContext context) {
     final pressing =
         entry.state.pressing || entry.state == InstallmentState.partial;
     final paid = entry.state == InstallmentState.paid;
+    final waiting = proof?.status == ProofStatus.waiting;
+    final rejected = proof?.status == ProofStatus.rejected;
+    final payable =
+        onPay != null &&
+        !waiting &&
+        entry.outstandingInPaise > 0 &&
+        entry.state != InstallmentState.cancelled;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -592,6 +656,41 @@ class _TimelineRow extends StatelessWidget {
                                   color: FeeInk.muted,
                                 ),
                               ),
+                              if (waiting) ...[
+                                const SizedBox(height: 6),
+                                const _ProofNote(
+                                  text: 'Waiting for school',
+                                  color: FeeInk.violet,
+                                  wash: FeeInk.violetSoft,
+                                ),
+                              ],
+                              if (rejected) ...[
+                                const SizedBox(height: 6),
+                                _ProofNote(
+                                  text:
+                                      'Not accepted: ${proof!.rejectReason ?? 'please send it again'}',
+                                  color: FeeInk.rose,
+                                  wash: FeeInk.roseSoft,
+                                ),
+                              ],
+                              if (payable) ...[
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  height: 36,
+                                  child: FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: FeeInk.violet,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                      ),
+                                    ),
+                                    onPressed: onPay,
+                                    child: Text(
+                                      rejected ? 'Send again' : 'Pay',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -622,6 +721,95 @@ class _TimelineRow extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A line under an installment: waiting for the school, or not accepted.
+class _ProofNote extends StatelessWidget {
+  const _ProofNote({
+    required this.text,
+    required this.color,
+    required this.wash,
+  });
+
+  final String text;
+  final Color color;
+  final Color wash;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: wash,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+/// "Save ₹2,000": the whole year at once for less, while nothing is paid.
+class _PayInFullCard extends StatelessWidget {
+  const _PayInFullCard({required this.info, required this.onPay});
+
+  final FeePaymentInfo info;
+  final VoidCallback onPay;
+
+  @override
+  Widget build(BuildContext context) {
+    return FeeCard(
+      padding: const EdgeInsets.all(14),
+      color: const Color(0xFFF1FBF5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const FeeIconTile(
+            icon: 'wallet',
+            color: FeeInk.mint,
+            soft: FeeInk.mintSoft,
+            size: 46,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Save ${rupees(info.payInFullDiscountInPaise)}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: FeeInk.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Pay ${rupees(info.payInFullInPaise)} at once',
+                  style: const TextStyle(fontSize: 12.5, color: FeeInk.muted),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 36,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: FeeInk.mint),
+                    onPressed: onPay,
+                    child: const Text('Pay in full'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

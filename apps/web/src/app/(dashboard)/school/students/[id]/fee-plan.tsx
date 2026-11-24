@@ -1,9 +1,11 @@
-import type { FeePlanChoice } from '@poetree/shared';
+import Link from 'next/link';
+import type { FeePaymentInfo, FeePlanChoice } from '@poetree/shared';
 import { ApiRequestError, apiFetch } from '@/lib/api';
-import { formatPrice } from '@/lib/format';
-import { Card } from '@/components/ui/layout';
+import { formatDate, formatPrice } from '@/lib/format';
+import { Card, Pill } from '@/components/ui/layout';
 import { formatMoment } from '../../fees/calendar';
 import { FeePlanMover } from './fee-plan-form';
+import { SettleFees } from './settle-fees';
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
@@ -31,16 +33,20 @@ export async function FeePlanCard({
   studentName: string;
 }) {
   let choice: FeePlanChoice | null = null;
+  let payment: FeePaymentInfo | null = null;
   let problem: string | null = null;
   try {
-    choice = await apiFetch<FeePlanChoice>(`/fees/students/${studentId}/plan`);
+    [choice, payment] = await Promise.all([
+      apiFetch<FeePlanChoice>(`/fees/students/${studentId}/plan`),
+      apiFetch<FeePaymentInfo>(`/fees/students/${studentId}/payment-info`),
+    ]);
   } catch (error) {
     // A redirect to sign in, or anything unexpected, goes on up.
     if (!(error instanceof ApiRequestError)) throw error;
     problem = error.message;
   }
 
-  if (!choice) {
+  if (!choice || !payment) {
     return (
       <Card title="Installment plan">
         <p className="text-sm text-slate-500">{problem}</p>
@@ -64,6 +70,15 @@ export async function FeePlanCard({
       'This year’s fees are already billed, so the family cannot choose in the app. Put the child on a plan here.';
   }
 
+  const waiting = payment.proofs.filter((proof) => proof.status === 'WAITING');
+  // What "fully paid" asks for now: the discounted year while nothing is paid
+  // and it is offered; otherwise what is left on what has been billed.
+  const suggested = payment.payInFull.available
+    ? payment.payInFull.amountInPaise
+    : choice.current
+      ? choice.remainingInPaise
+      : 0;
+
   return (
     <Card title="Installment plan" description={`For ${choice.academicYearName}.`}>
       <div className="space-y-4">
@@ -85,6 +100,48 @@ export async function FeePlanCard({
           <Figure label="Paid" value={formatPrice(choice.paidInPaise)} />
           <Figure label="Remaining" value={formatPrice(choice.remainingInPaise)} />
         </dl>
+
+        {waiting.length > 0 && (
+          <div className="rounded-xl bg-gold-50 p-3 ring-1 ring-inset ring-gold-200">
+            <p className="text-sm font-medium text-gold-900">Waiting for the school</p>
+            <ul className="mt-1 space-y-1 text-sm text-gold-900">
+              {waiting.map((proof) => (
+                <li key={proof.id} className="flex flex-wrap items-center gap-2">
+                  {proof.label} · {formatPrice(proof.amountInPaise)} · sent{' '}
+                  {formatDate(proof.createdAt)}
+                  <Link
+                    href="/school/fees/to-approve"
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Review
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {payment.payInFull.available && (
+          <p className="text-xs text-slate-500">
+            <Pill tone="brand">Pay in full</Pill> {formatPrice(payment.payInFull.amountInPaise)} at
+            once, saving {formatPrice(payment.payInFull.discountInPaise)}.
+          </p>
+        )}
+
+        {suggested > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-navy-950/[0.06] pt-4">
+            <SettleFees
+              studentId={studentId}
+              studentName={studentName}
+              suggestedInPaise={suggested}
+              discountInPaise={payment.payInFull.available ? payment.payInFull.discountInPaise : 0}
+              today={new Date().toISOString().slice(0, 10)}
+            />
+            <span className="text-xs text-slate-500">
+              For cash or a payment taken outside the app. Closes the rest of the year.
+            </span>
+          </div>
+        )}
 
         <FeePlanMover studentId={studentId} studentName={studentName} choice={choice} />
       </div>

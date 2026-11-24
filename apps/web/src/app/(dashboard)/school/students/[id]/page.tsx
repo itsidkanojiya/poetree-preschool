@@ -178,6 +178,9 @@ export default async function StudentDetailPage({
         primary: (name) => `${name} is the main contact now.`,
         unlinked: (name) =>
           `${name} is unlinked from ${student.fullName}. Their account is as it was.`,
+        // Mark as fully paid: `who` is the receipt number.
+        settled: (receiptNo) =>
+          `${student.fullName}’s fees are marked fully paid. Receipt ${receiptNo}.`,
       }}
     />
   );

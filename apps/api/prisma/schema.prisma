@@ -497,6 +497,9 @@ model School {
   feeHeads                 FeeHead[]
   feeStructures            FeeStructure[]
   feeStructureItems        FeeStructureItem[]
+  feeStructureInstallments FeeStructureInstallment[]
+  paymentDetails           SchoolPaymentDetails?
+  paymentProofs            PaymentProof[]
   feeConcessions           FeeConcession[]
   feeInvoices              FeeInvoice[]
   feePlans                 FeePlan[]
@@ -697,6 +700,8 @@ model User {
   approvedConcessions      FeeConcession[]      @relation("ConcessionApprover")
   recordedPayments         Payment[]            @relation("PaymentRecorder")
   feePlansChosen           StudentFeePlan[]     @relation("FeePlanChooser")
+  paymentProofsSent        PaymentProof[]       @relation("PaymentProofSender")
+  paymentProofsReviewed    PaymentProof[]       @relation("PaymentProofReviewer")
   feeFollowUpsLogged       FeeFollowUp[]        @relation("FeeFollowUpLogger")
   timetableSlots           TimetableEntry[]     @relation("TimetableTeacher")
   noticeReads              NoticeRead[]
@@ -982,6 +987,7 @@ model Student {
   feePlans            StudentFeePlan[]
   feeFollowUps        FeeFollowUp[]
   payments            Payment[]
+  paymentProofs       PaymentProof[]
   reportCards         ReportCard[]
   certificateAwards   CertificateAward[]
   tracingProgress     TracingProgress[]
@@ -1099,6 +1105,7 @@ model AcademicYear {
   feeInvoices        FeeInvoice[]
   feePlans           FeePlan[]
   studentFeePlans    StudentFeePlan[]
+  paymentProofs      PaymentProof[]
   timetablePeriods   TimetablePeriod[]
   timetableEntries   TimetableEntry[]
   terms              Term[]
@@ -1644,13 +1651,21 @@ model FeeStructure {
   name     String  @db.VarChar(80)
   isActive Boolean @default(true)
 
+  /// A family may pay the whole year at once for less. The discount is off the
+  /// child's whole year, admission included.
+  payInFullEnabled       Boolean        @default(false)
+  payInFullDiscountKind  ConcessionKind @default(FIXED)
+  /// Paise for FIXED, 0-100 for PERCENT.
+  payInFullDiscountValue Int            @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school       School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  classLevel   ClassLevel         @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
+  school       School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear              @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classLevel   ClassLevel                @relation(fields: [classLevelId], references: [id], onDelete: Restrict)
   items        FeeStructureItem[]
+  installments FeeStructureInstallment[]
 
   /// One live structure per class level per year keeps "what does Nursery cost"
   /// a question with a single answer.
@@ -1678,6 +1693,107 @@ model FeeStructureItem {
   @@unique([feeStructureId, feeHeadId])
   @@index([schoolId])
   @@map("fee_structure_items")
+}
+
+/// A standard's installments as the office types them: a date and an amount.
+/// Together they come to the year's recurring fees; a one-time fee (admission)
+/// is added to the first, for a child in their first year.
+model FeeStructureInstallment {
+  id             String @id @default(cuid())
+  schoolId       String
+  feeStructureId String
+
+  position      Int
+  label         String   @db.VarChar(40)
+  dueDate       DateTime @db.Date
+  amountInPaise Int
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+
+  @@unique([feeStructureId, position])
+  @@index([schoolId])
+  @@map("fee_structure_installments")
+}
+
+/// Where families send money: the school's bank account and UPI ID. A family
+/// is shown only what is switched on.
+model SchoolPaymentDetails {
+  id       String @id @default(cuid())
+  schoolId String @unique
+
+  bankEnabled     Boolean @default(false)
+  bankAccountName String? @db.VarChar(120)
+  bankAccountNo   String? @db.VarChar(40)
+  bankIfsc        String? @db.VarChar(20)
+  bankName        String? @db.VarChar(120)
+
+  upiEnabled Boolean @default(false)
+  upiId      String? @db.VarChar(100)
+  upiName    String? @db.VarChar(120)
+
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@map("school_payment_details")
+}
+
+/// How a family pays a year when the standard has its own installments.
+enum FeeOption {
+  INSTALLMENTS
+  PAY_IN_FULL
+}
+
+enum PaymentProofKind {
+  INSTALLMENT
+  PAY_IN_FULL
+}
+
+enum PaymentProofStatus {
+  WAITING
+  APPROVED
+  REJECTED
+}
+
+/// A family's word that they paid, with the screenshot to show it. Nothing is
+/// paid until the office approves it; approving records an ordinary payment.
+model PaymentProof {
+  id             String  @id @default(cuid())
+  schoolId       String
+  studentId      String
+  academicYearId String
+  /// The installment paid; null when paying the whole year.
+  invoiceId      String?
+
+  kind          PaymentProofKind
+  status        PaymentProofStatus @default(WAITING)
+  amountInPaise Int
+  method        PaymentMethod
+  reference     String?            @db.VarChar(80)
+
+  screenshotFileId String
+  submittedById    String?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  rejectReason     String?   @db.VarChar(200)
+  paymentId        String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  invoice      FeeInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  screenshot   FileObject   @relation(fields: [screenshotFileId], references: [id], onDelete: Cascade)
+  submittedBy  User?        @relation("PaymentProofSender", fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy   User?        @relation("PaymentProofReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  payment      Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status, createdAt])
+  @@index([studentId, academicYearId])
+  @@map("payment_proofs")
 }
 
 /// The only sanctioned way one child pays less than another. Carries a reason
@@ -1744,6 +1860,7 @@ model FeeInvoice {
   allocations    PaymentAllocation[]
   reminderLogs   FeeReminderLog[]
   followUps      FeeFollowUp[]
+  paymentProofs  PaymentProof[]
 
   /// Generation is idempotent on this key: re-running a month never
   /// double-charges a child.
@@ -1800,6 +1917,7 @@ model Payment {
   student     Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
   recordedBy  User                @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
   allocations PaymentAllocation[]
+  proof       PaymentProof?
 
   @@unique([schoolId, receiptNo])
   @@index([schoolId, studentId, paidOn])
@@ -1890,11 +2008,14 @@ model FeePlanInstallment {
 /// database refuses a second, so a parent tapping Confirm twice gets the one
 /// schedule, not two.
 model StudentFeePlan {
-  id             String @id @default(cuid())
+  id             String     @id @default(cuid())
   schoolId       String
   studentId      String
   academicYearId String
-  planId         String
+  /// A plan from the plans page. Null when the family pays by their
+  /// standard's own installments, or in full — see `option`.
+  planId         String?
+  option         FeeOption?
 
   chosenById   String
   /// PARENT or the office role that set it.
@@ -1906,7 +2027,7 @@ model StudentFeePlan {
   school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  plan         FeePlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  plan         FeePlan?     @relation(fields: [planId], references: [id], onDelete: Restrict)
   chosenBy     User         @relation("FeePlanChooser", fields: [chosenById], references: [id], onDelete: Restrict)
   invoices     FeeInvoice[]
 
@@ -2878,6 +2999,7 @@ model FileObject {
   documents                StudentDocument[]
   homeworkAttachments      HomeworkAttachment[]
   submissionFiles          HomeworkSubmissionFile[]
+  paymentProofs            PaymentProof[]
   classroomPostAttachments ClassroomPostAttachment[]
   noticeAttachments        NoticeAttachment[]
 

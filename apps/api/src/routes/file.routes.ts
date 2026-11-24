@@ -257,6 +257,8 @@ async function assertMayRead(fileId: string): Promise<void> {
             some: { submission: { studentId: { in: studentIds } } },
           },
         },
+        // The screenshot of a payment they sent for their own child.
+        { paymentProofs: { some: { studentId: { in: studentIds } } } },
       ],
     },
     select: { id: true },

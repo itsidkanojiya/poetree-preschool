@@ -20,7 +20,12 @@ export function FeePlanMover({
   studentName: string;
   choice: FeePlanChoice;
 }) {
-  const others = choice.options.filter((option) => option.id !== choice.current?.planId);
+  const others = choice.options.filter(
+    (option) =>
+      option.id !== choice.current?.planId &&
+      // Paying in full is for a year with nothing paid yet.
+      !(option.id === 'PAY_IN_FULL' && choice.paidInPaise > 0),
+  );
   const [planId, setPlanId] = useState(others[0]?.id ?? '');
   const [state, setState] = useState<FeePlanState>({});
   // Remounts the button, which closes its dialog once the move has run.

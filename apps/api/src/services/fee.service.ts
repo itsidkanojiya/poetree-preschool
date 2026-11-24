@@ -691,7 +691,7 @@ export async function invoiceDetail(invoiceId: string): Promise<FeeInvoiceDetail
         include: { payment: true },
         orderBy: { payment: { paidOn: 'asc' } },
       },
-      studentFeePlan: { select: { plan: { select: { name: true } } } },
+      studentFeePlan: { select: { option: true, plan: { select: { name: true } } } },
     },
   });
   if (!invoice) throw ApiError.notFound('Invoice not found');
@@ -707,7 +707,9 @@ export async function invoiceDetail(invoiceId: string): Promise<FeeInvoiceDetail
     });
     const index = siblings.findIndex((s) => s.id === invoice.id);
     plan = {
-      name: invoice.studentFeePlan.plan.name,
+      name:
+        invoice.studentFeePlan.plan?.name ??
+        (invoice.studentFeePlan.option === 'PAY_IN_FULL' ? 'Pay in full' : 'Installments'),
       position: index >= 0 ? index + 1 : 0,
       count: siblings.length,
     };

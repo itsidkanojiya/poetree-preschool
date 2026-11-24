@@ -608,6 +608,50 @@ describe.skipIf(!dbUp)('parent registration', () => {
     expect(stranger.body.error.code).toBe('INVALID_CREDENTIALS');
   });
 
+  it('bills the fees the office chose when it approves the child into a class', async () => {
+    const head = await api
+      .post(`${BASE}/fees/heads`)
+      .set(auth(admin))
+      .send({ code: 'TUITION', name: 'Tuition' })
+      .expect(201);
+    const due = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+    await api
+      .put(`${BASE}/fees/structures`)
+      .set(auth(admin))
+      .send({
+        academicYearId: school.academicYearId,
+        classLevelId: nurseryId,
+        name: 'Nursery',
+        items: [{ feeHeadId: head.body.id, amountInPaise: 3_000_000, frequency: 'ANNUAL' }],
+        installments: [{ dueDate: due, amountInPaise: 3_000_000 }],
+        payInFull: { enabled: true, discountKind: 'FIXED', discountValue: 200_000 },
+      })
+      .expect(200);
+
+    await submit(
+      'alpha',
+      form({ phone: '+919820007021', studentFirstName: 'Myra', studentLastName: 'Feewise' }),
+    );
+    const queue = await api.get(`${BASE}/registrations`).set(auth(admin));
+    const waiting = queue.body.items.find((r: { phone: string }) => r.phone === '+919820007021');
+
+    const approved = await api
+      .post(`${BASE}/registrations/${waiting.id}/approve`)
+      .set(auth(admin))
+      .send({
+        mode: 'CREATE',
+        gender: 'FEMALE',
+        classroomId: school.classroomId,
+        feeOption: 'PAY_IN_FULL',
+      })
+      .expect(200);
+
+    const invoices = await prismaUnscoped.feeInvoice.findMany({
+      where: { studentId: approved.body.student.id },
+    });
+    expect(invoices.map((i) => i.netInPaise)).toEqual([2_800_000]);
+  });
+
   it('refuses a mismatched confirmation before anything else happens', async () => {
     const typo = await submit(
       'alpha',

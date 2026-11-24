@@ -5,7 +5,9 @@ import { apiFetch } from '@/lib/api';
 import { formatPrice } from '@/lib/format';
 import { Card, EmptyState, Notice, PageHeader } from '@/components/ui/layout';
 import { IconArrowLeft } from '@/components/icons';
+import { DeleteButton } from '@/components/ui/delete-button';
 import { AddHeadForm, StructureForm, type SavedItem } from './forms';
+import { deleteFeeHeadAction } from './actions';
 import { FREQUENCIES, type FrequencyValue } from './frequencies';
 
 export const metadata: Metadata = { title: 'Fee structure · Poetree' };
@@ -21,18 +23,22 @@ interface StructureRow {
   classLevelId: string;
   isActive: boolean;
   items: Array<{ feeHeadId: string; amountInPaise: number; frequency: FrequencyValue }>;
+  installments: Array<{ dueDate: string; amountInPaise: number }>;
+  payInFullEnabled: boolean;
+  payInFullDiscountKind: 'FIXED' | 'PERCENT';
+  payInFullDiscountValue: number;
 }
 
 const perYear = (frequency: FrequencyValue) =>
   FREQUENCIES.find((f) => f.value === frequency)?.perYear ?? 1;
 
 /**
- * What each standard pays, year by year.
+ * What each standard pays, year by year, and how families pay it.
  *
- * Every standard has its own amounts, and every school its own structure. A
- * fee charged "Once, for new children" — admission — is billed only in a
- * child's first year at the school, whole, with the first installment. The
- * installment plans divide the rest of the year between them.
+ * Every standard has its own yearly amounts and its own installments, typed
+ * as dates and amounts. A fee for new children only — admission — is billed
+ * only in a child's first year at the school, whole, with the first
+ * installment. A standard can also offer a discount for paying in full.
  */
 export default async function FeeStructurePage({
   searchParams,
@@ -63,7 +69,7 @@ export default async function FeeStructurePage({
           </Link>
         }
         title="Fee structure"
-        description="What each standard pays this year. Installment plans divide it; an admission fee is charged once, to children new to the school, with the first installment."
+        description="What each standard pays this year, its installments, and any discount for paying in full. A fee for new children only is added to their first installment."
       />
 
       {!selected ? (
@@ -103,9 +109,22 @@ export default async function FeeStructurePage({
                     <li
                       key={head.id}
                       data-fee-head
-                      className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm text-navy-950"
+                      className="inline-flex items-center gap-1 rounded-lg bg-slate-100 py-1 pl-2.5 pr-1 text-sm text-navy-950"
                     >
                       {head.name}
+                      <DeleteButton
+                        action={deleteFeeHeadAction.bind(null, head.id)}
+                        label="✕"
+                        title={`Remove ${head.name}?`}
+                        body={
+                          <p>
+                            {head.name} is taken off every standard. A fee already billed to
+                            families cannot be removed.
+                          </p>
+                        }
+                        confirmLabel="Remove for good"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-xs text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
+                      />
                     </li>
                   ))}
                 </ul>
@@ -130,10 +149,18 @@ export default async function FeeStructurePage({
                     s.classLevelId === standard.id &&
                     s.isActive,
                 );
+                // A yearly amount each; a fee once set as monthly or quarterly
+                // shows as what it comes to in a year, and is saved that way.
                 const saved: Record<string, SavedItem> = Object.fromEntries(
                   (structure?.items ?? []).map((item) => [
                     item.feeHeadId,
-                    { amountInPaise: item.amountInPaise, frequency: item.frequency },
+                    {
+                      yearlyInPaise:
+                        item.frequency === 'ONE_TIME'
+                          ? item.amountInPaise
+                          : item.amountInPaise * perYear(item.frequency),
+                      newChildrenOnly: item.frequency === 'ONE_TIME',
+                    },
                   ]),
                 );
                 const items = structure?.items ?? [];
@@ -150,7 +177,11 @@ export default async function FeeStructurePage({
                     title={standard.name}
                     description={
                       structure
-                        ? `${formatPrice(yearly)} a year${once > 0 ? ` · ${formatPrice(once)} admission (new children)` : ''}`
+                        ? `${formatPrice(yearly)} a year${once > 0 ? ` · ${formatPrice(once)} more for new children` : ''}${
+                            structure.installments.length > 0
+                              ? ` · ${structure.installments.length} installment${structure.installments.length === 1 ? '' : 's'}`
+                              : ' · installments not set'
+                          }`
                         : 'Not set for this year yet.'
                     }
                   >
@@ -162,6 +193,15 @@ export default async function FeeStructurePage({
                       standardName={standard.name}
                       heads={activeHeads}
                       saved={saved}
+                      savedInstallments={(structure?.installments ?? []).map((i) => ({
+                        dueDate: i.dueDate.slice(0, 10),
+                        amountInPaise: i.amountInPaise,
+                      }))}
+                      savedPayInFull={{
+                        enabled: structure?.payInFullEnabled ?? false,
+                        discountKind: structure?.payInFullDiscountKind ?? 'FIXED',
+                        discountValue: structure?.payInFullDiscountValue ?? 0,
+                      }}
                     />
                   </Card>
                 );

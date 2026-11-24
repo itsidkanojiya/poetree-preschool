@@ -7,7 +7,9 @@ import {
   idParamSchema,
   idSchema,
   setStudentPhotoSchema,
+  submitPaymentProofSchema,
   type ChooseFeePlanInput,
+  type SubmitPaymentProofInput,
 } from '@poetree/shared';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { body, params, query, validate } from '../middleware/validate.js';
@@ -20,6 +22,7 @@ import * as certificates from '../services/certificate.service.js';
 import * as results from '../services/result.service.js';
 import * as students from '../services/student.service.js';
 import * as feePlans from '../services/feePlan.service.js';
+import * as feePayments from '../services/feePayment.service.js';
 import * as registrations from '../services/registration.service.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { studentName } from '../lib/names.js';
@@ -294,6 +297,44 @@ meRouter.post(
         req.auth!.userId,
       ),
     );
+  }),
+);
+
+/**
+ * How to pay the school: its bank account or UPI ID, the payments this family
+ * has sent and where each stands, and whether the year can still be paid in
+ * full for less.
+ */
+meRouter.get(
+  '/children/:id/fee-payment',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(await feePayments.paymentInfo(params<{ id: string }>(req).id));
+  }),
+);
+
+/**
+ * "We have paid": a screenshot of the transfer, for the school to check. The
+ * amount is what is owed, never typed; nothing is paid until it is approved.
+ */
+meRouter.post(
+  '/children/:id/fee-payment-proofs',
+  requirePermission('fee:read'),
+  validate({ params: idParamSchema, body: submitPaymentProofSchema }),
+  asyncHandler(async (req, res) => {
+    if (req.auth!.role !== 'PARENT') {
+      throw ApiError.forbidden('Only a parent sends a payment from the app');
+    }
+    res
+      .status(201)
+      .json(
+        await feePayments.submitProof(
+          params<{ id: string }>(req).id,
+          body<SubmitPaymentProofInput>(req),
+          req.auth!.userId,
+        ),
+      );
   }),
 );
 

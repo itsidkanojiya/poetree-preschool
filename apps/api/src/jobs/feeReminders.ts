@@ -175,6 +175,10 @@ export async function runFeeReminders(
         schoolId: school.id,
         status: { in: ['ISSUED', 'PARTIAL'] },
         dueDate: { lte: new Date(`${addDays(today, furthest)}T00:00:00Z`) },
+        // Not while the family's screenshot is with the school: they have
+        // paid, as far as they know, and a reminder would say otherwise.
+        paymentProofs: { none: { status: 'WAITING' } },
+        student: { paymentProofs: { none: { status: 'WAITING', kind: 'PAY_IN_FULL' } } },
       },
       select: {
         id: true,

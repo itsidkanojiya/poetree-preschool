@@ -40,16 +40,21 @@ export async function approveRegistrationAction(
   const admissionNo = String(formData.get('admissionNo') ?? '').trim();
   const classroomId = String(formData.get('classroomId') ?? '').trim();
   const gender = String(formData.get('gender') ?? '').trim();
+  // How the fees are paid, billed as the child is approved. Empty: the family
+  // chooses in the app.
+  const fees = String(formData.get('feeOption') ?? '');
+  const feeOption = fees === 'INSTALLMENTS' || fees === 'PAY_IN_FULL' ? { feeOption: fees } : {};
 
   try {
     await apiFetch(`/registrations/${registrationId}/approve`, {
       method: 'POST',
       redirectOnAuthFailure: false,
       body: studentId
-        ? { mode: 'LINK', studentId }
+        ? { mode: 'LINK', studentId, ...feeOption }
         : {
             mode: 'CREATE',
             gender,
+            ...feeOption,
             // Absent rather than empty: the API issues one from the school's
             // own series, and an empty string would fail validation instead.
             ...(admissionNo ? { admissionNo } : {}),

@@ -18,9 +18,10 @@ export default async function FeesPage() {
   // Only the count is wanted here. Paging through every child to get it was
   // the price of having the payment picker on this screen, and the picker has
   // moved to its own page — so ask for one row and read the total.
-  const [outstanding, enrolled] = await Promise.all([
+  const [outstanding, enrolled, proofs] = await Promise.all([
     apiFetch<OutstandingRow[]>('/fees/outstanding'),
     apiFetch<Paginated<StudentSummary>>('/students', { query: { pageSize: 1 } }),
+    apiFetch<{ waiting: number }>('/fees/proofs/count'),
   ]);
 
   const totalOutstanding = outstanding.reduce((sum, row) => sum + row.outstandingInPaise, 0);
@@ -39,8 +40,18 @@ export default async function FeesPage() {
             >
               Fee structure
             </Link>
-            <Link href="/school/fees/plans" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
-              Installment plans
+            <Link href="/school/fees/payment-details" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
+              Payment details
+            </Link>
+            <Link
+              href="/school/fees/to-approve"
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
+                proofs.waiting > 0
+                  ? 'bg-gold-100 text-gold-900 ring-1 ring-gold-300 hover:bg-gold-200'
+                  : 'text-navy-900 ring-1 ring-navy-200 hover:bg-navy-50'
+              }`}
+            >
+              {proofs.waiting > 0 ? `${proofs.waiting} to approve` : 'Payments to approve'}
             </Link>
             <Link href="/school/fees/follow-ups" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
               Follow-ups

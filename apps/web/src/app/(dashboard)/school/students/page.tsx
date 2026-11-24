@@ -1,3 +1,4 @@
+import { AutoSubmitForm } from '@/components/ui/auto-submit-form';
 import Link from 'next/link';
 import type {
   AcademicYearSummary,
@@ -135,7 +136,8 @@ export default async function StudentsPage({
       <StudentsSectionTabs current={showRemoved ? 'removed' : 'children'} />
 
       <Card className="mb-5">
-        <form className="flex flex-wrap items-end gap-3" action="/school/students">
+        {/* A class chosen applies at once; a search runs on Enter. */}
+        <AutoSubmitForm className="flex flex-wrap items-end gap-3" action="/school/students">
           {showRemoved && <input type="hidden" name="removed" value="true" />}
           <div className="min-w-[16rem] flex-1">
             <label
@@ -153,7 +155,7 @@ export default async function StudentsPage({
                 id="student-search"
                 name="search"
                 defaultValue={search}
-                placeholder="Child’s name, admission number, or a parent’s name or mobile"
+                placeholder="Child’s name, admission or GR number, or a parent’s name or mobile"
                 className="w-full rounded-xl border-0 bg-white py-2.5 pl-10 pr-3.5 text-sm text-navy-950 shadow-sm ring-1 ring-inset ring-navy-950/15 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-navy-600"
               />
             </div>
@@ -187,7 +189,7 @@ export default async function StudentsPage({
             type="submit"
             className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-inset ring-navy-950/15 transition-colors hover:bg-navy-50"
           >
-            Apply
+            Search
           </button>
 
           {filtered && (
@@ -198,7 +200,7 @@ export default async function StudentsPage({
               Clear
             </Link>
           )}
-        </form>
+        </AutoSubmitForm>
       </Card>
 
       {showRemoved ? (

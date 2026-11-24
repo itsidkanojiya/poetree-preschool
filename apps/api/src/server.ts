@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { disconnectPrisma } from './db/prisma.js';
 import { startFeeReminders, stopFeeReminders } from './jobs/feeReminders.js';
+import { startBirthdayWishes, stopBirthdayWishes } from './jobs/birthdayWishes.js';
 
 const app = createApp();
 
@@ -12,11 +13,15 @@ const server = app.listen(env.PORT, () => {
 
 // Fee reminders go from here, on the server's own schedule — never only from
 // a parent's phone. Not under test, where each run is started by hand.
-if (!env.isTest) startFeeReminders();
+if (!env.isTest) {
+  startFeeReminders();
+  startBirthdayWishes();
+}
 
 async function shutdown(signal: string): Promise<void> {
   logger.info('Shutting down', { signal });
   stopFeeReminders();
+  stopBirthdayWishes();
 
   server.close(() => {
     void disconnectPrisma().then(() => process.exit(0));

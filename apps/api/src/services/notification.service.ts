@@ -23,7 +23,8 @@ export type NotificationType =
   | 'PROGRESS_UPDATED'
   | 'ACCOUNT_SECURITY'
   | 'RESULT_PUBLISHED'
-  | 'CERTIFICATE_ISSUED';
+  | 'CERTIFICATE_ISSUED'
+  | 'BIRTHDAY_WISH';
 
 export interface NotifyInput {
   schoolId: string;

@@ -797,6 +797,7 @@ const profileSelect = {
   idCardShowAdmissionNo: true,
   idCardShowGrNo: true,
   admissionNoMode: true,
+  birthdayWishesEnabled: true,
 } as const;
 
 function toProfile(row: {
@@ -832,6 +833,7 @@ function toProfile(row: {
     idCardShowAdmissionNo: school.idCardShowAdmissionNo,
     idCardShowGrNo: school.idCardShowGrNo,
     admissionNoMode: school.admissionNoMode,
+    birthdayWishesEnabled: school.birthdayWishesEnabled,
   };
 }
 

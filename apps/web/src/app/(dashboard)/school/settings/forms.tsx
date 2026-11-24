@@ -11,6 +11,7 @@ import { Field, FieldSet, FormError, Input, Select, SubmitButton } from '@/compo
 import { Toast } from '@/components/ui/toast';
 import {
   updateAdmissionNoModeAction,
+  updateBirthdayWishesAction,
   updateIdCardAction,
   updateSchoolProfileAction,
   uploadSchoolLogoAction,
@@ -272,6 +273,39 @@ export function IdCardForm({ school }: { school: SchoolProfile }) {
       </fieldset>
 
       <SubmitButton pendingLabel="Saving…">Save card settings</SubmitButton>
+    </form>
+  );
+}
+
+/** A message to parents on their child's birthday, from the school. */
+export function BirthdayWishesForm({ school }: { school: SchoolProfile }) {
+  const [state, formAction] = useActionState<SettingsState, FormData>(
+    updateBirthdayWishesAction,
+    {},
+  );
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <FormError message={state.error} />
+      <Toast message={state.success} />
+      <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm text-navy-950">
+        <input
+          type="checkbox"
+          name="birthdayWishesEnabled"
+          defaultChecked={school.birthdayWishesEnabled}
+          className="mt-0.5 h-5 w-5 rounded border-navy-300 text-amber-500 focus:ring-amber-400"
+        />
+        <span>
+          <span className="block font-semibold">Send birthday wishes</span>
+          <span className="block text-xs text-slate-500">
+            On a child’s birthday their parents get a message at 9:00 am.
+          </span>
+        </span>
+      </label>
+      <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-100">
+        🎂 “Happy birthday, Aarav! Warm wishes from everyone at {school.name}.”
+      </p>
+      <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
     </form>
   );
 }

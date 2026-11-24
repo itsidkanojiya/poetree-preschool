@@ -83,8 +83,6 @@ import { tenantContext } from '../middleware/tenantContext.js';
 import { requirePermission } from '../middleware/requirePermission.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { body, params, query, validate } from '../middleware/validate.js';
-import { prisma } from '../db/prisma.js';
-import { holdsParent, holdsTeacher } from '../services/roles.service.js';
 import * as printAssets from '../services/printAssets.service.js';
 import * as teacherService from '../services/teacher.service.js';
 import * as parentService from '../services/parent.service.js';
@@ -94,6 +92,7 @@ import * as galleryService from '../services/gallery.service.js';
 import * as driveService from '../services/drive.service.js';
 import * as schoolService from '../services/school.service.js';
 import * as idCards from '../services/idCard.service.js';
+import * as dashboard from '../services/dashboard.service.js';
 import * as studentService from '../services/student.service.js';
 import * as erase from '../services/erase.service.js';
 import * as exportService from '../services/export.service.js';
@@ -119,17 +118,19 @@ const idOf = (req: Request) => params<{ id: string }>(req).id;
 /* Dashboard                                                                  */
 /* -------------------------------------------------------------------------- */
 
+/** Everything on the school's front page, in one request. */
 schoolAdminRouter.get(
   '/dashboard/overview',
   asyncHandler(async (_req, res) => {
-    const [students, teachers, parents, classrooms] = await Promise.all([
-      prisma.student.count({ where: { status: 'ACTIVE' } }),
-      prisma.user.count({ where: { ...holdsTeacher, status: 'ACTIVE' } }),
-      prisma.user.count({ where: { ...holdsParent, status: 'ACTIVE' } }),
-      prisma.classroom.count(),
-    ]);
+    res.json(await dashboard.overview());
+  }),
+);
 
-    res.json({ students, teachers, parents, classrooms });
+/** What is waiting on the office, for the counts beside the menu. */
+schoolAdminRouter.get(
+  '/dashboard/attention',
+  asyncHandler(async (_req, res) => {
+    res.json(await dashboard.attention());
   }),
 );
 

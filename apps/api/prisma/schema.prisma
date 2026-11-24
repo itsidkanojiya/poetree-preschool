@@ -346,6 +346,7 @@ enum NotificationType {
   ACCOUNT_SECURITY
   RESULT_PUBLISHED
   CERTIFICATE_ISSUED
+  BIRTHDAY_WISH
 }
 
 // ---------------------------------------------------------------------------
@@ -488,6 +489,10 @@ model School {
   idCardShowGrNo        Boolean           @default(false)
 
   admissionNoMode AdmissionNoMode @default(AUTO)
+
+  /// A message to a child's parents on their birthday, in the morning. Off
+  /// until the school switches it on.
+  birthdayWishesEnabled Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

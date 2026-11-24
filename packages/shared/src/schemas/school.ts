@@ -116,6 +116,7 @@ export const updateSchoolProfileSchema = z.object({
   idCardShowAdmissionNo: z.boolean().optional(),
   idCardShowGrNo: z.boolean().optional(),
   admissionNoMode: z.enum(ADMISSION_NO_MODES).optional(),
+  birthdayWishesEnabled: z.boolean().optional(),
 });
 export type UpdateSchoolProfileInput = z.infer<typeof updateSchoolProfileSchema>;
 
@@ -148,6 +149,8 @@ export interface SchoolProfile {
   idCardShowAdmissionNo: boolean;
   idCardShowGrNo: boolean;
   admissionNoMode: AdmissionNoMode;
+  /** A message to a child's parents on their birthday. */
+  birthdayWishesEnabled: boolean;
 }
 
 /** Null clears it. */

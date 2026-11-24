@@ -233,6 +233,7 @@ export const NOTIFICATION_TYPES = [
   'ACCOUNT_SECURITY',
   'RESULT_PUBLISHED',
   'CERTIFICATE_ISSUED',
+  'BIRTHDAY_WISH',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

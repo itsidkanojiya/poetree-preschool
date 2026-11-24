@@ -21,10 +21,14 @@ export function PageHeader({
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
-        <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight text-navy-950">
+        <h1 className="font-display text-[1.9rem] font-extrabold leading-tight tracking-tight text-navy-950">
           {title}
         </h1>
-        {description && <p className="mt-1.5 max-w-2xl text-sm text-slate-500">{description}</p>}
+        {description && (
+          <p className="mt-1.5 max-w-2xl text-[0.9375rem] leading-relaxed text-slate-600">
+            {description}
+          </p>
+        )}
       </div>
       {action}
     </div>
@@ -54,12 +58,14 @@ export function Card({
         : 'ring-1 ring-navy-950/[0.07]';
 
   return (
-    <section className={`overflow-hidden rounded-2xl bg-white shadow-card ${ring} ${className}`}>
+    <section className={`overflow-hidden rounded-3xl bg-white shadow-card ${ring} ${className}`}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-4 border-b border-navy-950/[0.06] px-5 py-4">
           <div className="min-w-0">
-            {title && <h2 className="text-[1.0625rem] font-bold text-navy-950">{title}</h2>}
-            {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+            {title && (
+              <h2 className="font-display text-lg font-extrabold text-navy-950">{title}</h2>
+            )}
+            {description && <p className="mt-0.5 text-sm text-slate-600">{description}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
         </header>
@@ -96,28 +102,29 @@ export function StatTile({
   value: ReactNode;
   hint?: string;
   icon?: ReactNode;
-  tone?: 'default' | 'good' | 'critical' | 'warning';
+  tone?: 'default' | 'good' | 'critical' | 'warning' | 'sky' | 'violet';
 }) {
-  const accent =
-    tone === 'good'
-      ? 'text-leaf-600 bg-leaf-50'
-      : tone === 'critical'
-        ? 'text-rose-600 bg-rose-50'
-        : tone === 'warning'
-          ? 'text-gold-700 bg-gold-50'
-          : 'text-navy-700 bg-navy-50';
+  const accent = {
+    good: { chip: 'text-emerald-700 bg-emerald-50', value: 'text-emerald-700', bar: 'bg-emerald-500' },
+    critical: { chip: 'text-rose-600 bg-rose-50', value: 'text-rose-600', bar: 'bg-rose-500' },
+    warning: { chip: 'text-amber-700 bg-amber-50', value: 'text-amber-700', bar: 'bg-amber-400' },
+    sky: { chip: 'text-sky-700 bg-sky-50', value: 'text-sky-700', bar: 'bg-sky-500' },
+    violet: { chip: 'text-violet-700 bg-violet-50', value: 'text-violet-700', bar: 'bg-violet-500' },
+    default: { chip: 'text-navy-700 bg-navy-50', value: 'text-navy-950', bar: 'bg-navy-400' },
+  }[tone];
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-card ring-1 ring-navy-950/[0.07]">
+    <div className="relative overflow-hidden rounded-3xl bg-white p-5 shadow-card ring-1 ring-navy-950/[0.07]">
+      <span className={`absolute inset-x-0 top-0 h-1 ${accent.bar}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm text-slate-500">{label}</p>
+        <p className="text-sm font-semibold text-slate-600">{label}</p>
         {icon && (
-          <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${accent}`}>
+          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${accent.chip}`}>
             {icon}
           </span>
         )}
       </div>
-      <p className="mt-2 text-3xl font-semibold leading-none tracking-tight text-navy-950">
+      <p className={`mt-2 font-display text-3xl font-extrabold leading-none tracking-tight ${accent.value}`}>
         {typeof value === 'number' ? compact(value) : value}
       </p>
       {hint && <p className="mt-2 text-xs leading-relaxed text-slate-500">{hint}</p>}

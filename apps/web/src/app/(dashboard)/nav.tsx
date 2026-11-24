@@ -5,22 +5,44 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import {
   IconAward,
+  IconCalendar,
   IconChart,
+  IconClipboard,
   IconDownload,
   IconClassroom,
   IconHome,
+  IconImage,
+  IconMegaphone,
   IconParents,
   IconPlan,
   IconReport,
+  IconRupee,
   IconSchool,
   IconInbox,
+  IconSettings,
   IconSpark,
+  IconStar,
   IconStudent,
   IconTeacher,
   IconTrace,
   IconGame,
   IconCloud,
 } from '@/components/icons';
+
+/**
+ * Each part of the school has its colour — people sky, money green, classes
+ * violet, the office amber — on its icons and on the page you are on, so where
+ * you are reads at a glance.
+ */
+type Tone = 'home' | 'people' | 'money' | 'classes' | 'office';
+
+const TONES: Record<Tone, { active: string; icon: string; badge: string }> = {
+  home: { active: 'bg-navy-900 text-white', icon: 'text-navy-600', badge: 'bg-rose-500' },
+  people: { active: 'bg-sky-600 text-white', icon: 'text-sky-600', badge: 'bg-rose-500' },
+  money: { active: 'bg-emerald-600 text-white', icon: 'text-emerald-600', badge: 'bg-rose-500' },
+  classes: { active: 'bg-violet-600 text-white', icon: 'text-violet-600', badge: 'bg-rose-500' },
+  office: { active: 'bg-amber-600 text-white', icon: 'text-amber-600', badge: 'bg-rose-500' },
+};
 
 interface NavItem {
   href: string;
@@ -34,6 +56,7 @@ interface NavItem {
 
 interface NavGroup {
   heading?: string;
+  tone?: Tone;
   items: NavItem[];
 }
 
@@ -84,58 +107,66 @@ const PUBLICATION_NAV: NavGroup[] = [
 
 const SCHOOL_NAV: NavGroup[] = [
   {
+    tone: 'home',
     items: [{ href: '/school', label: 'Overview', icon: <IconHome size={18} />, exact: true }],
   },
   {
     heading: 'People',
+    tone: 'people',
     items: [
-      { href: '/school/teachers', label: 'Teachers', icon: <IconTeacher size={18} /> },
-      // Parents are a tab of Students now: a child and their family in one place.
+      // Parents are a tab of Students: a child and their family in one place.
       {
         href: '/school/students',
         label: 'Students',
         icon: <IconStudent size={18} />,
         also: ['/school/parents'],
       },
+      { href: '/school/teachers', label: 'Teachers', icon: <IconTeacher size={18} /> },
       // Families waiting to be let in. Beside the people it will turn into.
-      { href: '/school/registrations', label: 'Registrations', icon: <IconInbox size={18} /> },
+      { href: '/school/registrations', label: 'Registrations', icon: <IconClipboard size={18} /> },
     ],
   },
   {
     heading: 'Money',
-    items: [{ href: '/school/fees', label: 'Fees', icon: <IconPlan size={18} /> }],
+    tone: 'money',
+    items: [{ href: '/school/fees', label: 'Fees', icon: <IconRupee size={18} /> }],
   },
   {
-    heading: 'Academics',
+    heading: 'Classes',
+    tone: 'classes',
     items: [
       { href: '/school/classrooms', label: 'Classrooms', icon: <IconClassroom size={18} /> },
-      { href: '/school/timetable', label: 'Timetable', icon: <IconClassroom size={18} /> },
-      { href: '/school/notices', label: 'Announcements', icon: <IconInbox size={18} /> },
-      // Beside announcements: both are the office deciding what families see.
-      { href: '/school/gallery', label: 'Gallery', icon: <IconSpark size={18} /> },
-      { href: '/school/progress', label: 'Progress', icon: <IconSpark size={18} /> },
+      { href: '/school/timetable', label: 'Timetable', icon: <IconCalendar size={18} /> },
       // Term report cards: set up here, filled in by class teachers, sent from here.
       { href: '/school/results', label: 'Results', icon: <IconReport size={18} /> },
+      { href: '/school/progress', label: 'Progress', icon: <IconStar size={18} /> },
     ],
   },
   {
     heading: 'Office',
+    tone: 'office',
     items: [
+      { href: '/school/notices', label: 'Announcements', icon: <IconMegaphone size={18} /> },
+      { href: '/school/gallery', label: 'Gallery', icon: <IconImage size={18} /> },
       { href: '/school/reports', label: 'Reports', icon: <IconChart size={18} /> },
       { href: '/school/certificates', label: 'Certificates', icon: <IconAward size={18} /> },
-      // The school's own record, and what it prints on an ID card.
-      { href: '/school/settings', label: 'Settings', icon: <IconSchool size={18} /> },
     ],
+  },
+  {
+    tone: 'home',
+    // The school's own record, ID cards and numbering: kept apart, at the foot.
+    items: [{ href: '/school/settings', label: 'Settings', icon: <IconSettings size={18} /> }],
   },
 ];
 
 const TEACHER_NAV: NavGroup[] = [
   {
+    tone: 'classes',
     items: [
       { href: '/teacher', label: 'Today', icon: <IconHome size={18} />, exact: true },
-      { href: '/teacher/attendance', label: 'Attendance', icon: <IconClassroom size={18} /> },
+      { href: '/teacher/attendance', label: 'Attendance', icon: <IconCalendar size={18} /> },
       { href: '/teacher/homework', label: 'Homework', icon: <IconPlan size={18} /> },
-      { href: '/teacher/stream', label: 'Class stream', icon: <IconInbox size={18} /> },
+      { href: '/teacher/stream', label: 'Class stream', icon: <IconMegaphone size={18} /> },
       { href: '/teacher/results', label: 'Report cards', icon: <IconReport size={18} /> },
     ],
   },
@@ -147,7 +178,14 @@ const BRANCH_SWITCH: NavGroup = {
   items: [{ href: '/organisation', label: 'Switch branch', icon: <IconSchool size={18} /> }],
 };
 
-export function SidebarNav({ role }: { role: string }) {
+export function SidebarNav({
+  role,
+  badges = {},
+}: {
+  role: string;
+  /** Counts beside a link, by its address: what is waiting there. */
+  badges?: Record<string, number>;
+}) {
   const pathname = usePathname();
   const groups =
     role === 'PUBLICATION_ADMIN'
@@ -159,39 +197,51 @@ export function SidebarNav({ role }: { role: string }) {
           : SCHOOL_NAV;
 
   return (
-    <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:gap-5 lg:overflow-visible lg:px-4 lg:pb-0">
-      {groups.map((group, index) => (
-        <div key={group.heading ?? index} className="flex gap-1 lg:flex-col lg:gap-0.5">
-          {group.heading && (
-            <p className="mb-1 hidden px-3 text-[0.65rem] font-semibold uppercase tracking-widest text-slate-400 lg:block">
-              {group.heading}
-            </p>
-          )}
-          {group.items.map((item) => {
-            const active = item.exact
-              ? pathname === item.href
-              : [item.href, ...(item.also ?? [])].some(
-                  (href) => pathname === href || pathname.startsWith(`${href}/`),
-                );
+    <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-col lg:gap-3 lg:overflow-visible lg:px-4 lg:pb-0">
+      {groups.map((group, index) => {
+        const tone = TONES[group.tone ?? 'home'];
+        return (
+          <div key={group.heading ?? index} className="flex gap-1 lg:flex-col lg:gap-0.5">
+            {group.heading && (
+              <p className="mb-1 hidden px-3 text-[0.68rem] font-bold uppercase tracking-widest text-slate-400 lg:block">
+                {group.heading}
+              </p>
+            )}
+            {group.items.map((item) => {
+              const active = item.exact
+                ? pathname === item.href
+                : [item.href, ...(item.also ?? [])].some(
+                    (href) => pathname === href || pathname.startsWith(`${href}/`),
+                  );
+              const count = badges[item.href] ?? 0;
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-navy-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-navy-50 hover:text-navy-900'
-                }`}
-              >
-                <span className={active ? 'text-gold-300' : 'text-slate-400'}>{item.icon}</span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex min-h-[44px] items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2 text-[0.9375rem] font-semibold transition-colors ${
+                    active
+                      ? `${tone.active} shadow-raised`
+                      : 'text-slate-700 hover:bg-slate-100 hover:text-navy-950'
+                  }`}
+                >
+                  <span className={active ? 'text-white' : tone.icon}>{item.icon}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {count > 0 && (
+                    <span
+                      className={`ml-2 min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-center text-xs font-bold text-white ${tone.badge}`}
+                      aria-label={`${count} waiting`}
+                    >
+                      {count > 99 ? '99+' : count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        );
+      })}
     </nav>
   );
 }

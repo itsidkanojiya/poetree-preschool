@@ -4,7 +4,13 @@ import { apiFetch } from '@/lib/api';
 import { Card, PageHeader } from '@/components/ui/layout';
 import { SignatureForm } from '@/components/signature-form';
 import { uploadPrincipalSignatureAction } from './actions';
-import { AdmissionNoForm, IdCardForm, LogoForm, SchoolDetailsForm } from './forms';
+import {
+  AdmissionNoForm,
+  BirthdayWishesForm,
+  IdCardForm,
+  LogoForm,
+  SchoolDetailsForm,
+} from './forms';
 
 export const metadata: Metadata = { title: 'Settings · Poetree' };
 
@@ -50,6 +56,13 @@ export default async function SchoolSettingsPage() {
               signatureUrl={school.principalSignatureUrl}
               name={school.principalName ?? 'The principal'}
             />
+          </Card>
+
+          <Card
+            title="Birthday wishes"
+            description="A message from the school to parents on their child’s birthday."
+          >
+            <BirthdayWishesForm school={school} />
           </Card>
 
           <Card

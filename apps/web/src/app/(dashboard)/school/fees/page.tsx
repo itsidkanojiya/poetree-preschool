@@ -31,62 +31,66 @@ export default async function FeesPage() {
     <>
       <PageHeader
         title="Fees"
-        description="Raise invoices, take payments, and see who still owes."
+        description="Take payments, see who still has to pay, and set up the year’s fees."
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/school/fees/structure"
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50"
-            >
-              Fee structure
-            </Link>
-            <Link href="/school/fees/payment-details" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
-              Payment details
-            </Link>
-            <Link
-              href="/school/fees/to-approve"
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                proofs.waiting > 0
-                  ? 'bg-gold-100 text-gold-900 ring-1 ring-gold-300 hover:bg-gold-200'
-                  : 'text-navy-900 ring-1 ring-navy-200 hover:bg-navy-50'
-              }`}
-            >
-              {proofs.waiting > 0 ? `${proofs.waiting} to approve` : 'Payments to approve'}
-            </Link>
-            <Link href="/school/fees/follow-ups" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
-              Follow-ups
-            </Link>
-            <Link href="/school/fees/invoices" className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-navy-900 ring-1 ring-navy-200 transition-colors hover:bg-navy-50">
-              Generate invoices
-            </Link>
-            <Link href="/school/fees/payment" className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-800">
-              <IconPlus size={17} />
-              Record a payment
-            </Link>
-          </div>
+          <Link
+            href="/school/fees/payment"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-raised transition-colors hover:bg-emerald-700"
+          >
+            <IconPlus size={17} />
+            Record a payment
+          </Link>
         }
       />
+
+      {/* Everything else, in the two jobs it belongs to. */}
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <FeeLinks
+          title="Set up"
+          links={[
+            { href: '/school/fees/structure', label: 'Fee structure', hint: 'What each standard pays' },
+            { href: '/school/fees/payment-details', label: 'Payment details', hint: 'Your UPI and bank account' },
+            { href: '/school/fees/invoices', label: 'Generate invoices', hint: 'Bill a month or term' },
+          ]}
+        />
+        <FeeLinks
+          title="Follow up"
+          links={[
+            {
+              href: '/school/fees/to-approve',
+              label: 'Payments to approve',
+              hint: 'Screenshots parents sent',
+              count: proofs.waiting,
+            },
+            { href: '/school/fees/follow-ups', label: 'Follow-ups', hint: 'Families to call' },
+          ]}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatTile
           label="Outstanding"
           value={formatPrice(totalOutstanding)}
           tone={totalOutstanding > 0 ? 'warning' : 'good'}
-          hint={`${outstanding.length} child(ren) with a balance`}
+          hint={
+            outstanding.length === 1
+              ? '1 child has fees to pay'
+              : `${outstanding.length} children have fees to pay`
+          }
         />
         <StatTile
           label="Past due date"
           value={withOverdue}
           tone={withOverdue > 0 ? 'critical' : 'good'}
-          hint="Overdue is derived from the due date, never stored"
+          hint="Installments past their due date"
         />
-        <StatTile label="Children enrolled" value={enrolled.total} />
+        <StatTile label="Children enrolled" value={enrolled.total} tone="sky" />
       </div>
 
       <div className="mt-6">
         <Card
           title="Who still owes"
-          description="Largest balance first. A payment settles the oldest invoice before the newest."
+          description="Largest amount first. A payment pays the oldest bill first."
         >
           {outstanding.length === 0 ? (
             <EmptyState
@@ -146,5 +150,46 @@ export default async function FeesPage() {
       </div>
 
     </>
+  );
+}
+
+/** A labelled group of fee pages, each with a line saying what it is for. */
+function FeeLinks({
+  title,
+  links,
+}: {
+  title: string;
+  links: Array<{ href: string; label: string; hint: string; count?: number }>;
+}) {
+  return (
+    <section className="rounded-3xl bg-white p-4 shadow-card ring-1 ring-navy-950/[0.06]">
+      <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-emerald-700">
+        {title}
+      </h2>
+      <ul className="space-y-1">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-emerald-50"
+            >
+              <span>
+                <span className="block font-semibold text-navy-950">{link.label}</span>
+                <span className="block text-xs text-slate-500">{link.hint}</span>
+              </span>
+              {link.count ? (
+                <span className="rounded-full bg-rose-500 px-2.5 py-0.5 text-xs font-bold text-white">
+                  {link.count} waiting
+                </span>
+              ) : (
+                <span className="text-slate-300" aria-hidden="true">
+                  ›
+                </span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

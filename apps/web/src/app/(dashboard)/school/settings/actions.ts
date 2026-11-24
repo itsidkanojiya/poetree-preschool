@@ -68,6 +68,29 @@ function cardType(value: string): { idCardLayout?: string; idCardOrientation?: s
   }
 }
 
+/** Birthday wishes to families, on or off. */
+export async function updateBirthdayWishesAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const on = formData.get('birthdayWishesEnabled') === 'on';
+  try {
+    await apiFetch('/school/profile', {
+      method: 'PATCH',
+      redirectOnAuthFailure: false,
+      body: { birthdayWishesEnabled: on },
+    });
+  } catch (error) {
+    return { error: errorMessage(error, 'Could not save birthday wishes.') };
+  }
+  refresh();
+  return {
+    success: on
+      ? 'Birthday wishes are on. Parents get one in the morning of their child’s birthday.'
+      : 'Birthday wishes are off.',
+  };
+}
+
 /** Automatic or manual admission numbers. */
 export async function updateAdmissionNoModeAction(
   _prev: SettingsState,
